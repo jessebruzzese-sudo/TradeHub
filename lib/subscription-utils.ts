@@ -1,0 +1,189 @@
+import { User, SubcontractorPlan, SubcontractorSubStatus } from './types';
+
+export interface SubcontractorTierLimits {
+  name: string;
+  price: number;
+  maxRadiusKm: number;
+  availabilityHorizonDays: number;
+  alertChannels: {
+    inApp: boolean;
+    email: boolean;
+    sms: boolean;
+  };
+  features: string[];
+}
+
+export const TIER_LIMITS: Record<SubcontractorPlan, SubcontractorTierLimits> = {
+  NONE: {
+    name: 'Free',
+    price: 0,
+    maxRadiusKm: 15,
+    availabilityHorizonDays: 14,
+    alertChannels: {
+      inApp: true,
+      email: true,
+      sms: true,
+    },
+    features: [
+      'Browse jobs matching your trade',
+      'Apply to jobs within 15km',
+      'Work alerts via in-app, email & SMS',
+      'Set availability up to 14 days ahead',
+      'Messaging with contractors',
+      'Profile visibility',
+    ],
+  },
+  PRO_10: {
+    name: 'Pro',
+    price: 10,
+    maxRadiusKm: 999,
+    availabilityHorizonDays: 60,
+    alertChannels: {
+      inApp: true,
+      email: true,
+      sms: true,
+    },
+    features: [
+      'All Free features',
+      'Expanded radius up to 999km',
+      'Set availability up to 60 days ahead',
+      'Availability broadcast to contractors',
+      'Pro badge on profile',
+      'Priority messaging access',
+    ],
+  },
+};
+
+export function hasComplimentaryPremium(user: User | null | undefined): boolean {
+  if (!user) return false;
+  if (!user.complimentaryPremiumUntil) return false;
+  return new Date(user.complimentaryPremiumUntil) > new Date();
+}
+
+export function isSubcontractorPro(user: User | null | undefined): boolean {
+  if (!user || user.role !== 'subcontractor') return false;
+
+  if (hasComplimentaryPremium(user)) {
+    return true;
+  }
+
+  return (
+    user.subcontractorPlan === 'PRO_10' &&
+    user.subcontractorSubStatus === 'ACTIVE'
+  );
+}
+
+export function getEffectiveRadiusKm(user: User): number {
+  if (!user || user.role !== 'subcontractor') {
+    return user?.radius || 15;
+  }
+
+  const preferredRadius = user.subcontractorPreferredRadiusKm || 15;
+  const isPro = isSubcontractorPro(user);
+  const maxRadius = isPro ? TIER_LIMITS.PRO_10.maxRadiusKm : TIER_LIMITS.NONE.maxRadiusKm;
+
+  return Math.min(preferredRadius, maxRadius);
+}
+
+export function getAvailabilityHorizonDays(user: User): number {
+  if (!user || user.role !== 'subcontractor') {
+    return 14;
+  }
+
+  const isPro = isSubcontractorPro(user);
+  return isPro ? TIER_LIMITS.PRO_10.availabilityHorizonDays : TIER_LIMITS.NONE.availabilityHorizonDays;
+}
+
+export function canUseAlertChannel(
+  user: User,
+  channel: 'inApp' | 'email' | 'sms'
+): boolean {
+  if (!user || user.role !== 'subcontractor') return false;
+
+  const isPro = isSubcontractorPro(user);
+  const limits = isPro ? TIER_LIMITS.PRO_10 : TIER_LIMITS.NONE;
+
+  return limits.alertChannels[channel];
+}
+
+export function getCurrentPlanLimits(user: User | null | undefined): SubcontractorTierLimits {
+  if (!user || user.role !== 'subcontractor') {
+    return TIER_LIMITS.NONE;
+  }
+
+  const isPro = isSubcontractorPro(user);
+  return isPro ? TIER_LIMITS.PRO_10 : TIER_LIMITS.NONE;
+}
+
+export function getPlanDisplayName(plan: SubcontractorPlan): string {
+  return TIER_LIMITS[plan].name;
+}
+
+export function getSubscriptionStatusDisplay(status: SubcontractorSubStatus): {
+  label: string;
+  color: string;
+} {
+  switch (status) {
+    case 'ACTIVE':
+      return { label: 'Active', color: 'green' };
+    case 'PAST_DUE':
+      return { label: 'Past Due', color: 'yellow' };
+    case 'CANCELED':
+      return { label: 'Canceled', color: 'gray' };
+    case 'NONE':
+    default:
+      return { label: 'No Subscription', color: 'gray' };
+  }
+}
+
+export function shouldShowProBadge(user: User | null | undefined): boolean {
+  return isSubcontractorPro(user);
+}
+
+export function getSubscriptionDisplayText(user: User | null | undefined): {
+  plan: string;
+  badge?: string;
+  expiryDate?: string;
+} {
+  if (!user || user.role !== 'subcontractor') {
+    return { plan: 'Free' };
+  }
+
+  if (hasComplimentaryPremium(user)) {
+    return {
+      plan: 'Premium',
+      badge: 'Complimentary',
+      expiryDate: user.complimentaryPremiumUntil,
+    };
+  }
+
+  if (user.subcontractorPlan === 'PRO_10' && user.subcontractorSubStatus === 'ACTIVE') {
+    return { plan: 'Premium' };
+  }
+
+  return { plan: 'Free' };
+}
+
+export function canUseWorkAlerts(user: User | null | undefined): boolean {
+  if (!user || user.role !== 'subcontractor') return false;
+  return true;
+}
+
+export function canUseAvailabilityBroadcast(user: User | null | undefined): boolean {
+  if (!user || user.role !== 'subcontractor') return false;
+  return isSubcontractorPro(user);
+}
+
+export function validateWorkAlerts(
+  inApp: boolean,
+  email: boolean,
+  sms: boolean
+): { valid: boolean; message?: string } {
+  if (!inApp && !email && !sms) {
+    return {
+      valid: false,
+      message: 'Choose at least one alert type (In-app, Email, or SMS) to stay notified.',
+    };
+  }
+  return { valid: true };
+}
