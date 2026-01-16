@@ -5,3 +5,5 @@
 .env.*.local
 .vercel
 .vercel.json
+# Supabase local temp
+supabase/.temp/
