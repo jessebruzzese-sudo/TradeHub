@@ -11,6 +11,7 @@ Tester: _______________
 ☐ Session persists after page refresh
 ☐ Logging out fully signs the user out (no auto re-login)
 ☐ Refresh after logout stays logged out
+  Users Can successfully change profile avatar, avatar should stay on account via supabase
 
 2. Authentication & Navigation
 
