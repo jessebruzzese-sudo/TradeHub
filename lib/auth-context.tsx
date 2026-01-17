@@ -20,7 +20,7 @@ interface AuthContextType {
   user: User | null;
   session: any | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<User | null>;
+  login: (email: string, password: string) => Promise<boolean>;
   signup: (
     name: string,
     email: string,
@@ -174,7 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     (async () => {
       try {
-        setIsLoading(true);
+        
 
         const { data, error } = await supabase.auth.getSession();
 
@@ -264,7 +264,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase, loadUserProfile, clearAllAuthState, clearSupabaseStorage]);
 
   const login = useCallback(
-    async (email: string, password: string): Promise<User | null> => {
+    async (email: string, password: string): Promise<boolean> => {
       setIsLoading(true);
       try {
         const cleanEmail = normalizeEmail(email);
@@ -286,12 +286,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           throw error;
         }
 
-        if (data?.user) {
-          const user = await loadUserProfile(data.user.id);
-          return user;
-        }
+        if (data?.session?.user || data?.user) {
+  return true;
+}
 
-        return null;
+return false;
+
       } finally {
         setIsLoading(false);
       }
@@ -314,7 +314,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         availability?: { [key: string]: boolean };
       }
     ) => {
-      setIsLoading(true);
+    
       try {
         const cleanName = (name || '').trim();
         const cleanEmail = normalizeEmail(email);
@@ -478,7 +478,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const quickLogin = useCallback(
     async (role: 'admin' | 'contractor' | 'subcontractor'): Promise<User | null> => {
-      setIsLoading(true);
+    
       try {
         const demoUser = demoUsers[role];
         const user = store.users.find((u) => u.id === demoUser.id);

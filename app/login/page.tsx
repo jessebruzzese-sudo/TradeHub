@@ -81,14 +81,19 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const user = await login(email, password);
+    const result = await login(email, password);
 
-      if (user) {
-        const defaultUrl = user.role === 'admin' ? '/admin' : '/dashboard';
-        const safeReturnUrl = getSafeReturnUrl(returnUrlParam, defaultUrl);
-        console.log('[Login] Login successful, redirecting to:', safeReturnUrl);
-        safeRouterReplace(router, safeReturnUrl, defaultUrl);
-      }
+// If login() returns null/undefined on failure, bail out
+if (!result) return;
+
+// If login() returns something truthy OR you just want to redirect after success:
+const role = (result as any)?.role; // may be undefined if login() returns void
+const defaultUrl = role === 'admin' ? '/admin' : '/dashboard';
+const safeReturnUrl = getSafeReturnUrl(returnUrlParam, defaultUrl);
+
+console.log('[Login] Login successful, redirecting to:', safeReturnUrl);
+safeRouterReplace(router, safeReturnUrl);
+
     } catch (err: any) {
       const friendlyError = getFriendlyLoginError(err);
       setError(friendlyError);
