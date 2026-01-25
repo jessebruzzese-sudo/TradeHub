@@ -26,9 +26,13 @@ const PROTECTED_ROUTES = [
   '/profile',
   '/applications',
   '/subcontractors',
-  '/admin',
   '/users',
+  // NOTE: keep /admin protected, AND also add admin-only gate below
+  '/admin',
 ];
+
+// Admin-only areas (UI + API)
+const ADMIN_ROUTES = ['/admin', '/api/admin'];
 
 function isPublicRoute(pathname: string): boolean {
   return PUBLIC_ROUTES.some(route => pathname === route || pathname.startsWith(`${route}/`));
@@ -38,11 +42,22 @@ function isProtectedRoute(pathname: string): boolean {
   return PROTECTED_ROUTES.some(route => pathname === route || pathname.startsWith(`${route}/`));
 }
 
+function isAdminRoute(pathname: string): boolean {
+  return ADMIN_ROUTES.some(route => pathname === route || pathname.startsWith(`${route}/`));
+}
+
 function isAuthRoute(pathname: string): boolean {
   return pathname === '/login' || pathname === '/signup';
 }
 
+function isApiRoute(pathname: string): boolean {
+  return pathname.startsWith('/api/');
+}
+
 function shouldSkipMiddleware(pathname: string): boolean {
+  // ✅ IMPORTANT: do NOT skip /api/admin/*
+  if (pathname.startsWith('/api/admin')) return false;
+
   return (
     pathname.startsWith('/api/') ||
     pathname.startsWith('/_next/') ||
@@ -53,13 +68,10 @@ function shouldSkipMiddleware(pathname: string): boolean {
 }
 
 function validateReturnUrl(url: string | null, fallback: string): string {
-  if (!url || typeof url !== 'string') {
-    return fallback;
-  }
-  
+  if (!url || typeof url !== 'string') return fallback;
+
   const trimmed = url.trim();
-  
-  // Block unsafe patterns
+
   if (
     trimmed.includes('http:') ||
     trimmed.includes('https:') ||
@@ -73,17 +85,13 @@ function validateReturnUrl(url: string | null, fallback: string): string {
   ) {
     return fallback;
   }
-  
-  // Must be relative path
-  if (!trimmed.startsWith('/')) {
-    return fallback;
-  }
-  
-  // Block auth routes as return URLs
+
+  if (!trimmed.startsWith('/')) return fallback;
+
   if (trimmed.startsWith('/login') || trimmed.startsWith('/signup')) {
     return fallback;
   }
-  
+
   return trimmed;
 }
 
@@ -95,9 +103,7 @@ export async function middleware(request: NextRequest) {
   }
 
   let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
+    request: { headers: request.headers },
   });
 
   const supabase = createServerClient(
@@ -112,9 +118,7 @@ export async function middleware(request: NextRequest) {
           cookiesToSet.forEach(({ name, value, options }) => {
             request.cookies.set(name, value);
             response = NextResponse.next({
-              request: {
-                headers: request.headers,
-              },
+              request: { headers: request.headers },
             });
             response.cookies.set(name, value, options);
           });
@@ -123,12 +127,55 @@ export async function middleware(request: NextRequest) {
     }
   );
 
+  // Use getUser for stronger auth verification than getSession
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const isAuthenticated = !!session;
+  const isAuthenticated = !!user;
 
+  // -------------------------
+  // 1) ADMIN LOCKDOWN
+  // -------------------------
+  if (isAdminRoute(pathname)) {
+    // Not logged in
+    if (!isAuthenticated) {
+      if (isApiRoute(pathname)) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      const fullPath = pathname + search;
+      const loginUrl = new URL('/login', request.url);
+      const safeReturnUrl = validateReturnUrl(fullPath, '/dashboard');
+      loginUrl.searchParams.set('returnUrl', safeReturnUrl);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    // Logged in but not admin -> check role in public.users
+    const { data: profile, error: profileErr } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (profileErr) {
+      // If role lookup fails, treat as forbidden for safety
+      if (isApiRoute(pathname)) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
+
+    if (profile?.role !== 'admin') {
+      if (isApiRoute(pathname)) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
+  }
+
+  // -------------------------
+  // 2) GENERAL PROTECTED ROUTES
+  // -------------------------
   if (isProtectedRoute(pathname) && !isAuthenticated) {
     const fullPath = pathname + search;
     const loginUrl = new URL('/login', request.url);
@@ -141,6 +188,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  // -------------------------
+  // 3) AUTH ROUTES
+  // -------------------------
   if (isAuthRoute(pathname) && isAuthenticated) {
     const returnUrl = request.nextUrl.searchParams.get('returnUrl');
     const safeReturnUrl = validateReturnUrl(returnUrl, '/dashboard');

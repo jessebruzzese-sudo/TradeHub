@@ -785,7 +785,7 @@ The landing page has been restructured for mobile UX to reduce decision paralysi
 **Before:** 4 stacked CTAs causing decision paralysis
 - Post a Project Tender
 - View Available Tenders
-- Find Jobs
+- Job Listings
 - Post a Job
 
 **After:** Clean, single-action flow
@@ -835,7 +835,7 @@ Positioned immediately after "How It Works" on mobile:
 - Border: `border-2 border-gray-200` (secondary)
 - Title: "Find work"
 - Description: "Browse jobs and tenders that match your trade"
-- CTA: "Find Jobs" (outline, full width, h-12 touch target)
+- CTA: "Job Listing's" (outline, full width, h-12 touch target)
 
 **Touch-Friendly:**
 - Minimum 48px (h-12) button height
@@ -854,7 +854,7 @@ Positioned immediately after "How It Works" on mobile:
 
 **After:** 2-button hierarchy
 1. Primary: "Post a Project" (blue filled)
-2. Secondary: "Find Jobs" (outline)
+2. Secondary: "Job Listing's" (outline)
 
 #### Desktop (hidden md:grid)
 - All 4 original CTAs in 2x2 grid
