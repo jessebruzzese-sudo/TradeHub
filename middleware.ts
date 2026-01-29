@@ -54,7 +54,7 @@ function isApiRoute(pathname: string): boolean {
   return pathname.startsWith('/api/');
 }
 
-function shouldSkipMiddleware(pathname: string): boolean {
+function shouldSkip  (pathname: string): boolean {
   // ✅ IMPORTANT: do NOT skip /api/admin/*
   if (pathname.startsWith('/api/admin')) return false;
 

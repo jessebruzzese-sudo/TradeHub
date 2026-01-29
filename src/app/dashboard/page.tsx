@@ -1,321 +1,359 @@
 'use client';
 
+import React, { useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { AppLayout } from '@/components/app-nav';
-import { TradeGate } from '@/components/trade-gate';
+import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-
-// ✅ MUST be default import (per your TS error)
-import StatusPill from '@/components/status-pill';
+import { Badge } from '@/components/ui/badge';
 
 import { useAuth } from '@/lib/auth';
-import { buildLoginUrl } from '@/lib/url-utils';
-import { safeRouterReplace, safeRouterPush } from '@/lib/safe-nav';
+import { getSafeReturnUrl, safeRouterReplace } from '@/lib/safe-nav';
 
 import {
-  FileText,
+  Calendar,
   Briefcase,
+  FileText,
   ClipboardList,
   MessageSquare,
-  LogOut,
   ShieldCheck,
+  Search,
+  Users,
   ArrowRight,
-  User as UserIcon,
-  Calendar,
 } from 'lucide-react';
 
-type TrustStatus = 'pending' | 'approved' | 'verified';
-
-function normalizeTrustStatus(input: unknown): TrustStatus {
-  const v = String(input ?? 'pending').toLowerCase().trim();
-
-  if (v === 'pending' || v === 'approved' || v === 'verified') return v;
-
-  // common variants you might have in db
-  if (v === 'unverified') return 'pending';
-  if (v === 'accepted') return 'approved';
-  if (v === 'approved_business') return 'approved';
-  if (v === 'verified_business') return 'verified';
-
-  return 'pending';
-}
-
-function normalizePlan(input: unknown): { isPro: boolean; label: 'Pro' | 'Free' } {
-  const v = String(input ?? 'free').toLowerCase().trim();
-  const isPro = ['pro', 'premium', 'paid'].includes(v);
-  return { isPro, label: isPro ? 'Pro' : 'Free' };
+function norm(v?: string | null) {
+  return String(v || '').trim().toLowerCase();
 }
 
 export default function DashboardPage() {
-  const { session, currentUser, isLoading, logout } = useAuth();
   const router = useRouter();
+  const { session, currentUser, isLoading, refreshUser } = useAuth();
 
   const hasSession = !!session?.user;
-  const [loggingOut, setLoggingOut] = useState(false);
+
+  // Hooks before returns
+  const role = useMemo(() => norm(currentUser?.role), [currentUser?.role]);
+  const isAdmin = role === 'admin';
+  const isContractor = role === 'contractor';
+  const isSubcontractor = role === 'subcontractor';
+
+  const abnStatus = useMemo(
+    () => norm((currentUser as any)?.abnStatus ?? (currentUser as any)?.abn_status ?? ''),
+    [currentUser]
+  );
+  const isAbnVerified = abnStatus === 'verified';
+
+  const trustStatus = useMemo(
+    () => norm((currentUser as any)?.trustStatus ?? (currentUser as any)?.trust_status ?? 'pending'),
+    [currentUser]
+  );
+
+  const greetingName = useMemo(() => {
+    const base = currentUser?.name || currentUser?.email || 'there';
+    return String(base).split(' ')[0];
+  }, [currentUser?.name, currentUser?.email]);
+
+  const trustPill = useMemo(() => {
+    const s = trustStatus || 'pending';
+    const label = s.replace(/_/g, ' ');
+    const cls =
+      s === 'verified'
+        ? 'bg-green-100 text-green-700'
+        : s === 'pending'
+        ? 'bg-yellow-100 text-yellow-800'
+        : 'bg-gray-100 text-gray-700';
+
+    return (
+      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${cls}`}>
+        {label}
+      </span>
+    );
+  }, [trustStatus]);
 
   useEffect(() => {
-    if (!isLoading && !hasSession) {
-      safeRouterReplace(router, buildLoginUrl('/dashboard'), '/login');
+    if (isLoading) return;
+
+    if (!hasSession) {
+      const returnUrl = getSafeReturnUrl('/dashboard', '/dashboard');
+      safeRouterReplace(router, `/login?returnUrl=${encodeURIComponent(returnUrl)}`, '/login');
     }
   }, [isLoading, hasSession, router]);
 
-  const displayName = useMemo(() => {
-    return (
-      (currentUser as any)?.name ||
-      (session?.user?.user_metadata as any)?.name ||
-      session?.user?.email ||
-      'there'
-    );
-  }, [currentUser, session]);
-
-  const trustStatus: TrustStatus = useMemo(() => {
-    const raw =
-      (currentUser as any)?.trustStatus ??
-      (currentUser as any)?.trust_status ??
-      (currentUser as any)?.abnStatus ??
-      (currentUser as any)?.abn_status ??
-      'pending';
-
-    return normalizeTrustStatus(raw);
-  }, [currentUser]);
-
-  const trustLabel =
-    trustStatus === 'verified'
-      ? 'Verified'
-      : trustStatus === 'approved'
-      ? 'Approved'
-      : 'Verification in progress';
-
-  const isVerified = trustStatus === 'verified';
-
-  const planRaw =
-    (currentUser as any)?.plan ??
-    (currentUser as any)?.subscriptionPlan ??
-    (currentUser as any)?.subcontractorPlan ??
-    (currentUser as any)?.subcontractor_plan ??
-    'free';
-
-  const { isPro, label: planLabel } = useMemo(() => normalizePlan(planRaw), [planRaw]);
-
   if (isLoading) {
     return (
-      <TradeGate>
-        <AppLayout>
-          <div className="flex min-h-[60vh] items-center justify-center text-sm text-gray-600">
-            Loading...
-          </div>
-        </AppLayout>
-      </TradeGate>
+      <div className="flex min-h-[60vh] items-center justify-center text-sm text-gray-600">
+        Loading dashboard…
+      </div>
     );
   }
 
   if (!hasSession) {
     return (
-      <TradeGate>
-        <AppLayout>
-          <div className="flex min-h-[60vh] items-center justify-center text-sm text-gray-600">
-            Redirecting…
-          </div>
-        </AppLayout>
-      </TradeGate>
+      <div className="flex min-h-[60vh] items-center justify-center text-sm text-gray-600">
+        Redirecting to login…
+      </div>
     );
   }
 
-  return (
-    <TradeGate>
+  if (!currentUser) {
+    return (
       <AppLayout>
-        <div className="mx-auto max-w-7xl px-3 py-5 sm:px-4 sm:py-8">
-          {/* Header */}
-          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <p className="mt-1 flex flex-wrap items-center gap-2 text-base text-gray-700 sm:text-lg">
-                <span className="min-w-0">
-                  Welcome, <span className="font-semibold text-gray-900">{displayName}</span>
-                </span>
-
-                <StatusPill type="trust" status={trustStatus} label={trustLabel} />
-
-                <span
-                  className={`inline-flex items-center rounded-full border px-2 py-[3px] text-xs font-medium ${
-                    isPro
-                      ? 'border-blue-200 bg-blue-50 text-blue-700'
-                      : 'border-gray-200 bg-gray-50 text-gray-700'
-                  }`}
-                >
-                  {planLabel}
-                </span>
-
-                {!isPro && (
-                  <Link href="/pricing" className="inline-flex">
-                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
-                      Upgrade to Pro
-                    </Button>
-                  </Link>
-                )}
-              </p>
-
-              {/* Mobile-only: direct Profile button */}
-              <div className="mt-3 sm:hidden">
-                <Link href="/profile" className="block">
-                  <Button variant="outline" className="w-full justify-center">
-                    <UserIcon className="mr-2 h-4 w-4" />
-                    Go to Profile
-                  </Button>
-                </Link>
-              </div>
-            </div>
-
-            {/* Desktop-only: Availability shortcut */}
-            <div className="hidden items-center gap-2 sm:flex">
-              <Link href="/availability" className="inline-flex">
-                <Button variant="outline" className="h-9">
-                  <Calendar className="mr-2 h-4 w-4" />
-                  List availability
-                </Button>
-              </Link>
-            </div>
-          </div>
-
-          {!currentUser && (
-            <div className="mb-6 rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-900">
-              We’re still loading your profile details. You can continue using the platform — if
-              this doesn’t resolve, refresh the page.
-            </div>
-          )}
-
-          {!isVerified && (
-            <div className="mb-6 flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-start gap-3">
-                <ShieldCheck className="mt-0.5 h-5 w-5 text-blue-600" />
-                <div>
-                  <div className="font-semibold text-gray-900">Build trust faster</div>
-                  <div className="text-sm text-gray-600">
-                    Verify your business to improve credibility and unlock stronger visibility
-                    signals.
-                  </div>
-                </div>
-              </div>
-
+        <div className="mx-auto w-full max-w-3xl p-4 md:p-6">
+          <PageHeader title="Dashboard" description="We couldn't load your profile yet." />
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <p className="text-sm font-medium text-amber-900">Profile not ready</p>
+            <p className="mt-1 text-sm text-amber-800">
+              Try again — this can happen briefly while your profile row is being created.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
               <Button
-                onClick={() => safeRouterPush(router, '/verify-business', '/verify-business')}
-                className="w-full sm:w-auto"
+                onClick={async () => {
+                  try {
+                    await refreshUser();
+                  } catch (e) {
+                    console.error(e);
+                  }
+                }}
               >
-                Verify business <ArrowRight className="ml-2 h-4 w-4" />
+                Retry
+              </Button>
+              <Button variant="outline" onClick={() => window.location.reload()}>
+                Reload
               </Button>
             </div>
-          )}
-
-          {/* Primary actions */}
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-5">
-              <div className="mb-2 flex items-center gap-2">
-                <FileText className="h-5 w-5 text-blue-600" />
-                <h2 className="text-lg font-semibold text-gray-900">Project Tendering</h2>
-              </div>
-              <p className="mb-4 text-sm text-gray-600">
-                Upload plans, request quotes, and compare responses privately.
-              </p>
-
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Button
-                  className="w-full sm:w-auto bg-red-600 hover:bg-red-700"
-                  onClick={() => safeRouterPush(router, '/tenders/create', '/tenders/create')}
-                >
-                  Post a Tender
-                </Button>
-
-                <Button
-                  variant="outline"
-                  className="w-full sm:w-auto border-red-200 text-red-700 hover:bg-red-50"
-                  onClick={() => safeRouterPush(router, '/tenders', '/tenders')}
-                >
-                  Browse Tenders
-                </Button>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-5">
-              <div className="mb-2 flex items-center gap-2">
-                <Briefcase className="h-5 w-5 text-green-600" />
-                <h2 className="text-lg font-semibold text-gray-900">Jobs</h2>
-              </div>
-              <p className="mb-4 text-sm text-gray-600">
-                Post standard jobs, review applications, and hire confidently.
-              </p>
-
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Button
-                  className="w-full sm:w-auto bg-green-600 hover:bg-green-700"
-                  onClick={() => safeRouterPush(router, '/jobs/create', '/jobs/create')}
-                >
-                  Post a Job
-                </Button>
-
-                <Button
-  variant="outline"
-  className="w-full sm:w-auto border-green-200 text-green-700 hover:bg-green-50"
-  onClick={() => safeRouterPush(router, '/jobs', '/jobs')}
->
-  Job Listings
-</Button>
-
-              </div>
-            </div>
-          </div>
-
-          {/* Shortcuts */}
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <Link
-              href="/messages"
-              className="rounded-xl border border-gray-200 bg-white p-4 transition hover:bg-gray-50 active:scale-[0.99] sm:p-5"
-            >
-              <div className="mb-1 flex items-center gap-2">
-                <MessageSquare className="h-5 w-5 text-gray-700" />
-                <div className="font-semibold text-gray-900">Messages</div>
-              </div>
-              <div className="text-sm text-gray-600">Continue conversations and respond faster.</div>
-            </Link>
-
-            <Link
-              href="/applications"
-              className="rounded-xl border border-gray-200 bg-white p-4 transition hover:bg-gray-50 active:scale-[0.99] sm:p-5"
-            >
-              <div className="mb-1 flex items-center gap-2">
-                <ClipboardList className="h-5 w-5 text-gray-700" />
-                <div className="font-semibold text-gray-900">Applications</div>
-              </div>
-              <div className="text-sm text-gray-600">
-                Track jobs you’ve applied for and responses.
-              </div>
-            </Link>
-          </div>
-
-          {/* Logout */}
-          <div className="mt-6">
-            <Button
-              variant="outline"
-              className="w-full sm:w-auto"
-              disabled={loggingOut}
-              onClick={async () => {
-                if (loggingOut) return;
-                setLoggingOut(true);
-                try {
-                  await logout();
-                  if (typeof window !== 'undefined') window.location.assign('/');
-                } finally {
-                  setLoggingOut(false);
-                }
-              }}
-            >
-              <LogOut className="mr-2 h-4 w-4" />
-              {loggingOut ? 'Logging out…' : 'Log out'}
-            </Button>
           </div>
         </div>
       </AppLayout>
-    </TradeGate>
+    );
+  }
+
+  // ✅ Fix: never route to /jobs/new (collides with /jobs/[id] and causes uuid errors)
+  // Use /jobs/create (matches your /tenders/create convention)
+  const postJobHref = !isAdmin && !isAbnVerified
+    ? `/verify-business?returnUrl=${encodeURIComponent('/jobs/create')}`
+    : '/jobs/create';
+
+  return (
+    <AppLayout>
+      <div className="mx-auto w-full max-w-6xl p-4 md:p-6">
+        {/* Header row (compact, no redundant back link) */}
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div className="min-w-0">
+            <PageHeader title="Dashboard" description={`Welcome back, ${greetingName}.`} />
+
+            {/* Status pills tucked under header */}
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="text-sm text-gray-600">Account:</span>
+              {trustPill}
+
+              {!isAdmin && (
+                <>
+                  <span className="mx-1 text-gray-300">•</span>
+                  <span className="text-sm text-gray-600">ABN:</span>
+                  <span
+                    className={[
+                      'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium',
+                      isAbnVerified ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700',
+                    ].join(' ')}
+                  >
+                    {isAbnVerified ? 'verified' : 'unverified'}
+                  </span>
+
+                  {!isAbnVerified && (
+                    <Link href={`/verify-business?returnUrl=${encodeURIComponent('/dashboard')}`} className="ml-2">
+                      <Button size="sm" className="gap-2">
+                        <ShieldCheck className="h-4 w-4" />
+                        Verify ABN
+                      </Button>
+                    </Link>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Link href="/availability">
+              <Button variant="outline" className="gap-2">
+                <Calendar className="h-4 w-4" />
+                List availability
+              </Button>
+            </Link>
+          </div>
+        </div>
+
+        {/* ABN callout */}
+        {!isAdmin && !isAbnVerified && (
+          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4">
+            <div className="flex items-start gap-3">
+              <ShieldCheck className="mt-0.5 h-5 w-5 text-red-600" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-red-900">
+                  Verify your ABN to unlock posting jobs and applying for tenders.
+                </p>
+                <p className="mt-1 text-sm text-red-800">
+                  Browsing and messaging still works — verification is required for trust-critical actions.
+                </p>
+                <div className="mt-3">
+                  <Link href={`/verify-business?returnUrl=${encodeURIComponent('/dashboard')}`}>
+                    <Button size="sm" className="gap-2">
+                      <ShieldCheck className="h-4 w-4" />
+                      Verify now
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Main actions */}
+        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {isContractor && (
+            <>
+              <ActionCard
+                title="Post a Job"
+                description="Create a job and reach relevant subcontractors."
+                href={postJobHref}
+                icon={<Briefcase className="h-5 w-5" />}
+                badge={!isAbnVerified ? <Badge variant="secondary">ABN required</Badge> : undefined}
+              />
+              <ActionCard
+                title="Browse Subcontractors"
+                description="Find available trades near you."
+                href="/subcontractors"
+                icon={<Users className="h-5 w-5" />}
+              />
+              <ActionCard
+                title="Tenders"
+                description="Create and manage tenders."
+                href="/tenders"
+                icon={<FileText className="h-5 w-5" />}
+                badge={!isAbnVerified ? <Badge variant="secondary">ABN required</Badge> : undefined}
+              />
+              <ActionCard
+                title="Messages"
+                description="Chat with subcontractors and manage threads."
+                href="/messages"
+                icon={<MessageSquare className="h-5 w-5" />}
+              />
+              <ActionCard
+                title="Applications"
+                description="Review incoming applications."
+                href="/applications"
+                icon={<ClipboardList className="h-5 w-5" />}
+              />
+              <ActionCard
+                title="Search"
+                description="Search jobs, tenders, and people."
+                href="/search"
+                icon={<Search className="h-5 w-5" />}
+              />
+            </>
+          )}
+
+          {isSubcontractor && (
+            <>
+              <ActionCard
+                title="Find Jobs"
+                description="Browse jobs that match your trade and radius."
+                href="/jobs"
+                icon={<Search className="h-5 w-5" />}
+              />
+              <ActionCard
+                title="My Applications"
+                description="Track applications and statuses."
+                href="/applications"
+                icon={<ClipboardList className="h-5 w-5" />}
+              />
+              <ActionCard
+                title="Tenders"
+                description="View and respond to tenders."
+                href="/tenders"
+                icon={<FileText className="h-5 w-5" />}
+                badge={!isAbnVerified ? <Badge variant="secondary">ABN required</Badge> : undefined}
+              />
+              <ActionCard
+                title="Messages"
+                description="Chat with contractors and manage threads."
+                href="/messages"
+                icon={<MessageSquare className="h-5 w-5" />}
+              />
+              <ActionCard
+                title="Availability"
+                description="Update your available days."
+                href="/availability"
+                icon={<Calendar className="h-5 w-5" />}
+              />
+              <ActionCard
+                title="Profile"
+                description="Update your business profile."
+                href="/profile"
+                icon={<Users className="h-5 w-5" />}
+              />
+            </>
+          )}
+
+          {isAdmin && (
+            <>
+              <ActionCard
+                title="Admin"
+                description="Manage users, reviews and platform settings."
+                href="/admin"
+                icon={<ShieldCheck className="h-5 w-5" />}
+              />
+              <ActionCard
+                title="Users"
+                description="Search and manage accounts."
+                href="/admin/users"
+                icon={<Users className="h-5 w-5" />}
+              />
+            </>
+          )}
+        </div>
+      </div>
+    </AppLayout>
+  );
+}
+
+function ActionCard({
+  title,
+  description,
+  href,
+  icon,
+  badge,
+}: {
+  title: string;
+  description: string;
+  href: string;
+  icon: React.ReactNode;
+  badge?: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group rounded-xl border border-gray-200 bg-white p-5 transition hover:border-gray-300 hover:shadow-sm"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-50 text-gray-700 group-hover:bg-gray-100">
+            {icon}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+              {badge}
+            </div>
+            <p className="mt-1 text-sm text-gray-600">{description}</p>
+          </div>
+        </div>
+
+        <ArrowRight className="mt-1 h-4 w-4 text-gray-300 transition group-hover:text-gray-500" />
+      </div>
+    </Link>
   );
 }

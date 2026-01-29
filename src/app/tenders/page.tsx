@@ -11,12 +11,12 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import { useAuth } from '@/lib/auth';
-import { getBrowserSupabase } from '@/lib/supabase/browserClient';
+import { getBrowserSupabase } from '@/lib/supabase-client';
 
 import { toast } from 'sonner';
 import { Trash2, MapPin, FileText, ArrowRight, Tag, User as UserIcon, DollarSign } from 'lucide-react';
 
-type TenderStatus = 'DRAFT' | 'LIVE' | 'CLOSED' | string;
+type TenderStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'PUBLISHED' | 'LIVE' | 'CLOSED' | string;
 
 type TenderRow = {
   id: string;
@@ -31,6 +31,7 @@ type TenderRow = {
   suburb: string | null;
   postcode: string | null;
 
+  // NOTE: your DB screenshot didn’t show created_at, so we do not rely on it
   created_at?: string | null;
 };
 
@@ -38,7 +39,8 @@ type BuilderMap = Record<string, { id: string; name: string | null }>;
 
 function statusVariant(status: string) {
   const s = String(status || '').toUpperCase();
-  if (s === 'LIVE') return 'default';
+  if (s === 'PUBLISHED' || s === 'LIVE') return 'default';
+  if (s === 'PENDING_APPROVAL') return 'secondary';
   if (s === 'DRAFT') return 'secondary';
   if (s === 'CLOSED') return 'outline';
   return 'outline';
@@ -46,7 +48,8 @@ function statusVariant(status: string) {
 
 function prettyStatus(status: string) {
   const s = String(status || '').toUpperCase();
-  if (s === 'LIVE') return 'Live';
+  if (s === 'PUBLISHED' || s === 'LIVE') return 'Live';
+  if (s === 'PENDING_APPROVAL') return 'Pending approval';
   if (s === 'DRAFT') return 'Draft';
   if (s === 'CLOSED') return 'Closed';
   return s || 'Unknown';
@@ -77,13 +80,15 @@ function priceBandLabelFromCents(maxCents?: number | null) {
 }
 
 export default function TendersPage() {
-  const supabase = getBrowserSupabase();
+  const supabase = useMemo(() => getBrowserSupabase(), []);
+
   const { currentUser } = useAuth();
   const myUserId = currentUser?.id ?? null;
+  const isAdmin = currentUser?.role === 'admin';
 
   const [view, setView] = useState<'listed' | 'mine'>('listed');
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<'all' | 'DRAFT' | 'LIVE' | 'CLOSED'>('all');
+  const [status, setStatus] = useState<'all' | 'DRAFT' | 'PENDING_APPROVAL' | 'LIVE' | 'CLOSED'>('all');
 
   const [rows, setRows] = useState<TenderRow[]>([]);
   const [builders, setBuilders] = useState<BuilderMap>({});
@@ -105,12 +110,10 @@ export default function TendersPage() {
 
       setBuilders((prev) => ({ ...prev, ...map }));
     } catch (e) {
-      // non-fatal: page still works, just shows fallback name
       console.warn('[Tenders] Failed to load builder names:', e);
     }
   }
 
-  // ✅ Derive "max budget for tender" from tender_trade_requirements.max_budget_cents
   async function fetchTenderBudgets(tenderIds: string[]) {
     const uniq = Array.from(new Set(tenderIds.filter(Boolean)));
     if (uniq.length === 0) return;
@@ -139,7 +142,6 @@ export default function TendersPage() {
 
       setBudgetMap(map);
     } catch (e) {
-      // non-fatal: tenders still render, just no price badge
       console.warn('[Tenders] Failed to load budgets', e);
       setBudgetMap({});
     }
@@ -149,50 +151,56 @@ export default function TendersPage() {
     setLoading(true);
 
     try {
-      const base = supabase
+      let q = supabase
         .from('tenders')
-        .select('id,builder_id,status,tier,is_name_hidden,project_name,project_description,suburb,postcode,created_at');
+        .select('id,builder_id,status,tier,is_name_hidden,project_name,project_description,suburb,postcode');
 
-      if (view === 'listed' && myUserId) base.neq('builder_id', myUserId);
-      if (view === 'mine' && myUserId) base.eq('builder_id', myUserId);
+      // =========================
+      // Visibility / View rules
+      // =========================
+      if (view === 'listed') {
+        if (!isAdmin) {
+          // Public feed should only show live tenders
+          q = q.in('status', ['PUBLISHED', 'LIVE']);
+        }
+        // Hide my own from "Listed"
+        if (myUserId) q = q.neq('builder_id', myUserId);
 
-      if (status !== 'all') base.eq('status', status);
+        // Status filter in Listed is optional; keep it safe
+        if (status !== 'all') {
+          if (status === 'LIVE') {
+            q = q.in('status', ['PUBLISHED', 'LIVE']);
+          } else {
+            // If user selects Draft/Pending in Listed, it will return 0 (safe)
+            q = q.eq('status', status);
+          }
+        }
+      }
+
+      if (view === 'mine') {
+        if (myUserId) q = q.eq('builder_id', myUserId);
+
+        if (status !== 'all') {
+          if (status === 'LIVE') {
+            q = q.in('status', ['PUBLISHED', 'LIVE']);
+          } else {
+            q = q.eq('status', status);
+          }
+        }
+      }
 
       if (search.trim()) {
         const s = `%${search.trim()}%`;
-        base.or(`project_name.ilike.${s},suburb.ilike.${s}`);
+        q = q.or(`project_name.ilike.${s},suburb.ilike.${s}`);
       }
 
-      // Try ordering by created_at; if column not available, fallback to no-order
-      const attempt1 = await base.order('created_at', { ascending: false });
+      const { data, error } = await q;
+      if (error) throw error;
 
-      let data: any[] = [];
-      if (attempt1.error) {
-        const attempt2 = await supabase
-          .from('tenders')
-          .select('id,builder_id,status,tier,is_name_hidden,project_name,project_description,suburb,postcode,created_at');
+      const list = (data ?? []) as TenderRow[];
+      setRows(list);
 
-        if (view === 'listed' && myUserId) attempt2.neq('builder_id', myUserId);
-        if (view === 'mine' && myUserId) attempt2.eq('builder_id', myUserId);
-        if (status !== 'all') attempt2.eq('status', status);
-        if (search.trim()) {
-          const s = `%${search.trim()}%`;
-          attempt2.or(`project_name.ilike.${s},suburb.ilike.${s}`);
-        }
-
-        if (attempt2.error) throw attempt2.error;
-        data = attempt2.data || [];
-      } else {
-        data = attempt1.data || [];
-      }
-
-      setRows(data as TenderRow[]);
-
-      // ✅ secondary data loads
-      await Promise.all([
-        fetchBuilderNames(data.map((t: any) => t.builder_id)),
-        fetchTenderBudgets(data.map((t: any) => t.id)),
-      ]);
+      await Promise.all([fetchBuilderNames(list.map((t) => t.builder_id)), fetchTenderBudgets(list.map((t) => t.id))]);
     } catch (e: any) {
       console.error(e);
       toast.error('Failed to load tenders');
@@ -237,7 +245,6 @@ export default function TendersPage() {
       toast.success('Tender deleted');
       setRows((prev) => prev.filter((r) => r.id !== tenderId));
 
-      // keep budget map in sync
       setBudgetMap((prev) => {
         const next = { ...prev };
         delete next[tenderId];
@@ -249,15 +256,17 @@ export default function TendersPage() {
     }
   }
 
+  const showDraftFilter = view === 'mine';
+  const showPendingFilter = view === 'mine';
+  const showClosedFilter = view === 'mine' || isAdmin;
+
   return (
     <AppLayout>
       <div className="mx-auto w-full max-w-6xl px-4 py-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-3xl font-semibold tracking-tight">Tenders</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Browse live project tenders or manage the ones you’ve posted.
-            </p>
+            <p className="mt-1 text-sm text-muted-foreground">Browse live project tenders or manage the ones you’ve posted.</p>
           </div>
 
           <Button asChild className="gap-2">
@@ -275,26 +284,38 @@ export default function TendersPage() {
                 </TabsList>
               </Tabs>
 
-              <div className="flex w-full flex-col gap-2 md:w-[520px] md:flex-row">
-                <Input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search by project name or suburb..."
-                />
+              <div className="flex w-full flex-col gap-2 md:w-[560px] md:flex-row">
+                <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by project name or suburb..." />
 
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button variant={status === 'all' ? 'default' : 'outline'} onClick={() => setStatus('all')}>
                     All
                   </Button>
-                  <Button variant={status === 'DRAFT' ? 'default' : 'outline'} onClick={() => setStatus('DRAFT')}>
-                    Draft
-                  </Button>
+
+                  {showDraftFilter ? (
+                    <Button variant={status === 'DRAFT' ? 'default' : 'outline'} onClick={() => setStatus('DRAFT')}>
+                      Draft
+                    </Button>
+                  ) : null}
+
+                  {showPendingFilter ? (
+                    <Button
+                      variant={status === 'PENDING_APPROVAL' ? 'default' : 'outline'}
+                      onClick={() => setStatus('PENDING_APPROVAL')}
+                    >
+                      Pending
+                    </Button>
+                  ) : null}
+
                   <Button variant={status === 'LIVE' ? 'default' : 'outline'} onClick={() => setStatus('LIVE')}>
                     Live
                   </Button>
-                  <Button variant={status === 'CLOSED' ? 'default' : 'outline'} onClick={() => setStatus('CLOSED')}>
-                    Closed
-                  </Button>
+
+                  {showClosedFilter ? (
+                    <Button variant={status === 'CLOSED' ? 'default' : 'outline'} onClick={() => setStatus('CLOSED')}>
+                      Closed
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -318,10 +339,7 @@ export default function TendersPage() {
               const isMine = !!myUserId && t.builder_id === myUserId;
               const tierLabel = prettyTier(t.tier);
 
-              const builderName = t.is_name_hidden
-                ? 'Builder (hidden)'
-                : builders[t.builder_id]?.name ?? 'View profile';
-
+              const builderName = t.is_name_hidden ? 'Builder (hidden)' : builders[t.builder_id]?.name ?? 'View profile';
               const priceLabel = priceBandLabelFromCents(budgetMap[t.id]);
 
               return (
@@ -380,12 +398,7 @@ export default function TendersPage() {
 
                       <div className="flex shrink-0 items-center gap-2">
                         {isMine ? (
-                          <Button
-                            variant="ghost"
-                            className="h-9 w-9 p-0"
-                            onClick={() => deleteTender(t.id)}
-                            title="Delete tender"
-                          >
+                          <Button variant="ghost" className="h-9 w-9 p-0" onClick={() => deleteTender(t.id)} title="Delete tender">
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         ) : null}

@@ -1,3 +1,2 @@
-export { AuthProvider } from './auth-context';
-export { useAuth } from './auth-context';
-export type {} from './auth-context';
+export { AuthProvider, AuthContextProvider, useAuth } from '@/lib/auth-context';
+export type { CurrentUser } from '@/lib/auth-context';

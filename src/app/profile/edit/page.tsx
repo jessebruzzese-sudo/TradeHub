@@ -4,7 +4,7 @@ import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, Info, Lock, MapPin } from 'lucide-react';
+import { Info, Lock, MapPin } from 'lucide-react';
 
 import { AppLayout } from '@/components/app-nav';
 import { TradeGate } from '@/components/trade-gate';
@@ -23,29 +23,63 @@ import { useAuth } from '@/lib/auth';
 import { TRADE_CATEGORIES } from '@/lib/trades';
 import { hasSubcontractorPremium, hasBuilderPremium, hasContractorPremium } from '@/lib/capability-utils';
 
+/**
+ * This page is written to be compatible with the current state of your backend:
+ * - `public.users` does NOT (yet) have columns for businessName/abn/location/postcode/trades/primaryTrade/etc.
+ * - auth-context keeps those fields on `currentUser` for UI compatibility, but only persists name/role/bio/avatar.
+ *
+ * So on this page:
+ * - we treat these fields as "UI-only" for now (they'll persist once you add DB columns + map them in auth-context).
+ * - we avoid relying on DB writes for fields that don't exist yet.
+ */
+
 export default function EditProfilePage() {
   const { currentUser, updateUser } = useAuth();
   const router = useRouter();
 
-  // Render nothing until we have a user (prevents uncontrolled/controlled warnings)
+  // Avoid rendering controlled inputs before user exists
   if (!currentUser) return null;
 
-  const [name, setName] = useState<string>(currentUser.name || '');
-  const [businessName, setBusinessName] = useState<string>(currentUser.businessName || '');
-  const [bio, setBio] = useState<string>(currentUser.bio || '');
-  const [primaryTrade, setPrimaryTrade] = useState<string>(currentUser.primaryTrade || '');
+  // capability-utils expects a stricter User type (e.g., name: string). Provide a safe shim.
+  const userForCaps = useMemo(() => {
+    return {
+      ...(currentUser as any),
+      name: currentUser.name ?? '',
+      role: currentUser.role ?? '',
+    };
+  }, [currentUser]);
 
-  // this is your free-text skills field (comma separated)
-  const [trades, setTrades] = useState<string>((currentUser.trades ?? []).join(', '));
+  // Controlled values (strings only)
+  const [name, setName] = useState<string>(currentUser.name ?? '');
+  const [businessName, setBusinessName] = useState<string>(currentUser.businessName ?? '');
+  const [bio, setBio] = useState<string>(currentUser.bio ?? '');
+  const [primaryTrade, setPrimaryTrade] = useState<string>(currentUser.primaryTrade ?? '');
 
-  // premium "search from" location fields
-  const [searchLocation, setSearchLocation] = useState<string>((currentUser as any)?.searchLocation || '');
-  const [searchPostcode, setSearchPostcode] = useState<string>((currentUser as any)?.searchPostcode || '');
+  // free-text skills field (comma separated)
+  const [tradesText, setTradesText] = useState<string>((currentUser.trades ?? []).join(', '));
 
-  const [isSaving, setIsSaving] = useState<boolean>(false);
+  // Premium "search from" (UI-only for now). We store in memory.
+  const [searchLocation, setSearchLocation] = useState<string>(((currentUser as any)?.searchLocation as string) ?? '');
+  const [searchPostcode, setSearchPostcode] = useState<string>(((currentUser as any)?.searchPostcode as string) ?? '');
 
-  const canMultiTrade = hasSubcontractorPremium(currentUser) || !!currentUser.additionalTradesUnlocked;
-  const canCustomSearchLocation = hasBuilderPremium(currentUser) || hasContractorPremium(currentUser);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Premium checks
+  const canMultiTrade = hasSubcontractorPremium(userForCaps as any) || !!currentUser.additionalTradesUnlocked;
+  const canCustomSearchLocation = hasBuilderPremium(userForCaps as any) || hasContractorPremium(userForCaps as any);
+
+  const parsedTrades = useMemo<string[]>(() => {
+    return tradesText
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+  }, [tradesText]);
+
+  const availableAdditionalTradeOptions = useMemo<string[]>(() => {
+    const primary = currentUser.primaryTrade ?? '';
+    const existing = currentUser.additionalTrades ?? [];
+    return TRADE_CATEGORIES.filter((t) => t !== primary && !existing.includes(t));
+  }, [currentUser.primaryTrade, currentUser.additionalTrades]);
 
   const handleAvatarUpdate = async (newAvatarUrl: string) => {
     try {
@@ -56,19 +90,6 @@ export default function EditProfilePage() {
       toast.error('Failed to update avatar');
     }
   };
-
-  const parsedTrades = useMemo<string[]>(() => {
-    return trades
-      .split(',')
-      .map((t: string) => t.trim())
-      .filter(Boolean);
-  }, [trades]);
-
-  const availableAdditionalTradeOptions = useMemo<string[]>(() => {
-    const primary = currentUser.primaryTrade;
-    const existing = currentUser.additionalTrades ?? [];
-    return TRADE_CATEGORIES.filter((t: string) => t !== primary && !existing.includes(t));
-  }, [currentUser.primaryTrade, currentUser.additionalTrades]);
 
   const handleAddAdditionalTrade = async (trade: string) => {
     if (!trade) return;
@@ -95,7 +116,8 @@ export default function EditProfilePage() {
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!primaryTrade && currentUser.role !== 'admin') {
+    // Primary trade is required for non-admins (even if UI-only for now)
+    if (!primaryTrade.trim() && currentUser.role !== 'admin') {
       toast.error('Please select your primary trade');
       return;
     }
@@ -103,24 +125,28 @@ export default function EditProfilePage() {
     setIsSaving(true);
 
     try {
+      /**
+       * IMPORTANT:
+       * - Only name/bio/avatar/role are persisted today.
+       * - Everything else is merged in-memory by auth-context so the UI stays consistent.
+       */
       await updateUser({
-        name,
-        businessName: businessName.trim() ? businessName.trim() : undefined,
+        name: name.trim() ? name.trim() : undefined,
         bio: bio.trim() ? bio.trim() : undefined,
-        primaryTrade: primaryTrade.trim() ? primaryTrade.trim() : undefined,
 
-        // free-text skills list
+        // UI-only fields for now (safe because auth-context merges them into state)
+        businessName: businessName.trim() ? businessName.trim() : undefined,
+        primaryTrade: primaryTrade.trim() ? primaryTrade.trim() : undefined,
         trades: parsedTrades.length > 0 ? parsedTrades : undefined,
 
-        // standard location (you were saving these from "searchLocation/searchPostcode" before)
-        // If you intended these to be PREMIUM "search-from" fields only, keep them separate.
+        // UI-only custom search location
         location: searchLocation.trim() ? searchLocation.trim() : undefined,
         postcode: searchPostcode.trim() ? searchPostcode.trim() : undefined,
 
-        // If you actually have dedicated fields on User like searchLocation/searchPostcode,
-        // add them to User type + updateUser mapping and then swap these two lines to:
-        // searchLocation: searchLocation.trim() || undefined,
-        // searchPostcode: searchPostcode.trim() || undefined,
+        // Store UI-only search fields too (not typed on CurrentUser; but updateUser accepts Partial and merges)
+        // If you dislike `as any`, remove these two lines and just rely on location/postcode for now.
+        ...(searchLocation ? ({ searchLocation: searchLocation.trim() } as any) : null),
+        ...(searchPostcode ? ({ searchPostcode: searchPostcode.trim() } as any) : null),
       } as any);
 
       toast.success('Profile updated successfully');
@@ -139,26 +165,22 @@ export default function EditProfilePage() {
   return (
     <TradeGate>
       <AppLayout>
-        <div className="max-w-3xl mx-auto p-4 md:p-6">
-          <PageHeader
-            backLink={{ href: dashboardHref }}
-            title="Edit Profile"
-            description="Update your personal information"
-          />
+        <div className="mx-auto max-w-3xl p-4 md:p-6">
+          <PageHeader backLink={{ href: dashboardHref }} title="Edit Profile" description="Update your information" />
 
           <form onSubmit={handleSave} className="space-y-6">
-            <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
+            <div className="space-y-4 rounded-xl border border-gray-200 bg-white p-6">
               <div>
                 <Label>Profile Photo</Label>
                 <div className="mt-2">
                   <ProfileAvatar
                     userId={currentUser.id}
                     currentAvatarUrl={currentUser.avatar ?? undefined}
-                    userName={currentUser.name}
+                    userName={currentUser.name ?? 'User'}
                     onAvatarUpdate={handleAvatarUpdate}
                   />
                 </div>
-                <p className="text-xs text-gray-500 mt-2">Click to upload a new photo (max 5MB)</p>
+                <p className="mt-2 text-xs text-gray-500">Click to upload a new photo (max 5MB)</p>
               </div>
 
               <div>
@@ -177,14 +199,8 @@ export default function EditProfilePage() {
 
               <div>
                 <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={currentUser.email}
-                  disabled
-                  className="mt-1 bg-gray-50"
-                />
-                <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
+                <Input id="email" type="email" value={currentUser.email ?? ''} disabled className="mt-1 bg-gray-50" />
+                <p className="mt-1 text-xs text-gray-500">Email cannot be changed</p>
               </div>
 
               {currentUser.role !== 'admin' && (
@@ -198,6 +214,9 @@ export default function EditProfilePage() {
                     placeholder="Optional"
                     className="mt-1"
                   />
+                  <p className="mt-1 text-xs text-gray-500">
+                    (Will persist once business fields are added to the database.)
+                  </p>
                 </div>
               )}
 
@@ -221,17 +240,17 @@ export default function EditProfilePage() {
 
                   {currentUser.primaryTrade ? (
                     <>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="mt-1 flex items-center gap-2">
                         <Input
                           id="primaryTrade"
                           type="text"
-                          value={currentUser.primaryTrade}
+                          value={currentUser.primaryTrade ?? ''}
                           disabled
-                          className="bg-gray-50 flex-1"
+                          className="flex-1 bg-gray-50"
                         />
-                        <Lock className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                        <Lock className="h-5 w-5 flex-shrink-0 text-gray-400" />
                       </div>
-                      <p className="text-xs text-gray-500 mt-2">Locked after account creation.</p>
+                      <p className="mt-2 text-xs text-gray-500">Locked after account creation.</p>
                     </>
                   ) : (
                     <>
@@ -248,8 +267,8 @@ export default function EditProfilePage() {
                         </SelectContent>
                       </Select>
 
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-2 flex items-start gap-2">
-                        <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                      <div className="mt-2 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                        <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-600" />
                         <p className="text-xs text-blue-900">
                           This is your main trade on TradeHub. It determines the jobs and professionals you see.
                         </p>
@@ -259,14 +278,12 @@ export default function EditProfilePage() {
                 </div>
               )}
 
-              {currentUser.role !== 'admin' && currentUser.primaryTrade && (
-                <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-6">
-                  <div className="flex items-start justify-between mb-4">
+              {currentUser.role !== 'admin' && (currentUser.primaryTrade || primaryTrade) && (
+                <div className="rounded-lg border-2 border-blue-200 bg-blue-50 p-6">
+                  <div className="mb-4 flex items-start justify-between">
                     <div className="flex-1">
-                      <Label className="text-lg font-semibold text-gray-900">
-                        Additional Trades (Premium Feature)
-                      </Label>
-                      <p className="text-sm text-gray-600 mt-1">
+                      <Label className="text-lg font-semibold text-gray-900">Additional Trades (Premium Feature)</Label>
+                      <p className="mt-1 text-sm text-gray-600">
                         Primary trade can&apos;t be changed after setup. Premium users can add additional trades.
                       </p>
                     </div>
@@ -274,14 +291,14 @@ export default function EditProfilePage() {
 
                   {canMultiTrade ? (
                     <div className="space-y-4">
-                      <div className="flex items-center gap-2 text-green-700 text-sm">
-                        <div className="w-2 h-2 bg-green-600 rounded-full" />
+                      <div className="flex items-center gap-2 text-sm text-green-700">
+                        <div className="h-2 w-2 rounded-full bg-green-600" />
                         <span className="font-medium">Multi-trade profiles unlocked</span>
                       </div>
 
                       <div>
                         <Label htmlFor="additionalTrades">Select Additional Trades</Label>
-                        <p className="text-xs text-gray-500 mt-1 mb-2">
+                        <p className="mb-2 mt-1 text-xs text-gray-500">
                           Choose trades beyond your primary trade to receive more job opportunities
                         </p>
 
@@ -298,9 +315,9 @@ export default function EditProfilePage() {
                           </SelectContent>
                         </Select>
 
-                        {currentUser.additionalTrades && currentUser.additionalTrades.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mt-3">
-                            {currentUser.additionalTrades.map((trade: string) => (
+                        {(currentUser.additionalTrades?.length ?? 0) > 0 && (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {(currentUser.additionalTrades ?? []).map((trade: string) => (
                               <Badge key={trade} variant="secondary" className="text-sm">
                                 {trade}
                               </Badge>
@@ -312,7 +329,7 @@ export default function EditProfilePage() {
                   ) : (
                     <div className="space-y-4">
                       <div className="flex items-center gap-2 text-gray-600">
-                        <Lock className="w-4 h-4" />
+                        <Lock className="h-4 w-4" />
                         <span className="text-sm font-medium">Multi-trade profiles are a Premium feature.</span>
                       </div>
                       <p className="text-sm text-gray-600">
@@ -330,32 +347,32 @@ export default function EditProfilePage() {
 
               {currentUser.role === 'subcontractor' && (
                 <div>
-                  <Label htmlFor="trades">Additional Trade Skills</Label>
+                  <Label htmlFor="tradesText">Additional Trade Skills</Label>
                   <Input
-                    id="trades"
+                    id="tradesText"
                     type="text"
-                    value={trades}
-                    onChange={(e) => setTrades(e.target.value)}
+                    value={tradesText}
+                    onChange={(e) => setTradesText(e.target.value)}
                     placeholder="e.g., Commercial Electrical, Residential Wiring"
                     className="mt-1"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="mt-1 text-xs text-gray-500">
                     Optional: List specific skills or specializations (separate with commas)
                   </p>
                 </div>
               )}
 
               {currentUser.role !== 'admin' && (
-                <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-6">
-                  <div className="flex items-start justify-between mb-4">
+                <div className="rounded-lg border-2 border-purple-200 bg-purple-50 p-6">
+                  <div className="mb-4 flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <MapPin className="w-5 h-5 text-purple-600" />
+                      <div className="mb-1 flex items-center gap-2">
+                        <MapPin className="h-5 w-5 text-purple-600" />
                         <Label className="text-lg font-semibold text-gray-900">
                           Custom Search Location (Premium Feature)
                         </Label>
                       </div>
-                      <p className="text-sm text-gray-600 mt-2">
+                      <p className="mt-2 text-sm text-gray-600">
                         Override your business location for job discovery and tender matching. Your business location
                         remains unchanged.
                       </p>
@@ -364,8 +381,8 @@ export default function EditProfilePage() {
 
                   {canCustomSearchLocation ? (
                     <div className="space-y-4">
-                      <div className="flex items-center gap-2 text-green-700 text-sm">
-                        <div className="w-2 h-2 bg-green-600 rounded-full" />
+                      <div className="flex items-center gap-2 text-sm text-green-700">
+                        <div className="h-2 w-2 rounded-full bg-green-600" />
                         <span className="font-medium">Custom search location unlocked</span>
                       </div>
 
@@ -378,13 +395,14 @@ export default function EditProfilePage() {
                           onPostcodeChange={setSearchPostcode}
                           className="mt-2"
                         />
-                        <p className="text-xs text-gray-500 mt-2">
-                          Your business location: {currentUser.location || 'Not set'}
+
+                        <p className="mt-2 text-xs text-gray-500">
+                          Your business location: {currentUser.location ?? 'Not set'}
                           {currentUser.postcode ? `, ${currentUser.postcode}` : ''}
                         </p>
 
                         {searchLocation && (
-                          <div className="mt-2 bg-blue-50 border border-blue-200 rounded p-3">
+                          <div className="mt-2 rounded border border-blue-200 bg-blue-50 p-3">
                             <p className="text-xs text-blue-900">
                               <strong>Active:</strong> Jobs and tenders are now calculated from {searchLocation}
                               {searchPostcode ? `, ${searchPostcode}` : ''}
@@ -414,8 +432,8 @@ export default function EditProfilePage() {
                         Set a virtual search location to discover jobs and tenders in different areas while keeping your
                         business location unchanged.
                       </p>
-                      <div className="flex items-center gap-2 text-gray-500 text-sm">
-                        <Lock className="w-4 h-4" />
+                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <Lock className="h-4 w-4" />
                         <span>Available on Business Pro and All Access Pro plans</span>
                       </div>
                       <Link href="/pricing">

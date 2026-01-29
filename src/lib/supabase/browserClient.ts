@@ -1,24 +1,29 @@
-"use client";
-import { createBrowserClient } from "@supabase/ssr";
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/lib/supabase/database.types';
 
-declare global {
-  // eslint-disable-next-line no-var
-  var __tradehub_supabase__: ReturnType<typeof createBrowserClient> | undefined;
-}
+let _client: SupabaseClient<Database> | null = null;
 
 export function getBrowserSupabase() {
-  if (globalThis.__tradehub_supabase__) return globalThis.__tradehub_supabase__;
+  if (_client) return _client;
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  globalThis.__tradehub_supabase__ = createBrowserClient(url, key, {
+  if (!url || !anon) {
+    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
+  }
+
+  _client = createClient<Database>(url, anon, {
     auth: {
-      autoRefreshToken: true,
       persistSession: true,
-      detectSessionInUrl: false,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    },
+    global: {
+      fetch: (input: RequestInfo | URL, init?: RequestInit) => fetch(input, init),
     },
   });
 
-  return globalThis.__tradehub_supabase__;
+  return _client;
 }
