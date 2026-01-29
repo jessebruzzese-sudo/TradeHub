@@ -37,11 +37,15 @@ export default function EditProfilePage() {
   const { currentUser, updateUser } = useAuth();
   const router = useRouter();
 
-  // Avoid rendering controlled inputs before user exists
-  if (!currentUser) return null;
-
   // capability-utils expects a stricter User type (e.g., name: string). Provide a safe shim.
   const userForCaps = useMemo(() => {
+    if (!currentUser) {
+      return {
+        name: '',
+        role: '',
+      } as any;
+    }
+
     return {
       ...(currentUser as any),
       name: currentUser.name ?? '',
@@ -50,13 +54,13 @@ export default function EditProfilePage() {
   }, [currentUser]);
 
   // Controlled values (strings only)
-  const [name, setName] = useState<string>(currentUser.name ?? '');
-  const [businessName, setBusinessName] = useState<string>(currentUser.businessName ?? '');
-  const [bio, setBio] = useState<string>(currentUser.bio ?? '');
-  const [primaryTrade, setPrimaryTrade] = useState<string>(currentUser.primaryTrade ?? '');
+  const [name, setName] = useState<string>(currentUser?.name ?? '');
+  const [businessName, setBusinessName] = useState<string>(currentUser?.businessName ?? '');
+  const [bio, setBio] = useState<string>(currentUser?.bio ?? '');
+  const [primaryTrade, setPrimaryTrade] = useState<string>(currentUser?.primaryTrade ?? '');
 
   // free-text skills field (comma separated)
-  const [tradesText, setTradesText] = useState<string>((currentUser.trades ?? []).join(', '));
+  const [tradesText, setTradesText] = useState<string>((currentUser?.trades ?? []).join(', '));
 
   // Premium "search from" (UI-only for now). We store in memory.
   const [searchLocation, setSearchLocation] = useState<string>(((currentUser as any)?.searchLocation as string) ?? '');
@@ -65,7 +69,7 @@ export default function EditProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
 
   // Premium checks
-  const canMultiTrade = hasSubcontractorPremium(userForCaps as any) || !!currentUser.additionalTradesUnlocked;
+  const canMultiTrade = hasSubcontractorPremium(userForCaps as any) || !!currentUser?.additionalTradesUnlocked;
   const canCustomSearchLocation = hasBuilderPremium(userForCaps as any) || hasContractorPremium(userForCaps as any);
 
   const parsedTrades = useMemo<string[]>(() => {
@@ -76,10 +80,13 @@ export default function EditProfilePage() {
   }, [tradesText]);
 
   const availableAdditionalTradeOptions = useMemo<string[]>(() => {
-    const primary = currentUser.primaryTrade ?? '';
-    const existing = currentUser.additionalTrades ?? [];
+    const primary = currentUser?.primaryTrade ?? '';
+    const existing = currentUser?.additionalTrades ?? [];
     return TRADE_CATEGORIES.filter((t) => t !== primary && !existing.includes(t));
-  }, [currentUser.primaryTrade, currentUser.additionalTrades]);
+  }, [currentUser?.primaryTrade, currentUser?.additionalTrades]);
+
+  // Avoid rendering controlled inputs before user exists
+  if (!currentUser) return null;
 
   const handleAvatarUpdate = async (newAvatarUrl: string) => {
     try {
