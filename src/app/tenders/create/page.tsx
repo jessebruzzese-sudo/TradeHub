@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
 import { useAuth } from '@/lib/auth';
 import { getBrowserSupabase } from '@/lib/supabase-client';
@@ -45,6 +46,21 @@ interface TradeRequirement {
 
 function norm(v?: string | null) {
   return String(v || '').trim().toLowerCase();
+}
+
+function isLikelyRlsRejection(err: any): boolean {
+  const code = String(err?.code ?? '').trim();
+  const message = String(err?.message ?? '').toLowerCase();
+  const details = String(err?.details ?? '').toLowerCase();
+  const combined = `${message} ${details}`;
+
+  // Strong signals for Postgres RLS / permission errors
+  if (code === '42501') return true;
+  if (combined.includes('row-level security')) return true;
+  if (combined.includes('row level security')) return true;
+  if (combined.includes('permission denied')) return true;
+
+  return false;
 }
 
 // (Display-only) DD/MM/YYYY preview for Review screen
@@ -381,7 +397,15 @@ export default function CreateTenderPage() {
     };
 
     const { data: tender, error: tenderError } = await supabase.from('tenders').insert(tenderInsert).select().single();
-    if (tenderError) throw tenderError;
+    if (tenderError) {
+      if (isLikelyRlsRejection(tenderError)) {
+        const msg = 'Trial used — upgrade to Premium to post more tenders.';
+        toast.error(msg);
+        setError(msg);
+        return;
+      }
+      throw tenderError;
+    }
 
     const tradeReqs: TradeReqInsert[] = tradeRequirements.map((req) => ({
       tender_id: tender.id,
