@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { UnauthorizedAccess } from '@/components/unauthorized-access';
@@ -37,13 +37,7 @@ export default function AdminTendersPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (currentUser && currentUser.role === 'admin') {
-      fetchTenders();
-    }
-  }, [currentUser]);
-
-  const fetchTenders = async () => {
+  const fetchTenders = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -83,7 +77,13 @@ export default function AdminTendersPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [supabase]);
+
+  useEffect(() => {
+    if (currentUser && currentUser.role === 'admin') {
+      fetchTenders();
+    }
+  }, [currentUser, fetchTenders]);
 
   const handleApprove = async (tenderId: string) => {
     setSubmitting(true);

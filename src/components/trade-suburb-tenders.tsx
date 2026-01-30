@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -28,13 +28,7 @@ export default function TradeSuburbTenders({ trade, suburb }: TradeSuburbTenders
   const [loading, setLoading] = useState(true);
   const supabase = getBrowserSupabase();
 
-  useEffect(() => {
-    if (!isLoading) {
-      fetchTenders();
-    }
-  }, [trade, suburb, isLoading]);
-
-  const fetchTenders = async () => {
+  const fetchTenders = useCallback(async () => {
     if (isLoading) {
       return;
     }
@@ -109,7 +103,13 @@ export default function TradeSuburbTenders({ trade, suburb }: TradeSuburbTenders
     } finally {
       setLoading(false);
     }
-  };
+  }, [supabase, trade, suburb, isLoading]);
+
+  useEffect(() => {
+    if (!isLoading) {
+      fetchTenders();
+    }
+  }, [trade, suburb, isLoading, fetchTenders]);
 
   const displaySuburb = formatSuburbForDisplay(suburb);
   const isBuilder = currentUser?.role === 'contractor' || currentUser?.role === 'admin';

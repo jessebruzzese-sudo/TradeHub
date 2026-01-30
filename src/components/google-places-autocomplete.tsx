@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MapPin, Edit3, Check, AlertCircle } from 'lucide-react';
@@ -29,6 +29,58 @@ export function GooglePlacesAutocomplete({
   const [hasSelectedPlace, setHasSelectedPlace] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+
+  const extractSuburb = (addressComponents: google.maps.GeocoderAddressComponent[]): string => {
+    const suburbTypes = ['locality', 'postal_town', 'sublocality', 'administrative_area_level_2'];
+
+    for (const type of suburbTypes) {
+      const component = addressComponents.find(c => c.types.includes(type));
+      if (component) {
+        return component.long_name;
+      }
+    }
+
+    return '';
+  };
+
+  const extractPostcode = (addressComponents: google.maps.GeocoderAddressComponent[]): string => {
+    const postcodeComponent = addressComponents.find(c => c.types.includes('postal_code'));
+    return postcodeComponent?.long_name || '';
+  };
+
+  const handlePlaceSelect = useCallback(() => {
+    if (!autocompleteRef.current) return;
+
+    const place = autocompleteRef.current.getPlace();
+
+    if (!place.address_components) return;
+
+    const suburb = extractSuburb(place.address_components);
+    const extractedPostcode = extractPostcode(place.address_components);
+
+    if (suburb) {
+      setInputValue(suburb);
+      onSuburbChange(suburb);
+      setHasSelectedPlace(true);
+    }
+
+    if (extractedPostcode) {
+      onPostcodeChange(extractedPostcode);
+      setIsPostcodeEditable(false);
+    }
+  }, [onSuburbChange, onPostcodeChange]);
+
+  const initializeAutocomplete = useCallback(() => {
+    if (!inputRef.current || !window.google?.maps?.places) return;
+
+    autocompleteRef.current = new google.maps.places.Autocomplete(inputRef.current, {
+      componentRestrictions: { country: 'au' },
+      types: ['(regions)'],
+      fields: ['address_components', 'name'],
+    });
+
+    autocompleteRef.current.addListener('place_changed', handlePlaceSelect);
+  }, [handlePlaceSelect]);
 
   useEffect(() => {
     setInputValue(value);
@@ -68,65 +120,13 @@ export function GooglePlacesAutocomplete({
     return () => {
       delete window.initMap;
     };
-  }, []);
+  }, [initializeAutocomplete]);
 
   useEffect(() => {
     if (isGoogleLoaded && inputRef.current && !autocompleteRef.current) {
       initializeAutocomplete();
     }
-  }, [isGoogleLoaded]);
-
-  const initializeAutocomplete = () => {
-    if (!inputRef.current || !window.google?.maps?.places) return;
-
-    autocompleteRef.current = new google.maps.places.Autocomplete(inputRef.current, {
-      componentRestrictions: { country: 'au' },
-      types: ['(regions)'],
-      fields: ['address_components', 'name'],
-    });
-
-    autocompleteRef.current.addListener('place_changed', handlePlaceSelect);
-  };
-
-  const extractSuburb = (addressComponents: google.maps.GeocoderAddressComponent[]): string => {
-    const suburbTypes = ['locality', 'postal_town', 'sublocality', 'administrative_area_level_2'];
-
-    for (const type of suburbTypes) {
-      const component = addressComponents.find(c => c.types.includes(type));
-      if (component) {
-        return component.long_name;
-      }
-    }
-
-    return '';
-  };
-
-  const extractPostcode = (addressComponents: google.maps.GeocoderAddressComponent[]): string => {
-    const postcodeComponent = addressComponents.find(c => c.types.includes('postal_code'));
-    return postcodeComponent?.long_name || '';
-  };
-
-  const handlePlaceSelect = () => {
-    if (!autocompleteRef.current) return;
-
-    const place = autocompleteRef.current.getPlace();
-
-    if (!place.address_components) return;
-
-    const suburb = extractSuburb(place.address_components);
-    const extractedPostcode = extractPostcode(place.address_components);
-
-    if (suburb) {
-      setInputValue(suburb);
-      onSuburbChange(suburb);
-      setHasSelectedPlace(true);
-    }
-
-    if (extractedPostcode) {
-      onPostcodeChange(extractedPostcode);
-      setIsPostcodeEditable(false);
-    }
-  };
+  }, [isGoogleLoaded, initializeAutocomplete]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;

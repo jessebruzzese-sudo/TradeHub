@@ -36,9 +36,9 @@ export default function JobsPage() {
 
   const [tab, setTab] = useState<JobsTab>('find');
 
-  // Snapshot store arrays (avoid depending on mutable store object)
-  const jobs = store.jobs || [];
-  const applications = store.applications || [];
+  // Snapshot store arrays (memoize fallbacks so useMemo deps stay stable)
+  const jobs = useMemo(() => store.jobs ?? [], [store.jobs]);
+  const applications = useMemo(() => store.applications ?? [], [store.applications]);
 
   // Compute ABN verified state (optional field right now)
   const abnStatus = useMemo(

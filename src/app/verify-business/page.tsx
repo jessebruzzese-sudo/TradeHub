@@ -61,7 +61,7 @@ export default function VerifyBusinessPage() {
 
     if (existingBiz && !businessName) setBusinessName(String(existingBiz));
     if (existingAbn && !abn) setAbn(formatAbnPretty(String(existingAbn)));
-  }, [currentUser]); // intentionally not depending on abn/businessName to avoid loops
+  }, [currentUser, abn, businessName]);
 
   if (!currentUser) {
     return <UnauthorizedAccess redirectTo="/login" />;
