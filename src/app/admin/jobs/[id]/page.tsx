@@ -35,7 +35,7 @@ export default function AdminJobDetailPage() {
         store.addAuditLog(auditLog);
       }
     }
-  }, [currentUser, jobId]);
+  }, [currentUser, jobId, store]);
 
   if (!currentUser || currentUser.role !== 'admin') {
     return <UnauthorizedAccess redirectTo={currentUser ? `/dashboard/${currentUser.role}` : '/login'} />;

@@ -57,6 +57,11 @@ export type CurrentUser = {
   memberSince?: string | null;
   createdAt?: string | null;
 
+  /**
+   * IMPORTANT:
+   * This must NOT be auto-derived from additionalTrades.
+   * It should only come from premium/capabilities (or explicit admin-grant).
+   */
   additionalTradesUnlocked?: boolean;
 };
 
@@ -137,6 +142,8 @@ function mapDbToUi(row: DbUserRow): CurrentUser {
     completedJobs: null,
     memberSince: null,
     createdAt: null,
+
+    // DO NOT auto-derive from additionalTrades
     additionalTradesUnlocked: false,
   };
 }
@@ -356,10 +363,13 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
                 abnStatus: cleanedAbn ? 'pending' : prev.abnStatus ?? null,
                 trades: extras.trades ?? prev.trades,
                 additionalTrades: extras.additionalTrades ?? prev.additionalTrades,
-                additionalTradesUnlocked:
-                  Array.isArray(extras.additionalTrades) && extras.additionalTrades.length > 0
-                    ? true
-                    : prev.additionalTradesUnlocked ?? false,
+
+                /**
+                 * IMPORTANT:
+                 * Do NOT auto-unlock multi-trade based on stored additionalTrades.
+                 * Unlocking should come from Premium/capabilities (or explicit admin grant).
+                 */
+                additionalTradesUnlocked: prev.additionalTradesUnlocked ?? false,
               }
             : prev
         );
@@ -386,8 +396,14 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
         if (!prev) return prev;
         const merged: CurrentUser = { ...prev, ...patch };
         if (patch.abn !== undefined) merged.abn = patch.abn ? normalizeAbn(patch.abn) : null;
-        merged.additionalTradesUnlocked =
-          Array.isArray(merged.additionalTrades) && merged.additionalTrades.length > 0;
+
+        /**
+         * IMPORTANT:
+         * Do NOT auto-unlock multi-trade based on stored additionalTrades.
+         * Keep the prior value unless a dedicated upgrade/admin flow sets it.
+         */
+        merged.additionalTradesUnlocked = prev.additionalTradesUnlocked ?? false;
+
         return merged;
       });
 

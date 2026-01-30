@@ -79,6 +79,20 @@ function priceBandLabelFromCents(maxCents?: number | null) {
   return '$100,000+';
 }
 
+function isLikelyRlsRejection(err: any): boolean {
+  const code = String(err?.code ?? '').trim();
+  const message = String(err?.message ?? '').toLowerCase();
+  const details = String(err?.details ?? '').toLowerCase();
+  const combined = `${message} ${details}`;
+
+  if (code === '42501') return true;
+  if (combined.includes('row-level security')) return true;
+  if (combined.includes('row level security')) return true;
+  if (combined.includes('permission denied')) return true;
+
+  return false;
+}
+
 export default function TendersPage() {
   const supabase = useMemo(() => getBrowserSupabase(), []);
 
@@ -250,9 +264,13 @@ export default function TendersPage() {
         delete next[tenderId];
         return next;
       });
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      toast.error('Failed to delete tender');
+      if (isLikelyRlsRejection(e)) {
+        toast.error("You don't have permission to delete this tender.");
+      } else {
+        toast.error('Failed to delete tender');
+      }
     }
   }
 

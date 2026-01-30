@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowLeft, Shield, ShieldAlert, ShieldCheck, AlertCircle, CheckCircle, Flag, XCircle } from 'lucide-react';
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createAuditLog } from '@/lib/admin-utils';
 import { AdminNote } from '@/lib/types';
 import { getBrowserSupabase } from '@/lib/supabase-client';
@@ -70,13 +70,7 @@ export default function AdminUserDetailPage() {
     action: () => {},
   });
 
-  useEffect(() => {
-    if (currentUser?.role === 'admin' && userId) {
-      loadAccountReview();
-    }
-  }, [currentUser, userId]);
-
-  const loadAccountReview = async () => {
+  const loadAccountReview = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('admin_account_reviews')
@@ -90,7 +84,13 @@ export default function AdminUserDetailPage() {
     } catch (error) {
       console.error('Error loading account review:', error);
     }
-  };
+  }, [supabase, userId]);
+
+  useEffect(() => {
+    if (currentUser?.role === 'admin' && userId) {
+      loadAccountReview();
+    }
+  }, [currentUser, userId, loadAccountReview]);
 
   const handleSubmitAccountReview = async () => {
     if (!accountReview || !currentUser) return;

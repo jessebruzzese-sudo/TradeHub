@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -56,12 +56,7 @@ export function TenderRefineFilters({ currentUser, onFiltersChange, isMobile = f
 
   const allTrades = TRADE_CATEGORIES;
 
-  useEffect(() => {
-    onFiltersChange(filters);
-    updateURL();
-  }, [filters]);
-
-  const updateURL = () => {
+  const updateURL = useCallback(() => {
     const params = new URLSearchParams();
     if (filters.availableFrom) params.set('availableFrom', filters.availableFrom);
     if (filters.availableTo) params.set('availableTo', filters.availableTo);
@@ -73,7 +68,12 @@ export function TenderRefineFilters({ currentUser, onFiltersChange, isMobile = f
 
     const newUrl = params.toString() ? `?${params.toString()}` : '/tenders';
     router.replace(newUrl, { scroll: false });
-  };
+  }, [filters, router]);
+
+  useEffect(() => {
+    onFiltersChange(filters);
+    updateURL();
+  }, [filters, onFiltersChange, updateURL]);
 
   const handleClearFilters = () => {
     const clearedFilters: TenderFilters = {
