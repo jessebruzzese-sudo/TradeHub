@@ -22,14 +22,16 @@ export default function AvailabilityPage() {
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const userId = currentUser?.id ?? null;
+
   const loadAvailability = useCallback(async () => {
-    if (!currentUser) return;
+    if (!userId) return;
 
     try {
       const { data: availabilityData, error: availError } = await supabase
         .from('subcontractor_availability')
         .select('date, description')
-        .eq('user_id', currentUser.id);
+        .eq('user_id', userId);
 
       let descriptionFromAvailability: string | null = null;
       if (!availError && availabilityData && availabilityData.length > 0) {
@@ -44,7 +46,7 @@ export default function AvailabilityPage() {
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('availability_description')
-        .eq('id', currentUser.id)
+        .eq('id', userId)
         .maybeSingle();
 
       const hasDescriptionFromAvailability =
@@ -59,12 +61,12 @@ export default function AvailabilityPage() {
     } catch (err) {
       console.error('Error loading availability:', err);
     }
-  }, [currentUser?.id, supabase]);
+  }, [userId, supabase]);
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!userId) return;
     loadAvailability();
-  }, [currentUser, loadAvailability]);
+  }, [userId, loadAvailability]);
 
   const handleSave = async () => {
     if (!currentUser) return;
