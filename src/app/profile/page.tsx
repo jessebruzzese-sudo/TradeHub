@@ -101,12 +101,13 @@ export default function ProfilePage() {
 
         {/* Header card */}
         <div className="mb-6 rounded-xl border border-gray-200 bg-white p-6">
-          <div className="mb-6 flex items-start gap-6">
+          <div className="mb-6 flex items-start gap-[28px]">
             <ProfileAvatar
               userId={currentUser.id}
               currentAvatarUrl={currentUser.avatar ?? undefined}
               userName={currentUser.name}
               onAvatarUpdate={handleAvatarUpdate}
+              size={116}
             />
 
             <div className="flex-1">

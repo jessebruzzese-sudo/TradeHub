@@ -12,6 +12,8 @@ interface ProfileAvatarProps {
   userName: string;
   onAvatarUpdate: (newAvatarUrl: string) => void;
   editable?: boolean;
+  /** Pixel size (width/height). Default 96. Use e.g. 116 for ~20% larger on profile header. */
+  size?: number;
 }
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -23,6 +25,7 @@ export function ProfileAvatar({
   userName,
   onAvatarUpdate,
   editable = true,
+  size = 96,
 }: ProfileAvatarProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -45,12 +48,12 @@ export function ProfileAvatar({
 
     setIsUploading(true);
 
-    try {
-      // ✅ One fixed path per user (overwrites old avatar)
-      const filePath = `${userId}/avatar.png`;
+    const bucket = 'avatars';
+    const filePath = `${userId}/avatar.png`;
 
+    try {
       const { error: uploadError } = await supabase.storage
-        .from('avatars')
+        .from(bucket)
         .upload(filePath, file, {
           cacheControl: '3600',
           upsert: true,
@@ -58,16 +61,23 @@ export function ProfileAvatar({
 
       if (uploadError) throw uploadError;
 
-      const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+      const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
 
-      // ✅ Optional cache-bust so browser always refreshes immediately
       const freshUrl = `${data.publicUrl}?v=${Date.now()}`;
 
       onAvatarUpdate(freshUrl);
       toast.success('Profile photo updated successfully');
-    } catch (error: any) {
-      console.error('Error uploading avatar:', error);
-      toast.error(error?.message || 'Failed to upload profile photo. Please try again.');
+    } catch (error: unknown) {
+      console.error('[ProfileAvatar] upload failed', {
+        userId,
+        file: file.name,
+        size: file.size,
+        bucket,
+        path: filePath,
+        error,
+      });
+      const message = error instanceof Error ? error.message : 'Upload failed';
+      toast.error(message || 'Failed to upload profile photo. Please try again.');
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -89,9 +99,10 @@ export function ProfileAvatar({
   return (
     <div className="relative">
       <div
-        className={`group relative w-24 h-24 rounded-full overflow-hidden bg-blue-600 border-2 border-gray-200 flex items-center justify-center ${
+        className={`group relative rounded-full overflow-hidden bg-blue-600 border-2 border-gray-200 flex items-center justify-center ${
           editable && !isUploading ? 'cursor-pointer' : ''
         }`}
+        style={{ width: size, height: size }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onClick={handleClick}
