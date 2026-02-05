@@ -65,21 +65,15 @@ export async function checkQuoteSubmissionPermission(
   }
 }
 
+/** Single-account: based on plan/subscription only, not role. */
 export function canUserPostTenders(
-  role: string,
+  _role: string,
   activePlan: string | null,
   subscriptionStatus: string
 ): boolean {
-  if (role === 'admin' || role === 'contractor') {
-    return true;
-  }
-
-  if (role === 'subcontractor') {
-    return (
-      (activePlan === 'SUBCONTRACTOR_PRO_10' || activePlan === 'ALL_ACCESS_PRO_26') &&
-      subscriptionStatus === 'ACTIVE'
-    );
-  }
-
-  return false;
+  return (
+    activePlan === 'BUSINESS_PRO_20' ||
+    activePlan === 'ALL_ACCESS_PRO_26' ||
+    (activePlan === 'SUBCONTRACTOR_PRO_10' && subscriptionStatus === 'ACTIVE')
+  );
 }

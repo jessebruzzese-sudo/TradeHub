@@ -112,6 +112,7 @@ export default function TradeSuburbTenders({ trade, suburb }: TradeSuburbTenders
   }, [trade, suburb, isLoading, fetchTenders]);
 
   const displaySuburb = formatSuburbForDisplay(suburb);
+  // Role used for UI/copy only, not permissions
   const isBuilder = currentUser?.role === 'contractor' || currentUser?.role === 'admin';
 
   return (

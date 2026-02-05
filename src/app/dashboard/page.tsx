@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
 import { useAuth } from '@/lib/auth';
+import { isAdmin } from '@/lib/is-admin';
 import { getSafeReturnUrl, safeRouterReplace } from '@/lib/safe-nav';
 
 import {
@@ -34,9 +35,9 @@ export default function DashboardPage() {
 
   const hasSession = !!session?.user;
 
-  // Hooks before returns
+  // Hooks before returns (role used for UI/copy only, not permissions)
   const role = useMemo(() => norm(currentUser?.role), [currentUser?.role]);
-  const isAdmin = role === 'admin';
+  const isAdminUser = isAdmin(currentUser);
   const isContractor = role === 'contractor';
   const isSubcontractor = role === 'subcontractor';
 
@@ -132,7 +133,7 @@ export default function DashboardPage() {
 
   // ✅ Fix: never route to /jobs/new (collides with /jobs/[id] and causes uuid errors)
   // Use /jobs/create (matches your /tenders/create convention)
-  const postJobHref = !isAdmin && !isAbnVerified
+  const postJobHref = !isAdminUser && !isAbnVerified
     ? `/verify-business?returnUrl=${encodeURIComponent('/jobs/create')}`
     : '/jobs/create';
 
@@ -149,7 +150,7 @@ export default function DashboardPage() {
               <span className="text-sm text-gray-600">Account:</span>
               {trustPill}
 
-              {!isAdmin && (
+              {!isAdminUser && (
                 <>
                   <span className="mx-1 text-gray-300">•</span>
                   <span className="text-sm text-gray-600">ABN:</span>
@@ -186,7 +187,7 @@ export default function DashboardPage() {
         </div>
 
         {/* ABN callout */}
-        {!isAdmin && !isAbnVerified && (
+        {!isAdminUser && !isAbnVerified && (
           <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4">
             <div className="flex items-start gap-3">
               <ShieldCheck className="mt-0.5 h-5 w-5 text-red-600" />
@@ -298,7 +299,7 @@ export default function DashboardPage() {
             </>
           )}
 
-          {isAdmin && (
+          {isAdminUser && (
             <>
               <ActionCard
                 title="Admin"

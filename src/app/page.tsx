@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { MarketingHeader } from '@/components/marketing-header';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
+import { isAdmin } from '@/lib/is-admin';
 import { buildLoginUrl } from '@/lib/url-utils';
 import { safeRouterPush } from '@/lib/safe-nav';
 
@@ -87,8 +88,7 @@ export default function HomePage() {
   };
 
   const goDashboard = () => {
-    const role = (currentUser as any)?.role;
-    router.push(role === 'admin' ? '/admin' : '/dashboard');
+    router.push(isAdmin(currentUser) ? '/admin' : '/dashboard');
   };
 
   const handleCreateTender = () => {

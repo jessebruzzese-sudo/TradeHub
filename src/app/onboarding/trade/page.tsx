@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
+import { isAdmin } from '@/lib/is-admin';
 import { TRADE_CATEGORIES } from '@/lib/trades';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -13,7 +14,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
 
 export default function TradeOnboardingPage() {
-  const { user, updateUser } = useAuth();
+  const { currentUser, updateUser } = useAuth();
   const router = useRouter();
   const [selectedTrade, setSelectedTrade] = useState<string>('');
   const [error, setError] = useState<string>('');
@@ -31,12 +32,11 @@ export default function TradeOnboardingPage() {
     try {
       await updateUser({ primaryTrade: selectedTrade });
 
-      if (user?.role === 'contractor') {
-        router.push('/dashboard/contractor');
-      } else if (user?.role === 'subcontractor') {
-        router.push('/dashboard/subcontractor');
+      // Role used for UI routing only, not permissions
+      if (isAdmin(currentUser)) {
+        router.push('/admin');
       } else {
-        router.push('/');
+        router.push('/dashboard');
       }
     } catch (err) {
       setError('Failed to save your trade selection. Please try again.');
@@ -49,10 +49,8 @@ export default function TradeOnboardingPage() {
   };
 
   const getDashboardPath = () => {
-    if (user?.role === 'contractor') return '/dashboard/contractor';
-    if (user?.role === 'subcontractor') return '/dashboard/subcontractor';
-    if (user?.role === 'admin') return '/admin';
-    return '/';
+    if (isAdmin(currentUser)) return '/admin';
+    return '/dashboard';
   };
 
   return (

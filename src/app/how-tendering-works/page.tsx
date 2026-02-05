@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Upload, Target, DollarSign, MessageSquare } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { isAdmin } from '@/lib/is-admin';
 import { useRouter } from 'next/navigation';
 
 export default function HowTenderingWorksPage() {
@@ -21,7 +22,7 @@ export default function HowTenderingWorksPage() {
           </Link>
           <div className="flex items-center gap-3">
             {currentUser ? (
-              <Button size="sm" onClick={() => router.push(currentUser.role === 'admin' ? '/admin' : '/dashboard')}>
+              <Button size="sm" onClick={() => router.push(isAdmin(currentUser) ? '/admin' : '/dashboard')}>
                 Dashboard
               </Button>
             ) : (

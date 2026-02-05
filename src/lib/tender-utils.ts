@@ -12,6 +12,9 @@ export function getMonthKeyBrisbane(date: Date = new Date()): string {
   return `${year}-${month}`;
 }
 
+import { getEffectiveSearchOrigin } from './search-origin';
+import type { User } from './types';
+
 export function haversineDistance(
   lat1: number,
   lng1: number,
@@ -183,6 +186,49 @@ export function isTenderVisibleToContractor(
   }
 
   return false;
+}
+
+/**
+ * Returns the effective origin coords for radius/distance calculations.
+ * Use this instead of inline user.searchLat ?? user.locationLat logic.
+ * Non-premium users always get base location; premium with search-from get search-from.
+ */
+export function getOriginCoordsForRadiusFilter(
+  user: User | null | undefined
+): { lat: number | null; lng: number | null } {
+  const origin = getEffectiveSearchOrigin(user);
+  const lat = origin.lat;
+  const lng = origin.lng;
+  const safeLat =
+    lat != null && typeof lat === 'number' && !Number.isNaN(lat) ? lat : null;
+  const safeLng =
+    lng != null && typeof lng === 'number' && !Number.isNaN(lng) ? lng : null;
+  return { lat: safeLat, lng: safeLng };
+}
+
+/**
+ * Visibility check using effective search origin (base vs search-from per Premium).
+ * When origin has no coords, returns false (no radius filtering; existing behavior).
+ */
+export function isTenderVisibleToContractorFromUser(
+  user: User | null | undefined,
+  tenderTier: string,
+  tenderLat: number,
+  tenderLng: number,
+  contractorPlan: string,
+  preferredRadiusKm: number
+): boolean {
+  const { lat, lng } = getOriginCoordsForRadiusFilter(user);
+  if (lat === null || lng === null) return false;
+  return isTenderVisibleToContractor(
+    tenderTier,
+    tenderLat,
+    tenderLng,
+    contractorPlan,
+    lat,
+    lng,
+    preferredRadiusKm
+  );
 }
 
 export function getTenderDurationDays(tenderTier: string): number {

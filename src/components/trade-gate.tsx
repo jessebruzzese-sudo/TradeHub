@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
+import { isAdmin } from '@/lib/is-admin';
 
 export function TradeGate({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -13,7 +14,7 @@ export function TradeGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (isLoading || hasChecked) return;
 
-    if (user && user.role !== 'admin' && !user.primaryTrade && pathname !== '/onboarding/trade') {
+    if (user && !isAdmin(user) && !user.primaryTrade && pathname !== '/onboarding/trade') {
       setHasChecked(true);
       router.push('/onboarding/trade');
     } else if (user) {
@@ -33,7 +34,7 @@ export function TradeGate({ children }: { children: React.ReactNode }) {
     return null;
   }
 
-  if (user.role !== 'admin' && !user.primaryTrade && pathname !== '/onboarding/trade') {
+  if (!isAdmin(user) && !user.primaryTrade && pathname !== '/onboarding/trade') {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>

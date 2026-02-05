@@ -52,6 +52,7 @@ export function TenderRefineFilters({ currentUser, onFiltersChange, isMobile = f
     selectedTrades: searchParams.get('trades')?.split(',').filter(Boolean) || [],
   });
 
+  // Role used for UI only, not permissions
   const showTradeFilter = currentUser?.multi_trade_unlocked === true || currentUser?.role === 'admin';
 
   const allTrades = TRADE_CATEGORIES;

@@ -1,18 +1,18 @@
 import { User, Job, Notification } from './types';
 import { get48HourReminderMessage } from './reliability-utils';
 
+/** Single-account: based on user preferences only, not role. */
 export function shouldSendEmailNotification(user: User): boolean {
-  if (user.role !== 'subcontractor') return false;
   return user.subcontractorWorkAlertEmail ?? true;
 }
 
+/** Single-account: based on user preferences only, not role. */
 export function shouldSendSmsNotification(user: User): boolean {
-  if (user.role !== 'subcontractor') return false;
   return user.subcontractorWorkAlertSms ?? false;
 }
 
+/** Single-account: based on user preferences only, not role. */
 export function shouldSendInAppNotification(user: User): boolean {
-  if (user.role !== 'subcontractor') return false;
   return user.subcontractorWorkAlertInApp ?? true;
 }
 

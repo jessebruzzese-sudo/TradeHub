@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Eye, EyeOff } from 'lucide-react';
 import { getSafeReturnUrl, safeRouterReplace } from '@/lib/safe-nav';
+import { isAdmin } from '@/lib/is-admin';
 
 function getFriendlyLoginError(error: any): string {
   if (!error) {
@@ -69,7 +70,7 @@ export default function LoginPage() {
   // If already logged in, redirect away from /login
   useEffect(() => {
     if (!isLoading && currentUser) {
-      const defaultUrl = currentUser.role === 'admin' ? '/admin' : '/dashboard';
+      const defaultUrl = isAdmin(currentUser) ? '/admin' : '/dashboard';
       const safeReturnUrl = getSafeReturnUrl(returnUrlParam, defaultUrl);
       console.log('[Login] Auto-redirecting logged-in user to:', safeReturnUrl);
       safeRouterReplace(router, safeReturnUrl, defaultUrl);
@@ -87,8 +88,7 @@ export default function LoginPage() {
 if (!result) return;
 
 // If login() returns something truthy OR you just want to redirect after success:
-const role = (result as any)?.role; // may be undefined if login() returns void
-const defaultUrl = role === 'admin' ? '/admin' : '/dashboard';
+const defaultUrl = isAdmin(currentUser) ? '/admin' : '/dashboard';
 const safeReturnUrl = getSafeReturnUrl(returnUrlParam, defaultUrl);
 
 console.log('[Login] Login successful, redirecting to:', safeReturnUrl);

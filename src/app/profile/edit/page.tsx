@@ -1,5 +1,15 @@
 'use client';
 
+/*
+ * QA_ONLY — MANUAL QA CHECKLIST (Profile Edit + Avatar)
+ * [ ] Prefill check: name, bio, business name, primary trade, search-from hydrate from currentUser
+ * [ ] Save name/bio persists after refresh (reload /profile then /profile/edit)
+ * [ ] Primary trade locked behavior: once set, field is disabled with lock icon
+ * [ ] Additional trades premium enforcement: non-premium sees upgrade CTA; premium can add trades
+ * [ ] Search-from premium enforcement: non-premium sees upgrade CTA; premium can set custom location
+ * [ ] Avatar upload persists after refresh: upload image, reload /profile and /profile/edit, confirm URL and image
+ */
+
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -19,8 +29,13 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 import { useAuth } from '@/lib/auth';
+import { isAdmin } from '@/lib/is-admin';
 import { TRADE_CATEGORIES } from '@/lib/trades';
-import { hasSubcontractorPremium, hasBuilderPremium, hasContractorPremium } from '@/lib/capability-utils';
+import {
+  hasSubcontractorPremium,
+  canCustomSearchLocation,
+} from '@/lib/capability-utils';
+import { getEffectiveSearchOrigin } from '@/lib/search-origin';
 
 export default function EditProfilePage() {
   const { currentUser, updateUser } = useAuth();
@@ -69,7 +84,7 @@ export default function EditProfilePage() {
 
   // Premium checks
   const canMultiTrade = hasSubcontractorPremium(userForCaps as any) || !!currentUser?.additionalTradesUnlocked;
-  const canCustomSearchLocation = hasBuilderPremium(userForCaps as any) || hasContractorPremium(userForCaps as any);
+  const canUseSearchFrom = canCustomSearchLocation(userForCaps as any);
 
   const parsedTrades = useMemo<string[]>(() => {
     return tradesText
@@ -91,6 +106,17 @@ export default function EditProfilePage() {
     try {
       await updateUser({ avatar: newAvatarUrl });
       toast.success('Avatar updated');
+      // QA_ONLY: dev-only post-upload verification — warn if avatar URL not reachable
+      if (process.env.NODE_ENV !== 'production') {
+        try {
+          const res = await fetch(newAvatarUrl, { method: 'HEAD' });
+          if (!res.ok) {
+            console.warn('[QA] Avatar URL not reachable after upload:', newAvatarUrl, 'status:', res.status);
+          }
+        } catch (fetchErr) {
+          console.warn('[QA] Avatar URL fetch failed (CORS or network):', newAvatarUrl, fetchErr);
+        }
+      }
     } catch (error) {
       console.error('Error updating avatar:', error);
       toast.error('Failed to update avatar');
@@ -123,7 +149,7 @@ export default function EditProfilePage() {
     e.preventDefault();
 
     // Primary trade is required for non-admins (even if UI-only for now)
-    if (!primaryTrade.trim() && currentUser.role !== 'admin') {
+    if (!primaryTrade.trim() && !isAdmin(currentUser)) {
       toast.error('Please select your primary trade');
       return;
     }
@@ -164,14 +190,19 @@ export default function EditProfilePage() {
       toast.success('Profile updated successfully');
       router.push('/profile');
     } catch (error) {
-      console.error(error);
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('[QA] Profile save failed', error);
+      } else {
+        console.error(error);
+      }
       toast.error('Failed to update profile');
     } finally {
       setIsSaving(false);
     }
   };
 
-  const dashboardHref = currentUser.role === 'contractor' ? '/dashboard/contractor' : '/dashboard/subcontractor';
+  // Role used for UI routing/copy only, not permissions
+  const dashboardHref = '/dashboard';
 
   return (
     <AppLayout>
@@ -213,7 +244,7 @@ export default function EditProfilePage() {
               <p className="mt-1 text-xs text-gray-500">Email cannot be changed</p>
             </div>
 
-            {currentUser.role !== 'admin' && (
+            {!isAdmin(currentUser) && (
               <div>
                 <Label htmlFor="businessName">Business Name</Label>
                 <Input
@@ -240,7 +271,7 @@ export default function EditProfilePage() {
               />
             </div>
 
-            {currentUser.role !== 'admin' && (
+            {!isAdmin(currentUser) && (
               <div>
                 <Label htmlFor="primaryTrade">
                   Primary Trade {!currentUser.primaryTrade && <span className="text-red-500">*</span>}
@@ -286,7 +317,7 @@ export default function EditProfilePage() {
               </div>
             )}
 
-            {currentUser.role !== 'admin' && (currentUser.primaryTrade || primaryTrade) && (
+            {!isAdmin(currentUser) && (currentUser.primaryTrade || primaryTrade) && (
               <div className="rounded-lg border-2 border-blue-200 bg-blue-50 p-6">
                 <div className="mb-4 flex items-start justify-between">
                   <div className="flex-1">
@@ -353,6 +384,7 @@ export default function EditProfilePage() {
               </div>
             )}
 
+            {/* Role used for UI/copy only */}
             {currentUser.role === 'subcontractor' && (
               <div>
                 <Label htmlFor="tradesText">Additional Trade Skills</Label>
@@ -370,7 +402,7 @@ export default function EditProfilePage() {
               </div>
             )}
 
-            {currentUser.role !== 'admin' && (
+            {!isAdmin(currentUser) && (
               <div className="rounded-lg border-2 border-purple-200 bg-purple-50 p-6">
                 <div className="mb-4 flex items-start justify-between">
                   <div className="flex-1">
@@ -384,7 +416,7 @@ export default function EditProfilePage() {
                   </div>
                 </div>
 
-                {canCustomSearchLocation ? (
+                {canUseSearchFrom ? (
                   <div className="space-y-4">
                     <div className="flex items-center gap-2 text-sm text-green-700">
                       <div className="h-2 w-2 rounded-full bg-green-600" />
@@ -406,14 +438,18 @@ export default function EditProfilePage() {
                         {currentUser.postcode ? `, ${currentUser.postcode}` : ''}
                       </p>
 
-                      {searchLocation && (
-                        <div className="mt-2 rounded border border-blue-200 bg-blue-50 p-3">
-                          <p className="text-xs text-blue-900">
-                            <strong>Active:</strong> Jobs and tenders are now calculated from {searchLocation}
-                            {searchPostcode ? `, ${searchPostcode}` : ''}
-                          </p>
-                        </div>
-                      )}
+                      {(() => {
+                        const origin = getEffectiveSearchOrigin(currentUser as any);
+                        if (origin.source !== 'searchFrom' || !origin.location) return null;
+                        return (
+                          <div className="mt-2 rounded border border-blue-200 bg-blue-50 p-3">
+                            <p className="text-xs text-blue-900">
+                              <strong>Active:</strong> Jobs and tenders are now calculated from {origin.location}
+                              {origin.postcode ? `, ${origin.postcode}` : ''}
+                            </p>
+                          </div>
+                        );
+                      })()}
 
                       {(searchLocation || searchPostcode) && (
                         <Button
@@ -462,6 +498,58 @@ export default function EditProfilePage() {
               </Button>
             </Link>
           </div>
+
+          {/* QA_ONLY: dev-only QA panel — not rendered in production */}
+          {process.env.NODE_ENV !== 'production' && (
+            <div className="mt-8 rounded-lg border border-amber-300 bg-amber-50 p-4 font-mono text-xs">
+              <div className="mb-2 font-semibold text-amber-900">QA Panel (dev only)</div>
+              <div className="space-y-1 text-gray-700">
+                <div>id: {currentUser.id}</div>
+                <div>role: {currentUser.role ?? '—'}</div>
+                <div>abnStatus: {(currentUser as any).abnStatus ?? '—'}</div>
+                <div>canMultiTrade: {String(canMultiTrade)}</div>
+                <div>canCustomSearchLocation: {String(canUseSearchFrom)}</div>
+                <div>avatar: {currentUser.avatar ? currentUser.avatar : '—'}</div>
+                {(Boolean((currentUser as any).searchLocation) ||
+                  Boolean((currentUser as any).searchPostcode) ||
+                  (currentUser as any).searchLat != null ||
+                  (currentUser as any).searchLng != null) && (
+                  <>
+                    <div>searchLocation: {(currentUser as any).searchLocation ?? '—'}</div>
+                    <div>searchPostcode: {(currentUser as any).searchPostcode ?? '—'}</div>
+                    <div>searchLat: {(currentUser as any).searchLat ?? '—'}</div>
+                    <div>searchLng: {(currentUser as any).searchLng ?? '—'}</div>
+                  </>
+                )}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                onClick={() => {
+                  const snapshot = {
+                    id: currentUser.id,
+                    role: currentUser.role,
+                    abnStatus: (currentUser as any).abnStatus,
+                    canMultiTrade,
+                    canCustomSearchLocation: canUseSearchFrom,
+                    avatar: currentUser.avatar,
+                    searchLocation: (currentUser as any).searchLocation,
+                    searchPostcode: (currentUser as any).searchPostcode,
+                    searchLat: (currentUser as any).searchLat,
+                    searchLng: (currentUser as any).searchLng,
+                    name: currentUser.name,
+                    email: currentUser.email,
+                  };
+                  void navigator.clipboard.writeText(JSON.stringify(snapshot, null, 2));
+                  toast.success('User debug JSON copied');
+                }}
+              >
+                Copy user debug JSON
+              </Button>
+            </div>
+          )}
         </form>
       </div>
     </AppLayout>
