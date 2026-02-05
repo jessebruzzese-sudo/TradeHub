@@ -1,5 +1,4 @@
-import { User } from './types';
-import { hasBuilderPremium, hasContractorPremium, hasSubcontractorPremium } from './capability-utils';
+import { canUseSearchFromLocation } from '@/lib/permissions';
 
 export type SearchOriginSource = 'base' | 'searchFrom';
 
@@ -11,27 +10,28 @@ export interface EffectiveSearchOrigin {
   source: SearchOriginSource;
 }
 
-type UserLike = Record<string, unknown>;
-
-/**
- * Returns true if the user's Premium tier allows using a custom search-from location.
- */
-function canUseSearchFromLocation(user: UserLike | null | undefined): boolean {
-  if (!user) return false;
-  return (
-    hasBuilderPremium(user as User) ||
-    hasContractorPremium(user as User) ||
-    hasSubcontractorPremium(user as User)
-  );
-}
+type UserLike = {
+  id?: string;
+  // base location
+  location?: string | null;
+  postcode?: string | null;
+  locationLat?: number | null;
+  locationLng?: number | null;
+  location_lat?: number | null;
+  location_lng?: number | null;
+  // search-from fields
+  searchLocation?: string | null;
+  searchPostcode?: string | null;
+  searchLat?: number | null;
+  searchLng?: number | null;
+} & Record<string, unknown>;
 
 function hasSearchFromData(user: UserLike | null | undefined): boolean {
   if (!user) return false;
-  const u = user as Record<string, unknown>;
-  const hasLocation = !!(u.searchLocation && String(u.searchLocation).trim());
-  const hasPostcode = !!(u.searchPostcode && String(u.searchPostcode).trim());
-  const lat = u.searchLat as number | null | undefined;
-  const lng = u.searchLng as number | null | undefined;
+  const hasLocation = !!(user.searchLocation && String(user.searchLocation).trim());
+  const hasPostcode = !!(user.searchPostcode && String(user.searchPostcode).trim());
+  const lat = user.searchLat;
+  const lng = user.searchLng;
   const hasCoords =
     typeof lat === 'number' &&
     typeof lng === 'number' &&
@@ -50,26 +50,25 @@ export function getEffectiveSearchOrigin(
   user: UserLike | null | undefined
 ): EffectiveSearchOrigin {
   const base: EffectiveSearchOrigin = {
-    location: (user as any)?.location ?? null,
-    postcode: (user as any)?.postcode ?? null,
-    lat: (user as any)?.locationLat ?? (user as any)?.location_lat ?? null,
-    lng: (user as any)?.locationLng ?? (user as any)?.location_lng ?? null,
+    location: user?.location ?? null,
+    postcode: user?.postcode ?? null,
+    lat: user?.locationLat ?? user?.location_lat ?? null,
+    lng: user?.locationLng ?? user?.location_lng ?? null,
     source: 'base',
   };
 
   if (!user) return base;
 
   if (canUseSearchFromLocation(user) && hasSearchFromData(user)) {
-    const u = user as Record<string, unknown>;
-    const loc = (u.searchLocation && String(u.searchLocation).trim()) || null;
-    const pc = (u.searchPostcode && String(u.searchPostcode).trim()) || null;
+    const loc = (user.searchLocation && String(user.searchLocation).trim()) || null;
+    const pc = (user.searchPostcode && String(user.searchPostcode).trim()) || null;
     const lat =
-      typeof u.searchLat === 'number' && !Number.isNaN(u.searchLat)
-        ? u.searchLat
+      typeof user.searchLat === 'number' && !Number.isNaN(user.searchLat)
+        ? user.searchLat
         : null;
     const lng =
-      typeof u.searchLng === 'number' && !Number.isNaN(u.searchLng)
-        ? u.searchLng
+      typeof user.searchLng === 'number' && !Number.isNaN(user.searchLng)
+        ? user.searchLng
         : null;
     const hasUsable = !!(loc || pc || (lat != null && lng != null));
     if (hasUsable) {

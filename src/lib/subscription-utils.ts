@@ -60,21 +60,27 @@ export function hasComplimentaryPremium(user: User | null | undefined): boolean 
   return new Date(user.complimentaryPremiumUntil) > new Date();
 }
 
+/** Single-account: based on plan/subscription status only, not role. Uses unified active_plan + subscription_status, or legacy subcontractor fields. */
 export function isSubcontractorPro(user: User | null | undefined): boolean {
-  if (!user || user.role !== 'subcontractor') return false;
+  if (!user) return false;
 
-  if (hasComplimentaryPremium(user)) {
-    return true;
-  }
+  if (hasComplimentaryPremium(user)) return true;
 
+  // Unified model (from users.active_plan + subscription_status)
+  const status = (user.subscriptionStatus || '').toUpperCase();
+  if (status === 'ACTIVE' && user.activePlan === 'SUBCONTRACTOR_PRO_10') return true;
+  if (status === 'ACTIVE' && user.activePlan === 'ALL_ACCESS_PRO_26') return true;
+
+  // Legacy subcontractor fields
   return (
     user.subcontractorPlan === 'PRO_10' &&
     user.subcontractorSubStatus === 'ACTIVE'
   );
 }
 
+/** Single-account: based on plan only. */
 export function getEffectiveRadiusKm(user: User): number {
-  if (!user || user.role !== 'subcontractor') {
+  if (!user || !isSubcontractorPro(user)) {
     return user?.radius || 15;
   }
 
@@ -85,8 +91,9 @@ export function getEffectiveRadiusKm(user: User): number {
   return Math.min(preferredRadius, maxRadius);
 }
 
+/** Single-account: based on plan only. */
 export function getAvailabilityHorizonDays(user: User): number {
-  if (!user || user.role !== 'subcontractor') {
+  if (!user || !isSubcontractorPro(user)) {
     return 14;
   }
 
@@ -94,11 +101,12 @@ export function getAvailabilityHorizonDays(user: User): number {
   return isPro ? TIER_LIMITS.PRO_10.availabilityHorizonDays : TIER_LIMITS.NONE.availabilityHorizonDays;
 }
 
+/** Single-account: based on plan only. */
 export function canUseAlertChannel(
   user: User,
   channel: 'inApp' | 'email' | 'sms'
 ): boolean {
-  if (!user || user.role !== 'subcontractor') return false;
+  if (!user || !isSubcontractorPro(user)) return false;
 
   const isPro = isSubcontractorPro(user);
   const limits = isPro ? TIER_LIMITS.PRO_10 : TIER_LIMITS.NONE;
@@ -106,8 +114,9 @@ export function canUseAlertChannel(
   return limits.alertChannels[channel];
 }
 
+/** Single-account: based on plan only. */
 export function getCurrentPlanLimits(user: User | null | undefined): SubcontractorTierLimits {
-  if (!user || user.role !== 'subcontractor') {
+  if (!user || !isSubcontractorPro(user)) {
     return TIER_LIMITS.NONE;
   }
 
@@ -140,12 +149,13 @@ export function shouldShowProBadge(user: User | null | undefined): boolean {
   return isSubcontractorPro(user);
 }
 
+/** Single-account: based on plan only. */
 export function getSubscriptionDisplayText(user: User | null | undefined): {
   plan: string;
   badge?: string;
   expiryDate?: string;
 } {
-  if (!user || user.role !== 'subcontractor') {
+  if (!user || !isSubcontractorPro(user)) {
     return { plan: 'Free' };
   }
 
@@ -157,6 +167,10 @@ export function getSubscriptionDisplayText(user: User | null | undefined): {
     };
   }
 
+  const status = (user.subscriptionStatus || '').toUpperCase();
+  if (status === 'ACTIVE' && (user.activePlan === 'SUBCONTRACTOR_PRO_10' || user.activePlan === 'ALL_ACCESS_PRO_26')) {
+    return { plan: 'Premium' };
+  }
   if (user.subcontractorPlan === 'PRO_10' && user.subcontractorSubStatus === 'ACTIVE') {
     return { plan: 'Premium' };
   }
@@ -164,13 +178,15 @@ export function getSubscriptionDisplayText(user: User | null | undefined): {
   return { plan: 'Free' };
 }
 
+/** Single-account: anyone with plan or settings can use work alerts. */
 export function canUseWorkAlerts(user: User | null | undefined): boolean {
-  if (!user || user.role !== 'subcontractor') return false;
+  if (!user) return false;
   return true;
 }
 
+/** Single-account: based on plan only. */
 export function canUseAvailabilityBroadcast(user: User | null | undefined): boolean {
-  if (!user || user.role !== 'subcontractor') return false;
+  if (!user) return false;
   return isSubcontractorPro(user);
 }
 

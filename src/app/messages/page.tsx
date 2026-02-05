@@ -1,5 +1,13 @@
 'use client';
 
+/*
+ * QA notes — ABN gating (Messages):
+ * - /messages list and thread reading work for unverified users.
+ * - Plain sending messages remains allowed for unverified.
+ * - Commitment action cards (Accept/Decline, Confirm hire, Accept quote, Award job, etc.) are blocked for unverified:
+ *   disabled button + "Verify ABN to continue" + CTA link to /verify-business. Verified users use action cards normally.
+ */
+
 import { useAuth } from '@/lib/auth';
 import { getStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
@@ -8,6 +16,7 @@ import { MessageSquare, CheckCircle, XCircle } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { toast } from 'sonner';
 import { MessageInput } from '@/components/message-input';
 import { MessageBubble } from '@/components/message-bubble';
 import { EmptyMessages } from '@/components/empty-messages';
@@ -16,6 +25,7 @@ import { canTransitionToStatus } from '@/lib/job-lifecycle';
 import { AppLayout } from '@/components/app-nav';
 import { callTradeHubAI } from '@/lib/ai-client';
 import { EmptyState } from '@/components/empty-state';
+import { needsBusinessVerification, redirectToVerifyBusiness, getVerifyBusinessUrl } from '@/lib/verification-guard';
 
 export default function MessagesPage() {
   const { currentUser } = useAuth();
@@ -81,6 +91,8 @@ export default function MessagesPage() {
     return null;
   }
 
+  const needsAbnForActions = needsBusinessVerification(currentUser);
+  const messagesReturnUrl = '/messages' + (selectedConversation ? `?conversation=${selectedConversation}` : '');
   const messagingState = getMessagingState(currentJob || null, currentUser);
 
   const parse3Suggestions = (text: string): string[] => {
@@ -192,6 +204,11 @@ export default function MessagesPage() {
 
   const handleAcceptJob = () => {
     if (!currentJob || !currentConversation) return;
+    if (needsAbnForActions) {
+      toast.error('Verify your ABN to continue.');
+      redirectToVerifyBusiness(router, messagesReturnUrl);
+      return;
+    }
 
     const transition = canTransitionToStatus('accepted', 'confirmed');
     if (!transition.allowed) {
@@ -235,6 +252,11 @@ export default function MessagesPage() {
 
   const handleConfirmHire = () => {
     if (!currentJob || !currentConversation) return;
+    if (needsAbnForActions) {
+      toast.error('Verify your ABN to continue.');
+      redirectToVerifyBusiness(router, messagesReturnUrl);
+      return;
+    }
 
     const transition = canTransitionToStatus('accepted', 'confirmed', {
       hasSelectedSubcontractor: !!currentJob.selectedSubcontractor,
@@ -352,8 +374,8 @@ export default function MessagesPage() {
                         <p className="text-sm text-blue-800 mb-4">
                           The contractor has selected you for "{currentJob.title}". Accept to proceed.
                         </p>
-                        <div className="flex gap-3">
-                          <Button onClick={handleAcceptJob} size="sm">
+                        <div className="flex flex-wrap gap-3 items-center">
+                          <Button onClick={handleAcceptJob} size="sm" disabled={needsAbnForActions}>
                             <CheckCircle className="w-4 h-4 mr-2" />
                             Accept
                           </Button>
@@ -361,6 +383,14 @@ export default function MessagesPage() {
                             <XCircle className="w-4 h-4 mr-2" />
                             Decline
                           </Button>
+                          {needsAbnForActions && (
+                            <p className="text-sm text-amber-700">
+                              Verify your ABN to continue.{' '}
+                              <Link href={getVerifyBusinessUrl(messagesReturnUrl)} className="font-medium text-blue-600 hover:text-blue-700 underline">
+                                Verify ABN
+                              </Link>
+                            </p>
+                          )}
                         </div>
                       </div>
                     )}
@@ -371,10 +401,20 @@ export default function MessagesPage() {
                         <p className="text-sm text-green-800 mb-4">
                           {otherUser?.name} has accepted the job. Confirm to finalize the hire.
                         </p>
-                        <Button onClick={handleConfirmHire} size="sm">
-                          <CheckCircle className="w-4 h-4 mr-2" />
-                          Confirm Hire
-                        </Button>
+                        <div className="flex flex-wrap gap-3 items-center">
+                          <Button onClick={handleConfirmHire} size="sm" disabled={needsAbnForActions}>
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            Confirm Hire
+                          </Button>
+                          {needsAbnForActions && (
+                            <p className="text-sm text-amber-700">
+                              Verify your ABN to continue.{' '}
+                              <Link href={getVerifyBusinessUrl(messagesReturnUrl)} className="font-medium text-blue-600 hover:text-blue-700 underline">
+                                Verify ABN
+                              </Link>
+                            </p>
+                          )}
+                        </div>
                       </div>
                     )}
 

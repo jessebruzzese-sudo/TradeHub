@@ -1,14 +1,20 @@
 'use client';
 
+/*
+ * QA notes - ABN gating (Jobs create):
+ * - /jobs/create redirects unverified users to /verify-business (returnUrl=/jobs/create); no form flash.
+ * - Verified users can create jobs as normal.
+ * - No TradeGate; ABN gates the route (action), not browsing.
+ */
+
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { format as formatDate } from 'date-fns';
-import { Calendar as CalendarIcon, Briefcase, Upload, X, FileText, Info } from 'lucide-react';
+import { Calendar as CalendarIcon, Upload, X, FileText, Info } from 'lucide-react';
 
 import { AppLayout } from '@/components/app-nav';
-import { TradeGate } from '@/components/trade-gate';
 import { PageHeader } from '@/components/page-header';
 import { PremiumJobUpsellModal } from '@/components/premium-job-upsell-modal';
 
@@ -25,13 +31,14 @@ import { SuburbAutocomplete } from '@/components/suburb-autocomplete';
 
 import { useAuth } from '@/lib/auth';
 import { getStore } from '@/lib/store';
-import { hasValidABN, getABNGateUrl, getABNStatusMessage, hasABNButNotVerified } from '@/lib/abn-utils';
+import { getABNStatusMessage, hasABNButNotVerified } from '@/lib/abn-utils';
 import { safeRouterPush } from '@/lib/safe-nav';
+import { needsBusinessVerification, redirectToVerifyBusiness, getVerifyBusinessUrl } from '@/lib/verification-guard';
 
 type PayType = 'fixed' | 'hourly';
 
 export default function CreateJobPage() {
-  const { currentUser, isLoading } = useAuth();
+  const { session, currentUser, isLoading } = useAuth();
   const router = useRouter();
   const store = getStore();
 
@@ -62,7 +69,7 @@ export default function CreateJobPage() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdJobId, setCreatedJobId] = useState<string | undefined>(undefined);
 
-  // ✅ MUST be above any early return (rules-of-hooks)
+  // MUST be above any early return (rules-of-hooks)
   const computedMultiDurationDays = useMemo(() => {
     if (!multipleDates || !dateFrom || !dateTo) return null;
     const diff = Math.ceil((dateTo.getTime() - dateFrom.getTime()) / (1000 * 60 * 60 * 24)) + 1;
@@ -76,26 +83,34 @@ export default function CreateJobPage() {
     }
   }, [tradeCategory, currentUser?.primaryTrade]);
 
-  // ABN gate (single-account model: anyone can post jobs, but ABN may be required)
+  // ABN gate: redirect only after profile has loaded (avoid gating verified users during load).
   useEffect(() => {
-    if (isLoading) return;
-    if (hasRedirected.current) return;
-
-    if (!currentUser) {
+    if (isLoading || hasRedirected.current) return;
+    if (!session?.user) {
       hasRedirected.current = true;
-      safeRouterPush(router, '/login?returnUrl=/jobs/create', '/login?returnUrl=/jobs/create');
+      const loginUrl = '/login?returnUrl=/jobs/create';
+      safeRouterPush(router, loginUrl, '/login');
       return;
     }
-
-    if (!hasValidABN(currentUser)) {
+    if (!currentUser) return; // wait for profile
+    if (needsBusinessVerification(currentUser)) {
       hasRedirected.current = true;
-      safeRouterPush(router, getABNGateUrl('/jobs/create'), getABNGateUrl('/jobs/create'));
+      redirectToVerifyBusiness(router, '/jobs/create');
       return;
     }
-  }, [isLoading, currentUser, router]);
+  }, [isLoading, session?.user, currentUser, router]);
 
-  // Don’t render while auth is initializing / redirecting
-  if (isLoading || !currentUser) return null;
+  if (!session?.user) return null;
+
+  if (isLoading || (session?.user && !currentUser)) {
+    return (
+      <AppLayout>
+        <div className="mx-auto flex max-w-4xl items-center justify-center p-8">
+          <p className="text-sm text-gray-500">Loading...</p>
+        </div>
+      </AppLayout>
+    );
+  }
 
   const abnStatusMessage = getABNStatusMessage(currentUser);
   const hasAbnPending = hasABNButNotVerified(currentUser);
@@ -162,7 +177,7 @@ export default function CreateJobPage() {
 
     const newJob = {
       id: `job-${Date.now()}`,
-      contractorId: currentUser.id, // “postedBy” user id (single account)
+      contractorId: currentUser.id, // "postedBy" user id (single account)
       title: title.trim(),
       description: description.trim(),
       tradeCategory: tradeCategory.trim(),
@@ -178,7 +193,14 @@ export default function CreateJobPage() {
       createdAt: new Date(),
     };
 
+    if (currentUser && needsBusinessVerification(currentUser)) {
+      toast.error('Verify your ABN to continue.');
+      redirectToVerifyBusiness(router, '/jobs/create');
+      return;
+    }
+
     try {
+      console.warn('[ABN WRITE ATTEMPT]', 'jobs (store)', { id: newJob.id, title: newJob.title }); // ABN_QA_ONLY
       store.createJob(newJob);
       setCreatedJobId(newJob.id);
       setShowSuccessModal(true);
@@ -190,8 +212,7 @@ export default function CreateJobPage() {
   };
 
   return (
-    <TradeGate>
-      <AppLayout>
+    <AppLayout>
         <div className="mx-auto max-w-4xl p-4 md:p-6">
           <PageHeader backLink={{ href: '/jobs' }} title="Post a New Job" />
 
@@ -204,7 +225,7 @@ export default function CreateJobPage() {
                   <p className="text-sm text-yellow-800">{abnStatusMessage}</p>
 
                   {currentUser.abnStatus === 'REJECTED' && (
-                    <Link href="/verify-business">
+                    <Link href={getVerifyBusinessUrl('/jobs/create')}>
                       <Button size="sm" className="mt-3">
                         Update ABN Details
                       </Button>
@@ -482,9 +503,7 @@ export default function CreateJobPage() {
             </form>
           </div>
         </div>
+        <PremiumJobUpsellModal open={showSuccessModal} onOpenChange={setShowSuccessModal} jobId={createdJobId} />
       </AppLayout>
-
-      <PremiumJobUpsellModal open={showSuccessModal} onOpenChange={setShowSuccessModal} jobId={createdJobId} />
-    </TradeGate>
   );
 }

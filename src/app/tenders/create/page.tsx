@@ -1,14 +1,23 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+/*
+ * QA notes — ABN gating (Tenders create):
+ * - /tenders/create redirects unverified users to /verify-business (returnUrl=/tenders/create); no form flash.
+ * - /tenders list and /tenders/[id] are browseable for unverified. No TradeGate in tenders flow.
+ * - Publish/commit actions on tender create are gated by ABN.
+ */
+
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
 import { useAuth } from '@/lib/auth';
+import { isAdmin } from '@/lib/is-admin';
 import { getBrowserSupabase } from '@/lib/supabase-client';
 import { buildLoginUrl } from '@/lib/url-utils';
 import { callTradeHubAI } from '@/lib/ai-client';
 import { hasBuilderPremium } from '@/lib/capability-utils';
+import { needsBusinessVerification, redirectToVerifyBusiness, getVerifyBusinessUrl } from '@/lib/verification-guard';
 
 import { TRADE_CATEGORIES } from '@/lib/trades';
 import { TenderTier } from '@/lib/tender-types';
@@ -87,7 +96,7 @@ function StepPill({ label, active, done }: { label: string; active: boolean; don
 }
 
 export default function CreateTenderPage() {
-  const { currentUser, isLoading } = useAuth();
+  const { session, currentUser, isLoading } = useAuth();
   const router = useRouter();
   const supabase = useMemo(() => getBrowserSupabase(), []);
 
@@ -117,22 +126,30 @@ export default function CreateTenderPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
 
-  const abnStatus = useMemo(
-    () => norm((currentUser as any)?.abnStatus ?? (currentUser as any)?.abn_status ?? ''),
-    [currentUser]
-  );
-  const isAbnVerified = abnStatus === 'verified';
-  const isAdmin = currentUser?.role === 'admin';
-  const isContractorLike = currentUser?.role === 'contractor' || currentUser?.role === 'admin';
+  const needsAbn = useMemo(() => needsBusinessVerification(currentUser), [currentUser]);
+  const isAbnVerified = currentUser ? !needsBusinessVerification(currentUser) : false;
+  const isAdminUser = isAdmin(currentUser);
 
   const returnUrl = '/tenders/create';
-  const verifyUrl = `/verify-business?returnUrl=${encodeURIComponent(returnUrl)}`;
+  const verifyUrl = getVerifyBusinessUrl(returnUrl);
+  const hasRedirectedAbn = useRef(false);
 
   // ✅ Tier is removed from UI. Default to FREE_TRIAL for now.
   const DEFAULT_TIER: TenderTier = 'FREE_TRIAL';
 
   // ✅ 3-step flow now: Project -> Location -> Review
   const totalSteps = 3;
+
+  // ---- ABN gate: redirect only after profile has loaded (avoid gating verified users during load). ----
+  useEffect(() => {
+    if (isLoading || hasRedirectedAbn.current) return;
+    if (!currentUser) return; // wait for profile
+
+    if (needsAbn && !isAdmin(currentUser)) {
+      hasRedirectedAbn.current = true;
+      redirectToVerifyBusiness(router, returnUrl);
+    }
+  }, [isLoading, currentUser, needsAbn, router, returnUrl]);
 
   // ---- Permissions + plan lookup ----
   useEffect(() => {
@@ -151,12 +168,6 @@ export default function CreateTenderPage() {
           return;
         }
 
-        const role = currentUser?.role;
-        if (role !== 'contractor' && role !== 'admin') {
-          router.push('/tenders');
-          return;
-        }
-
         // Only need this now to preserve FREE_TRIAL used logic (if you want)
         await fetchBuilderTrialStatus();
       } catch (err) {
@@ -169,7 +180,7 @@ export default function CreateTenderPage() {
 
     run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, currentUser?.id, currentUser?.role]);
+  }, [isLoading, currentUser?.id]);
 
   const fetchBuilderTrialStatus = async () => {
     try {
@@ -347,13 +358,8 @@ export default function CreateTenderPage() {
       return;
     }
 
-    if (userProfile.role !== 'contractor' && userProfile.role !== 'admin') {
-      setError(`Only contractors can create tenders. Your account is a ${userProfile.role} account.`);
-      return;
-    }
-
-    // ✅ Guardrail: limit pending guest tenders
-    if (mode === 'guest' && userProfile.role !== 'admin') {
+    // ✅ Guardrail: limit pending guest tenders (single-account: applies to non-admins)
+    if (mode === 'guest' && !isAdmin(userProfile)) {
       const { count, error: pendingErr } = await supabase
         .from('tenders')
         .select('id', { count: 'exact', head: true })
@@ -372,8 +378,9 @@ export default function CreateTenderPage() {
     }
 
     // VERIFIED posting requires ABN (unless admin)
-    if (mode === 'verified' && userProfile.role !== 'admin' && !isAbnVerified) {
-      router.push(verifyUrl);
+    if (mode === 'verified' && userProfile.role !== 'admin' && needsAbn) {
+      toast.error('Verify your ABN to continue.');
+      redirectToVerifyBusiness(router, returnUrl);
       return;
     }
 
@@ -396,6 +403,7 @@ export default function CreateTenderPage() {
       // desired_end_date: desiredEndDate || null,
     };
 
+    console.warn('[ABN WRITE ATTEMPT]', 'tenders', tenderInsert); // ABN_QA_ONLY
     const { data: tender, error: tenderError } = await supabase.from('tenders').insert(tenderInsert).select().single();
     if (tenderError) {
       if (isLikelyRlsRejection(tenderError)) {
@@ -415,6 +423,7 @@ export default function CreateTenderPage() {
       max_budget_cents: req.budgetMax ? Math.round(Number(req.budgetMax) * 100) : null,
     }));
 
+    console.warn('[ABN WRITE ATTEMPT]', 'tender_trade_requirements', tradeReqs); // ABN_QA_ONLY
     const { error: tradeError } = await supabase.from('tender_trade_requirements').insert(tradeReqs);
     if (tradeError) throw tradeError;
 
@@ -450,8 +459,8 @@ export default function CreateTenderPage() {
     }
   };
 
-  // ---- Loading / permission states ----
-  if (isLoading || checkingPermissions) {
+  // ---- Loading / permission states: wait for profile so form doesn't flash ----
+  if (isLoading || checkingPermissions || (session && !currentUser)) {
     return (
       <AppLayout>
         <div className="flex min-h-screen items-center justify-center bg-gray-50">
@@ -466,7 +475,7 @@ export default function CreateTenderPage() {
       ? true
       : hasBuilderPremium({ ...(currentUser as any), name: (currentUser as any)?.name ?? '' });
 
-  if (currentUser?.role === 'subcontractor' && !premiumOk) {
+  if (!premiumOk) {
     return (
       <AppLayout>
         <div className="min-h-screen bg-gray-50 py-8">
@@ -511,7 +520,7 @@ export default function CreateTenderPage() {
             description="Post a project tender and receive quotes from qualified contractors"
           />
 
-          {!isAdmin && !isAbnVerified && (
+          {!isAdminUser && !isAbnVerified && (
             <Alert className="mb-6">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
@@ -854,7 +863,7 @@ export default function CreateTenderPage() {
                   </Button>
 
                   <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
-                    {!isAdmin && !isAbnVerified ? (
+                    {!isAdminUser && !isAbnVerified ? (
                       <Button onClick={() => router.push(verifyUrl)} disabled={loading}>
                         Verify business to publish
                       </Button>
@@ -867,7 +876,7 @@ export default function CreateTenderPage() {
                     <Button
                       variant="secondary"
                       onClick={handleSubmitGuest}
-                      disabled={loading || !isContractorLike}
+                      disabled={loading || needsAbn}
                       title="Submits for admin approval"
                     >
                       {loading ? 'Submitting…' : 'Post as guest (admin approval)'}
@@ -875,7 +884,7 @@ export default function CreateTenderPage() {
                   </div>
                 </div>
 
-                {!isAdmin && !isAbnVerified && (
+                {!isAdminUser && !isAbnVerified && (
                   <div className="text-sm text-muted-foreground">
                     Guest tenders stay pending until reviewed and won’t appear in the public tenders list until approved.
                   </div>

@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import { useAuth } from '@/lib/auth';
+import { isAdmin } from '@/lib/is-admin';
 import { getBrowserSupabase } from '@/lib/supabase-client';
 
 import { toast } from 'sonner';
@@ -98,7 +99,7 @@ export default function TendersPage() {
 
   const { currentUser } = useAuth();
   const myUserId = currentUser?.id ?? null;
-  const isAdmin = currentUser?.role === 'admin';
+  const isAdminUser = isAdmin(currentUser);
 
   const [view, setView] = useState<'listed' | 'mine'>('listed');
   const [search, setSearch] = useState('');
@@ -173,7 +174,7 @@ export default function TendersPage() {
       // Visibility / View rules
       // =========================
       if (view === 'listed') {
-        if (!isAdmin) {
+        if (!isAdminUser) {
           // Public feed should only show live tenders
           q = q.in('status', ['PUBLISHED', 'LIVE']);
         }

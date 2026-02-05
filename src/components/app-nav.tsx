@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
+import { isAdmin } from '@/lib/is-admin';
 import { Bell, LogOut, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -42,13 +43,13 @@ export function TopBar() {
     <div className="border-b border-gray-200 bg-white sticky top-0 z-40 safe-area-inset-top">
       <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          {currentUser.role !== 'admin' && <MobileDrawer />}
+          {!isAdmin(currentUser) && <MobileDrawer />}
           <Link href="/" className="flex items-center min-w-0">
             <Image src="/TradeHub -Horizontal-Main.svg" alt="TradeHub" width={140} height={32} className="h-8 w-auto max-w-full" />
           </Link>
         </div>
         <div className="flex items-center gap-2">
-          {currentUser.role !== 'admin' && (
+          {!isAdmin(currentUser) && (
             <Link href="/notifications" className="hidden md:flex relative p-2 hover:bg-gray-100 rounded-lg transition-colors min-w-[44px] min-h-[44px] items-center justify-center">
               <Bell className="w-5 h-5 text-gray-700" />
               <div className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
@@ -62,7 +63,7 @@ export function TopBar() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem disabled className="truncate max-w-[200px]">{currentUser.name}</DropdownMenuItem>
-              {currentUser.role !== 'admin' && (
+              {!isAdmin(currentUser) && (
                 <>
                   <DropdownMenuItem asChild>
                     <Link href="/profile">Profile</Link>
@@ -93,7 +94,7 @@ export function SideNav() {
     return null;
   }
 
-  const navKey = currentUser.role === 'admin' ? 'admin' : 'business';
+  const navKey = isAdmin(currentUser) ? 'admin' : 'business';
   const nav = navConfig[navKey];
   const unreadCount = store.getUnreadConversationCount(currentUser.id);
 
@@ -137,7 +138,7 @@ export function BottomNav() {
     return null;
   }
 
-  if (currentUser.role === 'admin') {
+  if (isAdmin(currentUser)) {
     const nav = navConfig.admin;
     return (
       <div className="md:hidden fixed bottom-0 left-0 right-0 border-t border-gray-200 bg-white z-50 safe-area-inset-bottom">

@@ -52,7 +52,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('role, active_plan, subscription_status, primary_trade, abn')
+      .select('role, active_plan, subscription_status, complimentary_premium_until, primary_trade, abn')
       .eq('id', user.id)
       .maybeSingle();
 
@@ -76,9 +76,21 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Check quote limit for free users (1 per month)
-    const isPremium = userData.active_plan === 'PREMIUM_20' && userData.subscription_status === 'ACTIVE';
-    if (!isPremium && userData.role !== 'admin') {
+    // Single-account paid entitlement: unlimited quotes for paid or complimentary users.
+    const isPaid =
+      (userData.active_plan === 'BUSINESS_PRO_20' ||
+        userData.active_plan === 'SUBCONTRACTOR_PRO_10' ||
+        userData.active_plan === 'ALL_ACCESS_PRO_26') &&
+      (userData.subscription_status || '').toUpperCase() === 'ACTIVE';
+    const isComplimentary = (() => {
+      const until = userData.complimentary_premium_until;
+      if (!until) return false;
+      const date = new Date(until);
+      return !Number.isNaN(date.getTime()) && date > new Date();
+    })();
+    const isPaidOrComplimentary = isPaid || isComplimentary;
+
+    if (!isPaidOrComplimentary && userData.role !== 'admin') {
       // Get start of current month
       const now = new Date();
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);

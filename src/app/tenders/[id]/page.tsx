@@ -1,13 +1,24 @@
 'use client';
 
+/*
+ * QA notes — ABN gating (Tender detail):
+ * - /tenders list and /tenders/[id] are browseable for unverified users.
+ * - Submit quote and any publish/award/accept/close/commit actions are blocked for unverified;
+ *   use ABNRequiredModal and toast "Verify your ABN to continue." + link to /verify-business.
+ * - No TradeGate in tenders flow.
+ */
+
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
 import { useAuth } from '@/lib/auth';
+import { isAdmin } from '@/lib/is-admin';
 import { safeRouterPush } from '@/lib/safe-nav';
 import { getBrowserSupabase } from '@/lib/supabase-client';
 import { callTradeHubAI } from '@/lib/ai-client';
+import { getVerifyBusinessUrl } from '@/lib/verification-guard';
 
 import { AppLayout } from '@/components/app-nav';
 import { Button } from '@/components/ui/button';
@@ -147,8 +158,9 @@ function TenderDetailUuidPage({ id }: { id: string }) {
   const [pageError, setPageError] = useState<string | null>(null);
   const [loadingTender, setLoadingTender] = useState(true);
 
+  const isAdminUser = isAdmin(currentUser);
+  // Role used for UI/copy only, not permissions
   const isContractor = currentUser?.role === 'contractor';
-  const isAdmin = currentUser?.role === 'admin';
   const isSubcontractor = currentUser?.role === 'subcontractor';
 
   const isMyTender = (t: TenderDetail) => !!currentUser && t.builderId === currentUser.id;
@@ -384,7 +396,7 @@ function TenderDetailUuidPage({ id }: { id: string }) {
 
   const viewerTradeRequirement = tender.tradeRequirements?.find((req) => req.trade === currentUser.primaryTrade);
 
-  if (!isMyTender(tender) && !isAdmin && !tradeMatchesTender(tender)) {
+  if (!isMyTender(tender) && !isAdminUser && !tradeMatchesTender(tender)) {
     return (
       <AppLayout>
         <div className="min-h-screen bg-gray-50">
@@ -457,6 +469,7 @@ function TenderDetailUuidPage({ id }: { id: string }) {
 
   const handleSubmitQuote = async () => {
     if (!hasValidABN(currentUser)) {
+      toast.error('Verify your ABN to continue.');
       setShowABNModal(true);
       return;
     }
@@ -488,6 +501,7 @@ function TenderDetailUuidPage({ id }: { id: string }) {
       }
 
       // TODO: insert into quotes table when you wire it.
+      console.warn('[ABN WRITE ATTEMPT]', 'quotes (demo)', { tenderId: tender.id }); // ABN_QA_ONLY
       setTimeout(() => {
         alert('Quote submitted successfully! (demo)');
         setQuotePrice('');

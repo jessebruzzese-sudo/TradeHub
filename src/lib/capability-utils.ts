@@ -1,9 +1,32 @@
 import { User, SubscriptionPlan, Capability } from './types';
 import { BILLING_SIM_ALLOWED, getSimulatedPremium } from './billing-sim';
 
-export function getUserCapabilities(user: User): Capability[] {
-  const plan = user.activePlan || 'NONE';
+/** Dev-only: when billing sim is enabled and toggled on, treat as premium. */
+function isSimulatingPremium(): boolean {
+  return BILLING_SIM_ALLOWED && getSimulatedPremium();
+}
 
+/** Complimentary premium from DB: if date is in the future, user has full premium. */
+function hasComplimentaryPremiumActive(user: User): boolean {
+  if (!user?.complimentaryPremiumUntil) return false;
+  const until = new Date(user.complimentaryPremiumUntil);
+  return !Number.isNaN(until.getTime()) && until > new Date();
+}
+
+/**
+ * Derives capabilities from DB: active_plan + subscription_status, or complimentary_premium_until.
+ * Billing sim remains a dev override only.
+ */
+export function getUserCapabilities(user: User): Capability[] {
+  if (isSimulatingPremium()) {
+    return ['BUILDER', 'CONTRACTOR', 'SUBCONTRACTOR'];
+  }
+  if (hasComplimentaryPremiumActive(user)) {
+    return ['BUILDER', 'CONTRACTOR', 'SUBCONTRACTOR'];
+  }
+  const status = (user.subscriptionStatus || '').toUpperCase();
+  if (status !== 'ACTIVE') return [];
+  const plan = (user.activePlan || 'NONE').toUpperCase();
   switch (plan) {
     case 'BUSINESS_PRO_20':
       return ['BUILDER', 'CONTRACTOR'];
@@ -14,10 +37,6 @@ export function getUserCapabilities(user: User): Capability[] {
     default:
       return [];
   }
-}
-
-function isSimulatingPremium(): boolean {
-  return BILLING_SIM_ALLOWED && getSimulatedPremium();
 }
 
 export function hasCapability(user: User, capability: Capability): boolean {
@@ -41,22 +60,27 @@ export function canPostPremiumTenders(user: User): boolean {
   return hasBuilderPremium(user);
 }
 
+/** Single-account model: any logged-in user can post jobs (ABN enforced at action time via permissions.ts). */
 export function canPostJobs(user: User): boolean {
-  return user.role === 'contractor';
+  return !!user;
 }
 
+/** Single-account model: anyone with any premium plan can use unlimited radius. */
 export function canUseUnlimitedRadius(user: User): boolean {
-  if (user.role === 'contractor') {
-    return hasContractorPremium(user);
-  }
-  if (user.role === 'subcontractor') {
-    return hasSubcontractorPremium(user);
-  }
-  return hasBuilderPremium(user);
+  return hasContractorPremium(user) || hasSubcontractorPremium(user) || hasBuilderPremium(user);
 }
 
+/** Single-account model: anyone with subcontractor premium can broadcast availability. */
 export function canBroadcastAvailability(user: User): boolean {
-  return user.role === 'subcontractor' && hasSubcontractorPremium(user);
+  return hasSubcontractorPremium(user);
+}
+
+export function canCustomSearchLocation(user: User): boolean {
+  return (
+    hasBuilderPremium(user) ||
+    hasContractorPremium(user) ||
+    hasSubcontractorPremium(user)
+  );
 }
 
 export function canHideBusinessName(user: User): boolean {
@@ -70,11 +94,9 @@ export function getMaxRadius(user: User): number {
   return 15;
 }
 
+/** Single-account model: subcontractor premium = 60 days, else 14. */
 export function getMaxAvailabilityHorizonDays(user: User): number {
-  if (user.role === 'subcontractor' && hasSubcontractorPremium(user)) {
-    return 60;
-  }
-  return 14;
+  return hasSubcontractorPremium(user) ? 60 : 14;
 }
 
 export function getMaxTenderQuotes(user: User, tenderType: 'basic' | 'premium'): number {
@@ -215,23 +237,13 @@ export function getFeatureLock(user: User, feature: string): FeatureLock {
         upgradePlanPrice: 20,
       };
     case 'unlimited_radius':
-      if (user.role === 'subcontractor') {
-        return {
-          locked: true,
-          reason: 'Increase your work radius beyond 15km',
-          upgradeUrl: '/pricing',
-          upgradePlan: 'SUBCONTRACTOR_PRO_10',
-          upgradePlanName: 'Subcontractor Pro',
-          upgradePlanPrice: 10,
-        };
-      }
       return {
         locked: true,
-        reason: 'Expand your work radius',
+        reason: 'Expand your work radius beyond 15km',
         upgradeUrl: '/pricing',
-        upgradePlan: 'BUSINESS_PRO_20',
-        upgradePlanName: 'Business Pro',
-        upgradePlanPrice: 20,
+        upgradePlan: 'ALL_ACCESS_PRO_26',
+        upgradePlanName: 'All-Access Pro',
+        upgradePlanPrice: 26,
       };
     case 'broadcast_availability':
       return {

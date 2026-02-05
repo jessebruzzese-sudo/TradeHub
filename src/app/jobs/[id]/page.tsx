@@ -1,10 +1,17 @@
 'use client';
 
+/*
+ * QA notes — ABN gating (Job detail):
+ * - /jobs/[id] loads for unverified users (browse allowed).
+ * - Apply, Select, Accept, Confirm Hire (and other commit actions) are blocked for unverified:
+ *   disabled button + "Verify ABN to apply" (or equivalent) + CTA link to /verify-business.
+ * - Verified users can create/apply as normal. No TradeGate.
+ */
+
 import { AppLayout } from '@/components/app-nav';
-import { TradeGate } from '@/components/trade-gate';
 import { useAuth } from '@/lib/auth';
 import { getStore } from '@/lib/store';
-import  StatusPill  from '@/components/status-pill';
+import StatusPill from '@/components/status-pill';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import {
@@ -25,6 +32,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { getBrowserSupabase } from '@/lib/supabase/browserClient';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
@@ -34,6 +42,9 @@ import { JobStatusMessage } from '@/components/job-status-message';
 import { canLeaveReliabilityReview } from '@/lib/cancellation-utils';
 import { getJobLifecycleState, canWithdrawApplication, canTransitionToStatus } from '@/lib/job-lifecycle';
 import { createSystemMessage, shouldAddSystemMessage } from '@/lib/messaging-utils';
+import { needsBusinessVerification, redirectToVerifyBusiness, getVerifyBusinessUrl } from '@/lib/verification-guard';
+import { isAdmin } from '@/lib/is-admin';
+import { ownsJob } from '@/lib/permissions';
 
 export default function JobDetailPage() {
   const { currentUser } = useAuth();
@@ -183,9 +194,8 @@ export default function JobDetailPage() {
   // “My application” = any application made by the current user (single-account model)
   const myApplication = applications.find((a) => a.subcontractorId === currentUser?.id);
 
-  // Single-account model flags
-  const isAdmin = currentUser?.role === 'admin';
-  const isMyJob = job?.contractorId === currentUser?.id;
+  const isAdminUser = isAdmin(currentUser);
+  const isMyJob = job && currentUser ? ownsJob(currentUser, job) : false;
 
   const lifecycleState = job ? getJobLifecycleState(job, applications.length > 0) : null;
 
@@ -202,67 +212,76 @@ export default function JobDetailPage() {
 
   if (isLoadingJob || !currentUser) {
     return (
-      <TradeGate>
-        <AppLayout>
-          <div className="max-w-4xl mx-auto p-4 md:p-6">
-            <div className="text-center py-12">
-              <div className="text-gray-600">Loading...</div>
-            </div>
+      <AppLayout>
+        <div className="max-w-4xl mx-auto p-4 md:p-6">
+          <div className="text-center py-12">
+            <div className="text-gray-600">Loading...</div>
           </div>
-        </AppLayout>
-      </TradeGate>
+        </div>
+      </AppLayout>
     );
   }
 
   if (!job || !poster) {
     return (
-      <TradeGate>
-        <AppLayout>
-          <div className="max-w-4xl mx-auto p-4 md:p-6">
-            <div className="text-center py-12">
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">Job not found</h2>
-              <Link href="/jobs">
-                <Button variant="outline">Back to Jobs</Button>
-              </Link>
-            </div>
+      <AppLayout>
+        <div className="max-w-4xl mx-auto p-4 md:p-6">
+          <div className="text-center py-12">
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Job not found</h2>
+            <Link href="/jobs">
+              <Button variant="outline">Back to Jobs</Button>
+            </Link>
           </div>
-        </AppLayout>
-      </TradeGate>
+        </div>
+      </AppLayout>
     );
   }
 
   // Trade gate (kept) — allow admin + poster to view, otherwise must match primary trade
-  if (!isMyJob && !isAdmin && job.tradeCategory !== currentUser.primaryTrade) {
+  if (!isMyJob && !isAdminUser && job.tradeCategory !== currentUser.primaryTrade) {
     return (
-      <TradeGate>
-        <AppLayout>
-          <div className="max-w-4xl mx-auto p-4 md:p-6">
-            <Link
-              href="/jobs"
-              className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4 transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4 mr-1" />
-              Back to Jobs
+      <AppLayout>
+        <div className="max-w-4xl mx-auto p-4 md:p-6">
+          <Link
+            href="/jobs"
+            className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4 mr-1" />
+            Back to Jobs
+          </Link>
+          <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
+            <AlertCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">This job isn't available for your trade.</h2>
+            <p className="text-gray-600 mb-6">
+              TradeHub only shows work that matches your primary trade to keep listings relevant.
+            </p>
+            <Link href="/jobs">
+              <Button variant="outline">← Back to Jobs</Button>
             </Link>
-            <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
-              <AlertCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">This job isn't available for your trade.</h2>
-              <p className="text-gray-600 mb-6">
-                TradeHub only shows work that matches your primary trade to keep listings relevant.
-              </p>
-              <Link href="/jobs">
-                <Button variant="outline">← Back to Jobs</Button>
-              </Link>
-            </div>
           </div>
-        </AppLayout>
-      </TradeGate>
+        </div>
+      </AppLayout>
     );
   }
 
-  const handleStartApply = () => setShowApplyDialog(true);
+  const needsAbnForActions = needsBusinessVerification(currentUser);
+  const returnUrl = `/jobs/${jobId}`;
+
+  const handleStartApply = () => {
+    if (needsAbnForActions) {
+      toast.error('Verify your ABN to continue.');
+      redirectToVerifyBusiness(router, returnUrl);
+      return;
+    }
+    setShowApplyDialog(true);
+  };
 
   const handleApply = () => {
+    if (needsAbnForActions) {
+      toast.error('Verify your ABN to continue.');
+      redirectToVerifyBusiness(router, returnUrl);
+      return;
+    }
     const newApplication = {
       id: `app-${Date.now()}`,
       jobId: job.id,
@@ -277,6 +296,11 @@ export default function JobDetailPage() {
   };
 
   const handleSelectApplication = (applicationId: string) => {
+    if (needsAbnForActions) {
+      toast.error('Verify your ABN to continue.');
+      redirectToVerifyBusiness(router, returnUrl);
+      return;
+    }
     const application = store.getApplicationById(applicationId);
     if (!application) return;
 
@@ -298,6 +322,11 @@ export default function JobDetailPage() {
   };
 
   const handleAccept = () => {
+    if (needsAbnForActions) {
+      toast.error('Verify your ABN to continue.');
+      redirectToVerifyBusiness(router, returnUrl);
+      return;
+    }
     const transition = canTransitionToStatus('accepted', 'confirmed');
     if (!transition.allowed) {
       alert(transition.reason);
@@ -326,6 +355,11 @@ export default function JobDetailPage() {
   };
 
   const handleConfirmHire = () => {
+    if (needsAbnForActions) {
+      toast.error('Verify your ABN to continue.');
+      redirectToVerifyBusiness(router, returnUrl);
+      return;
+    }
     if (!lifecycleState?.canConfirmHire) {
       alert('Cannot confirm hire at this time');
       return;
@@ -467,9 +501,8 @@ export default function JobDetailPage() {
   const dashboardHref = '/dashboard';
 
   return (
-    <TradeGate>
-      <AppLayout>
-        <div className="max-w-4xl mx-auto p-4 md:p-6">
+    <AppLayout>
+      <div className="max-w-4xl mx-auto p-4 md:p-6">
           <div className="flex items-center justify-between mb-4">
             <Link
               href="/jobs"
@@ -560,9 +593,23 @@ export default function JobDetailPage() {
 
             {canApply && (
               <div className="space-y-3">
-                <Button onClick={handleStartApply} className="w-full">
-                  Apply for this Job
-                </Button>
+                {needsAbnForActions ? (
+                  <div className="space-y-2">
+                    <Button disabled className="w-full">
+                      Apply for this Job
+                    </Button>
+                    <p className="text-sm text-amber-700">
+                      Verify your ABN to continue.{' '}
+                      <Link href={getVerifyBusinessUrl(returnUrl)} className="font-medium text-blue-600 hover:text-blue-700 underline">
+                        Verify ABN
+                      </Link>
+                    </p>
+                  </div>
+                ) : (
+                  <Button onClick={handleStartApply} className="w-full">
+                    Apply for this Job
+                  </Button>
+                )}
                 {canMessage && (
                   <Button onClick={handleMessagePoster} variant="outline" className="w-full">
                     <MessageSquare className="w-4 h-4 mr-2" />
@@ -615,29 +662,53 @@ export default function JobDetailPage() {
             {/* Applicant decision (single-account model):
                 If current user is the selected person and job is accepted, allow accept/decline */}
             {!isMyJob && job.status === 'accepted' && job.selectedSubcontractor === currentUser.id && (
-              <div className="flex gap-3">
-                <Button onClick={handleAccept} className="flex-1">
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  Accept
-                </Button>
-                <Button onClick={handleDecline} variant="outline" className="flex-1">
-                  <XCircle className="w-4 h-4 mr-2" />
-                  Decline
-                </Button>
+              <div className="space-y-2">
+                <div className="flex gap-3">
+                  <Button onClick={handleAccept} className="flex-1" disabled={needsAbnForActions}>
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Accept
+                  </Button>
+                  <Button onClick={handleDecline} variant="outline" className="flex-1">
+                    <XCircle className="w-4 h-4 mr-2" />
+                    Decline
+                  </Button>
+                </div>
+                {needsAbnForActions && (
+                  <p className="text-sm text-amber-700">
+                    Verify your ABN to continue.{' '}
+                    <Link href={getVerifyBusinessUrl(returnUrl)} className="font-medium text-blue-600 hover:text-blue-700 underline">
+                      Verify ABN
+                    </Link>
+                  </p>
+                )}
               </div>
             )}
 
             {isMyJob && job.status === 'accepted' && (
-              <div className="flex gap-3">
-                <Button onClick={handleConfirmHire} className="flex-1" disabled={!lifecycleState?.canConfirmHire}>
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  Confirm Hire
-                </Button>
-                {canCancelJob && (
-                  <Button onClick={() => setShowCancelDialog(true)} variant="outline" className="flex-1">
-                    <Ban className="w-4 h-4 mr-2" />
-                    Cancel Job
+              <div className="space-y-2">
+                <div className="flex gap-3">
+                  <Button
+                    onClick={handleConfirmHire}
+                    className="flex-1"
+                    disabled={!lifecycleState?.canConfirmHire || needsAbnForActions}
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Confirm Hire
                   </Button>
+                  {canCancelJob && (
+                    <Button onClick={() => setShowCancelDialog(true)} variant="outline" className="flex-1">
+                      <Ban className="w-4 h-4 mr-2" />
+                      Cancel Job
+                    </Button>
+                  )}
+                </div>
+                {needsAbnForActions && (
+                  <p className="text-sm text-amber-700">
+                    Verify your ABN to continue.{' '}
+                    <Link href={getVerifyBusinessUrl(returnUrl)} className="font-medium text-blue-600 hover:text-blue-700 underline">
+                      Verify ABN
+                    </Link>
+                  </p>
                 )}
               </div>
             )}
@@ -718,9 +789,20 @@ export default function JobDetailPage() {
                           </div>
                         </div>
                         {job.status === 'open' && lifecycleState?.allowsSelection && (
-                          <Button size="sm" onClick={() => handleSelectApplication(app.id)} disabled={lifecycleState?.isExpired}>
-                            Select
-                          </Button>
+                          <div className="flex flex-col items-end gap-1">
+                            <Button
+                              size="sm"
+                              onClick={() => handleSelectApplication(app.id)}
+                              disabled={lifecycleState?.isExpired || needsAbnForActions}
+                            >
+                              Select
+                            </Button>
+                            {needsAbnForActions && (
+                              <Link href={getVerifyBusinessUrl(returnUrl)} className="text-xs text-amber-700 font-medium">
+                                Verify ABN
+                              </Link>
+                            )}
+                          </div>
                         )}
                       </div>
                       {app.message && <p className="text-sm text-gray-700 mt-2">{app.message}</p>}
@@ -814,6 +896,5 @@ export default function JobDetailPage() {
           )}
         </div>
       </AppLayout>
-    </TradeGate>
   );
 }

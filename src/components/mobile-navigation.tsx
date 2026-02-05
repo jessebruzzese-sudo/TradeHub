@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
+import { isAdmin } from '@/lib/is-admin';
 import { Chrome as Home, Briefcase, MessageSquare, Bell, Menu, X, User, FileText, Calendar, CirclePlus as PlusCircle, Lock, Settings, CircleHelp as HelpCircle, Shield, Eye, LogOut, CircleCheck as CheckCircle, CircleAlert as AlertCircle, CreditCard } from 'lucide-react';
 import { getStore } from '@/lib/store';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -23,7 +24,7 @@ export function MobileBottomNav() {
   const pathname = usePathname();
   const store = getStore();
 
-  if (!currentUser || currentUser.role === 'admin') {
+  if (!currentUser || isAdmin(currentUser)) {
     return null;
   }
 
@@ -73,7 +74,7 @@ export function MobileDrawer() {
   const pathname = usePathname();
   const router = useRouter();
 
-  if (!currentUser || currentUser.role === 'admin') {
+  if (!currentUser || isAdmin(currentUser)) {
     return null;
   }
 

@@ -1,5 +1,12 @@
 'use client';
 
+/*
+ * QA notes — ABN gating (Jobs list):
+ * - /jobs loads for unverified users (browse allowed).
+ * - Only "Post Job" / "Verify ABN to Post" is gated: unverified see CTA to verify; verified see Post Job.
+ * - No TradeGate; hooks before any early return.
+ */
+
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -14,20 +21,13 @@ import { useAuth } from '@/lib/auth';
 import { getStore } from '@/lib/store';
 import { buildLoginUrl } from '@/lib/url-utils';
 import { safeRouterPush } from '@/lib/safe-nav';
+import { needsBusinessVerification, getVerifyBusinessUrl } from '@/lib/verification-guard';
 
 type JobsTab = 'find' | 'posts' | 'applications';
 
 function norm(v?: string | null) {
   return String(v || '').trim().toLowerCase();
 }
-
-/**
- * Key fixes:
- * - REMOVE TradeGate wrapper (it was causing blank screens by returning null)
- * - Never return null forever: show Loading / Redirecting / Profile Not Ready states
- * - Keep hooks order stable (hooks run before any early returns)
- * - Add ABN gating to "Post Job" button (gates action, not page visibility)
- */
 export default function JobsPage() {
   const { currentUser, isLoading } = useAuth();
   const router = useRouter();
@@ -41,11 +41,10 @@ export default function JobsPage() {
   const applications = useMemo(() => store.applications ?? [], [store.applications]);
 
   // Compute ABN verified state (optional field right now)
-  const abnStatus = useMemo(
-    () => norm((currentUser as any)?.abnStatus ?? (currentUser as any)?.abn_status ?? ''),
+  const showAbnGateForPosting = useMemo(
+    () => !!currentUser && needsBusinessVerification(currentUser),
     [currentUser]
   );
-  const isAbnVerified = abnStatus === 'verified';
 
   const myPosts = useMemo(() => {
     if (!currentUser?.id) return [];
@@ -103,9 +102,6 @@ export default function JobsPage() {
     );
   }
 
-  const isContractor = norm(currentUser.role) === 'contractor';
-  const showAbnGateForPosting = isContractor && !isAbnVerified;
-
   return (
     <AppLayout>
       <div className="mx-auto max-w-7xl p-4 md:p-6">
@@ -118,7 +114,7 @@ export default function JobsPage() {
           {/* Post Job CTA (gate the action, not the page) */}
           {showAbnGateForPosting ? (
             <div className="flex items-center gap-2">
-              <Link href={`/verify-business?returnUrl=${encodeURIComponent('/jobs')}`}>
+              <Link href={getVerifyBusinessUrl('/jobs')}>
                 <Button className="min-w-[160px] gap-2">
                   <ShieldCheck className="h-4 w-4" />
                   Verify ABN to Post
@@ -147,7 +143,7 @@ export default function JobsPage() {
                   Browsing jobs still works — verification is required for trust-critical actions like posting.
                 </p>
                 <div className="mt-3">
-                  <Link href={`/verify-business?returnUrl=${encodeURIComponent('/jobs')}`}>
+                  <Link href={getVerifyBusinessUrl('/jobs')}>
                     <Button size="sm" className="gap-2">
                       <ShieldCheck className="h-4 w-4" />
                       Verify now
@@ -202,7 +198,7 @@ export default function JobsPage() {
                 <p className="mb-6 text-gray-600">Create your first job posting to find subcontractors</p>
 
                 {showAbnGateForPosting ? (
-                  <Link href={`/verify-business?returnUrl=${encodeURIComponent('/jobs')}`}>
+                  <Link href={getVerifyBusinessUrl('/jobs')}>
                     <Button>
                       <ShieldCheck className="mr-2 h-4 w-4" />
                       Verify ABN to Post

@@ -11,6 +11,11 @@ import React, {
 } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { getBrowserSupabase } from '@/lib/supabase-client';
+import {
+  hasSubcontractorPremium,
+  hasBuilderPremium,
+  hasContractorPremium,
+} from '@/lib/capability-utils';
 
 type Day = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
 type Availability = Record<Day, boolean>;
@@ -25,12 +30,30 @@ type DbUserRow = {
   bio: string | null;
   rating: number | null;
   reliability_rating: number | null;
+  primary_trade?: string | null;
+  business_name?: string | null;
+  abn?: string | null;
+  abn_status?: string | null;
+  // Subscription / premium (from users table)
+  active_plan?: string | null;
+  subscription_status?: string | null;
+  subscription_renews_at?: string | null;
+  subscription_started_at?: string | null;
+  subscription_canceled_at?: string | null;
+  complimentary_premium_until?: string | null;
+  additional_trades_unlocked?: boolean | null;
+  additional_trades?: string[] | null;
+  search_location?: string | null;
+  search_postcode?: string | null;
+  search_lat?: number | null;
+  search_lng?: number | null;
 };
 
 export type CurrentUser = {
   id: string;
   email?: string | null;
   name?: string | null;
+  /** Role is NOT used for permissions; admin only via isAdmin(). Kept for UI/copy. */
   role?: string | null;
 
   trustStatus?: string | null;
@@ -58,11 +81,23 @@ export type CurrentUser = {
   createdAt?: string | null;
 
   /**
-   * IMPORTANT:
-   * This must NOT be auto-derived from additionalTrades.
-   * It should only come from premium/capabilities (or explicit admin-grant).
+   * From DB: premium/capabilities or explicit admin-grant. Do NOT auto-derive from additionalTrades.
    */
   additionalTradesUnlocked?: boolean;
+
+  // Subscription / premium (from DB)
+  activePlan?: string | null;
+  subscriptionStatus?: string | null;
+  subscriptionRenewsAt?: string | null;
+  subscriptionStartedAt?: string | null;
+  subscriptionCanceledAt?: string | null;
+  complimentaryPremiumUntil?: string | null;
+
+  // Premium "search-from" location (from DB)
+  searchLocation?: string | null;
+  searchPostcode?: string | null;
+  searchLat?: number | null;
+  searchLng?: number | null;
 };
 
 type SignupExtras = {
@@ -91,6 +126,10 @@ type UpdateUserInput = Partial<
     | 'abnStatus'
     | 'trades'
     | 'additionalTrades'
+    | 'searchLocation'
+    | 'searchPostcode'
+    | 'searchLat'
+    | 'searchLng'
   >
 >;
 
@@ -118,6 +157,20 @@ function normalizeAbn(input?: string) {
   return (input || '').replace(/\s+/g, '');
 }
 
+function normalizeSubscriptionStatus(s?: string | null): string | null {
+  const v = (s || '').trim().toUpperCase();
+  if (!v) return null;
+  if (['NONE', 'ACTIVE', 'PAST_DUE', 'CANCELED'].includes(v)) return v;
+  return v as string;
+}
+
+function normalizeActivePlan(s?: string | null): string | null {
+  const v = (s || '').trim().toUpperCase();
+  if (!v) return null;
+  if (['NONE', 'BUSINESS_PRO_20', 'SUBCONTRACTOR_PRO_10', 'ALL_ACCESS_PRO_26'].includes(v)) return v;
+  return v as string;
+}
+
 function mapDbToUi(row: DbUserRow): CurrentUser {
   return {
     id: row.id,
@@ -130,21 +183,31 @@ function mapDbToUi(row: DbUserRow): CurrentUser {
     rating: row.rating ?? null,
     reliabilityRating: row.reliability_rating ?? null,
 
-    // app extras (not persisted yet)
-    primaryTrade: null,
+    primaryTrade: row.primary_trade ?? null,
     location: null,
     postcode: null,
-    abn: null,
-    businessName: null,
-    abnStatus: null,
+    abn: row.abn ?? null,
+    businessName: row.business_name ?? null,
+    abnStatus: (row.abn_status ? (String(row.abn_status).toUpperCase() as CurrentUser['abnStatus']) : null),
     trades: undefined,
     additionalTrades: undefined,
     completedJobs: null,
     memberSince: null,
     createdAt: null,
 
-    // DO NOT auto-derive from additionalTrades
-    additionalTradesUnlocked: false,
+    additionalTradesUnlocked: row.additional_trades_unlocked === true,
+
+    activePlan: normalizeActivePlan(row.active_plan) ?? null,
+    subscriptionStatus: normalizeSubscriptionStatus(row.subscription_status) ?? null,
+    subscriptionRenewsAt: row.subscription_renews_at ?? null,
+    subscriptionStartedAt: row.subscription_started_at ?? null,
+    subscriptionCanceledAt: row.subscription_canceled_at ?? null,
+    complimentaryPremiumUntil: row.complimentary_premium_until ?? null,
+
+    searchLocation: row.search_location ?? null,
+    searchPostcode: row.search_postcode ?? null,
+    searchLat: row.search_lat != null ? Number(row.search_lat) : null,
+    searchLng: row.search_lng != null ? Number(row.search_lng) : null,
   };
 }
 
@@ -154,6 +217,15 @@ function mapUiPatchToDb(patch: UpdateUserInput): Partial<DbUserRow> {
   if (patch.role !== undefined) out.role = patch.role ?? null;
   if (patch.bio !== undefined) out.bio = patch.bio ?? null;
   if (patch.avatar !== undefined) out.avatar = patch.avatar ?? null;
+  if (patch.primaryTrade !== undefined) out.primary_trade = patch.primaryTrade ?? null;
+  if (patch.businessName !== undefined) out.business_name = patch.businessName ?? null;
+  if (patch.abn !== undefined) out.abn = patch.abn ?? null;
+  if (patch.abnStatus !== undefined) out.abn_status = patch.abnStatus ?? null;
+  if (patch.additionalTrades !== undefined) out.additional_trades = patch.additionalTrades ?? null;
+  if (patch.searchLocation !== undefined) out.search_location = patch.searchLocation ?? null;
+  if (patch.searchPostcode !== undefined) out.search_postcode = patch.searchPostcode ?? null;
+  if (patch.searchLat !== undefined) out.search_lat = patch.searchLat ?? null;
+  if (patch.searchLng !== undefined) out.search_lng = patch.searchLng ?? null;
   return out;
 }
 
@@ -170,7 +242,11 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
   const loadProfile = useCallback(
     async (userId: string): Promise<CurrentUser | null> => {
       const { data, error } = await (supabase.from('users') as any)
-        .select('id,email,name,role,trust_status,avatar,bio,rating,reliability_rating')
+        .select(
+          'id,email,name,role,trust_status,avatar,bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,' +
+            'active_plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,' +
+            'complimentary_premium_until,additional_trades_unlocked,search_location,search_postcode,search_lat,search_lng'
+        )
         .eq('id', userId)
         .maybeSingle();
 
@@ -384,6 +460,27 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
     async (patch) => {
       const userId = session?.user?.id;
       if (!userId) throw new Error('Not authenticated');
+
+      // Enforce premium rules using current in-memory user (before DB or merge)
+      setCurrentUser((prev) => {
+        if (!prev) return prev;
+        const userForCaps = { ...(prev as Record<string, unknown>), name: prev.name ?? '', role: prev.role ?? '' };
+        const canMultiTrade = hasSubcontractorPremium(userForCaps as never) || prev.additionalTradesUnlocked === true;
+        const canCustomSearch = hasBuilderPremium(userForCaps as never) || hasContractorPremium(userForCaps as never);
+
+        if (patch.additionalTrades !== undefined && !canMultiTrade) {
+          throw new Error('Additional trades require Premium');
+        }
+        const hasSearchPatch =
+          patch.searchLocation !== undefined ||
+          patch.searchPostcode !== undefined ||
+          patch.searchLat !== undefined ||
+          patch.searchLng !== undefined;
+        if (hasSearchPatch && !canCustomSearch) {
+          throw new Error('Custom search location requires Premium');
+        }
+        return prev;
+      });
 
       const dbPatch = mapUiPatchToDb(patch);
       if (Object.keys(dbPatch).length > 0) {
