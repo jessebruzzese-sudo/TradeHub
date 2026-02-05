@@ -13,9 +13,33 @@ export default function PricingPage() {
   const [accordionOpen, setAccordionOpen] = useState(false);
   const [showAllFeatures, setShowAllFeatures] = useState(false);
   const isPremium = currentUser ? hasBuilderPremium(currentUser) : false;
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
 
-  const handleUpgrade = () => {
-    alert('Subscription management coming soon! This will connect to payment processing.');
+  const handleUpgrade = async () => {
+    if (!currentUser) {
+      window.location.href = '/signup';
+      return;
+    }
+    setCheckoutLoading(true);
+    try {
+      const res = await fetch('/api/billing/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: 'BUSINESS_PRO_20' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data?.error || 'Could not start checkout');
+        return;
+      }
+      if (data?.url) {
+        window.location.href = data.url;
+        return;
+      }
+      alert('Could not start checkout');
+    } finally {
+      setCheckoutLoading(false);
+    }
   };
 
   return (
@@ -178,8 +202,8 @@ export default function PricingPage() {
             {/* Desktop CTA */}
             <div className="hidden md:block">
               {currentUser ? (
-                <Button onClick={handleUpgrade} className="w-full bg-white text-blue-600 hover:bg-blue-50" size="lg">
-                  Upgrade to Premium
+                <Button onClick={handleUpgrade} disabled={checkoutLoading} className="w-full bg-white text-blue-600 hover:bg-blue-50" size="lg">
+                  {checkoutLoading ? 'Loading…' : 'Upgrade to Premium'}
                 </Button>
               ) : (
                 <Link href="/signup">
@@ -494,8 +518,8 @@ export default function PricingPage() {
               <p className="text-xs text-gray-600">$60 for 3 months (best value)</p>
             </div>
             {currentUser ? (
-              <Button onClick={handleUpgrade} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-                Upgrade
+              <Button onClick={handleUpgrade} disabled={checkoutLoading} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                {checkoutLoading ? 'Loading…' : 'Upgrade'}
               </Button>
             ) : (
               <Link href="/signup">

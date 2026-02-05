@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import {
   Star,
@@ -25,6 +25,7 @@ import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 
 import { useAuth } from '@/lib/auth';
+import { isAdmin } from '@/lib/is-admin';
 import { getStore } from '@/lib/store';
 import { buildLoginUrl } from '@/lib/url-utils';
 import { shouldShowProBadge } from '@/lib/subscription-utils';
@@ -35,6 +36,7 @@ export default function ProfilePage() {
   const { session, currentUser } = useAuth();
   const store = useMemo(() => getStore(), []);
   const [isSimulated, setSimulated] = useSimulatedPremium();
+  const [portalLoading, setPortalLoading] = useState(false);
 
   // ✅ MUST be above any early returns (rules-of-hooks)
   const memberSinceDate = useMemo(() => {
@@ -68,7 +70,7 @@ export default function ProfilePage() {
     });
   };
 
-  const dashboardPath = currentUser.role === 'admin' ? '/admin' : '/dashboard';
+  const dashboardPath = isAdmin(currentUser) ? '/admin' : '/dashboard';
 
   const showBillingSimulation = BILLING_SIM_ALLOWED;
   const isUsingSimulation = showBillingSimulation && getSimulatedPremium();
@@ -200,6 +202,7 @@ export default function ProfilePage() {
         ) : null}
 
         {/* Subscription */}
+        {/* Role used for UI/copy only, not permissions */}
         {currentUser.role === 'subcontractor' ? (
           <div className="mb-6 rounded-xl border border-gray-200 bg-white p-6">
             <div className="mb-4 flex items-center justify-between">
@@ -253,14 +256,38 @@ export default function ProfilePage() {
             </div>
 
             <div className="mt-4">
-              <Link href="/pricing">
-                <Button className="w-full">{hasRealPremium ? 'Manage Subscription' : 'Upgrade to Pro'}</Button>
-              </Link>
+              {hasRealPremium ? (
+                <Button
+                  className="w-full"
+                  disabled={portalLoading}
+                  onClick={async () => {
+                    setPortalLoading(true);
+                    try {
+                      const res = await fetch('/api/billing/portal', { method: 'POST' });
+                      const data = await res.json().catch(() => ({}));
+                      if (res.ok && data?.url) {
+                        window.location.href = data.url;
+                        return;
+                      }
+                      alert(data?.error || 'Could not open billing portal');
+                    } finally {
+                      setPortalLoading(false);
+                    }
+                  }}
+                >
+                  {portalLoading ? 'Loading…' : 'Manage Subscription'}
+                </Button>
+              ) : (
+                <Link href="/pricing">
+                  <Button className="w-full">Upgrade to Pro</Button>
+                </Link>
+              )}
             </div>
           </div>
         ) : null}
 
         {/* Contractor payment placeholder */}
+        {/* Role used for UI/copy only */}
         {currentUser.role === 'contractor' ? (
           <div className="mb-6 rounded-xl border border-gray-200 bg-white p-6">
             <div className="mb-4 flex items-center gap-3">
