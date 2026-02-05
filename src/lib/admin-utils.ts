@@ -1,4 +1,5 @@
 import { AuditLog, AuditActionType, User, Job } from './types';
+import { isAdmin } from '@/lib/is-admin';
 
 export interface AdminSafeguard {
   canAccess: boolean;
@@ -10,7 +11,7 @@ export function canAdminAccessMessaging(user: User | null): AdminSafeguard {
     return { canAccess: false, reason: 'User not found' };
   }
 
-  if (user.role === 'admin') {
+  if (isAdmin(user)) {
     return {
       canAccess: false,
       reason: 'Admins cannot participate in job messaging. This is a contractor/subcontractor feature.',
@@ -25,7 +26,7 @@ export function canAdminApplyToJob(user: User | null): AdminSafeguard {
     return { canAccess: false, reason: 'User not found' };
   }
 
-  if (user.role === 'admin') {
+  if (isAdmin(user)) {
     return {
       canAccess: false,
       reason: 'Admins cannot apply to jobs. This is a subcontractor feature.',
@@ -40,7 +41,7 @@ export function canAdminPostJob(user: User | null): AdminSafeguard {
     return { canAccess: false, reason: 'User not found' };
   }
 
-  if (user.role === 'admin') {
+  if (isAdmin(user)) {
     return {
       canAccess: false,
       reason: 'Admins cannot post jobs. This is a contractor feature.',

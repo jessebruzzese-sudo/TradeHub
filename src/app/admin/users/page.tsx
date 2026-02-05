@@ -18,6 +18,7 @@ import { useRouter } from 'next/navigation';
 import { getBrowserSupabase } from '@/lib/supabase-client';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '@/lib/auth';
+import { isAdmin } from '@/lib/is-admin';
 import { safeRouterReplace } from '@/lib/safe-nav';
 
 interface UserRow {
@@ -69,14 +70,14 @@ export default function AdminUsersPage() {
       return;
     }
 
-    if (currentUser.role !== 'admin') {
+    if (!isAdmin(currentUser)) {
       hasRedirected.current = true;
       safeRouterReplace(router, '/dashboard', '/dashboard');
     }
   }, [isLoading, currentUser, router]);
 
   useEffect(() => {
-    if (!currentUser || currentUser.role !== 'admin') return;
+    if (!currentUser || !isAdmin(currentUser)) return;
     loadUsers();
     loadTrades();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -206,7 +207,7 @@ export default function AdminUsersPage() {
 
   // While redirecting / loading auth
   if (isLoading || !currentUser) return null;
-  if (currentUser.role !== 'admin') return null;
+  if (!isAdmin(currentUser)) return null;
 
   return (
     <div className="p-8">

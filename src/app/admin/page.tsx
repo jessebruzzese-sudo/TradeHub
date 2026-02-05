@@ -7,6 +7,7 @@ import { AppLayout } from '@/components/app-nav';
 import { UnauthorizedAccess } from '@/components/unauthorized-access';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
+import { isAdmin } from '@/lib/is-admin';
 
 
 import {
@@ -35,10 +36,10 @@ export default function AdminPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const isAdmin = currentUser?.role === 'admin';
+  const isAdminUser = isAdmin(currentUser);
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isAdminUser) return;
 
     let alive = true;
 
@@ -60,9 +61,9 @@ export default function AdminPage() {
     return () => {
       alive = false;
     };
-  }, [isAdmin]);
+  }, [isAdminUser]);
 
-  if (!currentUser || !isAdmin) {
+  if (!currentUser || !isAdminUser) {
     return <UnauthorizedAccess redirectTo="/login" />;
   }
 

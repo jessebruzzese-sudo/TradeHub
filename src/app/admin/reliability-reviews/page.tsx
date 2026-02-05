@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
+import { isAdmin } from '@/lib/is-admin';
 import { UnauthorizedAccess } from '@/components/unauthorized-access';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,7 +27,7 @@ export default function ReliabilityReviewsPage() {
 
   const [activeTab, setActiveTab] = useState<'pending' | 'in_review' | 'resolved'>('pending');
 
-  if (!currentUser || currentUser.role !== 'admin') {
+  if (!currentUser || !isAdmin(currentUser)) {
     return <UnauthorizedAccess redirectTo="/login" />;
   }
 

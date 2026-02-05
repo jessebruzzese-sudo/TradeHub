@@ -1,5 +1,6 @@
 'use client';
 import { useAuth } from '@/lib/auth';
+import { isAdmin } from '@/lib/is-admin';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Shield, Users, CheckCircle, FileText, Settings, AlertTriangle, Home, MessageSquare, Menu } from 'lucide-react';
@@ -24,7 +25,7 @@ export default function AdminLayoutClient({
     );
   }
 
-  if (!currentUser || currentUser.role !== 'admin') {
+  if (!currentUser || !isAdmin(currentUser)) {
     return <UnauthorizedAccess redirectTo="/dashboard" message="You do not have permission to access the admin panel." />;
   }
 

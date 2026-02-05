@@ -2,6 +2,7 @@
 
 import { AppLayout } from '@/components/app-nav';
 import { useAuth } from '@/lib/auth';
+import { isAdmin } from '@/lib/is-admin';
 import { getStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
@@ -15,8 +16,8 @@ export default function ReviewModerationPage() {
   const router = useRouter();
   const store = getStore();
 
-  if (!currentUser || currentUser.role !== 'admin') {
-    return <UnauthorizedAccess redirectTo={currentUser ? `/dashboard/${currentUser.role}` : '/login'} />;
+  if (!currentUser || !isAdmin(currentUser)) {
+    return <UnauthorizedAccess redirectTo={currentUser ? '/dashboard' : '/login'} />;
   }
 
   const pendingReviews = store.getPendingReviews();

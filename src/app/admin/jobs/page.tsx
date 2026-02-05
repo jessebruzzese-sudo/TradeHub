@@ -2,6 +2,7 @@
 
 import { AppLayout } from '@/components/app-nav';
 import { useAuth } from '@/lib/auth';
+import { isAdmin } from '@/lib/is-admin';
 import { getStore } from '@/lib/store';
 import  StatusPill  from '@/components/status-pill';
 import { UnauthorizedAccess } from '@/components/unauthorized-access';
@@ -12,8 +13,8 @@ export default function AdminJobsPage() {
   const { currentUser } = useAuth();
   const store = getStore();
 
-  if (!currentUser || currentUser.role !== 'admin') {
-    return <UnauthorizedAccess redirectTo={currentUser ? `/dashboard/${currentUser.role}` : '/login'} />;
+  if (!currentUser || !isAdmin(currentUser)) {
+    return <UnauthorizedAccess redirectTo={currentUser ? '/dashboard' : '/login'} />;
   }
 
   const jobs = store.jobs.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());

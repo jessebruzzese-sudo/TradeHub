@@ -2,6 +2,7 @@
 
 import { AppLayout } from '@/components/app-nav';
 import { useAuth } from '@/lib/auth';
+import { isAdmin } from '@/lib/is-admin';
 import { getStore } from '@/lib/store';
 import { UnauthorizedAccess } from '@/components/unauthorized-access';
 import { AuditLogView } from '@/components/audit-log-view';
@@ -14,8 +15,8 @@ export default function AuditLogPage() {
   const router = useRouter();
   const store = getStore();
 
-  if (!currentUser || currentUser.role !== 'admin') {
-    return <UnauthorizedAccess redirectTo={currentUser ? `/dashboard/${currentUser.role}` : '/login'} />;
+  if (!currentUser || !isAdmin(currentUser)) {
+    return <UnauthorizedAccess redirectTo={currentUser ? '/dashboard' : '/login'} />;
   }
 
   const logs = store.getAuditLogs();

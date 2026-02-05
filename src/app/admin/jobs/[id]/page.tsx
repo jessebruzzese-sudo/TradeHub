@@ -3,6 +3,7 @@
 import { useParams } from 'next/navigation';
 import { AppLayout } from '@/components/app-nav';
 import { useAuth } from '@/lib/auth';
+import { isAdmin } from '@/lib/is-admin';
 import { getStore } from '@/lib/store';
 import { UnauthorizedAccess } from '@/components/unauthorized-access';
 import  StatusPill  from '@/components/status-pill';
@@ -23,7 +24,7 @@ export default function AdminJobDetailPage() {
   const jobId = params.id as string;
 
   useEffect(() => {
-    if (currentUser && currentUser.role === 'admin') {
+    if (currentUser && isAdmin(currentUser)) {
       const job = store.getJobById(jobId);
       if (job) {
         const auditLog = createAuditLog(
@@ -37,8 +38,8 @@ export default function AdminJobDetailPage() {
     }
   }, [currentUser, jobId, store]);
 
-  if (!currentUser || currentUser.role !== 'admin') {
-    return <UnauthorizedAccess redirectTo={currentUser ? `/dashboard/${currentUser.role}` : '/login'} />;
+  if (!currentUser || !isAdmin(currentUser)) {
+    return <UnauthorizedAccess redirectTo={currentUser ? '/dashboard' : '/login'} />;
   }
 
   const job = store.getJobById(jobId);

@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
+import { isAdmin } from '@/lib/is-admin';
 
 type RequireAdminResult = {
   userId: string;
@@ -47,7 +48,7 @@ export async function requireAdmin(): Promise<RequireAdminResult> {
     throw new Response('Forbidden', { status: 403 });
   }
 
-  if (profile.role !== 'admin') {
+  if (!isAdmin(profile)) {
     throw new Response('Forbidden', { status: 403 });
   }
 

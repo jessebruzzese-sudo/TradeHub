@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { isAdmin } from '@/lib/is-admin';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 
@@ -62,7 +63,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    if (profile?.role !== 'admin') {
+    if (!isAdmin(profile)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

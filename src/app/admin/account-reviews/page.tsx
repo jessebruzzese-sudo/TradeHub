@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/lib/auth';
+import { isAdmin } from '@/lib/is-admin';
 import { PageHeader } from '@/components/page-header';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -71,10 +72,10 @@ export default function AccountReviewsPage() {
   const [flagReason, setFlagReason] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const isAdmin = !!currentUser && currentUser.role === 'admin';
+  const isAdminUser = isAdmin(currentUser);
 
   const loadReviews = useCallback(async () => {
-    if (!isAdmin) return;
+    if (!isAdminUser) return;
 
     setLoading(true);
     try {
@@ -121,13 +122,13 @@ export default function AccountReviewsPage() {
     } finally {
       setLoading(false);
     }
-  }, [supabase, filter, isAdmin]);
+  }, [supabase, filter, isAdminUser]);
 
   useEffect(() => {
     if (isLoading) return;
-    if (!isAdmin) return;
+    if (!isAdminUser) return;
     loadReviews();
-  }, [isLoading, isAdmin, loadReviews]);
+  }, [isLoading, isAdminUser, loadReviews]);
 
   const handleOpenActionDialog = (review: AccountReview) => {
     setSelectedReview(review);
@@ -222,7 +223,7 @@ export default function AccountReviewsPage() {
 
   if (isLoading) return null;
 
-  if (!isAdmin) {
+  if (!isAdminUser) {
     return (
       <div className="flex items-center justify-center h-screen">
         <p className="text-gray-500">Access denied. Admin only.</p>

@@ -2,6 +2,7 @@
 
 import { AppLayout } from '@/components/app-nav';
 import { useAuth } from '@/lib/auth';
+import { isAdmin } from '@/lib/is-admin';
 import  StatusPill  from '@/components/status-pill';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, XCircle } from 'lucide-react';
@@ -10,8 +11,8 @@ import { UnauthorizedAccess } from '@/components/unauthorized-access';
 export default function VerificationsPage() {
   const { currentUser } = useAuth();
 
-  if (!currentUser || currentUser.role !== 'admin') {
-    return <UnauthorizedAccess redirectTo={currentUser ? `/dashboard/${currentUser.role}` : '/login'} />;
+  if (!currentUser || !isAdmin(currentUser)) {
+    return <UnauthorizedAccess redirectTo={currentUser ? '/dashboard' : '/login'} />;
   }
 
   return (

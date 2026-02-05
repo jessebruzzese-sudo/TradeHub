@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
+import { isAdmin } from '@/lib/is-admin';
 import { AppLayout } from '@/components/app-nav';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -18,7 +19,7 @@ export default function QATestsPage() {
   const [summary, setSummary] = useState<string>('');
   const [allPassed, setAllPassed] = useState<boolean>(false);
 
-  if (!currentUser || currentUser.role !== 'admin') {
+  if (!currentUser || !isAdmin(currentUser)) {
     return <UnauthorizedAccess redirectTo="/dashboard" />;
   }
 

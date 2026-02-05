@@ -3,6 +3,7 @@
 import { useParams, useRouter } from 'next/navigation';
 import { AppLayout } from '@/components/app-nav';
 import { useAuth } from '@/lib/auth';
+import { isAdmin } from '@/lib/is-admin';
 import { getStore } from '@/lib/store';
 import { UnauthorizedAccess } from '@/components/unauthorized-access';
 import  StatusPill  from '@/components/status-pill';
@@ -87,7 +88,7 @@ export default function AdminUserDetailPage() {
   }, [supabase, userId]);
 
   useEffect(() => {
-    if (currentUser?.role === 'admin' && userId) {
+    if (isAdmin(currentUser) && userId) {
       loadAccountReview();
     }
   }, [currentUser, userId, loadAccountReview]);
@@ -185,8 +186,8 @@ export default function AdminUserDetailPage() {
     }
   };
 
-  if (!currentUser || currentUser.role !== 'admin') {
-    return <UnauthorizedAccess redirectTo={currentUser ? `/dashboard/${currentUser.role}` : '/login'} />;
+  if (!currentUser || !isAdmin(currentUser)) {
+    return <UnauthorizedAccess redirectTo={currentUser ? '/dashboard' : '/login'} />;
   }
 
   const user = store.getUserById(userId);

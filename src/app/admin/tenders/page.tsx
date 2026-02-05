@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth';
+import { isAdmin } from '@/lib/is-admin';
 import { useRouter } from 'next/navigation';
 import { UnauthorizedAccess } from '@/components/unauthorized-access';
 import { PageHeader } from '@/components/page-header';
@@ -80,7 +81,7 @@ export default function AdminTendersPage() {
   }, [supabase]);
 
   useEffect(() => {
-    if (currentUser && currentUser.role === 'admin') {
+    if (currentUser && isAdmin(currentUser)) {
       fetchTenders();
     }
   }, [currentUser, fetchTenders]);
@@ -171,8 +172,8 @@ export default function AdminTendersPage() {
     }
   };
 
-  if (!currentUser || currentUser.role !== 'admin') {
-    return <UnauthorizedAccess redirectTo={currentUser ? `/dashboard/${currentUser.role}` : '/login'} />;
+  if (!currentUser || !isAdmin(currentUser)) {
+    return <UnauthorizedAccess redirectTo={currentUser ? '/dashboard' : '/login'} />;
   }
 
   const getStatusBadge = (status: string) => {

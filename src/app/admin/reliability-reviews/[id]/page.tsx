@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
+import { isAdmin } from '@/lib/is-admin';
 import { UnauthorizedAccess } from '@/components/unauthorized-access';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -34,7 +35,7 @@ export default function ReliabilityReviewDetailPage() {
   const [notes, setNotes] = useState('');
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
-  if (!currentUser || currentUser.role !== 'admin') {
+  if (!currentUser || !isAdmin(currentUser)) {
     return <UnauthorizedAccess redirectTo="/login" />;
   }
 
