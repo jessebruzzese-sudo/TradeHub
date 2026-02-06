@@ -73,7 +73,7 @@ export default function AdminUserDetailPage() {
 
   const loadAccountReview = useCallback(async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('admin_account_reviews')
         .select('*')
         .eq('user_id', userId)
@@ -114,14 +114,14 @@ export default function AdminUserDetailPage() {
         updateData.flag_reason = flagReason;
       }
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('admin_account_reviews')
         .update(updateData)
         .eq('id', accountReview.id);
 
       if (error) throw error;
 
-      await supabase
+      await (supabase as any)
         .from('users')
         .update({ account_reviewed: true })
         .eq('id', userId);
