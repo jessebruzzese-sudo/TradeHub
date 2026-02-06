@@ -33,7 +33,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { getBrowserSupabase } from '@/lib/supabase/browserClient';
+import { getBrowserSupabase } from '@/lib/supabase-client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { CancelJobDialog } from '@/components/cancel-job-dialog';
