@@ -37,7 +37,7 @@ export default function AdminSettingsPage() {
 
   const loadSettings = useCallback(async () => {
     try {
-      const { data, error: fetchError } = await supabase
+      const { data, error: fetchError } = await (supabase as any)
         .from('admin_settings')
         .select('key, value');
 
@@ -80,7 +80,7 @@ export default function AdminSettingsPage() {
       }));
 
       for (const update of updates) {
-        const { error: updateError } = await supabase
+        const { error: updateError } = await (supabase as any)
           .from('admin_settings')
           .update({ value: update.value })
           .eq('key', update.key);
