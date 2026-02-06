@@ -89,7 +89,7 @@ export default function AdminTendersPage() {
   const handleApprove = async (tenderId: string) => {
     setSubmitting(true);
     try {
-      const { error: updateError } = await supabase
+      const { error: updateError } = await (supabase as any)
         .from('tenders')
         .update({
           approval_status: 'APPROVED',
@@ -102,7 +102,7 @@ export default function AdminTendersPage() {
 
       if (updateError) throw updateError;
 
-      const { error: auditError } = await supabase
+      const { error: auditError } = await (supabase as any)
         .from('audit_logs')
         .insert({
           admin_id: currentUser!.id,
@@ -134,7 +134,7 @@ export default function AdminTendersPage() {
 
     setSubmitting(true);
     try {
-      const { error: updateError } = await supabase
+      const { error: updateError } = await (supabase as any)
         .from('tenders')
         .update({
           approval_status: 'REJECTED',
@@ -147,7 +147,7 @@ export default function AdminTendersPage() {
 
       if (updateError) throw updateError;
 
-      const { error: auditError } = await supabase
+      const { error: auditError } = await (supabase as any)
         .from('audit_logs')
         .insert({
           admin_id: currentUser!.id,
