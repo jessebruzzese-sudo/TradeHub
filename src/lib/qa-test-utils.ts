@@ -1,4 +1,4 @@
-import { createClient } from './supabase-client';
+import { getBrowserSupabase } from '@/lib/supabase/browserClient';
 import { TenderTradeRequirement, Tender } from './tender-types';
 
 export interface QATestResult {
@@ -17,9 +17,9 @@ const QA_TEST_USER_WITH_ABN = 'qa-withabn@tradehub.test';
 
 export async function setupQATestTenders(): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = createClient();
+    const supabase = getBrowserSupabase();
 
-    const { data: adminUser } = await supabase
+    const { data: adminUser } = await (supabase as any)
       .from('users')
       .select('id')
       .eq('role', 'admin')
@@ -30,14 +30,14 @@ export async function setupQATestTenders(): Promise<{ success: boolean; error?: 
       return { success: false, error: 'No admin user found for test tenders' };
     }
 
-    const { data: existingLimited } = await supabase
+    const { data: existingLimited } = await (supabase as any)
       .from('tenders')
       .select('id')
       .eq('id', QA_TEST_TENDER_LIMITED)
       .maybeSingle();
 
     if (!existingLimited) {
-      const { error: limitedError } = await supabase
+      const { error: limitedError } = await (supabase as any)
         .from('tenders')
         .insert({
           id: QA_TEST_TENDER_LIMITED,
@@ -77,7 +77,7 @@ export async function setupQATestTenders(): Promise<{ success: boolean; error?: 
         },
       ];
 
-      const { error: tradeError } = await supabase
+      const { error: tradeError } = await (supabase as any)
         .from('tender_trade_requirements')
         .insert(tradeRequirements);
 
@@ -86,14 +86,14 @@ export async function setupQATestTenders(): Promise<{ success: boolean; error?: 
       }
     }
 
-    const { data: existingOpen } = await supabase
+    const { data: existingOpen } = await (supabase as any)
       .from('tenders')
       .select('id')
       .eq('id', QA_TEST_TENDER_OPEN)
       .maybeSingle();
 
     if (!existingOpen) {
-      const { error: openError } = await supabase
+      const { error: openError } = await (supabase as any)
         .from('tenders')
         .insert({
           id: QA_TEST_TENDER_OPEN,
@@ -126,7 +126,7 @@ export async function setupQATestTenders(): Promise<{ success: boolean; error?: 
         },
       ];
 
-      const { error: tradeError } = await supabase
+      const { error: tradeError } = await (supabase as any)
         .from('tender_trade_requirements')
         .insert(tradeRequirements);
 
@@ -143,16 +143,16 @@ export async function setupQATestTenders(): Promise<{ success: boolean; error?: 
 
 export async function setupQATestUsers(): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = createClient();
+    const supabase = getBrowserSupabase();
 
-    const { data: noABNUser } = await supabase
+    const { data: noABNUser } = await (supabase as any)
       .from('users')
       .select('id, abn')
       .eq('email', QA_TEST_USER_NO_ABN)
       .maybeSingle();
 
     if (!noABNUser) {
-      const { error: noABNError } = await supabase
+      const { error: noABNError } = await (supabase as any)
         .from('users')
         .insert({
           email: QA_TEST_USER_NO_ABN,
@@ -168,14 +168,14 @@ export async function setupQATestUsers(): Promise<{ success: boolean; error?: st
       }
     }
 
-    const { data: withABNUser } = await supabase
+    const { data: withABNUser } = await (supabase as any)
       .from('users')
       .select('id, abn')
       .eq('email', QA_TEST_USER_WITH_ABN)
       .maybeSingle();
 
     if (!withABNUser) {
-      const { error: withABNError } = await supabase
+      const { error: withABNError } = await (supabase as any)
         .from('users')
         .insert({
           email: QA_TEST_USER_WITH_ABN,
@@ -207,8 +207,8 @@ export async function testTradeMatching(): Promise<QATestResult[]> {
   const results: QATestResult[] = [];
 
   try {
-    const supabase = createClient();
-    const { data: tenderData } = await supabase
+    const supabase = getBrowserSupabase();
+    const { data: tenderData } = await (supabase as any)
       .from('tenders')
       .select(`
         *,
@@ -292,7 +292,7 @@ export async function testTradeSubDescriptions(): Promise<QATestResult[]> {
   const results: QATestResult[] = [];
 
   try {
-    const supabase = createClient();
+    const supabase = getBrowserSupabase();
     const testCases = [
       {
         trade: 'Electrician',
@@ -305,7 +305,7 @@ export async function testTradeSubDescriptions(): Promise<QATestResult[]> {
     ];
 
     for (const testCase of testCases) {
-      const { data: tradeReq } = await supabase
+      const { data: tradeReq } = await (supabase as any)
         .from('tender_trade_requirements')
         .select('sub_description')
         .eq('tender_id', QA_TEST_TENDER_LIMITED)
@@ -336,7 +336,7 @@ export async function testTradeSubDescriptions(): Promise<QATestResult[]> {
       });
     }
 
-    const { data: carpenterReq } = await supabase
+    const { data: carpenterReq } = await (supabase as any)
       .from('tender_trade_requirements')
       .select('sub_description')
       .eq('tender_id', QA_TEST_TENDER_LIMITED)
@@ -368,15 +368,15 @@ export async function testABNGating(): Promise<QATestResult[]> {
   const results: QATestResult[] = [];
 
   try {
-    const supabase = createClient();
+    const supabase = getBrowserSupabase();
 
-    const { data: noABNUser } = await supabase
+    const { data: noABNUser } = await (supabase as any)
       .from('users')
       .select('id, abn, email')
       .eq('email', QA_TEST_USER_NO_ABN)
       .maybeSingle();
 
-    const { data: withABNUser } = await supabase
+    const { data: withABNUser } = await (supabase as any)
       .from('users')
       .select('id, abn, email')
       .eq('email', QA_TEST_USER_WITH_ABN)
@@ -419,7 +419,7 @@ export async function testABNGating(): Promise<QATestResult[]> {
       actual: 'Logic enforced in validate-quote-submission edge function',
     });
 
-    const { data: openTender } = await supabase
+    const { data: openTender } = await (supabase as any)
       .from('tenders')
       .select('id, limited_quotes_enabled')
       .eq('id', QA_TEST_TENDER_OPEN)
@@ -452,8 +452,8 @@ export async function testLimitedQuotesEnforcement(): Promise<QATestResult[]> {
   const results: QATestResult[] = [];
 
   try {
-    const supabase = createClient();
-    const { data: limitedTender } = await supabase
+    const supabase = getBrowserSupabase();
+    const { data: limitedTender } = await (supabase as any)
       .from('tenders')
       .select('limited_quotes_enabled')
       .eq('id', QA_TEST_TENDER_LIMITED)
@@ -478,7 +478,7 @@ export async function testLimitedQuotesEnforcement(): Promise<QATestResult[]> {
       actual: String(limitedTender.limited_quotes_enabled),
     });
 
-    const { data: openTender } = await supabase
+    const { data: openTender } = await (supabase as any)
       .from('tenders')
       .select('limited_quotes_enabled')
       .eq('id', QA_TEST_TENDER_OPEN)
@@ -527,8 +527,8 @@ export async function testBudgetRanges(): Promise<QATestResult[]> {
   const results: QATestResult[] = [];
 
   try {
-    const supabase = createClient();
-    const { data: tradeRequirements } = await supabase
+    const supabase = getBrowserSupabase();
+    const { data: tradeRequirements } = await (supabase as any)
       .from('tender_trade_requirements')
       .select('trade, min_budget_cents, max_budget_cents')
       .eq('tender_id', QA_TEST_TENDER_LIMITED);

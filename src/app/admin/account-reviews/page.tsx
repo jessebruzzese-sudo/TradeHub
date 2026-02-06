@@ -79,7 +79,9 @@ export default function AccountReviewsPage() {
 
     setLoading(true);
     try {
-      let query = supabase
+      // Untyped reference for tables not in Database types
+      const supabaseAny = supabase as any;
+      let query = supabaseAny
         .from('admin_account_reviews')
         .select(
           `
@@ -143,6 +145,8 @@ export default function AccountReviewsPage() {
 
     setSaving(true);
     try {
+      // Untyped reference for tables not in Database types
+      const supabaseAny = supabase as any;
       const updateData: any = {
         status: action,
         reviewed_by: currentUser.id,
@@ -160,7 +164,7 @@ export default function AccountReviewsPage() {
         updateData.flag_reason = flagReason.trim();
       }
 
-      const { error } = await supabase
+      const { error } = await supabaseAny
         .from('admin_account_reviews')
         .update(updateData)
         .eq('id', selectedReview.id);
@@ -169,7 +173,7 @@ export default function AccountReviewsPage() {
 
       // Optional: only run if the column exists in your schema
       // If this errors, remove it.
-      const { error: userUpdateError } = await supabase
+      const { error: userUpdateError } = await (supabase as any)
         .from('users')
         .update({ account_reviewed: true })
         .eq('id', selectedReview.user_id);
