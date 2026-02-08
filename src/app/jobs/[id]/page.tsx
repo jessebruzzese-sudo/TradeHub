@@ -86,8 +86,15 @@ export default function JobDetailPage() {
         if (jobData) {
           const dates: Date[] = [];
 
-          if (jobData.date) {
-            dates.push(new Date(jobData.date));
+          const rawDates = (jobData as any).dates;
+
+          if (Array.isArray(rawDates)) {
+            for (const d of rawDates) {
+              if (d) dates.push(new Date(d));
+            }
+          } else if ((jobData as any).date) {
+            // Legacy fallback for old data
+            dates.push(new Date((jobData as any).date));
           }
 
           if (jobData.date_from && jobData.date_to) {
