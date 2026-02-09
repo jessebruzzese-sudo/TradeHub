@@ -105,7 +105,7 @@ type SignupExtras = {
   abn?: string;
   location?: string;
   postcode?: string;
-  availability?: Availability;
+  availability?: Record<string, boolean>;
   role?: string;
   trades?: string[];
   additionalTrades?: string[];
@@ -464,9 +464,8 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
       // Enforce premium rules using current in-memory user (before DB or merge)
       setCurrentUser((prev) => {
         if (!prev) return prev;
-        const userForCaps = { ...(prev as Record<string, unknown>), name: prev.name ?? '', role: prev.role ?? '' };
-        const canMultiTrade = hasSubcontractorPremium(userForCaps as never) || prev.additionalTradesUnlocked === true;
-        const canCustomSearch = hasBuilderPremium(userForCaps as never) || hasContractorPremium(userForCaps as never);
+        const canMultiTrade = hasSubcontractorPremium(prev) || prev.additionalTradesUnlocked === true;
+        const canCustomSearch = hasBuilderPremium(prev) || hasContractorPremium(prev);
 
         if (patch.additionalTrades !== undefined && !canMultiTrade) {
           throw new Error('Additional trades require Premium');

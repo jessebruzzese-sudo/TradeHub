@@ -39,7 +39,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 import { AlertCircle, ChevronLeft, ChevronRight, Info, Upload, X, Sparkles } from 'lucide-react';
 
-import type { Database } from '@/lib/supabase/database.types';
+import type { Database } from '@/lib/database.types';
 
 type TenderInsert = Database['public']['Tables']['tenders']['Insert'];
 type TradeReqInsert = Database['public']['Tables']['tender_trade_requirements']['Insert'];
@@ -398,6 +398,8 @@ export default function CreateTenderPage() {
       project_description: projectDescription,
       suburb,
       postcode,
+      lat: 0,
+      lng: 0,
       // If these columns exist in your DB, keep them:
       // desired_start_date: desiredStartDate || null,
       // desired_end_date: desiredEndDate || null,
@@ -473,7 +475,7 @@ export default function CreateTenderPage() {
   const premiumOk =
     currentUser?.role !== 'subcontractor'
       ? true
-      : hasBuilderPremium({ ...(currentUser as any), name: (currentUser as any)?.name ?? '' });
+      : hasBuilderPremium(currentUser);
 
   if (!premiumOk) {
     return (

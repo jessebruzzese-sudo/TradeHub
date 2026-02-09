@@ -133,8 +133,8 @@ export function createSubcontractingAvailabilityNotification(
 }
 
 export async function notifyContractorsAboutAvailability(
-  subcontractor: User,
+  subcontractor: { name?: string | null },
   dateRanges: Date[]
 ): Promise<void> {
-  console.log(`Notifying contractors about ${subcontractor.name}'s availability: ${dateRanges.length} dates`);
+  console.log(`Notifying contractors about ${subcontractor.name ?? 'Unknown'}'s availability: ${dateRanges.length} dates`);
 }

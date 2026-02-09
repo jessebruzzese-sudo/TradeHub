@@ -1,6 +1,11 @@
-import { User } from './types';
-
 const DEFAULT_RETURN_URL = '/dashboard';
+
+/** Structural type covering both User (types.ts) and CurrentUser (auth-context). */
+type ABNUser = {
+  abn?: string | null;
+  abnStatus?: string | null;
+  abnRejectionReason?: string | null;
+};
 
 export function sanitizeReturnUrl(url: string | null | undefined): string {
   if (!url || typeof url !== 'string') {
@@ -46,19 +51,28 @@ export function sanitizeReturnUrl(url: string | null | undefined): string {
   }
 }
 
-export function hasValidABN(user: User | null): boolean {
+export function hasValidABN(user: ABNUser | null): boolean {
   if (!user) return false;
   if (!user.abn || user.abn.trim().length === 0) return false;
   return user.abnStatus === 'VERIFIED';
 }
 
-export function hasABNButNotVerified(user: User | null): boolean {
+export function hasABNButNotVerified(user: ABNUser | null): boolean {
   if (!user) return false;
   if (!user.abn || user.abn.trim().length === 0) return false;
   return user.abnStatus !== 'VERIFIED';
 }
 
-export function getABNStatusMessage(user: User | null): string | null {
+export function getABNStatusMessage(
+  user: {
+    abn?: string | null;
+    abn_status?: string | null;
+    abnStatus?: string | null;
+    abn_rejection_reason?: string | null;
+    abnRejectionReason?: string | null;
+    name?: string | null;
+  } | null
+): string | null {
   if (!user) return null;
   if (!user.abn || user.abn.trim().length === 0) {
     return 'You need to provide your ABN before posting jobs.';
@@ -80,7 +94,7 @@ export function getABNGateUrl(returnUrl: string): string {
   return `/verify-business?returnUrl=${encodeURIComponent(sanitizedUrl)}`;
 }
 
-export function checkABNRequirement(user: User | null): { hasABN: boolean; gateUrl: string } {
+export function checkABNRequirement(user: ABNUser | null): { hasABN: boolean; gateUrl: string } {
   const hasABN = hasValidABN(user);
   const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/';
   const gateUrl = getABNGateUrl(currentPath);

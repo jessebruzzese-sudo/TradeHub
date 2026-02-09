@@ -34,7 +34,7 @@ export function ProtectedRoute({
       return;
     }
 
-    if (allowedRoles && currentUser && !allowedRoles.includes(currentUser.role)) {
+    if (allowedRoles && currentUser && !allowedRoles.includes(currentUser.role as typeof allowedRoles[number])) {
       console.log('[ProtectedRoute] User role not allowed, redirecting to dashboard');
       safeRouterPush(router, '/dashboard', '/dashboard');
       return;
@@ -56,7 +56,7 @@ export function ProtectedRoute({
     return null;
   }
 
-  if (allowedRoles && currentUser && !allowedRoles.includes(currentUser.role)) {
+  if (allowedRoles && currentUser && !allowedRoles.includes(currentUser.role as typeof allowedRoles[number])) {
     return null;
   }
 

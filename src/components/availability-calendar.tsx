@@ -6,12 +6,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Lock, Info } from 'lucide-react';
-import { User } from '@/lib/types';
 import { getAvailabilityHorizonDays, isSubcontractorPro } from '@/lib/subscription-utils';
 import { addDays, isBefore, startOfDay, isAfter } from 'date-fns';
 
+type CalendarUser = {
+  complimentaryPremiumUntil?: string | Date | null;
+  subscriptionStatus?: string | null;
+  activePlan?: string | null;
+  subcontractorPlan?: string | null;
+  subcontractorSubStatus?: string | null;
+  radius?: number;
+  subcontractorPreferredRadiusKm?: number;
+};
+
 interface AvailabilityCalendarProps {
-  user: User;
+  user: CalendarUser;
   selectedDates: Date[];
   onDatesChange: (dates: Date[]) => void;
   onUpgrade?: () => void;

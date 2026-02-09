@@ -1,4 +1,15 @@
-import { User, SubcontractorPlan, SubcontractorSubStatus } from './types';
+import { SubcontractorPlan, SubcontractorSubStatus } from './types';
+
+/** Structural type covering both User (types.ts) and CurrentUser (auth-context). */
+type SubscriptionUser = {
+  complimentaryPremiumUntil?: string | Date | null;
+  subscriptionStatus?: string | null;
+  activePlan?: string | null;
+  subcontractorPlan?: string | null;
+  subcontractorSubStatus?: string | null;
+  radius?: number;
+  subcontractorPreferredRadiusKm?: number;
+};
 
 export interface SubcontractorTierLimits {
   name: string;
@@ -54,14 +65,14 @@ export const TIER_LIMITS: Record<SubcontractorPlan, SubcontractorTierLimits> = {
   },
 };
 
-export function hasComplimentaryPremium(user: User | null | undefined): boolean {
+export function hasComplimentaryPremium(user: SubscriptionUser | null | undefined): boolean {
   if (!user) return false;
   if (!user.complimentaryPremiumUntil) return false;
   return new Date(user.complimentaryPremiumUntil) > new Date();
 }
 
 /** Single-account: based on plan/subscription status only, not role. Uses unified active_plan + subscription_status, or legacy subcontractor fields. */
-export function isSubcontractorPro(user: User | null | undefined): boolean {
+export function isSubcontractorPro(user: SubscriptionUser | null | undefined): boolean {
   if (!user) return false;
 
   if (hasComplimentaryPremium(user)) return true;
@@ -79,7 +90,7 @@ export function isSubcontractorPro(user: User | null | undefined): boolean {
 }
 
 /** Single-account: based on plan only. */
-export function getEffectiveRadiusKm(user: User): number {
+export function getEffectiveRadiusKm(user: SubscriptionUser): number {
   if (!user || !isSubcontractorPro(user)) {
     return user?.radius || 15;
   }
@@ -92,7 +103,7 @@ export function getEffectiveRadiusKm(user: User): number {
 }
 
 /** Single-account: based on plan only. */
-export function getAvailabilityHorizonDays(user: User): number {
+export function getAvailabilityHorizonDays(user: SubscriptionUser): number {
   if (!user || !isSubcontractorPro(user)) {
     return 14;
   }
@@ -103,7 +114,7 @@ export function getAvailabilityHorizonDays(user: User): number {
 
 /** Single-account: based on plan only. */
 export function canUseAlertChannel(
-  user: User,
+  user: SubscriptionUser,
   channel: 'inApp' | 'email' | 'sms'
 ): boolean {
   if (!user || !isSubcontractorPro(user)) return false;
@@ -115,7 +126,7 @@ export function canUseAlertChannel(
 }
 
 /** Single-account: based on plan only. */
-export function getCurrentPlanLimits(user: User | null | undefined): SubcontractorTierLimits {
+export function getCurrentPlanLimits(user: SubscriptionUser | null | undefined): SubcontractorTierLimits {
   if (!user || !isSubcontractorPro(user)) {
     return TIER_LIMITS.NONE;
   }
@@ -145,12 +156,12 @@ export function getSubscriptionStatusDisplay(status: SubcontractorSubStatus): {
   }
 }
 
-export function shouldShowProBadge(user: User | null | undefined): boolean {
+export function shouldShowProBadge(user: SubscriptionUser | null | undefined): boolean {
   return isSubcontractorPro(user);
 }
 
 /** Single-account: based on plan only. */
-export function getSubscriptionDisplayText(user: User | null | undefined): {
+export function getSubscriptionDisplayText(user: SubscriptionUser | null | undefined): {
   plan: string;
   badge?: string;
   expiryDate?: string;
@@ -163,7 +174,9 @@ export function getSubscriptionDisplayText(user: User | null | undefined): {
     return {
       plan: 'Premium',
       badge: 'Complimentary',
-      expiryDate: user.complimentaryPremiumUntil,
+      expiryDate: user.complimentaryPremiumUntil
+        ? String(user.complimentaryPremiumUntil)
+        : undefined,
     };
   }
 
@@ -179,13 +192,13 @@ export function getSubscriptionDisplayText(user: User | null | undefined): {
 }
 
 /** Single-account: anyone with plan or settings can use work alerts. */
-export function canUseWorkAlerts(user: User | null | undefined): boolean {
+export function canUseWorkAlerts(user: SubscriptionUser | null | undefined): boolean {
   if (!user) return false;
   return true;
 }
 
 /** Single-account: based on plan only. */
-export function canUseAvailabilityBroadcast(user: User | null | undefined): boolean {
+export function canUseAvailabilityBroadcast(user: SubscriptionUser | null | undefined): boolean {
   if (!user) return false;
   return isSubcontractorPro(user);
 }

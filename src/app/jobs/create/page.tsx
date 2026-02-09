@@ -112,6 +112,8 @@ export default function CreateJobPage() {
     );
   }
 
+  if (!currentUser) return null;
+
   const abnStatusMessage = getABNStatusMessage(currentUser);
   const hasAbnPending = hasABNButNotVerified(currentUser);
 

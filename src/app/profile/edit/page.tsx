@@ -71,20 +71,9 @@ export default function EditProfilePage() {
     setSearchPostcode(((currentUser as any)?.searchPostcode as string) ?? '');
   }, [currentUser]);
 
-  // capability-utils expects a stricter User type (e.g., name: string). Provide a safe shim.
-  const userForCaps = useMemo(() => {
-    if (!currentUser) return { name: '', role: '' } as any;
-
-    return {
-      ...(currentUser as any),
-      name: currentUser.name ?? '',
-      role: currentUser.role ?? '',
-    };
-  }, [currentUser]);
-
   // Premium checks
-  const canMultiTrade = hasSubcontractorPremium(userForCaps as any) || !!currentUser?.additionalTradesUnlocked;
-  const canUseSearchFrom = canCustomSearchLocation(userForCaps as any);
+  const canMultiTrade = currentUser ? hasSubcontractorPremium(currentUser) || !!currentUser.additionalTradesUnlocked : false;
+  const canUseSearchFrom = currentUser ? canCustomSearchLocation(currentUser) : false;
 
   const parsedTrades = useMemo<string[]>(() => {
     return tradesText

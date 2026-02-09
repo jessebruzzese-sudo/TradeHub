@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { isAdmin } from '@/lib/is-admin';
 
 export function TradeGate({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuth();
+  const { currentUser: user, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [hasChecked, setHasChecked] = useState(false);

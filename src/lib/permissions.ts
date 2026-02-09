@@ -22,11 +22,6 @@ type UserLike = {
 
 type JobLike = { id?: string; contractorId?: string | null } | null | undefined;
 
-function capsUser(user: any) {
-  // capability-utils may still expect role/name fields from older model; keep harmless defaults.
-  return { ...(user ?? {}), name: user?.name ?? '', role: user?.role ?? '' };
-}
-
 export function isLoggedIn(user: UserLike): boolean {
   return !!user?.id;
 }
@@ -38,7 +33,7 @@ export function ownsJob(user: UserLike, job: JobLike): boolean {
 
 export function canCommitAction(user: UserLike): boolean {
   if (!user) return false;
-  return hasValidABN(user as any);
+  return hasValidABN(user);
 }
 
 export function canCreateJob(user: UserLike): boolean {
@@ -51,10 +46,10 @@ export function canEditJob(user: UserLike, job: JobLike): boolean {
 
 export function canUnlockMultiTrade(user: UserLike): boolean {
   if (!user) return false;
-  return hasSubcontractorPremium(capsUser(user)) || user.additionalTradesUnlocked === true;
+  return hasSubcontractorPremium(user) || user.additionalTradesUnlocked === true;
 }
 
 export function canUseSearchFromLocation(user: UserLike): boolean {
   if (!user) return false;
-  return hasBuilderPremium(capsUser(user)) || hasContractorPremium(capsUser(user));
+  return hasBuilderPremium(user) || hasContractorPremium(user);
 }

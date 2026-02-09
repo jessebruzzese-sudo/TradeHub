@@ -12,6 +12,7 @@ import { BillingSimulationBanner } from '@/components/billing-simulation-banner'
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://tradehub.com.au'),
   title: 'TradeHub - B2B Marketplace for Australian Contractors & Subcontractors',
   description:
     'Connect Australian contractors with vetted subcontractors. Post jobs, find work, build trust through verified profiles and reliability reviews. Quality connections for the trades industry.',

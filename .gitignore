@@ -1,4 +1,4 @@
-﻿node_modules
+node_modules
 .next
 .env
 .env.local
@@ -7,3 +7,4 @@
 .vercel.json
 # Supabase local temp
 supabase/.temp/
+tsconfig.tsbuildinfo

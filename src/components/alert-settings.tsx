@@ -6,13 +6,25 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Lock, Bell, Mail, Smartphone, Info, Megaphone } from 'lucide-react';
-import { User } from '@/lib/types';
 import { canUseAvailabilityBroadcast, validateWorkAlerts } from '@/lib/subscription-utils';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
+type AlertUser = {
+  complimentaryPremiumUntil?: string | Date | null;
+  subscriptionStatus?: string | null;
+  activePlan?: string | null;
+  subcontractorPlan?: string | null;
+  subcontractorSubStatus?: string | null;
+  subcontractorWorkAlertsEnabled?: boolean;
+  subcontractorWorkAlertInApp?: boolean;
+  subcontractorWorkAlertEmail?: boolean;
+  subcontractorWorkAlertSms?: boolean;
+  subcontractorAvailabilityBroadcastEnabled?: boolean;
+};
+
 interface AlertSettingsProps {
-  user: User;
+  user: AlertUser;
   onUpdate: (field: string, value: boolean) => void;
   onUpgrade?: () => void;
 }

@@ -107,7 +107,7 @@ export default function ProfilePage() {
             <ProfileAvatar
               userId={currentUser.id}
               currentAvatarUrl={currentUser.avatar ?? undefined}
-              userName={currentUser.name}
+              userName={currentUser.name ?? ''}
               onAvatarUpdate={handleAvatarUpdate}
               size={116}
             />
@@ -115,7 +115,7 @@ export default function ProfilePage() {
             <div className="flex-1">
               <div className="mb-2 flex flex-wrap items-center gap-3">
                 <h2 className="text-2xl font-bold text-gray-900">{currentUser.name}</h2>
-                <StatusPill type="trust" status={currentUser.trustStatus} />
+                <StatusPill type="trust" status={(currentUser.trustStatus ?? 'pending') as import('@/lib/types').TrustStatus} />
                 {shouldShowProBadge(currentUser) && <ProBadge size="md" />}
               </div>
 

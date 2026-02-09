@@ -13,8 +13,6 @@ export function getMonthKeyBrisbane(date: Date = new Date()): string {
 }
 
 import { getEffectiveSearchOrigin } from './search-origin';
-import type { User } from './types';
-
 export function haversineDistance(
   lat1: number,
   lng1: number,
@@ -194,7 +192,7 @@ export function isTenderVisibleToContractor(
  * Non-premium users always get base location; premium with search-from get search-from.
  */
 export function getOriginCoordsForRadiusFilter(
-  user: User | null | undefined
+  user: Record<string, unknown> | null | undefined
 ): { lat: number | null; lng: number | null } {
   const origin = getEffectiveSearchOrigin(user);
   const lat = origin.lat;
@@ -211,7 +209,7 @@ export function getOriginCoordsForRadiusFilter(
  * When origin has no coords, returns false (no radius filtering; existing behavior).
  */
 export function isTenderVisibleToContractorFromUser(
-  user: User | null | undefined,
+  user: Record<string, unknown> | null | undefined,
   tenderTier: string,
   tenderLat: number,
   tenderLng: number,

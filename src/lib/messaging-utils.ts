@@ -1,4 +1,4 @@
-import { Job, JobStatus, Message, User } from './types';
+import { Job, JobStatus, Message } from './types';
 
 export interface MessagingState {
   canSendMessages: boolean;
@@ -7,7 +7,10 @@ export interface MessagingState {
   statusInfo?: string;
 }
 
-export function getMessagingState(job: Job | null, currentUser: User | null): MessagingState {
+export function getMessagingState(
+  job: Job | null,
+  currentUser: { trustStatus?: string | null } | null
+): MessagingState {
   if (!job || !currentUser) {
     return {
       canSendMessages: false,

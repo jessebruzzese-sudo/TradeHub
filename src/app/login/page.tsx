@@ -82,12 +82,9 @@ export default function LoginPage() {
     setError('');
 
     try {
-    const result = await login(email, password);
+    await login(email, password);
 
-// If login() returns null/undefined on failure, bail out
-if (!result) return;
-
-// If login() returns something truthy OR you just want to redirect after success:
+// If login() succeeds (no throw), redirect:
 const defaultUrl = isAdmin(currentUser) ? '/admin' : '/dashboard';
 const safeReturnUrl = getSafeReturnUrl(returnUrlParam, defaultUrl);
 

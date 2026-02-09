@@ -5,12 +5,21 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Lock, Info, MapPin } from 'lucide-react';
-import { User } from '@/lib/types';
 import { getEffectiveRadiusKm, isSubcontractorPro, TIER_LIMITS } from '@/lib/subscription-utils';
 import { Button } from '@/components/ui/button';
 
+type RadiusUser = {
+  complimentaryPremiumUntil?: string | Date | null;
+  subscriptionStatus?: string | null;
+  activePlan?: string | null;
+  subcontractorPlan?: string | null;
+  subcontractorSubStatus?: string | null;
+  radius?: number;
+  subcontractorPreferredRadiusKm?: number;
+};
+
 interface RadiusSettingsProps {
-  user: User;
+  user: RadiusUser;
   onUpdate: (radiusKm: number) => void;
   onUpgrade?: () => void;
 }

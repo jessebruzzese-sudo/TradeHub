@@ -11,6 +11,7 @@
 import { AppLayout } from '@/components/app-nav';
 import { useAuth } from '@/lib/auth';
 import { getStore } from '@/lib/store';
+import type { PayType, JobStatus, User, UserRole, TrustStatus } from '@/lib/types';
 import StatusPill from '@/components/status-pill';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
@@ -84,31 +85,28 @@ export default function JobDetailPage() {
         }
 
         if (jobData) {
-          const dates: Date[] = [];
+          const rawDates: unknown[] = Array.isArray(jobData.dates)
+            ? jobData.dates
+            : [];
+          const dates: Date[] = rawDates
+            .filter(Boolean)
+            .map((d) => new Date(d as string))
+            .filter((d) => !isNaN(d.getTime()));
 
-          const rawDates = (jobData as any).dates;
-
-          if (Array.isArray(rawDates)) {
-            for (const d of rawDates) {
-              if (d) dates.push(new Date(d));
-            }
-          } else if ((jobData as any).date) {
-            // Legacy fallback for old data
-            dates.push(new Date((jobData as any).date));
+          let durationDays = 0;
+          if (dates.length >= 2) {
+            const timestamps = dates.map((d) => d.getTime());
+            const earliest = Math.min(...timestamps);
+            const latest = Math.max(...timestamps);
+            durationDays =
+              Math.round((latest - earliest) / (1000 * 60 * 60 * 24)) + 1;
+          } else if (dates.length === 1) {
+            durationDays = 1;
           }
 
-          if (jobData.date_from && jobData.date_to) {
-            const startDate = new Date(jobData.date_from);
-            const endDate = new Date(jobData.date_to);
-            const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-            for (let i = 0; i <= diffDays; i++) {
-              const date = new Date(startDate);
-              date.setDate(date.getDate() + i);
-              dates.push(date);
-            }
-          }
+          const attachments: string[] | undefined = Array.isArray(jobData.attachments)
+            ? (jobData.attachments.filter((x) => typeof x === 'string') as string[])
+            : undefined;
 
           const job = {
             id: jobData.id,
@@ -119,15 +117,15 @@ export default function JobDetailPage() {
             location: jobData.location,
             postcode: jobData.postcode,
             dates,
-            payType: jobData.pay_type,
-            rate: jobData.pay_amount || 0,
-            duration: jobData.duration,
-            status: jobData.status,
-            createdAt: new Date(jobData.created_at),
+            payType: jobData.pay_type as PayType,
+            rate: jobData.rate ?? 0,
+            duration: durationDays > 0 ? durationDays : (jobData.duration ?? undefined),
+            status: jobData.status as unknown as JobStatus,
+            createdAt: new Date(jobData.created_at ?? Date.now()),
             cancelledAt: jobData.cancelled_at ? new Date(jobData.cancelled_at) : undefined,
-            cancelledBy: jobData.cancelled_by,
-            cancellationReason: jobData.cancellation_reason,
-            attachments: jobData.attachments || undefined,
+            cancelledBy: jobData.cancelled_by ?? undefined,
+            cancellationReason: jobData.cancellation_reason ?? undefined,
+            attachments,
             startTime: jobData.start_time || undefined,
             selectedSubcontractor: jobData.selected_subcontractor || undefined,
             confirmedSubcontractor: jobData.confirmed_subcontractor || undefined,
@@ -147,35 +145,35 @@ export default function JobDetailPage() {
                 .maybeSingle();
 
               if (userData) {
-                const user = {
+                const user: User = {
                   id: userData.id,
                   name: userData.name,
                   email: userData.email,
-                  role: userData.role,
-                  trustStatus: userData.trust_status || 'pending',
+                  role: userData.role as UserRole,
+                  trustStatus: (userData.trust_status || 'pending') as TrustStatus,
                   rating: userData.rating || 0,
-                  reliabilityRating: userData.reliability_rating,
+                  reliabilityRating: userData.reliability_rating ?? undefined,
                   completedJobs: userData.completed_jobs || 0,
-                  memberSince: new Date(userData.created_at),
-                  createdAt: new Date(userData.created_at),
-                  primaryTrade: userData.primary_trade,
+                  memberSince: new Date(userData.created_at ?? Date.now()),
+                  createdAt: new Date(userData.created_at ?? Date.now()),
+                  primaryTrade: userData.primary_trade ?? undefined,
                   additionalTrades: userData.additional_trades || [],
                   additionalTradesUnlocked: userData.additional_trades_unlocked || false,
-                  businessName: userData.business_name,
-                  abn: userData.abn,
-                  bio: userData.bio,
-                  trades: userData.trades,
-                  location: userData.location,
-                  postcode: userData.postcode,
-                  radius: userData.radius,
-                  availability: userData.availability,
-                  avatar: userData.avatar,
-                  subcontractorPlan: userData.subcontractor_plan,
-                  abnStatus: userData.abn_status,
-                  abnVerifiedAt: userData.abn_verified_at,
-                  abnVerifiedBy: userData.abn_verified_by,
-                  abnRejectionReason: userData.abn_rejection_reason,
-                  abnSubmittedAt: userData.abn_submitted_at,
+                  businessName: userData.business_name ?? undefined,
+                  abn: userData.abn ?? undefined,
+                  bio: userData.bio ?? undefined,
+                  trades: (userData.trades as string[] | null) ?? undefined,
+                  location: userData.location ?? undefined,
+                  postcode: userData.postcode ?? undefined,
+                  radius: userData.radius ?? undefined,
+                  availability: userData.availability as User['availability'],
+                  avatar: userData.avatar ?? undefined,
+                  subcontractorPlan: userData.subcontractor_plan as User['subcontractorPlan'],
+                  abnStatus: userData.abn_status as User['abnStatus'],
+                  abnVerifiedAt: userData.abn_verified_at ?? undefined,
+                  abnVerifiedBy: userData.abn_verified_by ?? undefined,
+                  abnRejectionReason: userData.abn_rejection_reason ?? undefined,
+                  abnSubmittedAt: userData.abn_submitted_at ?? undefined,
                 };
 
                 store.users.push(user);

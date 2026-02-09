@@ -211,7 +211,7 @@ function TenderDetailUuidPage({ id }: { id: string }) {
           desiredStartDate: data.desired_start_date,
           desiredEndDate: data.desired_end_date,
           closesAt: data.closes_at,
-          createdAt: data.created_at,
+          createdAt: data.created_at ?? '',
 
           budgetMinCents: data.budget_min_cents ?? null,
           budgetMaxCents: data.budget_max_cents ?? null,

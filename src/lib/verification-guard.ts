@@ -11,7 +11,7 @@ type UserLike = { id?: string; abnStatus?: string | null; abn_status?: string | 
 export function needsBusinessVerification(currentUser: UserLike): boolean {
   // If user data hasn't loaded yet, don't gate here—pages should wait for isLoading/currentUser.
   if (!currentUser) return false;
-  return !hasValidABN(currentUser as any);
+  return !hasValidABN(currentUser);
 }
 
 export function getVerifyBusinessUrl(returnUrl?: string): string {
