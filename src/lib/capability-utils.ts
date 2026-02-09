@@ -1,5 +1,47 @@
-import { User, SubscriptionPlan, Capability } from './types';
+import { SubscriptionPlan, Capability } from './types';
 import { BILLING_SIM_ALLOWED, getSimulatedPremium } from './billing-sim';
+
+/**
+ * Minimal structural type that matches any user-shaped object:
+ *   – CurrentUser  (auth-context, camelCase)
+ *   – User         (types.ts, camelCase)
+ *   – UserLike     (permissions.ts)
+ *   – DB rows      (snake_case)
+ *
+ * Every field is optional and nullable so callers never need `as any`.
+ * No index signature — keeps structural assignability simple.
+ */
+export type CapabilityUser = {
+  /* identity */
+  id?: string | null;
+  role?: string | null;
+
+  /* subscription / premium — camelCase */
+  activePlan?: string | null;
+  subscriptionStatus?: string | null;
+  complimentaryPremiumUntil?: string | Date | null;
+  contractorPlan?: string | null;
+  subcontractorPlan?: string | null;
+  isPremium?: boolean | null;
+  premiumUntil?: string | Date | null;
+
+  /* subscription / premium — snake_case */
+  active_plan?: string | null;
+  subscription_status?: string | null;
+  complimentary_premium_until?: string | Date | null;
+  contractor_plan?: string | null;
+  subcontractor_plan?: string | null;
+  is_premium?: boolean | null;
+  premium_until?: string | Date | null;
+
+  /* suspension — camelCase */
+  accountSuspended?: boolean | null;
+  suspensionEndsAt?: Date | string | null;
+
+  /* suspension — snake_case */
+  account_suspended?: boolean | null;
+  suspension_ends_at?: Date | string | null;
+};
 
 /** Dev-only: when billing sim is enabled and toggled on, treat as premium. */
 function isSimulatingPremium(): boolean {
@@ -7,7 +49,7 @@ function isSimulatingPremium(): boolean {
 }
 
 /** Complimentary premium from DB: if date is in the future, user has full premium. */
-function hasComplimentaryPremiumActive(user: User): boolean {
+function hasComplimentaryPremiumActive(user: CapabilityUser): boolean {
   if (!user?.complimentaryPremiumUntil) return false;
   const until = new Date(user.complimentaryPremiumUntil);
   return !Number.isNaN(until.getTime()) && until > new Date();
@@ -17,7 +59,7 @@ function hasComplimentaryPremiumActive(user: User): boolean {
  * Derives capabilities from DB: active_plan + subscription_status, or complimentary_premium_until.
  * Billing sim remains a dev override only.
  */
-export function getUserCapabilities(user: User): Capability[] {
+export function getUserCapabilities(user: CapabilityUser): Capability[] {
   if (isSimulatingPremium()) {
     return ['BUILDER', 'CONTRACTOR', 'SUBCONTRACTOR'];
   }
@@ -39,43 +81,43 @@ export function getUserCapabilities(user: User): Capability[] {
   }
 }
 
-export function hasCapability(user: User, capability: Capability): boolean {
+export function hasCapability(user: CapabilityUser, capability: Capability): boolean {
   const capabilities = getUserCapabilities(user);
   return capabilities.includes(capability);
 }
 
-export function hasBuilderPremium(user: User): boolean {
+export function hasBuilderPremium(user: CapabilityUser): boolean {
   return hasCapability(user, 'BUILDER') || isSimulatingPremium();
 }
 
-export function hasContractorPremium(user: User): boolean {
+export function hasContractorPremium(user: CapabilityUser): boolean {
   return hasCapability(user, 'CONTRACTOR') || isSimulatingPremium();
 }
 
-export function hasSubcontractorPremium(user: User): boolean {
+export function hasSubcontractorPremium(user: CapabilityUser): boolean {
   return hasCapability(user, 'SUBCONTRACTOR') || isSimulatingPremium();
 }
 
-export function canPostPremiumTenders(user: User): boolean {
+export function canPostPremiumTenders(user: CapabilityUser): boolean {
   return hasBuilderPremium(user);
 }
 
 /** Single-account model: any logged-in user can post jobs (ABN enforced at action time via permissions.ts). */
-export function canPostJobs(user: User): boolean {
+export function canPostJobs(user: CapabilityUser): boolean {
   return !!user;
 }
 
 /** Single-account model: anyone with any premium plan can use unlimited radius. */
-export function canUseUnlimitedRadius(user: User): boolean {
+export function canUseUnlimitedRadius(user: CapabilityUser): boolean {
   return hasContractorPremium(user) || hasSubcontractorPremium(user) || hasBuilderPremium(user);
 }
 
 /** Single-account model: anyone with subcontractor premium can broadcast availability. */
-export function canBroadcastAvailability(user: User): boolean {
+export function canBroadcastAvailability(user: CapabilityUser): boolean {
   return hasSubcontractorPremium(user);
 }
 
-export function canCustomSearchLocation(user: User): boolean {
+export function canCustomSearchLocation(user: CapabilityUser): boolean {
   return (
     hasBuilderPremium(user) ||
     hasContractorPremium(user) ||
@@ -83,11 +125,11 @@ export function canCustomSearchLocation(user: User): boolean {
   );
 }
 
-export function canHideBusinessName(user: User): boolean {
+export function canHideBusinessName(user: CapabilityUser): boolean {
   return hasBuilderPremium(user);
 }
 
-export function getMaxRadius(user: User): number {
+export function getMaxRadius(user: CapabilityUser): number {
   if (canUseUnlimitedRadius(user)) {
     return Infinity;
   }
@@ -95,11 +137,11 @@ export function getMaxRadius(user: User): number {
 }
 
 /** Single-account model: subcontractor premium = 60 days, else 14. */
-export function getMaxAvailabilityHorizonDays(user: User): number {
+export function getMaxAvailabilityHorizonDays(user: CapabilityUser): number {
   return hasSubcontractorPremium(user) ? 60 : 14;
 }
 
-export function getMaxTenderQuotes(user: User, tenderType: 'basic' | 'premium'): number {
+export function getMaxTenderQuotes(user: CapabilityUser, tenderType: 'basic' | 'premium'): number {
   if (tenderType === 'premium') {
     return Infinity;
   }
@@ -165,11 +207,11 @@ export function getUpgradePath(currentPlan: SubscriptionPlan, targetCapabilities
   return null;
 }
 
-export function isSubscriptionActive(user: User): boolean {
+export function isSubscriptionActive(user: CapabilityUser): boolean {
   return user.subscriptionStatus === 'ACTIVE';
 }
 
-export function getTenderCloseHours(user: User): number {
+export function getTenderCloseHours(user: CapabilityUser): number {
   const plan = user.activePlan || 'NONE';
 
   switch (plan) {
@@ -184,9 +226,9 @@ export function getTenderCloseHours(user: User): number {
   }
 }
 
-export function canAccessFeature(user: User, feature: string): boolean {
+export function canAccessFeature(user: CapabilityUser, feature: string): boolean {
   if (user.accountSuspended) {
-    if (user.suspensionEndsAt && new Date() < user.suspensionEndsAt) {
+    if (user.suspensionEndsAt && new Date() < new Date(user.suspensionEndsAt)) {
       return false;
     }
     if (!user.suspensionEndsAt) {
@@ -219,7 +261,7 @@ export interface FeatureLock {
   upgradePlanPrice?: number;
 }
 
-export function getFeatureLock(user: User, feature: string): FeatureLock {
+export function getFeatureLock(user: CapabilityUser, feature: string): FeatureLock {
   const unlocked: FeatureLock = { locked: false };
 
   if (canAccessFeature(user, feature)) {
