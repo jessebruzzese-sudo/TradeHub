@@ -177,7 +177,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Link href="/availability">
+            <Link href="/profile/availability">
               <Button variant="outline" className="gap-2">
                 <Calendar className="h-4 w-4" />
                 List availability
@@ -287,7 +287,7 @@ export default function DashboardPage() {
               <ActionCard
                 title="Availability"
                 description="Update your available days."
-                href="/availability"
+                href="/profile/availability"
                 icon={<Calendar className="h-5 w-5" />}
               />
               <ActionCard

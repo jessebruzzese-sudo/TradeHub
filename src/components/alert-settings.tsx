@@ -9,6 +9,7 @@ import { Lock, Bell, Mail, Smartphone, Info, Megaphone } from 'lucide-react';
 import { canUseAvailabilityBroadcast, validateWorkAlerts } from '@/lib/subscription-utils';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { MVP_FREE_MODE } from '@/lib/feature-flags';
 
 type AlertUser = {
   complimentaryPremiumUntil?: string | Date | null;
@@ -30,7 +31,7 @@ interface AlertSettingsProps {
 }
 
 export function AlertSettings({ user, onUpdate, onUpgrade }: AlertSettingsProps) {
-  const canBroadcast = canUseAvailabilityBroadcast(user);
+  const canBroadcast = MVP_FREE_MODE ? true : canUseAvailabilityBroadcast(user);
 
   const workAlertsEnabled = user.subcontractorWorkAlertsEnabled ?? true;
   const workAlertInApp = user.subcontractorWorkAlertInApp ?? true;

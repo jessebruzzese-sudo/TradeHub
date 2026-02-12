@@ -30,7 +30,7 @@ interface UserRow {
   trustStatus: string;
   createdAt: string;
   lastSeenAt?: string;
-  avatar_url?: string | null;
+  avatar?: string | null;
 }
 
 type SortBy =
@@ -107,7 +107,7 @@ export default function AdminUsersPage() {
 
       let query = supabase
         .from('users')
-        .select('id, name, email, role, primary_trade, trust_status, created_at, last_seen_at, avatar_url');
+        .select('id, name, email, role, primary_trade, trust_status, created_at, last_seen_at, avatar');
 
       if (tradeFilter !== 'all') {
         query = query.eq('primary_trade', tradeFilter);
@@ -168,7 +168,7 @@ export default function AdminUsersPage() {
           trustStatus: u.trust_status ?? 'pending',
           createdAt: u.created_at,
           lastSeenAt: u.last_seen_at ?? undefined,
-          avatar_url: u.avatar_url ?? null,
+          avatar: u.avatar ?? null,
         }))
       );
     } catch (err: any) {
@@ -302,7 +302,7 @@ export default function AdminUsersPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
                         <Avatar className="h-10 w-10">
-                          <AvatarImage src={user.avatar_url ?? undefined} />
+                          <AvatarImage src={user.avatar ?? undefined} />
                           <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
                         </Avatar>
                         <div className="font-medium text-gray-900">{user.name || '—'}</div>
@@ -341,8 +341,16 @@ export default function AdminUsersPage() {
             </table>
           </div>
 
-          {filteredUsers.length === 0 && (
-            <div className="text-center py-12 text-gray-500">No users found</div>
+          {filteredUsers.length === 0 && !errorMsg && (
+            <div className="text-center py-12 text-gray-500">
+              {searchTerm.trim() ? 'No users match your search' : 'No users found'}
+            </div>
+          )}
+
+          {filteredUsers.length === 0 && errorMsg && (
+            <div className="text-center py-12 text-red-500">
+              Failed to load users — see error above
+            </div>
           )}
         </Card>
       )}

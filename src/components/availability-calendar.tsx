@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Lock, Info } from 'lucide-react';
 import { getAvailabilityHorizonDays, isSubcontractorPro } from '@/lib/subscription-utils';
 import { addDays, isBefore, startOfDay, isAfter } from 'date-fns';
+import { MVP_FREE_MODE } from '@/lib/feature-flags';
 
 type CalendarUser = {
   complimentaryPremiumUntil?: string | Date | null;
@@ -70,15 +71,13 @@ export function AvailabilityCalendar({
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <span>Select Your Dates</span>
-          {!isPro && (
-            <span className="text-xs font-normal text-gray-500 flex items-center gap-1">
-              <Lock className="w-3 h-3" />
-              Limited to {horizonDays} days
-            </span>
-          )}
+          <span className="text-xs font-normal text-gray-500 flex items-center gap-1">
+            Up to {horizonDays} days
+          </span>
         </CardTitle>
         <CardDescription>
           Mark days when you have capacity available. This helps inform market insights and contractor planning.
+          {MVP_FREE_MODE && ' No limit on the number of entries within the window.'}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -100,33 +99,40 @@ export function AvailabilityCalendar({
           />
         </div>
 
-        {!isPro && (
+        {MVP_FREE_MODE ? (
           <Alert className="bg-blue-50 border-blue-200">
             <Info className="h-4 w-4 text-blue-600" />
             <AlertDescription className="text-sm text-blue-900">
-              Free plan: Set availability up to {horizonDays} days ahead.
-              <Button
-                variant="link"
-                className="h-auto p-0 ml-1 text-blue-600 font-medium"
-                onClick={onUpgrade}
-              >
-                Upgrade to Pro
-              </Button>
-              {' '}to extend to 60 days and enable availability broadcasts.
+              Set availability up to {horizonDays} days ahead — unlimited entries within this window.
             </AlertDescription>
           </Alert>
-        )}
+        ) : !isPro ? (
+          <>
+            <Alert className="bg-blue-50 border-blue-200">
+              <Info className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-sm text-blue-900">
+                Free plan: Set availability up to {horizonDays} days ahead.
+                <Button
+                  variant="link"
+                  className="h-auto p-0 ml-1 text-blue-600 font-medium"
+                  onClick={onUpgrade}
+                >
+                  Upgrade to Pro
+                </Button>
+                {' '}to extend to 60 days and enable availability broadcasts.
+              </AlertDescription>
+            </Alert>
 
-        {showUpgradePrompt && !isPro && (
-          <Alert className="bg-yellow-50 border-yellow-200">
-            <Lock className="h-4 w-4 text-yellow-600" />
-            <AlertDescription className="text-sm text-yellow-900">
-              That date is beyond your {horizonDays}-day horizon. Upgrade to Pro to set availability further ahead.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {isPro && (
+            {showUpgradePrompt && (
+              <Alert className="bg-yellow-50 border-yellow-200">
+                <Lock className="h-4 w-4 text-yellow-600" />
+                <AlertDescription className="text-sm text-yellow-900">
+                  That date is beyond your {horizonDays}-day horizon. Upgrade to Pro to set availability further ahead.
+                </AlertDescription>
+              </Alert>
+            )}
+          </>
+        ) : (
           <Alert className="bg-green-50 border-green-200">
             <Info className="h-4 w-4 text-green-600" />
             <AlertDescription className="text-sm text-green-900">

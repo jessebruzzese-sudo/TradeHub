@@ -7,7 +7,7 @@ import { getStore } from '@/lib/store';
 import  StatusPill  from '@/components/status-pill';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
-import { Star, Briefcase, Calendar, Shield, ArrowLeft, MapPin } from 'lucide-react';
+import { Star, Briefcase, Calendar, Shield, ArrowLeft, MapPin, BadgeCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import { ReliabilityReviewCard } from '@/components/reliability-review-card';
 import { ProBadge } from '@/components/pro-badge';
@@ -69,6 +69,12 @@ export default function PublicProfilePage() {
                   <h2 className="text-2xl font-bold text-gray-900">{user.name}</h2>
                   <StatusPill type="trust" status={user.trustStatus} />
                   {shouldShowProBadge(user) && <ProBadge size="md" />}
+                  {user.abnStatus === 'VERIFIED' && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-green-50 border border-green-200 px-2.5 py-0.5 text-xs font-medium text-green-700">
+                      <BadgeCheck className="w-3.5 h-3.5" />
+                      ABN verified
+                    </span>
+                  )}
                 </div>
                 {user.businessName && (
                   <p className="text-lg text-gray-700 mb-2">{user.businessName}</p>

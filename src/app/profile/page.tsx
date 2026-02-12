@@ -31,6 +31,7 @@ import { buildLoginUrl } from '@/lib/url-utils';
 import { shouldShowProBadge } from '@/lib/subscription-utils';
 import { BILLING_SIM_ALLOWED, getSimulatedPremium, clearSimulatedPremium } from '@/lib/billing-sim';
 import { useSimulatedPremium } from '@/lib/use-simulated-premium';
+import { MVP_FREE_MODE } from '@/lib/feature-flags';
 
 export default function ProfilePage() {
   const { session, currentUser } = useAuth();
@@ -210,11 +211,13 @@ export default function ProfilePage() {
                 <Crown className="h-5 w-5 text-blue-600" />
                 <h3 className="font-semibold text-gray-900">Subscription Plan</h3>
               </div>
-              <Link href="/pricing">
-                <Button variant="outline" size="sm">
-                  View Plans
-                </Button>
-              </Link>
+              {!MVP_FREE_MODE && (
+                <Link href="/pricing">
+                  <Button variant="outline" size="sm">
+                    View Plans
+                  </Button>
+                </Link>
+              )}
             </div>
 
             <div
@@ -255,34 +258,36 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            <div className="mt-4">
-              {hasRealPremium ? (
-                <Button
-                  className="w-full"
-                  disabled={portalLoading}
-                  onClick={async () => {
-                    setPortalLoading(true);
-                    try {
-                      const res = await fetch('/api/billing/portal', { method: 'POST' });
-                      const data = await res.json().catch(() => ({}));
-                      if (res.ok && data?.url) {
-                        window.location.href = data.url;
-                        return;
+            {!MVP_FREE_MODE && (
+              <div className="mt-4">
+                {hasRealPremium ? (
+                  <Button
+                    className="w-full"
+                    disabled={portalLoading}
+                    onClick={async () => {
+                      setPortalLoading(true);
+                      try {
+                        const res = await fetch('/api/billing/portal', { method: 'POST' });
+                        const data = await res.json().catch(() => ({}));
+                        if (res.ok && data?.url) {
+                          window.location.href = data.url;
+                          return;
+                        }
+                        alert(data?.error || 'Could not open billing portal');
+                      } finally {
+                        setPortalLoading(false);
                       }
-                      alert(data?.error || 'Could not open billing portal');
-                    } finally {
-                      setPortalLoading(false);
-                    }
-                  }}
-                >
-                  {portalLoading ? 'Loading…' : 'Manage Subscription'}
-                </Button>
-              ) : (
-                <Link href="/pricing">
-                  <Button className="w-full">Upgrade to Pro</Button>
-                </Link>
-              )}
-            </div>
+                    }}
+                  >
+                    {portalLoading ? 'Loading…' : 'Manage Subscription'}
+                  </Button>
+                ) : (
+                  <Link href="/pricing">
+                    <Button className="w-full">Upgrade to Pro</Button>
+                  </Link>
+                )}
+              </div>
+            )}
           </div>
         ) : null}
 

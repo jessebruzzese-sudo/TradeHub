@@ -1,5 +1,6 @@
 import { SubscriptionPlan, Capability } from './types';
 import { BILLING_SIM_ALLOWED, getSimulatedPremium } from './billing-sim';
+import { MVP_FREE_MODE, MVP_RADIUS_KM, MVP_AVAILABILITY_HORIZON_DAYS, MVP_HIDE_BUSINESS_NAME_UNTIL_ENGAGEMENT } from './feature-flags';
 
 /**
  * Minimal structural type that matches any user-shaped object:
@@ -87,14 +88,17 @@ export function hasCapability(user: CapabilityUser, capability: Capability): boo
 }
 
 export function hasBuilderPremium(user: CapabilityUser): boolean {
+  if (MVP_FREE_MODE && user) return true;
   return hasCapability(user, 'BUILDER') || isSimulatingPremium();
 }
 
 export function hasContractorPremium(user: CapabilityUser): boolean {
+  if (MVP_FREE_MODE && user) return true;
   return hasCapability(user, 'CONTRACTOR') || isSimulatingPremium();
 }
 
 export function hasSubcontractorPremium(user: CapabilityUser): boolean {
+  if (MVP_FREE_MODE && user) return true;
   return hasCapability(user, 'SUBCONTRACTOR') || isSimulatingPremium();
 }
 
@@ -126,18 +130,21 @@ export function canCustomSearchLocation(user: CapabilityUser): boolean {
 }
 
 export function canHideBusinessName(user: CapabilityUser): boolean {
+  if (MVP_FREE_MODE && MVP_HIDE_BUSINESS_NAME_UNTIL_ENGAGEMENT) return true;
   return hasBuilderPremium(user);
 }
 
 export function getMaxRadius(user: CapabilityUser): number {
+  if (MVP_FREE_MODE) return MVP_RADIUS_KM;
   if (canUseUnlimitedRadius(user)) {
     return Infinity;
   }
   return 15;
 }
 
-/** Single-account model: subcontractor premium = 60 days, else 14. */
+/** Single-account model: subcontractor premium = 60 days, else 14. MVP gives everyone 60 days. */
 export function getMaxAvailabilityHorizonDays(user: CapabilityUser): number {
+  if (MVP_FREE_MODE) return MVP_AVAILABILITY_HORIZON_DAYS;
   return hasSubcontractorPremium(user) ? 60 : 14;
 }
 

@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Lock, Info, MapPin } from 'lucide-react';
 import { getEffectiveRadiusKm, isSubcontractorPro, TIER_LIMITS } from '@/lib/subscription-utils';
 import { Button } from '@/components/ui/button';
+import { MVP_FREE_MODE, MVP_RADIUS_KM } from '@/lib/feature-flags';
 
 type RadiusUser = {
   complimentaryPremiumUntil?: string | Date | null;
@@ -28,10 +29,13 @@ export function RadiusSettings({ user, onUpdate, onUpgrade }: RadiusSettingsProp
   const isPro = isSubcontractorPro(user);
   const effectiveRadius = getEffectiveRadiusKm(user);
   const preferredRadius = user.subcontractorPreferredRadiusKm || 15;
-  const maxRadius = isPro ? TIER_LIMITS.PRO_10.maxRadiusKm : TIER_LIMITS.NONE.maxRadiusKm;
 
-  const displayRadius = isPro ? preferredRadius : Math.min(preferredRadius, maxRadius);
-  const isLocked = !isPro && preferredRadius > maxRadius;
+  // During MVP, cap applies to everyone
+  const maxRadius = MVP_FREE_MODE
+    ? MVP_RADIUS_KM
+    : isPro ? TIER_LIMITS.PRO_10.maxRadiusKm : TIER_LIMITS.NONE.maxRadiusKm;
+
+  const displayRadius = Math.min(preferredRadius, maxRadius);
 
   return (
     <Card>
@@ -41,7 +45,7 @@ export function RadiusSettings({ user, onUpdate, onUpgrade }: RadiusSettingsProp
           Search Radius
         </CardTitle>
         <CardDescription>
-          Set how far you're willing to travel for jobs
+          Set how far you&apos;re willing to travel for jobs
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -51,12 +55,10 @@ export function RadiusSettings({ user, onUpdate, onUpgrade }: RadiusSettingsProp
             <div className="flex items-center gap-2">
               <span className="text-2xl font-bold text-blue-600">{displayRadius}</span>
               <span className="text-sm text-gray-500">km</span>
-              {!isPro && (
-                <span className="text-xs text-gray-400 flex items-center gap-1">
-                  <Lock className="w-3 h-3" />
-                  Max {maxRadius}km
-                </span>
-              )}
+              <span className="text-xs text-gray-400 flex items-center gap-1">
+                <Lock className="w-3 h-3" />
+                Max {maxRadius}km
+              </span>
             </div>
           </div>
 
@@ -64,15 +66,14 @@ export function RadiusSettings({ user, onUpdate, onUpgrade }: RadiusSettingsProp
             value={[displayRadius]}
             onValueChange={([value]) => onUpdate(value)}
             min={5}
-            max={isPro ? 200 : maxRadius}
+            max={maxRadius}
             step={5}
             className="w-full"
-            disabled={!isPro && displayRadius >= maxRadius}
           />
 
           <div className="flex justify-between text-xs text-gray-500">
             <span>5km</span>
-            <span>{isPro ? '200km+' : `${maxRadius}km (Free limit)`}</span>
+            <span>{maxRadius}km{MVP_FREE_MODE ? ' (MVP limit)' : !isPro ? ' (Free limit)' : ''}</span>
           </div>
         </div>
 
@@ -80,13 +81,21 @@ export function RadiusSettings({ user, onUpdate, onUpgrade }: RadiusSettingsProp
           <Alert className="bg-yellow-50 border-yellow-200">
             <Lock className="h-4 w-4 text-yellow-600" />
             <AlertDescription className="text-sm text-yellow-900">
-              Your preferred radius is {preferredRadius}km, but the Free plan limits you to {maxRadius}km.
+              Your preferred radius is {preferredRadius}km, but {MVP_FREE_MODE ? 'the MVP' : 'the Free plan'} limits you to {maxRadius}km.
               Effective radius: <strong>{effectiveRadius}km</strong>
             </AlertDescription>
           </Alert>
         )}
 
-        {!isPro && (
+        {MVP_FREE_MODE ? (
+          <Alert className="bg-blue-50 border-blue-200">
+            <Info className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-sm text-blue-900">
+              During the MVP launch, search radius is capped at {MVP_RADIUS_KM}km for all users.
+              Expanded radius will be part of Premium later.
+            </AlertDescription>
+          </Alert>
+        ) : !isPro ? (
           <Alert className="bg-blue-50 border-blue-200">
             <Info className="h-4 w-4 text-blue-600" />
             <AlertDescription className="text-sm text-blue-900">
@@ -101,13 +110,11 @@ export function RadiusSettings({ user, onUpdate, onUpgrade }: RadiusSettingsProp
               {' '}to expand your reach up to 999km.
             </AlertDescription>
           </Alert>
-        )}
-
-        {isPro && (
+        ) : (
           <Alert className="bg-green-50 border-green-200">
             <Info className="h-4 w-4 text-green-600" />
             <AlertDescription className="text-sm text-green-900">
-              Pro: Search radius up to 999km. You'll see jobs from a much wider area.
+              Pro: Search radius up to 999km. You&apos;ll see jobs from a much wider area.
             </AlertDescription>
           </Alert>
         )}

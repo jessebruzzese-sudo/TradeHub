@@ -53,7 +53,9 @@ import {
   getStatusDisplayName,
   canSubmitQuote,
   getPublicQuoteStatus,
+  checkMvpTenderApplyCap,
 } from '@/lib/tender-utils';
+import { MVP_FREE_MODE } from '@/lib/feature-flags';
 
 import { formatDistanceToNow } from 'date-fns';
 import { ABNRequiredModal } from '@/components/abn-required-modal';
@@ -474,6 +476,15 @@ function TenderDetailUuidPage({ id }: { id: string }) {
       return;
     }
 
+    // MVP soft cap: 3 quotes/applications per month
+    if (MVP_FREE_MODE && currentUser) {
+      const capResult = await checkMvpTenderApplyCap(supabase, currentUser.id);
+      if (!capResult.allowed) {
+        setQuotePermissionError(capResult.message || 'Monthly quote limit reached.');
+        return;
+      }
+    }
+
     const n = Number(quotePrice);
     if (!quotePrice || Number.isNaN(n) || n <= 0) {
       alert('Please enter a valid quote amount');
@@ -822,8 +833,13 @@ function TenderDetailUuidPage({ id }: { id: string }) {
                 <CardContent>
                   <div>
                     <div className="font-medium text-gray-900">
-                      {tender.isNameHidden ? 'Verified Builder' : tender.builder.businessName || tender.builder.name || 'Builder'}
+                      {tender.isNameHidden ? 'Business name hidden' : tender.builder.businessName || tender.builder.name || 'Builder'}
                     </div>
+                    {tender.isNameHidden && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Business name will be visible once you engage (message or apply).
+                      </p>
+                    )}
                     {!tender.isNameHidden && tender.builder.rating && tender.builder.completedJobs ? (
                       <div className="mt-1 text-sm text-gray-600">
                         ⭐ {tender.builder.rating} · {tender.builder.completedJobs} projects completed

@@ -18,6 +18,8 @@ import { buildLoginUrl } from '@/lib/url-utils';
 import { callTradeHubAI } from '@/lib/ai-client';
 import { hasBuilderPremium } from '@/lib/capability-utils';
 import { needsBusinessVerification, redirectToVerifyBusiness, getVerifyBusinessUrl } from '@/lib/verification-guard';
+import { MVP_FREE_MODE } from '@/lib/feature-flags';
+import { checkMvpTenderPostCap } from '@/lib/tender-utils';
 
 import { TRADE_CATEGORIES } from '@/lib/trades';
 import { TenderTier } from '@/lib/tender-types';
@@ -358,6 +360,15 @@ export default function CreateTenderPage() {
       return;
     }
 
+    // MVP soft cap: 3 tenders posted per month
+    if (MVP_FREE_MODE && !isAdmin(userProfile)) {
+      const capResult = await checkMvpTenderPostCap(supabase, authUser.id);
+      if (!capResult.allowed) {
+        setError(capResult.message || 'Monthly tender posting limit reached.');
+        return;
+      }
+    }
+
     // ✅ Guardrail: limit pending guest tenders (single-account: applies to non-admins)
     if (mode === 'guest' && !isAdmin(userProfile)) {
       const { count, error: pendingErr } = await supabase
@@ -473,9 +484,11 @@ export default function CreateTenderPage() {
   }
 
   const premiumOk =
-    currentUser?.role !== 'subcontractor'
+    MVP_FREE_MODE
       ? true
-      : hasBuilderPremium(currentUser);
+      : currentUser?.role !== 'subcontractor'
+        ? true
+        : hasBuilderPremium(currentUser);
 
   if (!premiumOk) {
     return (
@@ -785,7 +798,7 @@ export default function CreateTenderPage() {
                 <div className="flex items-center gap-3">
                   <Checkbox checked={isNameHidden} onCheckedChange={(v) => setIsNameHidden(Boolean(v))} />
                   <div>
-                    <div className="text-sm font-medium">Hide business name</div>
+                    <div className="text-sm font-medium">Hide business name until engagement</div>
                     <div className="text-sm text-muted-foreground">Your profile will show as “Builder (hidden)”.</div>
                   </div>
                 </div>

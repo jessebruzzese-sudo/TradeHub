@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, FileText, MessageSquare, MapPin, Bell, Star } from 'lucide-react';
 import Image from 'next/image';
+import { MVP_FREE_MODE } from '@/lib/feature-flags';
 
 export default function SubcontractorsPage() {
   return (
@@ -188,9 +189,11 @@ export default function SubcontractorsPage() {
 
         <section className="py-8 md:py-12 bg-gray-50">
           <div className="max-w-xl mx-auto px-4 text-center">
-            <Link href="/pricing" className="text-sm text-blue-600 hover:text-blue-700 font-medium inline-block mb-4">
-              View Pricing →
-            </Link>
+            {!MVP_FREE_MODE && (
+              <Link href="/pricing" className="text-sm text-blue-600 hover:text-blue-700 font-medium inline-block mb-4">
+                View Pricing →
+              </Link>
+            )}
 
             <div className="space-y-3">
               <Link href="/tenders" className="block">
@@ -219,9 +222,11 @@ export default function SubcontractorsPage() {
               <Link href="/tenders" className="text-gray-600 hover:text-gray-900 text-sm">
                 Tenders
               </Link>
-              <Link href="/pricing" className="text-gray-600 hover:text-gray-900 text-sm">
-                Pricing
-              </Link>
+              {!MVP_FREE_MODE && (
+                <Link href="/pricing" className="text-gray-600 hover:text-gray-900 text-sm">
+                  Pricing
+                </Link>
+              )}
               <Link href="/jobs" className="text-gray-600 hover:text-gray-900 text-sm">
                 Jobs
               </Link>

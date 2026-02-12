@@ -1,3 +1,5 @@
+import { MVP_FREE_MODE, MVP_TENDERS_PER_MONTH_CAP } from './feature-flags';
+
 export function getMonthKeyBrisbane(date: Date = new Date()): string {
   const brisbaneTime = new Intl.DateTimeFormat('en-AU', {
     timeZone: 'Australia/Brisbane',
@@ -10,6 +12,121 @@ export function getMonthKeyBrisbane(date: Date = new Date()): string {
   const month = parts.find(p => p.type === 'month')?.value;
 
   return `${year}-${month}`;
+}
+
+/**
+ * Returns the start-of-month and end-of-month ISO strings in AEST/AEDT
+ * for filtering tenders created within the current calendar month.
+ */
+export function getCurrentMonthBoundsAEST(): { monthStart: string; monthEnd: string } {
+  const now = new Date();
+  // Parse in Australia/Brisbane timezone
+  const formatter = new Intl.DateTimeFormat('en-AU', {
+    timeZone: 'Australia/Brisbane',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const parts = formatter.formatToParts(now);
+  const year = Number(parts.find(p => p.type === 'year')?.value ?? now.getFullYear());
+  const month = Number(parts.find(p => p.type === 'month')?.value ?? now.getMonth() + 1);
+
+  // Start of month in AEST (UTC+10)
+  const monthStart = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0) - 10 * 60 * 60 * 1000).toISOString();
+  // Start of next month in AEST
+  const monthEnd = new Date(Date.UTC(year, month, 1, 0, 0, 0) - 10 * 60 * 60 * 1000).toISOString();
+
+  return { monthStart, monthEnd };
+}
+
+/**
+ * MVP soft cap check result.
+ */
+export type MvpTenderCapResult = {
+  allowed: boolean;
+  count: number;
+  cap: number;
+  message?: string;
+};
+
+/**
+ * Check if a user has hit the MVP monthly tender posting cap.
+ * Pass a Supabase client and user ID.
+ * Returns { allowed, count, cap, message }.
+ */
+export async function checkMvpTenderPostCap(
+  supabase: { from: (table: string) => any },
+  userId: string
+): Promise<MvpTenderCapResult> {
+  if (!MVP_FREE_MODE) return { allowed: true, count: 0, cap: Infinity };
+
+  const { monthStart, monthEnd } = getCurrentMonthBoundsAEST();
+  const { count, error } = await supabase
+    .from('tenders')
+    .select('id', { count: 'exact', head: true })
+    .eq('builder_id', userId)
+    .gte('created_at', monthStart)
+    .lt('created_at', monthEnd);
+
+  const current = count ?? 0;
+  if (error) {
+    console.error('MVP tender post cap check error:', error);
+    // Allow on error to not block users
+    return { allowed: true, count: 0, cap: MVP_TENDERS_PER_MONTH_CAP };
+  }
+
+  if (current >= MVP_TENDERS_PER_MONTH_CAP) {
+    return {
+      allowed: false,
+      count: current,
+      cap: MVP_TENDERS_PER_MONTH_CAP,
+      message: `MVP limit reached (${MVP_TENDERS_PER_MONTH_CAP} this month). More limits will be part of Premium later.`,
+    };
+  }
+
+  return { allowed: true, count: current, cap: MVP_TENDERS_PER_MONTH_CAP };
+}
+
+/**
+ * Check if a user has hit the MVP monthly tender apply/quote cap.
+ * Counts quote submissions (from tender_quotes table if available, else returns allowed).
+ */
+export async function checkMvpTenderApplyCap(
+  supabase: { from: (table: string) => any },
+  userId: string
+): Promise<MvpTenderCapResult> {
+  if (!MVP_FREE_MODE) return { allowed: true, count: 0, cap: Infinity };
+
+  const { monthStart, monthEnd } = getCurrentMonthBoundsAEST();
+
+  // Try tender_quotes table first (may or may not exist)
+  try {
+    const { count, error } = await supabase
+      .from('tender_quotes')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .gte('created_at', monthStart)
+      .lt('created_at', monthEnd);
+
+    if (error) {
+      // Table might not exist yet — allow
+      return { allowed: true, count: 0, cap: MVP_TENDERS_PER_MONTH_CAP };
+    }
+
+    const current = count ?? 0;
+    if (current >= MVP_TENDERS_PER_MONTH_CAP) {
+      return {
+        allowed: false,
+        count: current,
+        cap: MVP_TENDERS_PER_MONTH_CAP,
+        message: `MVP limit reached (${MVP_TENDERS_PER_MONTH_CAP} quotes this month). More limits will be part of Premium later.`,
+      };
+    }
+
+    return { allowed: true, count: current, cap: MVP_TENDERS_PER_MONTH_CAP };
+  } catch {
+    return { allowed: true, count: 0, cap: MVP_TENDERS_PER_MONTH_CAP };
+  }
 }
 
 import { getEffectiveSearchOrigin } from './search-origin';

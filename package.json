@@ -10,7 +10,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "selfcheck": "node scripts/selfcheck.mjs",
+    "clean": "rimraf .next",
+    "check:mvp": "npm run lint && npm run build && npm run selfcheck"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -80,6 +83,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/google.maps": "^3.58.1"
+    "@types/google.maps": "^3.58.1",
+    "rimraf": "^6.1.2"
   }
 }

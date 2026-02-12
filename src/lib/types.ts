@@ -109,6 +109,11 @@ export interface User {
   abnVerifiedBy?: string;
   abnRejectionReason?: string;
   abnSubmittedAt?: string;
+
+  /** Entity type returned by ABR (e.g. "Australian Private Company"). */
+  entityType?: string;
+  /** Last time the ABN was checked against ABR. */
+  abnLastCheckedAt?: string;
 }
 
 export interface Job {

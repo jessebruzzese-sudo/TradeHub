@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { isAdmin } from '@/lib/is-admin';
+import { MVP_FREE_MODE } from '@/lib/feature-flags';
 import { Bell, LogOut, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -19,7 +20,8 @@ const navConfig = {
     { label: 'Tenders', href: '/tenders' },
     { label: 'Messages', href: '/messages' },
     { label: 'Notifications', href: '/notifications' },
-    { label: 'Pricing', href: '/pricing' },
+    // Hide Pricing nav item during MVP free launch
+    ...(MVP_FREE_MODE ? [] : [{ label: 'Pricing', href: '/pricing' }]),
     { label: 'Profile', href: '/profile' },
   ],
   admin: [

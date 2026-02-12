@@ -1,4 +1,5 @@
 import { SubcontractorPlan, SubcontractorSubStatus } from './types';
+import { MVP_FREE_MODE, MVP_RADIUS_KM, MVP_AVAILABILITY_HORIZON_DAYS } from './feature-flags';
 
 /** Structural type covering both User (types.ts) and CurrentUser (auth-context). */
 type SubscriptionUser = {
@@ -89,8 +90,13 @@ export function isSubcontractorPro(user: SubscriptionUser | null | undefined): b
   );
 }
 
-/** Single-account: based on plan only. */
+/** Single-account: based on plan only. MVP: cap at MVP_RADIUS_KM. */
 export function getEffectiveRadiusKm(user: SubscriptionUser): number {
+  if (MVP_FREE_MODE) {
+    const preferred = user?.subcontractorPreferredRadiusKm || user?.radius || MVP_RADIUS_KM;
+    return Math.min(preferred, MVP_RADIUS_KM);
+  }
+
   if (!user || !isSubcontractorPro(user)) {
     return user?.radius || 15;
   }
@@ -102,8 +108,10 @@ export function getEffectiveRadiusKm(user: SubscriptionUser): number {
   return Math.min(preferredRadius, maxRadius);
 }
 
-/** Single-account: based on plan only. */
+/** Single-account: based on plan only. MVP: everyone gets 60-day horizon. */
 export function getAvailabilityHorizonDays(user: SubscriptionUser): number {
+  if (MVP_FREE_MODE) return MVP_AVAILABILITY_HORIZON_DAYS;
+
   if (!user || !isSubcontractorPro(user)) {
     return 14;
   }
@@ -112,11 +120,13 @@ export function getAvailabilityHorizonDays(user: SubscriptionUser): number {
   return isPro ? TIER_LIMITS.PRO_10.availabilityHorizonDays : TIER_LIMITS.NONE.availabilityHorizonDays;
 }
 
-/** Single-account: based on plan only. */
+/** Single-account: based on plan only. MVP: all channels enabled for everyone. */
 export function canUseAlertChannel(
   user: SubscriptionUser,
   channel: 'inApp' | 'email' | 'sms'
 ): boolean {
+  if (MVP_FREE_MODE) return true;
+
   if (!user || !isSubcontractorPro(user)) return false;
 
   const isPro = isSubcontractorPro(user);

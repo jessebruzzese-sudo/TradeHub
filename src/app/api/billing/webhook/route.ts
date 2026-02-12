@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import type Stripe from 'stripe';
 import { getStripe, isStripeConfigured } from '@/lib/stripe/server';
 import { getPlanForPriceId } from '@/lib/stripe/plans';
+import { MVP_FREE_MODE } from '@/lib/feature-flags';
 
 type CheckoutSession = Stripe.Checkout.Session;
 type StripeSubscription = Stripe.Subscription;
@@ -150,6 +151,9 @@ async function insertSubscriptionHistory(
 }
 
 export async function POST(req: Request) {
+  if (MVP_FREE_MODE) {
+    return NextResponse.json({ error: 'Billing disabled during MVP launch' }, { status: 403 });
+  }
   if (!webhookSecret || !isStripeConfigured()) {
     return NextResponse.json({ error: 'Webhook not configured' }, { status: 503 });
   }

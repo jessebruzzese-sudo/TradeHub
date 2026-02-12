@@ -13,6 +13,7 @@ import { getStore } from '@/lib/store';
 import { ownsJob, canEditJob } from '@/lib/permissions';
 import { needsBusinessVerification, redirectToVerifyBusiness } from '@/lib/verification-guard';
 import { safeRouterPush } from '@/lib/safe-nav';
+import { MVP_FREE_MODE } from '@/lib/feature-flags';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -199,11 +200,16 @@ export default function EditJobPage() {
                 className="mt-1 bg-gray-50"
               />
               <p className="mt-1 text-xs text-gray-500">
-                Auto-set from your primary trade.{' '}
-                <Link href="/pricing" className="font-medium text-blue-600 hover:text-blue-700">
-                  Add extra trades
-                </Link>
-                <span className="text-gray-400"> (Premium)</span>
+                Auto-set from your primary trade.
+                {!MVP_FREE_MODE && (
+                  <>
+                    {' '}
+                    <Link href="/pricing" className="font-medium text-blue-600 hover:text-blue-700">
+                      Add extra trades
+                    </Link>
+                    <span className="text-gray-400"> (Premium)</span>
+                  </>
+                )}
               </p>
             </div>
 

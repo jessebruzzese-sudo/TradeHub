@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { isAdmin } from '@/lib/is-admin';
 import { Chrome as Home, Briefcase, MessageSquare, Bell, Menu, X, User, FileText, Calendar, CirclePlus as PlusCircle, Lock, Settings, CircleHelp as HelpCircle, Shield, Eye, LogOut, CircleCheck as CheckCircle, CircleAlert as AlertCircle, CreditCard } from 'lucide-react';
 import { getStore } from '@/lib/store';
+import { MVP_FREE_MODE } from '@/lib/feature-flags';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -201,12 +202,14 @@ export function MobileDrawer() {
                     active={pathname === '/verify-business'}
                     badge={isVerified ? 'Verified' : undefined}
                   />
-                  <DrawerMenuItem
-                    icon={CreditCard}
-                    label="Pricing / Upgrade"
-                    onClick={() => handleNavigation('/pricing')}
-                    active={pathname === '/pricing'}
-                  />
+                  {!MVP_FREE_MODE && (
+                    <DrawerMenuItem
+                      icon={CreditCard}
+                      label="Pricing / Upgrade"
+                      onClick={() => handleNavigation('/pricing')}
+                      active={pathname === '/pricing'}
+                    />
+                  )}
                   <DrawerMenuItem
                     icon={Settings}
                     label="Settings"

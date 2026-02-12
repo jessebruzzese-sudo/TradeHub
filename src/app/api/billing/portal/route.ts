@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { getStripe, isStripeConfigured } from '@/lib/stripe/server';
+import { MVP_FREE_MODE } from '@/lib/feature-flags';
 
 function authClient() {
   const cookieStore = cookies();
@@ -29,6 +30,9 @@ function serviceClient() {
 }
 
 export async function POST(req: Request) {
+  if (MVP_FREE_MODE) {
+    return NextResponse.json({ error: 'Billing disabled during MVP launch' }, { status: 403 });
+  }
   if (!isStripeConfigured()) {
     return NextResponse.json({ error: 'Billing is not configured' }, { status: 503 });
   }

@@ -34,6 +34,7 @@ import { getStore } from '@/lib/store';
 import { getABNStatusMessage, hasABNButNotVerified } from '@/lib/abn-utils';
 import { safeRouterPush } from '@/lib/safe-nav';
 import { needsBusinessVerification, redirectToVerifyBusiness, getVerifyBusinessUrl } from '@/lib/verification-guard';
+import { MVP_FREE_MODE } from '@/lib/feature-flags';
 
 type PayType = 'fixed' | 'hourly';
 
@@ -262,11 +263,16 @@ export default function CreateJobPage() {
                   className="mt-1 bg-gray-50"
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  Auto-set from your primary trade.{' '}
-                  <Link href="/pricing" className="font-medium text-blue-600 hover:text-blue-700">
-                    Add extra trades
-                  </Link>{' '}
-                  <span className="text-gray-400">(Premium)</span>
+                  Auto-set from your primary trade.
+                  {!MVP_FREE_MODE && (
+                    <>
+                      {' '}
+                      <Link href="/pricing" className="font-medium text-blue-600 hover:text-blue-700">
+                        Add extra trades
+                      </Link>{' '}
+                      <span className="text-gray-400">(Premium)</span>
+                    </>
+                  )}
                 </p>
               </div>
 
@@ -505,7 +511,9 @@ export default function CreateJobPage() {
             </form>
           </div>
         </div>
-        <PremiumJobUpsellModal open={showSuccessModal} onOpenChange={setShowSuccessModal} jobId={createdJobId} />
+        {!MVP_FREE_MODE && (
+          <PremiumJobUpsellModal open={showSuccessModal} onOpenChange={setShowSuccessModal} jobId={createdJobId} />
+        )}
       </AppLayout>
   );
 }

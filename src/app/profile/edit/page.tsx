@@ -1,15 +1,5 @@
 'use client';
 
-/*
- * QA_ONLY — MANUAL QA CHECKLIST (Profile Edit + Avatar)
- * [ ] Prefill check: name, bio, business name, primary trade, search-from hydrate from currentUser
- * [ ] Save name/bio persists after refresh (reload /profile then /profile/edit)
- * [ ] Primary trade locked behavior: once set, field is disabled with lock icon
- * [ ] Additional trades premium enforcement: non-premium sees upgrade CTA; premium can add trades
- * [ ] Search-from premium enforcement: non-premium sees upgrade CTA; premium can set custom location
- * [ ] Avatar upload persists after refresh: upload image, reload /profile and /profile/edit, confirm URL and image
- */
-
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -19,7 +9,6 @@ import { Info, Lock, MapPin } from 'lucide-react';
 import { AppLayout } from '@/components/app-nav';
 import { PageHeader } from '@/components/page-header';
 import { ProfileAvatar } from '@/components/profile-avatar';
-import { SuburbAutocomplete } from '@/components/suburb-autocomplete';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,11 +20,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useAuth } from '@/lib/auth';
 import { isAdmin } from '@/lib/is-admin';
 import { TRADE_CATEGORIES } from '@/lib/trades';
-import {
-  hasSubcontractorPremium,
-  canCustomSearchLocation,
-} from '@/lib/capability-utils';
-import { getEffectiveSearchOrigin } from '@/lib/search-origin';
+import { hasSubcontractorPremium } from '@/lib/capability-utils';
+import { MVP_FREE_MODE } from '@/lib/feature-flags';
 
 export default function EditProfilePage() {
   const { currentUser, updateUser } = useAuth();
@@ -50,10 +36,6 @@ export default function EditProfilePage() {
   // free-text skills field (comma separated)
   const [tradesText, setTradesText] = useState<string>('');
 
-  // Premium "search from" (UI-only for now)
-  const [searchLocation, setSearchLocation] = useState<string>('');
-  const [searchPostcode, setSearchPostcode] = useState<string>('');
-
   const [isSaving, setIsSaving] = useState(false);
 
   // Hydrate form state once user is available (and on user switch)
@@ -66,14 +48,10 @@ export default function EditProfilePage() {
     setPrimaryTrade(currentUser.primaryTrade ?? '');
 
     setTradesText(((currentUser.trades ?? []) as string[]).join(', '));
-
-    setSearchLocation(((currentUser as any)?.searchLocation as string) ?? '');
-    setSearchPostcode(((currentUser as any)?.searchPostcode as string) ?? '');
   }, [currentUser]);
 
   // Premium checks
   const canMultiTrade = currentUser ? hasSubcontractorPremium(currentUser) || !!currentUser.additionalTradesUnlocked : false;
-  const canUseSearchFrom = currentUser ? canCustomSearchLocation(currentUser) : false;
 
   const parsedTrades = useMemo<string[]>(() => {
     return tradesText
@@ -95,17 +73,6 @@ export default function EditProfilePage() {
     try {
       await updateUser({ avatar: newAvatarUrl });
       toast.success('Avatar updated');
-      // QA_ONLY: dev-only post-upload verification — warn if avatar URL not reachable
-      if (process.env.NODE_ENV !== 'production') {
-        try {
-          const res = await fetch(newAvatarUrl, { method: 'HEAD' });
-          if (!res.ok) {
-            console.warn('[QA] Avatar URL not reachable after upload:', newAvatarUrl, 'status:', res.status);
-          }
-        } catch (fetchErr) {
-          console.warn('[QA] Avatar URL fetch failed (CORS or network):', newAvatarUrl, fetchErr);
-        }
-      }
     } catch (error) {
       console.error('Error updating avatar:', error);
       toast.error('Failed to update avatar');
@@ -161,29 +128,15 @@ export default function EditProfilePage() {
           primaryTrade: primaryTrade.trim() ? primaryTrade.trim() : undefined,
           trades: parsedTrades.length > 0 ? parsedTrades : undefined,
 
-          /**
-           * CRITICAL:
-           * Do NOT overwrite base business location with Premium "Search From" values.
-           * Base location/postcode remain the user's actual location.
-           * Premium search-from is stored separately below.
-           */
           location: undefined,
           postcode: undefined,
-
-          // Store UI-only search fields too (not typed on CurrentUser; updateUser accepts Partial and merges)
-          ...(searchLocation ? ({ searchLocation: searchLocation.trim() } as any) : null),
-          ...(searchPostcode ? ({ searchPostcode: searchPostcode.trim() } as any) : null),
         } as any
       );
 
       toast.success('Profile updated successfully');
       router.push('/profile');
     } catch (error) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.error('[QA] Profile save failed', error);
-      } else {
-        console.error(error);
-      }
+      console.error('Profile save failed', error);
       toast.error('Failed to update profile');
     } finally {
       setIsSaving(false);
@@ -278,7 +231,8 @@ export default function EditProfilePage() {
                       />
                       <Lock className="h-5 w-5 flex-shrink-0 text-gray-400" />
                     </div>
-                    <p className="mt-2 text-xs text-gray-500">Locked after account creation.</p>
+                    <p className="mt-2 text-xs text-gray-500">Your primary trade is locked for now.</p>
+                    <p className="text-xs text-gray-500">Add multiple trades (coming soon).</p>
                   </>
                 ) : (
                   <>
@@ -310,7 +264,9 @@ export default function EditProfilePage() {
               <div className="rounded-lg border-2 border-blue-200 bg-blue-50 p-6">
                 <div className="mb-4 flex items-start justify-between">
                   <div className="flex-1">
-                    <Label className="text-lg font-semibold text-gray-900">Additional Trades (Premium Feature)</Label>
+                    <Label className="text-lg font-semibold text-gray-900">
+                      {MVP_FREE_MODE ? 'Additional Trades' : 'Additional Trades (Premium Feature)'}
+                    </Label>
                     <p className="mt-1 text-sm text-gray-600">
                       Primary trade can&apos;t be changed after setup. Premium users can add additional trades.
                     </p>
@@ -358,16 +314,22 @@ export default function EditProfilePage() {
                   <div className="space-y-4">
                     <div className="flex items-center gap-2 text-gray-600">
                       <Lock className="h-4 w-4" />
-                      <span className="text-sm font-medium">Multi-trade profiles are a Premium feature.</span>
+                      <span className="text-sm font-medium">
+                        {MVP_FREE_MODE ? 'Multi-trade profiles — Coming soon' : 'Multi-trade profiles are a Premium feature.'}
+                      </span>
                     </div>
                     <p className="text-sm text-gray-600">
-                      Get matched with more jobs by adding additional trades to your profile. Included with Premium.
+                      {MVP_FREE_MODE
+                        ? 'Multi-trade support will be available as part of Premium later. For now, your primary trade is used for matching.'
+                        : 'Get matched with more jobs by adding additional trades to your profile. Included with Premium.'}
                     </p>
-                    <Link href="/pricing">
-                      <Button type="button" variant="default" className="bg-blue-600 hover:bg-blue-700">
-                        Upgrade to Premium
-                      </Button>
-                    </Link>
+                    {!MVP_FREE_MODE && (
+                      <Link href="/pricing">
+                        <Button type="button" variant="default" className="bg-blue-600 hover:bg-blue-700">
+                          Upgrade to Premium
+                        </Button>
+                      </Link>
+                    )}
                   </div>
                 )}
               </div>
@@ -392,87 +354,17 @@ export default function EditProfilePage() {
             )}
 
             {!isAdmin(currentUser) && (
-              <div className="rounded-lg border-2 border-purple-200 bg-purple-50 p-6">
-                <div className="mb-4 flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="mb-1 flex items-center gap-2">
-                      <MapPin className="h-5 w-5 text-purple-600" />
-                      <Label className="text-lg font-semibold text-gray-900">Custom Search Location (Premium Feature)</Label>
-                    </div>
-                    <p className="mt-2 text-sm text-gray-600">
-                      Override your business location for job discovery and tender matching. Your business location remains unchanged.
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-6 opacity-75">
+                <div className="flex items-start gap-3">
+                  <MapPin className="mt-0.5 h-5 w-5 flex-shrink-0 text-gray-400" />
+                  <div>
+                    <Label className="text-lg font-semibold text-gray-500">Custom Search Location (Coming soon)</Label>
+                    <p className="mt-2 text-sm text-gray-500">
+                      Soon you&apos;ll be able to set a virtual search location to discover jobs and tenders in different areas
+                      while keeping your business location unchanged.
                     </p>
                   </div>
                 </div>
-
-                {canUseSearchFrom ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 text-sm text-green-700">
-                      <div className="h-2 w-2 rounded-full bg-green-600" />
-                      <span className="font-medium">Custom search location unlocked</span>
-                    </div>
-
-                    <div>
-                      <Label htmlFor="searchLocation">Search From Location</Label>
-                      <SuburbAutocomplete
-                        value={searchLocation}
-                        postcode={searchPostcode}
-                        onSuburbChange={setSearchLocation}
-                        onPostcodeChange={setSearchPostcode}
-                        className="mt-2"
-                      />
-
-                      <p className="mt-2 text-xs text-gray-500">
-                        Your business location: {currentUser.location ?? 'Not set'}
-                        {currentUser.postcode ? `, ${currentUser.postcode}` : ''}
-                      </p>
-
-                      {(() => {
-                        const origin = getEffectiveSearchOrigin(currentUser as any);
-                        if (origin.source !== 'searchFrom' || !origin.location) return null;
-                        return (
-                          <div className="mt-2 rounded border border-blue-200 bg-blue-50 p-3">
-                            <p className="text-xs text-blue-900">
-                              <strong>Active:</strong> Jobs and tenders are now calculated from {origin.location}
-                              {origin.postcode ? `, ${origin.postcode}` : ''}
-                            </p>
-                          </div>
-                        );
-                      })()}
-
-                      {(searchLocation || searchPostcode) && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSearchLocation('');
-                            setSearchPostcode('');
-                          }}
-                          className="mt-2"
-                        >
-                          Clear Custom Location
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <p className="text-sm text-gray-600">
-                      Set a virtual search location to discover jobs and tenders in different areas while keeping your business
-                      location unchanged.
-                    </p>
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
-                      <Lock className="h-4 w-4" />
-                      <span>Available on Business Pro and All Access Pro plans</span>
-                    </div>
-                    <Link href="/pricing">
-                      <Button type="button" variant="default" className="bg-purple-600 hover:bg-purple-700">
-                        Upgrade to Premium
-                      </Button>
-                    </Link>
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -488,57 +380,6 @@ export default function EditProfilePage() {
             </Link>
           </div>
 
-          {/* QA_ONLY: dev-only QA panel — not rendered in production */}
-          {process.env.NODE_ENV !== 'production' && (
-            <div className="mt-8 rounded-lg border border-amber-300 bg-amber-50 p-4 font-mono text-xs">
-              <div className="mb-2 font-semibold text-amber-900">QA Panel (dev only)</div>
-              <div className="space-y-1 text-gray-700">
-                <div>id: {currentUser.id}</div>
-                <div>role: {currentUser.role ?? '—'}</div>
-                <div>abnStatus: {(currentUser as any).abnStatus ?? '—'}</div>
-                <div>canMultiTrade: {String(canMultiTrade)}</div>
-                <div>canCustomSearchLocation: {String(canUseSearchFrom)}</div>
-                <div>avatar: {currentUser.avatar ? currentUser.avatar : '—'}</div>
-                {(Boolean((currentUser as any).searchLocation) ||
-                  Boolean((currentUser as any).searchPostcode) ||
-                  (currentUser as any).searchLat != null ||
-                  (currentUser as any).searchLng != null) && (
-                  <>
-                    <div>searchLocation: {(currentUser as any).searchLocation ?? '—'}</div>
-                    <div>searchPostcode: {(currentUser as any).searchPostcode ?? '—'}</div>
-                    <div>searchLat: {(currentUser as any).searchLat ?? '—'}</div>
-                    <div>searchLng: {(currentUser as any).searchLng ?? '—'}</div>
-                  </>
-                )}
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="mt-3"
-                onClick={() => {
-                  const snapshot = {
-                    id: currentUser.id,
-                    role: currentUser.role,
-                    abnStatus: (currentUser as any).abnStatus,
-                    canMultiTrade,
-                    canCustomSearchLocation: canUseSearchFrom,
-                    avatar: currentUser.avatar,
-                    searchLocation: (currentUser as any).searchLocation,
-                    searchPostcode: (currentUser as any).searchPostcode,
-                    searchLat: (currentUser as any).searchLat,
-                    searchLng: (currentUser as any).searchLng,
-                    name: currentUser.name,
-                    email: currentUser.email,
-                  };
-                  void navigator.clipboard.writeText(JSON.stringify(snapshot, null, 2));
-                  toast.success('User debug JSON copied');
-                }}
-              >
-                Copy user debug JSON
-              </Button>
-            </div>
-          )}
         </form>
       </div>
     </AppLayout>

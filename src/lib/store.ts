@@ -1,4 +1,5 @@
 import { User, Job, Application, Conversation, Message, Review, AuditLog, AdminNote } from './types';
+// mockData is environment-guarded: returns empty arrays in production, dev data only in development.
 import { mockData } from './mock-data';
 
 export interface AppStore {
