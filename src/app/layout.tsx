@@ -43,7 +43,7 @@ export const metadata: Metadata = {
     url: 'https://tradehub.com.au',
     siteName: 'TradeHub',
     images: [
-      { url: '/og-image.png', width: 1200, height: 630, alt: 'TradeHub' },
+      { url: '/og-image-v2.png', width: 1200, height: 630, alt: 'TradeHub' },
     ],
     locale: 'en_AU',
     type: 'website',
@@ -53,7 +53,7 @@ export const metadata: Metadata = {
     title: 'TradeHub – B2B Marketplace for Australian Contractors',
     description:
       'TradeHub connects contractors and subcontractors based on availability, trade and distance — without lead fees.',
-    images: ['/og-image.png'],
+    images: ['/og-image-v2.png'],
   },
 };
 
