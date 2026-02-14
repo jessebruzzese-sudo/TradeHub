@@ -1,23 +1,18 @@
-'use client';
+import { MarketingPageLayout } from '@/components/marketing-page-layout';
 
-import { AppLayout } from '@/components/app-nav';
-import { TradeGate } from '@/components/trade-gate';
+export const metadata = {
+  title: 'Terms of Service – TradeHub',
+  description: 'TradeHub Terms of Service – marketplace platform connecting Australian contractors and subcontractors.',
+};
 
 export default function TermsPage() {
-  const currentDate = new Date().toLocaleDateString('en-AU', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
-
   return (
-    <TradeGate>
-      <AppLayout>
-        <div className="min-h-screen bg-gray-50">
+    <MarketingPageLayout>
+        <div className="bg-gray-50">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 md:p-12">
               <h1 className="text-3xl font-bold text-gray-900 mb-2">Terms of Service</h1>
-              <p className="text-sm text-gray-600 mb-8">Effective date: {currentDate}</p>
+              <p className="text-sm text-gray-600 mb-8">Effective date: 16 January 2026</p>
 
               <div className="prose prose-sm max-w-none space-y-6">
                 <section>
@@ -101,14 +96,16 @@ export default function TermsPage() {
                 <section>
                   <h2 className="text-xl font-semibold text-gray-900 mb-3">10. Contact</h2>
                   <p className="text-gray-700">
-                    For questions, contact: support@tradehub.com
+                    For questions, contact:{' '}
+                    <a href="mailto:support@tradehub.com.au" className="text-blue-600 hover:underline">
+                      support@tradehub.com.au
+                    </a>
                   </p>
                 </section>
               </div>
             </div>
           </div>
         </div>
-      </AppLayout>
-    </TradeGate>
+    </MarketingPageLayout>
   );
 }
