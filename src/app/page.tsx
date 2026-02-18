@@ -17,6 +17,14 @@ import {
   Briefcase,
   CalendarCheck,
   ShieldCheck,
+  Droplets,
+  Zap,
+  Hammer,
+  Grid3X3,
+  Paintbrush,
+  Layers,
+  Home,
+  Leaf,
 } from 'lucide-react';
 
 export default function HomePage() {
@@ -57,7 +65,7 @@ export default function HomePage() {
         {/* HERO */}
         <section
           id="tenders"
-          className="scroll-mt-24 mx-auto max-w-7xl bg-gradient-to-b from-gray-50 to-white px-4 py-8 md:bg-none md:py-16"
+          className="scroll-mt-24 mx-auto max-w-7xl bg-gradient-to-b from-gray-50 to-white px-4 py-6 md:bg-none md:py-14"
         >
           <div className="mx-auto max-w-[56rem]">
             <div className="text-center">
@@ -226,54 +234,138 @@ export default function HomePage() {
         </section>
 
         {/* Teaser cards — link to dedicated SEO pages */}
-        <section className="bg-gray-50 py-12 md:py-16">
+        <section className="bg-gray-50 py-10 md:py-14">
           <div className="mx-auto max-w-7xl px-4">
-            <div className="grid gap-6 sm:grid-cols-3">
-              <div className="flex flex-col rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-slate-200">
+            <div className="grid gap-4 sm:gap-6 sm:grid-cols-3">
+              <div className="flex flex-col rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+                <div className="mb-3 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-200 sm:h-10 sm:w-10">
                   <Briefcase className="h-5 w-5 text-slate-700" />
                 </div>
-                <h2 className="mb-2 text-lg font-bold text-gray-900">How TradeHub works</h2>
-                <p className="mb-4 flex-1 text-sm text-gray-600">
+                <h2 className="mb-2 text-base font-bold text-gray-900 sm:text-lg">How TradeHub works</h2>
+                <p className="mb-3 flex-1 text-xs text-slate-600 sm:text-sm sm:mb-4">
                   Built to help businesses stay busy, flexible, and in control — without lead fees.
                 </p>
                 <Link href="/how-it-works">
-                  <Button variant="outline" className="w-full">
+                  <Button variant="outline" className="h-9 w-full sm:h-10">
                     Learn more
                   </Button>
                 </Link>
               </div>
 
-              <div className="flex flex-col rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100">
+              <div className="flex flex-col rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+                <div className="mb-3 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 sm:h-10 sm:w-10">
                   <ShieldCheck className="h-5 w-5 text-blue-700" />
                 </div>
-                <h2 className="mb-2 text-lg font-bold text-gray-900">Trust & Safety</h2>
-                <p className="mb-4 flex-1 text-sm text-gray-600">
+                <h2 className="mb-2 text-base font-bold text-gray-900 sm:text-lg">Trust & Safety</h2>
+                <p className="mb-3 flex-1 text-xs text-slate-600 sm:text-sm sm:mb-4">
                   Verification signals, reputation tracking, and clear accountability for real trade businesses.
                 </p>
                 <Link href="/trust-safety">
-                  <Button variant="outline" className="w-full">
+                  <Button variant="outline" className="h-9 w-full sm:h-10">
                     Learn more
                   </Button>
                 </Link>
               </div>
 
-              <div className="flex flex-col rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100">
+              <div className="flex flex-col rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+                <div className="mb-3 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 sm:h-10 sm:w-10">
                   <CalendarCheck className="h-5 w-5 text-emerald-700" />
                 </div>
-                <h2 className="mb-2 text-lg font-bold text-gray-900">How tendering works</h2>
-                <p className="mb-4 flex-1 text-sm text-gray-600">
+                <h2 className="mb-2 text-base font-bold text-gray-900 sm:text-lg">How tendering works</h2>
+                <p className="mb-3 flex-1 text-xs text-slate-600 sm:text-sm sm:mb-4">
                   Post project tenders, receive multiple quotes from relevant trades, and award work to who you choose.
                 </p>
                 <Link href="/tendering">
-                  <Button variant="outline" className="w-full">
+                  <Button variant="outline" className="h-9 w-full sm:h-10">
                     Learn more
                   </Button>
                 </Link>
               </div>
             </div>
+          </div>
+        </section>
+
+        {/* Built for Australian Trade Businesses */}
+        <section className="mx-auto max-w-6xl px-4 pb-14">
+          <div className="rounded-2xl border bg-white p-8 shadow-sm">
+            <h2 className="text-2xl font-semibold tracking-tight">
+              Built for Australian Trade Businesses
+            </h2>
+
+            <p className="mt-3 max-w-2xl text-sm text-slate-600">
+              TradeHub helps Plumbing, Electrical, Carpentry and construction businesses operate like their own agency — find more work, fill schedule gaps, and connect with verified local businesses without paying lead fees.
+            </p>
+
+            <div className="mt-6 flex flex-wrap gap-2">
+              {[
+                { label: 'Plumbing', icon: Droplets },
+                { label: 'Electrical', icon: Zap },
+                { label: 'Carpentry', icon: Hammer },
+                { label: 'Tiling', icon: Grid3X3 },
+                { label: 'Painting', icon: Paintbrush },
+                { label: 'Plastering', icon: Layers },
+                { label: 'Roofing', icon: Home },
+                { label: 'Landscaping', icon: Leaf },
+              ].map((trade) => {
+                const Icon = trade.icon;
+                return (
+                  <span
+                    key={trade.label}
+                    className="inline-flex items-center gap-2 rounded-full border bg-slate-50 px-3 py-1 text-sm text-slate-700 transition-colors hover:bg-slate-100"
+                  >
+                    <Icon className="h-4 w-4" aria-hidden />
+                    {trade.label}
+                  </span>
+                );
+              })}
+            </div>
+
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Button asChild>
+                <Link href="/signup">Create free account</Link>
+              </Button>
+
+              <Button asChild variant="outline">
+                <Link href="/how-it-works">See how it works</Link>
+              </Button>
+            </div>
+          </div>
+        </section>
+
+        {/* How TradeHub Works in 30 Seconds */}
+        <section className="mx-auto max-w-6xl px-4 pb-20">
+          <div className="text-center">
+            <h2 className="text-2xl font-semibold tracking-tight">
+              How TradeHub Works in 30 Seconds
+            </h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Operate like your own agency. Find more work. Stay flexible.
+            </p>
+          </div>
+
+          <div className="mt-10 grid gap-6 sm:grid-cols-3">
+            {[
+              {
+                title: '1. Create your business profile',
+                desc: 'Add your trade, service area, and availability. Build trust with clear verification signals.',
+              },
+              {
+                title: '2. Find work or post projects',
+                desc: 'Browse jobs, receive direct enquiries, or post tenders to get multiple quotes.',
+              },
+              {
+                title: '3. Connect and get started',
+                desc: 'Message directly, compare options, and hire with clarity — no lead selling.',
+              },
+            ].map((step) => (
+              <div
+                key={step.title}
+                className="rounded-xl border bg-white p-6 shadow-sm"
+              >
+                <h3 className="text-sm font-semibold">{step.title}</h3>
+                <p className="mt-2 text-sm text-slate-600">{step.desc}</p>
+              </div>
+            ))}
           </div>
         </section>
       </main>
