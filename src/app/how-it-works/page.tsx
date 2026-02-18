@@ -1,133 +1,188 @@
-'use client';
-
 import Link from 'next/link';
-import Image from 'next/image';
+import { ArrowRight, Briefcase, CalendarCheck, MapPin, Wrench } from 'lucide-react';
+
+import { MarketingPageLayout } from '@/components/marketing-page-layout';
+import HowItWorksSection from '@/components/marketing/HowItWorksSection';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, CheckCircle2 } from 'lucide-react';
-import { useAuth } from '@/lib/auth';
-import { isAdmin } from '@/lib/is-admin';
-import { useRouter } from 'next/navigation';
+import { Card, CardContent } from '@/components/ui/card';
+
+export const metadata = {
+  title: 'How TradeHub Works | TradeHub Australia',
+  description:
+    'Run your trade business like your own agency. Find more work, fill schedule gaps, and connect with Plumbing, Electrical, Carpentry and more — without lead fees.',
+};
 
 export default function HowItWorksPage() {
-  const { currentUser } = useAuth();
-  const router = useRouter();
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="sticky top-0 z-50 border-b border-gray-200 bg-white">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
-            <ArrowLeft className="w-5 h-5" />
-            <span className="text-sm font-medium">Back</span>
-          </Link>
-          <div className="flex items-center gap-3">
-            {currentUser ? (
-              <Button size="sm" onClick={() => router.push(isAdmin(currentUser) ? '/admin' : '/dashboard')}>
-                Dashboard
-              </Button>
-            ) : (
-              <>
-                <Link href="/login">
-                  <Button size="sm" variant="ghost">Log in</Button>
-                </Link>
-                <Link href="/signup">
-                  <Button size="sm">Create account</Button>
-                </Link>
-              </>
-            )}
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-2xl mx-auto px-4 py-8">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-3">How TradeHub works</h1>
-          <p className="text-base text-gray-600">
-            Connect with the right trades for your projects or find quality work opportunities
+    <MarketingPageLayout>
+      {/* HERO */}
+      <section className="mx-auto max-w-6xl px-4 pt-14 pb-8">
+        <div className="rounded-2xl border bg-gradient-to-b from-sky-50 to-white p-8 shadow-sm">
+          <p className="inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1 text-xs font-medium text-slate-700">
+            <Briefcase className="h-4 w-4 text-sky-600" />
+            Built for real trade businesses
           </p>
-        </div>
 
-        <div className="space-y-6 mb-12">
-          <div className="bg-white border border-gray-200 rounded-xl p-6">
-            <div className="flex items-start gap-4 mb-3">
-              <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold flex-shrink-0">
-                1
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">Post a project or browse work</h3>
-                <p className="text-sm text-gray-600 leading-relaxed">
-                  Upload your construction project with plans and specifications to receive quotes from qualified contractors. Or browse available tenders and jobs that match your trade and location.
-                </p>
-              </div>
-            </div>
-          </div>
+          <h1 className="mt-4 text-3xl font-semibold tracking-tight md:text-4xl">
+            Operate like your own agency — and find more work without lead fees
+          </h1>
 
-          <div className="bg-white border border-gray-200 rounded-xl p-6">
-            <div className="flex items-start gap-4 mb-3">
-              <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold flex-shrink-0">
-                2
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">Match by trade & location</h3>
-                <p className="text-sm text-gray-600 leading-relaxed">
-                  Our radius-based matching system connects you with verified professionals in your area. You control the search radius and which trades see your projects.
-                </p>
-              </div>
-            </div>
-          </div>
+          <p className="mt-3 max-w-2xl text-base text-slate-600">
+            TradeHub helps Plumbing, Electrical, Carpentry and other trade businesses stay busy.
+            List availability, get discovered locally, and turn conversations into real jobs.
+          </p>
 
-          <div className="bg-white border border-gray-200 rounded-xl p-6">
-            <div className="flex items-start gap-4 mb-3">
-              <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold flex-shrink-0">
-                3
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">Quote, message, and confirm</h3>
-                <p className="text-sm text-gray-600 leading-relaxed">
-                  Receive detailed quotes from interested contractors, communicate directly through our messaging system, and hire with confidence. No paid leads, no hidden fees.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-8">
-          <h3 className="text-lg font-bold text-gray-900 mb-3">Why TradeHub?</h3>
-          <ul className="space-y-2">
-            <li className="flex items-start gap-3">
-              <CheckCircle2 className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-              <span className="text-sm text-gray-700">No lead selling — transparent pricing for everyone</span>
-            </li>
-            <li className="flex items-start gap-3">
-              <CheckCircle2 className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-              <span className="text-sm text-gray-700">Direct communication between builders and trades</span>
-            </li>
-            <li className="flex items-start gap-3">
-              <CheckCircle2 className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-              <span className="text-sm text-gray-700">Radius-based matching ensures local connections</span>
-            </li>
-            <li className="flex items-start gap-3">
-              <CheckCircle2 className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-              <span className="text-sm text-gray-700">Trial tender included with every account</span>
-            </li>
-          </ul>
-        </div>
-
-        <div className="space-y-3">
-          {!currentUser && (
-            <Link href="/signup">
-              <Button size="lg" className="w-full">
-                Create account
-              </Button>
-            </Link>
-          )}
-          <Link href="/">
-            <Button size="lg" variant="outline" className="w-full">
-              Back to home
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <Button asChild className="w-full sm:w-auto">
+              <Link href="/signup">
+                Create a free account <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
             </Button>
-          </Link>
+
+            <Button asChild variant="outline" className="w-full sm:w-auto">
+              <Link href="/tendering">See how tendering works</Link>
+            </Button>
+          </div>
+
+          <div className="mt-6 grid gap-3 md:grid-cols-3">
+            <Card className="border-sky-100">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 rounded-lg border bg-white p-2">
+                    <MapPin className="h-4 w-4 text-sky-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium">Local relevance</p>
+                    <p className="text-sm text-slate-600">
+                      Get found by nearby businesses looking for your trade.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-sky-100">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 rounded-lg border bg-white p-2">
+                    <CalendarCheck className="h-4 w-4 text-emerald-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium">Fill schedule gaps</p>
+                    <p className="text-sm text-slate-600">
+                      List available days/weeks and get contacted for real work.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-sky-100">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 rounded-lg border bg-white p-2">
+                    <Wrench className="h-4 w-4 text-orange-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium">Built for trades</p>
+                    <p className="text-sm text-slate-600">
+                      Profiles, messaging, verification signals — all designed for trade businesses.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </main>
-    </div>
+      </section>
+
+      {/* ORIGINAL SECTION (your 3-column block) */}
+      <section className="mx-auto max-w-6xl px-4 py-8">
+        <HowItWorksSection />
+      </section>
+
+      {/* USE CASES BY TRADE */}
+      <section className="mx-auto max-w-6xl px-4 py-10">
+        <h2 className="text-2xl font-semibold">Popular ways trade businesses use TradeHub</h2>
+        <p className="mt-2 max-w-2xl text-slate-600">
+          Whether you’re a small team or growing fast, TradeHub helps you win work and stay booked.
+        </p>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-3">
+          {[
+            {
+              title: 'Plumbing',
+              bullets: ['Overflow work when you’re booked out', 'Emergency call-outs and same-week gaps', 'Local builder relationships'],
+            },
+            {
+              title: 'Electrical',
+              bullets: ['Switchboard upgrades + compliance work', 'Ongoing maintenance opportunities', 'Short-term labour for big weeks'],
+            },
+            {
+              title: 'Carpentry',
+              bullets: ['Framing + fit-off support', 'Reliable crews for peak periods', 'Small projects between larger builds'],
+            },
+          ].map((c) => (
+            <Card key={c.title} className="shadow-sm">
+              <CardContent className="p-5">
+                <p className="text-lg font-semibold">{c.title}</p>
+                <ul className="mt-3 space-y-2 text-sm text-slate-600">
+                  {c.bullets.map((b) => (
+                    <li key={b} className="flex gap-2">
+                      <span className="mt-1 h-1.5 w-1.5 rounded-full bg-slate-400" />
+                      <span>{b}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="mx-auto max-w-6xl px-4 pb-12">
+        <div className="rounded-2xl border bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-semibold">Quick questions</h2>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div>
+              <p className="font-medium">Is TradeHub a lead-selling marketplace?</p>
+              <p className="mt-1 text-sm text-slate-600">
+                No — TradeHub is built to connect trade businesses directly without the “pay per lead” race-to-the-bottom model.
+              </p>
+            </div>
+            <div>
+              <p className="font-medium">Can I use it to find more work nearby?</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Yes — your profile and availability help local businesses discover you when they need your trade.
+              </p>
+            </div>
+            <div>
+              <p className="font-medium">Does it work for Plumbing, Electrical, Carpentry?</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Absolutely — TradeHub is designed around real trade categories and local matching.
+              </p>
+            </div>
+            <div>
+              <p className="font-medium">How do I get started?</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Create your account, set your trade(s) and location, then list availability or respond to opportunities.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <Button asChild className="w-full sm:w-auto">
+              <Link href="/signup">
+                Create account <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="w-full sm:w-auto">
+              <Link href="/">Back to home</Link>
+            </Button>
+          </div>
+        </div>
+      </section>
+    </MarketingPageLayout>
   );
 }
