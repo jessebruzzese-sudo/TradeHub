@@ -12,6 +12,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
 import { useAuth } from '@/lib/auth';
+import { useUpgradeCheckout } from '@/lib/use-upgrade-checkout';
 import { isAdmin } from '@/lib/is-admin';
 import { getBrowserSupabase } from '@/lib/supabase-client';
 import { buildLoginUrl } from '@/lib/url-utils';
@@ -20,6 +21,7 @@ import { hasBuilderPremium } from '@/lib/capability-utils';
 import { needsBusinessVerification, redirectToVerifyBusiness, getVerifyBusinessUrl } from '@/lib/verification-guard';
 import { MVP_FREE_MODE } from '@/lib/feature-flags';
 import { checkMvpTenderPostCap } from '@/lib/tender-utils';
+import { trackEvent } from '@/lib/analytics';
 
 import { TRADE_CATEGORIES } from '@/lib/trades';
 import { TenderTier } from '@/lib/tender-types';
@@ -100,6 +102,7 @@ function StepPill({ label, active, done }: { label: string; active: boolean; don
 export default function CreateTenderPage() {
   const { session, currentUser, isLoading } = useAuth();
   const router = useRouter();
+  const { handleUpgrade, isLoading: checkoutLoading } = useUpgradeCheckout('SUBCONTRACTOR_PRO_10');
   const supabase = useMemo(() => getBrowserSupabase(), []);
 
   const [step, setStep] = useState<number>(1);
@@ -445,6 +448,7 @@ export default function CreateTenderPage() {
       await supabase.from('users').update({ builder_free_trial_tender_used: true }).eq('id', authUser.id);
     }
 
+    trackEvent('tender_created', tender?.id != null ? { tenderId: tender.id } : {});
     setShowApprovalModal(true);
   };
 
@@ -509,7 +513,9 @@ export default function CreateTenderPage() {
                 </Alert>
 
                 <div className="flex gap-3 pt-4">
-                  <Button onClick={() => router.push('/pricing')}>View Pricing</Button>
+                  <Button onClick={() => handleUpgrade('tenders_premium_locked')} disabled={checkoutLoading}>
+                    {checkoutLoading ? 'Loading…' : 'Upgrade to Post Tenders'}
+                  </Button>
                   <Button variant="outline" onClick={() => router.push('/dashboard')}>
                     Back to Dashboard
                   </Button>
