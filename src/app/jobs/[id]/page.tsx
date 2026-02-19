@@ -46,6 +46,7 @@ import { createSystemMessage, shouldAddSystemMessage } from '@/lib/messaging-uti
 import { needsBusinessVerification, redirectToVerifyBusiness, getVerifyBusinessUrl } from '@/lib/verification-guard';
 import { isAdmin } from '@/lib/is-admin';
 import { ownsJob } from '@/lib/permissions';
+import { trackEvent } from '@/lib/analytics';
 
 export default function JobDetailPage() {
   const { currentUser } = useAuth();
@@ -287,6 +288,9 @@ export default function JobDetailPage() {
       redirectToVerifyBusiness(router, returnUrl);
       return;
     }
+    trackEvent('job_apply_clicked', {
+      jobId: job.id,
+    });
     const newApplication = {
       id: `app-${Date.now()}`,
       jobId: job.id,
