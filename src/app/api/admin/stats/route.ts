@@ -82,10 +82,10 @@ export async function GET() {
 
     // If any query errors, log and fail gracefully
     const errors = {
-      totalUsers: totalUsersRes.error?.message ?? null,
-      pendingVerifications: pendingVerificationsRes.error?.message ?? null,
-      activeJobs: activeJobsRes.error?.message ?? null,
-      totalJobs: totalJobsRes.error?.message ?? null,
+      totalUsers: totalUsersRes.error ?? null,
+      pendingVerifications: pendingVerificationsRes.error ?? null,
+      activeJobs: activeJobsRes.error ?? null,
+      totalJobs: totalJobsRes.error ?? null,
     };
 
     if (Object.values(errors).some(Boolean)) {
@@ -103,8 +103,14 @@ export async function GET() {
       totalJobs: totalJobsRes.count ?? 0,
       generatedAt: new Date().toISOString(),
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error('Admin stats route error:', err);
-    return NextResponse.json({ error: 'Failed to load stats' }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: 'Failed to load stats',
+        debug: err?.message ?? String(err),
+      },
+      { status: 500 }
+    );
   }
 }

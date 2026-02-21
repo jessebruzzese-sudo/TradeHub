@@ -96,8 +96,13 @@ export function SideNav() {
     return null;
   }
 
-  const navKey = isAdmin(currentUser) ? 'admin' : 'business';
-  const nav = navConfig[navKey];
+  const onAdminRoute = pathname.startsWith('/admin');
+  const navKey = onAdminRoute && isAdmin(currentUser) ? 'admin' : 'business';
+  const navItems = [...navConfig[navKey]];
+  if (navKey === 'business' && isAdmin(currentUser)) {
+    navItems.push({ label: 'Admin', href: '/admin' });
+  }
+  const nav = navItems;
   const unreadCount = store.getUnreadConversationCount(currentUser.id);
 
   return (
