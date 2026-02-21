@@ -17,6 +17,7 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import { TRADE_CATEGORIES } from '@/lib/trades';
+import { isAdmin } from '@/lib/is-admin';
 
 export interface TenderFilters {
   availableFrom: string;
@@ -52,8 +53,8 @@ export function TenderRefineFilters({ currentUser, onFiltersChange, isMobile = f
     selectedTrades: searchParams.get('trades')?.split(',').filter(Boolean) || [],
   });
 
-  // Role used for UI only, not permissions
-  const showTradeFilter = currentUser?.multi_trade_unlocked === true || currentUser?.role === 'admin';
+  const showTradeFilter =
+    currentUser?.multi_trade_unlocked === true || (currentUser && isAdmin(currentUser));
 
   const allTrades = TRADE_CATEGORIES;
 

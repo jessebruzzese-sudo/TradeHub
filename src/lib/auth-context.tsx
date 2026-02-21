@@ -25,6 +25,7 @@ type DbUserRow = {
   email: string | null;
   name: string | null;
   role: string | null;
+  is_admin?: boolean | null;
   trust_status: string | null;
   avatar: string | null;
   bio: string | null;
@@ -55,6 +56,7 @@ export type CurrentUser = {
   name?: string | null;
   /** Role is NOT used for permissions; admin only via isAdmin(). Kept for UI/copy. */
   role?: string | null;
+  is_admin?: boolean | null;
 
   trustStatus?: string | null;
 
@@ -177,6 +179,7 @@ function mapDbToUi(row: DbUserRow): CurrentUser {
     email: row.email ?? null,
     name: row.name ?? null,
     role: row.role ?? null,
+    is_admin: row.is_admin ?? false,
     trustStatus: row.trust_status ?? null,
     avatar: row.avatar ?? null,
     bio: row.bio ?? null,
@@ -241,22 +244,27 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
 
   const loadProfile = useCallback(
     async (userId: string): Promise<CurrentUser | null> => {
-      const { data, error } = await (supabase.from('users') as any)
-        .select(
-          'id,email,name,role,trust_status,avatar,bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,' +
-            'active_plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,' +
-            'complimentary_premium_until,additional_trades_unlocked,search_location,search_postcode,search_lat,search_lng'
-        )
-        .eq('id', userId)
-        .maybeSingle();
+      try {
+        const { data, error } = await (supabase.from('users') as any)
+          .select(
+            'id,email,name,role,is_admin,trust_status,avatar,bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,' +
+              'active_plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,' +
+              'complimentary_premium_until,additional_trades_unlocked,search_location,search_postcode,search_lat,search_lng'
+          )
+          .eq('id', userId)
+          .maybeSingle();
 
-      if (error) {
-        console.error('loadProfile error', error);
+        if (error) {
+          console.error('loadProfile error', error);
+          return null;
+        }
+        if (!data) return null;
+
+        return mapDbToUi(data as DbUserRow);
+      } catch (e) {
+        console.error('loadProfile unexpected error', e);
         return null;
       }
-      if (!data) return null;
-
-      return mapDbToUi(data as DbUserRow);
     },
     [supabase]
   );
@@ -266,38 +274,42 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
       const userId = user?.id;
       if (!userId) return;
 
-      const existing = await loadProfile(userId);
-      if (existing) {
-        setCurrentUser(existing);
-        return;
+      try {
+        const existing = await loadProfile(userId);
+        if (existing) {
+          setCurrentUser(existing);
+          return;
+        }
+
+        const payload: Partial<DbUserRow> = {
+          id: userId,
+          email: user.email ?? null,
+          name:
+            (user.user_metadata?.name as string | undefined) ??
+            (user.user_metadata?.full_name as string | undefined) ??
+            null,
+          role: (user.user_metadata?.role as string | undefined) ?? null,
+          trust_status: 'pending',
+          avatar: null,
+          bio: null,
+          rating: null,
+          reliability_rating: null,
+        };
+
+        const { error: upsertErr } = await (supabase.from('users') as any).upsert(payload, {
+          onConflict: 'id',
+        });
+
+        if (upsertErr) {
+          console.error('ensureProfileRow upsert error', upsertErr);
+          return;
+        }
+
+        const profile = await loadProfile(userId);
+        setCurrentUser(profile);
+      } catch (e) {
+        console.error('ensureProfileRow unexpected error', e);
       }
-
-      const payload: Partial<DbUserRow> = {
-        id: userId,
-        email: user.email ?? null,
-        name:
-          (user.user_metadata?.name as string | undefined) ??
-          (user.user_metadata?.full_name as string | undefined) ??
-          null,
-        role: (user.user_metadata?.role as string | undefined) ?? null,
-        trust_status: 'pending',
-        avatar: null,
-        bio: null,
-        rating: null,
-        reliability_rating: null,
-      };
-
-      const { error: upsertErr } = await (supabase.from('users') as any).upsert(payload, {
-        onConflict: 'id',
-      });
-
-      if (upsertErr) {
-        console.error('ensureProfileRow upsert error', upsertErr);
-        return;
-      }
-
-      const profile = await loadProfile(userId);
-      setCurrentUser(profile);
     },
     [loadProfile, supabase]
   );

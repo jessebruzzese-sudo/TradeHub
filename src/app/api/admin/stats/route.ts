@@ -3,7 +3,6 @@ export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { isAdmin } from '@/lib/is-admin';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 
@@ -55,18 +54,14 @@ export async function GET() {
     const supabaseService = serviceClient();
 
     // 2) Must be admin (checked with service role so RLS can't block it)
-    const { data: profile, error: roleErr } = await supabaseService
+    const { data: profile, error: adminErr } = await supabaseService
       .from('users')
-      .select('role')
+      .select('is_admin')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
 
-    if (roleErr) {
-      console.error('Admin role lookup failed:', roleErr);
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    if (!isAdmin(profile)) {
+    if (adminErr || !profile || profile.is_admin !== true) {
+      if (adminErr) console.error('Admin is_admin lookup failed:', adminErr);
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

@@ -1,10 +1,8 @@
-/**
- * Centralized admin check.
- * Role is NOT used for any other permissions; admin only via this helper.
- */
-
-type UserLike = { role?: string | null } | null | undefined;
+type UserLike =
+  | { is_admin?: boolean | null; role?: string | null }
+  | null
+  | undefined;
 
 export function isAdmin(user: UserLike): boolean {
-  return !!user && user.role === 'admin';
+  return !!user && user.is_admin === true;
 }

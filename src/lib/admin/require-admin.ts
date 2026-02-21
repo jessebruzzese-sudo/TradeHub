@@ -1,6 +1,5 @@
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
-import { isAdmin } from '@/lib/is-admin';
 
 type RequireAdminResult = {
   userId: string;
@@ -29,26 +28,23 @@ function getSupabaseServer() {
   );
 }
 
-export async function requireAdmin(): Promise<RequireAdminResult> {
-  const supabase = getSupabaseServer();
+export async function requireAdmin(
+  supabaseClient?: ReturnType<typeof getSupabaseServer>
+): Promise<RequireAdminResult> {
+  const supabase = supabaseClient ?? getSupabaseServer();
 
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) {
     throw new Response('Unauthorized', { status: 401 });
   }
 
-  // OPTION A (recommended for TradeHub): role stored in public.users
-  const { data: profile, error: profileErr } = await supabase
+  const { data: row, error: profileErr } = await supabase
     .from('users')
-    .select('id, role')
+    .select('id, is_admin')
     .eq('id', user.id)
-    .single();
+    .maybeSingle();
 
-  if (profileErr || !profile) {
-    throw new Response('Forbidden', { status: 403 });
-  }
-
-  if (!isAdmin(profile)) {
+  if (profileErr || !row || row.is_admin !== true) {
     throw new Response('Forbidden', { status: 403 });
   }
 
