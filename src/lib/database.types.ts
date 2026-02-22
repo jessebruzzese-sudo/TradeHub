@@ -676,6 +676,42 @@ export type Database = {
           },
         ]
       }
+      profile_views: {
+        Row: {
+          id: string
+          viewed_user_id: string
+          viewer_user_id: string
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          viewed_user_id: string
+          viewer_user_id: string
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          viewed_user_id?: string
+          viewer_user_id?: string
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_views_viewed_user_id_fkey"
+            columns: ["viewed_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profile_views_viewer_user_id_fkey"
+            columns: ["viewer_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reliability_events: {
         Row: {
           admin_reviewed: boolean | null
@@ -1256,6 +1292,7 @@ export type Database = {
           free_quote_used_count: number | null
           id: string
           is_premium: boolean | null
+          is_public_profile: boolean
           last_seen_at: string | null
           location: string | null
           location_lat: number | null
@@ -1350,6 +1387,7 @@ export type Database = {
           free_quote_used_count?: number | null
           id?: string
           is_premium?: boolean | null
+          is_public_profile?: boolean
           last_seen_at?: string | null
           location?: string | null
           location_lat?: number | null
@@ -1444,6 +1482,7 @@ export type Database = {
           free_quote_used_count?: number | null
           id?: string
           is_premium?: boolean | null
+          is_public_profile?: boolean
           last_seen_at?: string | null
           location?: string | null
           location_lat?: number | null

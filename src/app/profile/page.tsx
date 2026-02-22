@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/button';
 
 import { useAuth } from '@/lib/auth';
 import { isAdmin } from '@/lib/is-admin';
+import { isPremiumForDiscovery } from '@/lib/discovery';
 import { getStore } from '@/lib/store';
 import { buildLoginUrl } from '@/lib/url-utils';
 import { shouldShowProBadge } from '@/lib/subscription-utils';
@@ -72,6 +73,16 @@ export default function ProfilePage() {
   };
 
   const dashboardPath = isAdmin(currentUser) ? '/admin' : '/dashboard';
+
+  const userForDiscovery = {
+    is_premium: currentUser.isPremium ?? undefined,
+    subscription_status: currentUser.subscriptionStatus,
+    subcontractor_sub_status: undefined,
+    active_plan: currentUser.activePlan,
+    subcontractor_plan: undefined,
+  };
+  const isPremiumForDiscoveryCheck = isPremiumForDiscovery(userForDiscovery);
+  const showUpgradeNudge = !isPremiumForDiscoveryCheck && !isAdmin(currentUser);
 
   const showBillingSimulation = BILLING_SIM_ALLOWED;
   const isUsingSimulation = showBillingSimulation && getSimulatedPremium();
@@ -176,6 +187,22 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
+
+        {/* Upgrade nudge for free users */}
+        {showUpgradeNudge && (
+          <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm">
+            <p className="font-medium text-blue-800">Want to appear in more searches?</p>
+            <p className="mt-1 text-blue-700">
+              Upgrade to Premium to increase your discovery radius to 50km.
+            </p>
+            <Link
+              href="/pricing"
+              className="mt-2 inline-block text-sm font-medium text-primary hover:underline"
+            >
+              View Premium →
+            </Link>
+          </div>
+        )}
 
         {/* Bio */}
         {currentUser.bio ? (

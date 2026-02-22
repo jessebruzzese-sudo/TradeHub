@@ -36,6 +36,7 @@ type DbUserRow = {
   abn?: string | null;
   abn_status?: string | null;
   // Subscription / premium (from users table)
+  is_premium?: boolean | null;
   active_plan?: string | null;
   subscription_status?: string | null;
   subscription_renews_at?: string | null;
@@ -48,6 +49,7 @@ type DbUserRow = {
   search_postcode?: string | null;
   search_lat?: number | null;
   search_lng?: number | null;
+  is_public_profile?: boolean | null;
 };
 
 export type CurrentUser = {
@@ -88,6 +90,7 @@ export type CurrentUser = {
   additionalTradesUnlocked?: boolean;
 
   // Subscription / premium (from DB)
+  isPremium?: boolean | null;
   activePlan?: string | null;
   subscriptionStatus?: string | null;
   subscriptionRenewsAt?: string | null;
@@ -100,7 +103,10 @@ export type CurrentUser = {
   searchPostcode?: string | null;
   searchLat?: number | null;
   searchLng?: number | null;
-};
+
+  /** When true, profile appears in Trades near you discovery. */
+  isPublicProfile?: boolean;
+}
 
 type SignupExtras = {
   businessName?: string;
@@ -111,6 +117,8 @@ type SignupExtras = {
   role?: string;
   trades?: string[];
   additionalTrades?: string[];
+  /** Full trade selection (1 for free, up to 5 for premium). TODO: migrate backend to use this. */
+  tradeCategories?: string[];
 };
 
 type UpdateUserInput = Partial<
@@ -132,6 +140,7 @@ type UpdateUserInput = Partial<
     | 'searchPostcode'
     | 'searchLat'
     | 'searchLng'
+    | 'isPublicProfile'
   >
 >;
 
@@ -200,6 +209,7 @@ function mapDbToUi(row: DbUserRow): CurrentUser {
 
     additionalTradesUnlocked: row.additional_trades_unlocked === true,
 
+    isPremium: row.is_premium === true,
     activePlan: normalizeActivePlan(row.active_plan) ?? null,
     subscriptionStatus: normalizeSubscriptionStatus(row.subscription_status) ?? null,
     subscriptionRenewsAt: row.subscription_renews_at ?? null,
@@ -211,6 +221,8 @@ function mapDbToUi(row: DbUserRow): CurrentUser {
     searchPostcode: row.search_postcode ?? null,
     searchLat: row.search_lat != null ? Number(row.search_lat) : null,
     searchLng: row.search_lng != null ? Number(row.search_lng) : null,
+
+    isPublicProfile: row.is_public_profile === true,
   };
 }
 
@@ -229,6 +241,7 @@ function mapUiPatchToDb(patch: UpdateUserInput): Partial<DbUserRow> {
   if (patch.searchPostcode !== undefined) out.search_postcode = patch.searchPostcode ?? null;
   if (patch.searchLat !== undefined) out.search_lat = patch.searchLat ?? null;
   if (patch.searchLng !== undefined) out.search_lng = patch.searchLng ?? null;
+  if (patch.isPublicProfile !== undefined) out.is_public_profile = patch.isPublicProfile ?? false;
   return out;
 }
 
@@ -248,8 +261,9 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
         const { data, error } = await (supabase.from('users') as any)
           .select(
             'id,email,name,role,is_admin,trust_status,avatar,bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,' +
-              'active_plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,' +
-              'complimentary_premium_until,additional_trades_unlocked,search_location,search_postcode,search_lat,search_lng'
+              'is_premium,active_plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,' +
+              'complimentary_premium_until,additional_trades_unlocked,search_location,search_postcode,search_lat,search_lng,' +
+              'is_public_profile'
           )
           .eq('id', userId)
           .maybeSingle();
@@ -425,6 +439,8 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
               postcode: extras.postcode ?? null,
               trades: extras.trades ?? null,
               additionalTrades: extras.additionalTrades ?? null,
+              // TODO: migrate trigger to use trade_categories; for now primary_trade = first
+              trade_categories: extras.tradeCategories ?? null,
             },
           },
         });
@@ -449,7 +465,7 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
                 businessName: extras.businessName ?? prev.businessName ?? null,
                 abn: cleanedAbn || prev.abn || null,
                 abnStatus: cleanedAbn ? 'pending' : prev.abnStatus ?? null,
-                trades: extras.trades ?? prev.trades,
+                trades: extras.tradeCategories ?? extras.trades ?? prev.trades,
                 additionalTrades: extras.additionalTrades ?? prev.additionalTrades,
 
                 /**

@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Info, Lock, MapPin } from 'lucide-react';
+import { Info, Lock, MapPin, Globe } from 'lucide-react';
 
 import { AppLayout } from '@/components/app-nav';
 import { PageHeader } from '@/components/page-header';
@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 import { useAuth } from '@/lib/auth';
@@ -32,6 +33,7 @@ export default function EditProfilePage() {
   const [businessName, setBusinessName] = useState<string>('');
   const [bio, setBio] = useState<string>('');
   const [primaryTrade, setPrimaryTrade] = useState<string>('');
+  const [isPublicProfile, setIsPublicProfile] = useState<boolean>(false);
 
   // free-text skills field (comma separated)
   const [tradesText, setTradesText] = useState<string>('');
@@ -46,6 +48,7 @@ export default function EditProfilePage() {
     setBusinessName(currentUser.businessName ?? '');
     setBio(currentUser.bio ?? '');
     setPrimaryTrade(currentUser.primaryTrade ?? '');
+    setIsPublicProfile(currentUser.isPublicProfile ?? false);
 
     setTradesText(((currentUser.trades ?? []) as string[]).join(', '));
   }, [currentUser]);
@@ -127,6 +130,7 @@ export default function EditProfilePage() {
           businessName: businessName.trim() ? businessName.trim() : undefined,
           primaryTrade: primaryTrade.trim() ? primaryTrade.trim() : undefined,
           trades: parsedTrades.length > 0 ? parsedTrades : undefined,
+          isPublicProfile,
 
           location: undefined,
           postcode: undefined,
@@ -350,6 +354,30 @@ export default function EditProfilePage() {
                 <p className="mt-1 text-xs text-gray-500">
                   Optional: List specific skills or specializations (separate with commas)
                 </p>
+              </div>
+            )}
+
+            {!isAdmin(currentUser) && (
+              <div id="public-profile" className="rounded-lg border border-gray-200 bg-white p-6">
+                <div className="flex items-start gap-3">
+                  <Globe className="mt-0.5 h-5 w-5 flex-shrink-0 text-gray-600" />
+                  <div className="flex-1">
+                    <Label className="text-lg font-semibold">Public profile</Label>
+                    <p className="mt-1 text-sm text-gray-600">
+                      If enabled, you can appear in &quot;Trades near you&quot; lists.
+                    </p>
+                    <div className="mt-3 flex items-center justify-between">
+                      <Label htmlFor="isPublicProfile" className="cursor-pointer text-sm">
+                        Show my profile in discovery
+                      </Label>
+                      <Switch
+                        id="isPublicProfile"
+                        checked={isPublicProfile}
+                        onCheckedChange={setIsPublicProfile}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 

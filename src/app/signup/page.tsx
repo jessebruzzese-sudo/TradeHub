@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = "force-dynamic";
+
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -9,25 +11,61 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { TradeMultiSelect } from '@/components/trade-multiselect';
 import { SuburbAutocomplete } from '@/components/suburb-autocomplete';
 
-import { TRADE_CATEGORIES } from '@/lib/trades';
 import { getSafeReturnUrl, safeRouterReplace } from '@/lib/safe-nav';
 
-import { ChevronRight, ChevronLeft, Check, Briefcase, AlertCircle, Eye, EyeOff, Plus } from 'lucide-react';
+import {
+  ChevronRight,
+  ChevronLeft,
+  Check,
+  AlertCircle,
+  Eye,
+  EyeOff,
+  User,
+  Building2,
+  Wrench,
+  MapPin,
+  CalendarDays,
+  ShieldCheck,
+} from 'lucide-react';
 
 const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
 
+function SectionHeader({
+  icon: Icon,
+  title,
+  subtitle,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  subtitle?: string;
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className="rounded-lg bg-slate-100 p-2">
+        <Icon className="h-5 w-5 text-slate-600" />
+      </div>
+      <div>
+        <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
+        {subtitle && <p className="text-sm text-slate-500 mt-0.5">{subtitle}</p>}
+      </div>
+    </div>
+  );
+}
+
 export default function SignupPage() {
   const [step, setStep] = useState(1);
+  const [accountType, setAccountType] = useState<'contractor' | 'subcontractor' | 'supplier'>('contractor');
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [primaryTrade, setPrimaryTrade] = useState('');
+  const [tradeCategories, setTradeCategories] = useState<string[]>([]);
   const [businessName, setBusinessName] = useState('');
+  const [businessSearch, setBusinessSearch] = useState('');
   const [abn, setAbn] = useState('');
   const [location, setLocation] = useState('');
   const [postcode, setPostcode] = useState('');
@@ -45,27 +83,35 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  const { signup } = useAuth();
+  const { signup, currentUser } = useAuth();
+  // TODO: Map to real field if different (e.g. subscription_tier vs active_plan/is_premium)
+  const isPremium = currentUser?.isPremium === true;
   const router = useRouter();
   const searchParams = useSearchParams();
   const returnUrlParam = searchParams.get('returnUrl');
 
-  const totalSteps = 6;
+  const totalSteps = 7;
 
   const handleNext = () => {
     setError('');
 
     if (step === 1) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('tradehub_signup_account_type', accountType);
+      }
+    }
+
+    if (step === 2) {
       if (!name.trim()) return setError('Please enter your full name');
       if (!email.trim()) return setError('Please enter your email address');
       if (!password || password.length < 6) return setError('Password must be at least 6 characters');
     }
 
-    if (step === 2 && !primaryTrade) {
-      return setError('Please select your primary trade');
+    if (step === 3 && tradeCategories.length === 0) {
+      return setError('Please select at least one trade.');
     }
 
-    if (step === 4) {
+    if (step === 5) {
       if (!location.trim()) return setError('Please select your business location');
       if (!postcode.trim()) return setError('Please select a complete location with postcode');
     }
@@ -83,14 +129,15 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      // ✅ NEW SIGNUP SIGNATURE (single-account model):
-      // signup(name, email, password, primaryTrade, additionalData?)
+      // Backward compat: backend expects primary_trade (single). TODO: migrate fully to trade_categories.
+      const primaryTrade = tradeCategories[0] ?? null;
       await signup(name, email, password, primaryTrade, {
         businessName,
         abn,
         location,
         postcode,
         availability,
+        tradeCategories,
       });
 
       const defaultUrl = '/dashboard';
@@ -112,9 +159,9 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-gray-50 flex flex-col justify-center py-8 pb-8 overflow-x-hidden">
+    <div className="min-h-screen w-full bg-slate-50 flex flex-col justify-center py-8 pb-8 overflow-x-hidden">
       <div className="w-full px-4 sm:px-6 flex justify-center min-w-0">
-        <div className="w-full max-w-md min-w-0">
+        <div className="w-full max-w-2xl min-w-0">
           <Link href="/" className="flex justify-center mb-6 px-2 min-w-0">
             <Image
               src="/TradeHub -Horizontal-Main.svg"
@@ -125,10 +172,10 @@ export default function SignupPage() {
             />
           </Link>
 
-          <h2 className="text-center text-2xl sm:text-3xl font-bold text-gray-900 break-words px-2">
+          <h2 className="text-center text-2xl sm:text-3xl font-bold text-slate-900 break-words px-2">
             Create your account
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600 break-words px-2">
+          <p className="mt-2 text-center text-sm text-slate-600 break-words px-2">
             Already have an account?{' '}
             <Link
               href={`/login${returnUrlParam ? `?returnUrl=${encodeURIComponent(returnUrlParam)}` : ''}`}
@@ -138,7 +185,11 @@ export default function SignupPage() {
             </Link>
           </p>
 
-          <div className="mt-8 mb-6 px-1 sm:px-2 min-w-0 overflow-hidden">
+          <p className="text-sm text-emerald-600 text-center mt-2 mb-6">
+            Free to join — no credit card, no obligation
+          </p>
+
+          <div className="px-1 sm:px-2 min-w-0 overflow-hidden mb-6">
             <div className="flex items-center justify-center gap-1 sm:gap-2 min-w-0 flex-wrap">
               {[...Array(totalSteps)].map((_, i) => (
                 <div key={i} className="flex items-center flex-shrink-0">
@@ -148,23 +199,23 @@ export default function SignupPage() {
                         ? 'bg-green-600 text-white'
                         : i + 1 === step
                         ? 'bg-blue-600 text-white'
-                        : 'bg-gray-200 text-gray-500'
+                        : 'bg-slate-200 text-slate-500'
                     }`}
                   >
                     {i + 1 < step ? <Check className="w-3 h-3 sm:w-4 sm:h-4" /> : i + 1}
                   </div>
                   {i < totalSteps - 1 && (
-                    <div className={`w-4 sm:w-8 h-0.5 ${i + 1 < step ? 'bg-green-600' : 'bg-gray-200'}`} />
+                    <div className={`w-3 sm:w-6 h-0.5 flex-shrink-0 ${i + 1 < step ? 'bg-green-600' : 'bg-slate-200'}`} />
                   )}
                 </div>
               ))}
             </div>
-            <div className="text-center mt-3 text-xs sm:text-sm text-gray-600">
+            <div className="text-center mt-3 text-xs sm:text-sm text-slate-600">
               Step {step} of {totalSteps}
             </div>
           </div>
 
-          <div className="w-full bg-white p-4 sm:p-5 md:p-6 shadow-sm rounded-xl border border-gray-200 min-w-0 overflow-hidden">
+          <div className="w-full bg-white p-6 sm:p-8 shadow-sm rounded-2xl border border-slate-200 min-w-0 overflow-hidden">
             {error && error === 'DUPLICATE_EMAIL' ? (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
                 <div className="flex items-start gap-2 mb-3">
@@ -189,15 +240,67 @@ export default function SignupPage() {
 
             {step === 1 && (
               <div className="space-y-6 min-w-0">
-                <div className="min-w-0">
-                  <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2 break-words">
-                    Create your trade business account
-                  </h3>
-                  <p className="text-sm text-gray-600 mb-6 break-words">
-                    Join TradeHub to post jobs when you need labour and find work when you have capacity.
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">Choose your account type</h3>
+                  <p className="text-sm text-slate-500 mt-0.5">
+                    This just helps tailor your onboarding. You can change it later.
                   </p>
                 </div>
+                <div className="h-px bg-slate-200 my-4" />
+                <div className="flex rounded-xl border border-slate-200 overflow-hidden [&>button]:flex-1 [&>button]:py-3 [&>button]:text-sm [&>button]:font-medium [&>button]:transition-colors">
+                  <button
+                    type="button"
+                    onClick={() => setAccountType('contractor')}
+                    className={
+                      accountType === 'contractor'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-white text-slate-700 hover:bg-slate-50'
+                    }
+                  >
+                    Contractor
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAccountType('subcontractor')}
+                    className={
+                      accountType === 'subcontractor'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-white text-slate-700 hover:bg-slate-50'
+                    }
+                  >
+                    Subcontractor
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAccountType('supplier')}
+                    className={
+                      accountType === 'supplier'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-white text-slate-700 hover:bg-slate-50'
+                    }
+                  >
+                    Supplier
+                  </button>
+                </div>
+                <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm text-blue-900">
+                  {accountType === 'contractor' &&
+                    'Contractors manage projects and hire subcontractors or suppliers when needed.'}
+                  {accountType === 'subcontractor' &&
+                    'Subcontractors provide skilled services and work on projects for contractors.'}
+                  {accountType === 'supplier' &&
+                    'Suppliers provide materials and equipment to contractors and subcontractors.'}
+                </div>
+              </div>
+            )}
 
+            {step === 2 && (
+              <div className="space-y-6 min-w-0">
+                <SectionHeader
+                  icon={User}
+                  title="Account setup"
+                  subtitle="Create your login credentials to get started."
+                />
+                <div className="h-px bg-slate-200 my-4" />
                 <div className="min-w-0">
                   <Label htmlFor="name">Full Name *</Label>
                   <Input
@@ -209,7 +312,6 @@ export default function SignupPage() {
                     className="mt-1 w-full"
                   />
                 </div>
-
                 <div className="min-w-0">
                   <Label htmlFor="email">Email Address *</Label>
                   <Input
@@ -221,7 +323,6 @@ export default function SignupPage() {
                     className="mt-1 w-full"
                   />
                 </div>
-
                 <div className="min-w-0">
                   <Label htmlFor="password">Password *</Label>
                   <div className="relative mt-1">
@@ -237,53 +338,43 @@ export default function SignupPage() {
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
-                      className="absolute right-0 top-0 h-11 w-11 flex items-center justify-center text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 rounded-r-md"
+                      className="absolute right-0 top-0 h-11 w-11 flex items-center justify-center text-slate-500 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 rounded-r-md"
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1 break-words">Must be at least 6 characters long</p>
-                </div>
-              </div>
-            )}
-
-            {step === 2 && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">Select your primary trade</h3>
-                  <p className="text-sm text-gray-600 mb-6">
-                    Choose the trade you primarily work in. This helps match you with relevant opportunities.
-                  </p>
-                </div>
-
-                <div>
-                  <Label htmlFor="primaryTrade">Primary Trade *</Label>
-                  <Select value={primaryTrade} onValueChange={setPrimaryTrade}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Select your primary trade" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TRADE_CATEGORIES.map((trade) => (
-                        <SelectItem key={trade} value={trade}>
-                          {trade}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <p className="text-xs text-slate-500 mt-1 break-words">Must be at least 6 characters long</p>
                 </div>
               </div>
             )}
 
             {step === 3 && (
               <div className="space-y-6">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">Business details</h3>
-                  <p className="text-sm text-gray-600 mb-6">
-                    You can list availability and apply for work now. ABN verification is only needed for posting jobs and
-                    applying for tenders.
-                  </p>
-                </div>
+                <SectionHeader
+                  icon={Wrench}
+                  title="Select your trade(s)"
+                  subtitle="Choose the trade(s) you work in. Free: 1 trade. Premium: up to 5."
+                />
+                <div className="h-px bg-slate-200 my-4" />
+                <TradeMultiSelect
+                  value={tradeCategories}
+                  onChange={setTradeCategories}
+                  isPremium={isPremium}
+                  error={
+                    error === 'Please select at least one trade.' ? 'Please select at least one trade.' : undefined
+                  }
+                />
+              </div>
+            )}
 
+            {step === 4 && (
+              <div className="space-y-6">
+                <SectionHeader
+                  icon={Building2}
+                  title="Business details"
+                  subtitle="You can list availability and apply for work now. ABN verification is only needed for posting jobs and applying for tenders."
+                />
+                <div className="h-px bg-slate-200 my-4" />
                 <div>
                   <Label htmlFor="businessName">Business Name</Label>
                   <Input
@@ -295,7 +386,25 @@ export default function SignupPage() {
                     className="mt-1"
                   />
                 </div>
-
+                <div className="rounded-xl border border-slate-200 p-4 bg-slate-50 space-y-3 mb-6">
+                  <Label htmlFor="businessSearch">Find your business</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="businessSearch"
+                      type="text"
+                      value={businessSearch}
+                      onChange={(e) => setBusinessSearch(e.target.value)}
+                      placeholder="Search your business name…"
+                      className="flex-1"
+                    />
+                    <Button type="button" variant="outline">
+                      Search
+                    </Button>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    This is optional. You can manually enter your business details.
+                  </p>
+                </div>
                 <div>
                   <Label htmlFor="abn">ABN (Optional)</Label>
                   <Input
@@ -306,20 +415,19 @@ export default function SignupPage() {
                     placeholder="12 345 678 901"
                     className="mt-1"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Required to post jobs and apply for tenders</p>
+                  <p className="text-xs text-slate-500 mt-1">Required to post jobs and apply for tenders</p>
                 </div>
               </div>
             )}
 
-            {step === 4 && (
+            {step === 5 && (
               <div className="space-y-6">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">Set your location</h3>
-                  <p className="text-sm text-gray-600 mb-6">
-                    Tell us where you operate to help match you with local work opportunities.
-                  </p>
-                </div>
-
+                <SectionHeader
+                  icon={MapPin}
+                  title="Set your location"
+                  subtitle="Tell us where you operate to help match you with local work opportunities."
+                />
+                <div className="h-px bg-slate-200 my-4" />
                 <div>
                   <Label htmlFor="location">Business Location</Label>
                   <SuburbAutocomplete
@@ -330,21 +438,21 @@ export default function SignupPage() {
                     required
                     className="mt-1"
                   />
-                  <p className="text-xs text-gray-500 mt-2">
+                  <p className="text-xs text-slate-500 mt-2">
                     Premium lets you expand your work radius to find more jobs and apply for more tenders.
                   </p>
                 </div>
               </div>
             )}
 
-            {step === 5 && (
+            {step === 6 && (
               <div className="space-y-6">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">Set your availability</h3>
-                  <p className="text-sm text-gray-600 mb-2">Let others know when you are typically available for work.</p>
-                  <p className="text-xs text-gray-500">You can change this anytime from your profile.</p>
-                </div>
-
+                <SectionHeader
+                  icon={CalendarDays}
+                  title="Set your availability"
+                  subtitle="Let others know when you are typically available for work. You can change this anytime from your profile."
+                />
+                <div className="h-px bg-slate-200 my-4" />
                 <div className="space-y-3">
                   {DAYS_OF_WEEK.map((day) => (
                     <div key={day} className="flex items-center gap-3">
@@ -364,42 +472,45 @@ export default function SignupPage() {
               </div>
             )}
 
-            {step === 6 && (
+            {step === 7 && (
               <div className="space-y-6 min-w-0">
-                <div className="min-w-0">
-                  <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2 break-words">Review and confirm</h3>
-                  <p className="text-sm text-gray-600 mb-6 break-words">Check your details before creating your account.</p>
-                </div>
-
-                <div className="bg-gray-50 rounded-lg p-3 sm:p-4 space-y-3 text-sm min-w-0 overflow-hidden">
+                <SectionHeader
+                  icon={ShieldCheck}
+                  title="Review and confirm"
+                  subtitle="Check your details before creating your account."
+                />
+                <div className="h-px bg-slate-200 my-4" />
+                <div className="bg-slate-50 rounded-lg p-3 sm:p-4 space-y-3 text-sm min-w-0 overflow-hidden">
                   <div className="min-w-0 break-words">
-                    <div className="font-medium text-gray-900">Name</div>
-                    <div className="text-gray-600 break-words">{name}</div>
+                    <div className="font-medium text-slate-900">Name</div>
+                    <div className="text-slate-600 break-words">{name}</div>
                   </div>
                   <div className="min-w-0 break-words">
-                    <div className="font-medium text-gray-900">Email</div>
-                    <div className="text-gray-600 break-words">{email}</div>
+                    <div className="font-medium text-slate-900">Email</div>
+                    <div className="text-slate-600 break-words">{email}</div>
                   </div>
                   <div className="min-w-0 break-words">
-                    <div className="font-medium text-gray-900">Primary Trade</div>
-                    <div className="text-gray-600 break-words">{primaryTrade}</div>
+                    <div className="font-medium text-slate-900">Trade(s)</div>
+                    <div className="text-slate-600 break-words">
+                      {tradeCategories.length > 0 ? tradeCategories.join(', ') : '—'}
+                    </div>
                   </div>
                   {businessName && (
                     <div className="min-w-0 break-words">
-                      <div className="font-medium text-gray-900">Business Name</div>
-                      <div className="text-gray-600 break-words">{businessName}</div>
+                      <div className="font-medium text-slate-900">Business Name</div>
+                      <div className="text-slate-600 break-words">{businessName}</div>
                     </div>
                   )}
                   {abn && (
                     <div className="min-w-0 break-words">
-                      <div className="font-medium text-gray-900">ABN</div>
-                      <div className="text-gray-600 break-words">{abn}</div>
+                      <div className="font-medium text-slate-900">ABN</div>
+                      <div className="text-slate-600 break-words">{abn}</div>
                     </div>
                   )}
                   {location && (
                     <div className="min-w-0 break-words">
-                      <div className="font-medium text-gray-900">Location</div>
-                      <div className="text-gray-600 break-words">
+                      <div className="font-medium text-slate-900">Location</div>
+                      <div className="text-slate-600 break-words">
                         {location}
                         {postcode ? `, ${postcode}` : ''}
                       </div>
@@ -435,7 +546,7 @@ export default function SignupPage() {
             </div>
           </div>
 
-          <div className="mt-6 text-center text-xs sm:text-sm text-gray-600 break-words px-2">
+          <div className="mt-6 text-center text-xs sm:text-sm text-slate-600 break-words px-2">
             By creating an account, you agree to our{' '}
             <Link href="/terms" className="text-blue-600 hover:underline break-words">
               Terms of Service

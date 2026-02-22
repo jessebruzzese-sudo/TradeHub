@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { AppLayout } from '@/components/app-nav';
 import { TradeGate } from '@/components/trade-gate';
 import { useAuth } from '@/lib/auth';
@@ -22,6 +23,15 @@ export default function PublicProfilePage() {
   const userId = params.id as string;
 
   const user = store.getUserById(userId);
+
+  useEffect(() => {
+    if (!currentUser?.id || !userId || currentUser.id === userId) return;
+    fetch('/api/profile/view', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ viewedUserId: userId }),
+    }).catch(() => {});
+  }, [currentUser?.id, userId]);
 
   if (!user) {
     return (

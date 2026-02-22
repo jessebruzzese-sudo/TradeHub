@@ -8,7 +8,7 @@
  */
 
 /** Master switch: when true, billing is disabled and all users get MVP-level features for free. */
-export const MVP_FREE_MODE = true;
+export const MVP_FREE_MODE = false;
 
 /** Maximum search/matching radius (km) during MVP. */
 export const MVP_RADIUS_KM = 25;

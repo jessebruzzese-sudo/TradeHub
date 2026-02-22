@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 
 import { useAuth } from '@/lib/auth';
 import { isAdmin } from '@/lib/is-admin';
+import { isPremiumForDiscovery } from '@/lib/discovery';
 import { getSafeReturnUrl, safeRouterReplace } from '@/lib/safe-nav';
 
 import {
@@ -27,6 +28,7 @@ import {
 } from 'lucide-react';
 
 import { PrivateProfileNotice } from '@/components/dashboard/PrivateProfileNotice';
+import { ProfileViewsCard } from '@/components/dashboard/ProfileViewsCard';
 import { PublicMetricsCard } from '@/components/dashboard/PublicMetricsCard';
 import { TradesNearYouCard } from '@/components/dashboard/TradesNearYouCard';
 
@@ -62,6 +64,21 @@ export default function DashboardPage() {
     const base = currentUser?.name || currentUser?.email || 'there';
     return String(base).split(' ')[0];
   }, [currentUser?.name, currentUser?.email]);
+
+  const userForDiscovery = useMemo(
+    () =>
+      currentUser
+        ? {
+            is_premium: currentUser.isPremium ?? undefined,
+            subscription_status: currentUser.subscriptionStatus,
+            subcontractor_sub_status: undefined,
+            active_plan: currentUser.activePlan,
+            subcontractor_plan: undefined,
+          }
+        : null,
+    [currentUser]
+  );
+  const isPremiumUser = isPremiumForDiscovery(userForDiscovery);
 
   const trustPill = useMemo(() => {
     const s = trustStatus || 'pending';
@@ -162,6 +179,16 @@ export default function DashboardPage() {
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <span className="text-sm text-gray-600">Account:</span>
               {trustPill}
+              <span className="mx-1 text-gray-300">•</span>
+              <span
+                className={`rounded-full border px-2 py-0.5 text-xs ${
+                  isPremiumUser
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    : 'border-slate-200 bg-slate-50 text-slate-600'
+                }`}
+              >
+                {isPremiumUser ? 'Premium' : 'Free'}
+              </span>
 
               {!isAdminUser && (
                 <>
@@ -202,9 +229,10 @@ export default function DashboardPage() {
         {/* Discovery widgets (top section) */}
         <div className="mt-6 space-y-4">
           <PrivateProfileNotice />
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <PublicMetricsCard />
             <TradesNearYouCard />
+            <ProfileViewsCard />
           </div>
         </div>
 
