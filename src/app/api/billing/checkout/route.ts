@@ -1,26 +1,10 @@
-import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
-import { createClient } from '@supabase/supabase-js';
-import { getStripe, isStripeConfigured } from '@/lib/stripe/server';
-import { getPriceIdForPlan, isAllowedPlan, type BillingPlanKey } from '@/lib/stripe/plans';
-import { MVP_FREE_MODE } from '@/lib/feature-flags';
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
-function authClient() {
-  const cookieStore = cookies();
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-}
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { getStripe, getSiteUrl } from '@/lib/stripe';
+import { createServerSupabase } from '@/lib/supabase-server';
 
 function serviceClient() {
   return createClient(
@@ -30,21 +14,24 @@ function serviceClient() {
   );
 }
 
-export async function POST(req: Request) {
-  if (MVP_FREE_MODE) {
-    return NextResponse.json({ error: 'Billing disabled during MVP launch' }, { status: 403 });
-  }
-  if (!isStripeConfigured()) {
-    return NextResponse.json({ error: 'Billing is not configured' }, { status: 503 });
-  }
-  let stripe;
-  try {
-    stripe = getStripe();
-  } catch {
-    return NextResponse.json({ error: 'Billing is not configured' }, { status: 503 });
+export async function POST() {
+  const priceId = process.env.STRIPE_PREMIUM_PRICE_ID?.trim();
+  if (!process.env.STRIPE_SECRET_KEY?.trim() || !priceId) {
+    return NextResponse.json(
+      { error: 'Stripe not configured', code: 'stripe_not_configured' },
+      { status: 503 }
+    );
   }
 
-  const supabaseAuth = authClient();
+  const stripe = getStripe();
+  if (!stripe) {
+    return NextResponse.json(
+      { error: 'Stripe not configured', code: 'stripe_not_configured' },
+      { status: 503 }
+    );
+  }
+
+  const supabaseAuth = createServerSupabase();
   const {
     data: { user },
     error: userErr,
@@ -52,26 +39,6 @@ export async function POST(req: Request) {
 
   if (userErr || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  let body: { plan?: string };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
-  }
-
-  const plan = body?.plan;
-  if (!plan || !isAllowedPlan(plan)) {
-    return NextResponse.json(
-      { error: 'Invalid plan. Use BUSINESS_PRO_20, SUBCONTRACTOR_PRO_10, or ALL_ACCESS_PRO_26' },
-      { status: 400 }
-    );
-  }
-
-  const priceId = getPriceIdForPlan(plan as BillingPlanKey);
-  if (!priceId) {
-    return NextResponse.json({ error: 'Price not configured for this plan' }, { status: 400 });
   }
 
   const supabaseService = serviceClient();
@@ -99,22 +66,16 @@ export async function POST(req: Request) {
       .eq('id', user.id);
   }
 
-  const origin = req.headers.get('origin') || req.headers.get('x-url') || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-  const baseUrl = origin.replace(/\/$/, '');
+  const siteUrl = getSiteUrl();
 
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
     customer: customerId,
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${baseUrl}/profile?billing=success`,
-    cancel_url: `${baseUrl}/pricing?billing=cancel`,
-    metadata: {
-      user_id: user.id,
-      selected_plan: plan,
-    },
-    subscription_data: {
-      metadata: { user_id: user.id, selected_plan: plan },
-    },
+    allow_promotion_codes: true,
+    success_url: `${siteUrl}/dashboard?upgraded=1`,
+    cancel_url: `${siteUrl}/pricing`,
+    metadata: { user_id: user.id, plan: 'premium' },
   });
 
   const url = session.url ?? null;

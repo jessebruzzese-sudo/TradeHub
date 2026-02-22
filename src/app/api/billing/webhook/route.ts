@@ -1,9 +1,11 @@
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import type Stripe from 'stripe';
-import { getStripe, isStripeConfigured } from '@/lib/stripe/server';
+import { getStripe } from '@/lib/stripe';
 import { getPlanForPriceId } from '@/lib/stripe/plans';
-import { MVP_FREE_MODE } from '@/lib/feature-flags';
 
 type CheckoutSession = Stripe.Checkout.Session;
 type StripeSubscription = Stripe.Subscription;
@@ -21,7 +23,7 @@ function getInvoiceSubscriptionId(invoice: StripeInvoice): string | null {
   return null;
 }
 
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim();
 
 function serviceClient() {
   return createClient(
@@ -42,6 +44,7 @@ function mapStripeStatusToDb(status: string): 'NONE' | 'ACTIVE' | 'PAST_DUE' | '
 
 type SubscriptionUpdatePayload = {
   active_plan?: string;
+  is_premium?: boolean;
   subscription_status: string;
   subscription_renews_at: string | null;
   subscription_started_at: string | null;
@@ -95,6 +98,7 @@ async function handleCheckoutSessionCompleted(
       stripe_subscription_id: subscriptionId,
     };
     if (plan !== null) payload.active_plan = plan;
+    payload.is_premium = status === 'ACTIVE' && plan !== null;
 
     await updateUserFromSubscription(supabase, userId, customerId, payload);
   } else if (customerId && userId) {
@@ -125,6 +129,7 @@ async function handleSubscriptionEvent(sub: StripeSubscription, supabase: Return
     stripe_subscription_id: sub.id,
   };
   if (plan !== null) payload.active_plan = plan;
+  payload.is_premium = status === 'ACTIVE' && plan !== null;
 
   await updateUserFromSubscription(supabase, userId, customerId, payload);
 }
@@ -151,18 +156,19 @@ async function insertSubscriptionHistory(
 }
 
 export async function POST(req: Request) {
-  if (MVP_FREE_MODE) {
-    return NextResponse.json({ error: 'Billing disabled during MVP launch' }, { status: 403 });
-  }
-  if (!webhookSecret || !isStripeConfigured()) {
-    return NextResponse.json({ error: 'Webhook not configured' }, { status: 503 });
+  if (!process.env.STRIPE_SECRET_KEY?.trim() || !webhookSecret) {
+    return NextResponse.json(
+      { error: 'Stripe not configured', code: 'stripe_not_configured' },
+      { status: 503 }
+    );
   }
 
-  let stripe: Stripe;
-  try {
-    stripe = getStripe();
-  } catch {
-    return NextResponse.json({ error: 'Webhook not configured' }, { status: 503 });
+  const stripe = getStripe();
+  if (!stripe) {
+    return NextResponse.json(
+      { error: 'Stripe not configured', code: 'stripe_not_configured' },
+      { status: 503 }
+    );
   }
 
   let rawBody: string;
@@ -206,6 +212,7 @@ export async function POST(req: Request) {
         const userId = (sub.metadata?.user_id as string) || null;
         await updateUserFromSubscription(supabase, userId, customerId, {
           active_plan: 'NONE',
+          is_premium: false,
           subscription_status: 'CANCELED',
           subscription_renews_at: null,
           subscription_started_at: null,

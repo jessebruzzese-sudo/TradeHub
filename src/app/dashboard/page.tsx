@@ -2,7 +2,8 @@
 
 import React, { useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { toast } from 'sonner';
 
 import { AppLayout } from '@/components/app-nav';
 import { PageHeader } from '@/components/page-header';
@@ -25,12 +26,17 @@ import {
   ArrowRight,
 } from 'lucide-react';
 
+import { PrivateProfileNotice } from '@/components/dashboard/PrivateProfileNotice';
+import { PublicMetricsCard } from '@/components/dashboard/PublicMetricsCard';
+import { TradesNearYouCard } from '@/components/dashboard/TradesNearYouCard';
+
 function norm(v?: string | null) {
   return String(v || '').trim().toLowerCase();
 }
 
 export default function DashboardPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { session, currentUser, isLoading, refreshUser } = useAuth();
 
   const hasSession = !!session?.user;
@@ -82,6 +88,13 @@ export default function DashboardPage() {
       safeRouterReplace(router, `/login?returnUrl=${encodeURIComponent(returnUrl)}`, '/login');
     }
   }, [isLoading, hasSession, router]);
+
+  useEffect(() => {
+    if (searchParams.get('upgraded') === '1') {
+      toast.success('Premium activated');
+      router.replace('/dashboard', { scroll: false });
+    }
+  }, [searchParams, router]);
 
   if (isLoading) {
     return (
@@ -183,6 +196,15 @@ export default function DashboardPage() {
                 List availability
               </Button>
             </Link>
+          </div>
+        </div>
+
+        {/* Discovery widgets (top section) */}
+        <div className="mt-6 space-y-4">
+          <PrivateProfileNotice />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <PublicMetricsCard />
+            <TradesNearYouCard />
           </div>
         </div>
 

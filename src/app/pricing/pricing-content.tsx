@@ -5,15 +5,26 @@ import { AppLayout } from '@/components/app-nav';
 import { Button } from '@/components/ui/button';
 import { Check, Sparkles, TrendingUp, ChevronDown, ChevronUp, BadgeCheck } from 'lucide-react';
 import Link from 'next/link';
+import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth';
-import { hasBuilderPremium } from '@/lib/capability-utils';
+import { isPremiumForDiscovery } from '@/lib/discovery';
 
 export default function PricingContent() {
   const { currentUser } = useAuth();
   const [accordionOpen, setAccordionOpen] = useState(false);
   const [showAllFeatures, setShowAllFeatures] = useState(false);
-  const isPremium = currentUser ? hasBuilderPremium(currentUser) : false;
+  const userForDiscovery = currentUser
+    ? {
+        is_premium: currentUser.isPremium ?? undefined,
+        subscription_status: currentUser.subscriptionStatus,
+        active_plan: currentUser.activePlan,
+        subcontractor_plan: undefined,
+        subcontractor_sub_status: undefined,
+      }
+    : null;
+  const isPremium = isPremiumForDiscovery(userForDiscovery);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [showWaitlist, setShowWaitlist] = useState(false);
 
   const handleUpgrade = async () => {
     if (!currentUser) {
@@ -21,22 +32,28 @@ export default function PricingContent() {
       return;
     }
     setCheckoutLoading(true);
+    setShowWaitlist(false);
     try {
       const res = await fetch('/api/billing/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: 'BUSINESS_PRO_20' }),
+        body: JSON.stringify({ plan: 'PREMIUM' }),
       });
       const data = await res.json().catch(() => ({}));
+      if (res.status === 503 && data?.code === 'stripe_not_configured') {
+        toast.error('Payments are not live yet — join the Premium waitlist');
+        setShowWaitlist(true);
+        return;
+      }
       if (!res.ok) {
-        alert(data?.error || 'Could not start checkout');
+        toast.error(data?.error || 'Could not start checkout');
         return;
       }
       if (data?.url) {
         window.location.href = data.url;
         return;
       }
-      alert('Could not start checkout');
+      toast.error('Could not start checkout');
     } finally {
       setCheckoutLoading(false);
     }
@@ -46,9 +63,9 @@ export default function PricingContent() {
     <AppLayout>
       <div className="max-w-7xl mx-auto p-4 md:p-6 py-16 pb-32 md:pb-16">
         <div className="mb-12 text-center">
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">Premium User</h1>
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">Get discovered by more builders</h1>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            One account. All TradeHub features. No lead selling.
+            Premium expands your discovery radius to 50km and unlocks search-from location. No lead selling.
           </p>
         </div>
 
@@ -66,7 +83,7 @@ export default function PricingContent() {
               <h3 className="text-2xl font-bold mb-2 md:mb-3">Premium</h3>
               <div className="mb-2 md:mb-3">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-5xl font-bold">$30</span>
+                  <span className="text-5xl font-bold">$29</span>
                   <span className="text-blue-100 text-sm md:text-base">/ month</span>
                 </div>
                 <div className="mt-1 md:mt-2 text-xs md:text-sm text-blue-100">
@@ -74,10 +91,10 @@ export default function PricingContent() {
                 </div>
               </div>
               <p className="text-blue-100 leading-snug md:leading-relaxed hidden md:block mb-2 text-sm">
-                Full access. No lead selling. Built for working trades.
+                Discover trades up to 50km. Search from any location. Full access. No lead selling.
               </p>
               <p className="text-blue-100 leading-snug md:hidden mb-1 text-xs">
-                Full access. No lead selling.
+                Discover trades up to 50km. Search from location.
               </p>
               <p className="text-[10px] md:text-xs text-blue-200">
                 Best value for active contractors
@@ -130,7 +147,15 @@ export default function PricingContent() {
               </li>
               <li className="flex items-start gap-3">
                 <Check className="w-5 h-5 text-blue-200 flex-shrink-0 mt-0.5" />
-                <span className="text-sm md:text-base">Expanded matching radius — reach the right trades, not everyone</span>
+                <span className="text-sm md:text-base">Discover trades up to 50km — 3x the Free radius</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <Check className="w-5 h-5 text-blue-200 flex-shrink-0 mt-0.5" />
+                <span className="text-sm md:text-base">Search from location — find trades anywhere you work</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <Check className="w-5 h-5 text-blue-200 flex-shrink-0 mt-0.5" />
+                <span className="text-sm md:text-base">Appear higher in discovery lists</span>
               </li>
             </ul>
 
@@ -202,9 +227,19 @@ export default function PricingContent() {
             {/* Desktop CTA */}
             <div className="hidden md:block">
               {currentUser ? (
-                <Button onClick={handleUpgrade} disabled={checkoutLoading} className="w-full bg-white text-blue-600 hover:bg-blue-50" size="lg">
-                  {checkoutLoading ? 'Loading…' : 'Upgrade to Premium'}
-                </Button>
+                <>
+                  <Button onClick={handleUpgrade} disabled={checkoutLoading} className="w-full bg-white text-blue-600 hover:bg-blue-50" size="lg">
+                    {checkoutLoading ? 'Loading…' : 'Upgrade to Premium'}
+                  </Button>
+                  {showWaitlist && (
+                    <a
+                      href="mailto:hello@tradehub.com.au?subject=Premium%20Waitlist"
+                      className="mt-3 block text-center text-sm text-blue-100 hover:text-white underline"
+                    >
+                      Join the Premium waitlist →
+                    </a>
+                  )}
+                </>
               ) : (
                 <Link href="/signup">
                   <Button className="w-full bg-white text-blue-600 hover:bg-blue-50" size="lg">
@@ -244,7 +279,7 @@ export default function PricingContent() {
               </li>
               <li className="flex items-start gap-3">
                 <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                <span className="text-sm md:text-base text-gray-700">15km visibility radius</span>
+                <span className="text-sm md:text-base text-gray-700">15km discovery radius</span>
               </li>
               <li className="flex items-start gap-3">
                 <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
@@ -256,10 +291,16 @@ export default function PricingContent() {
               </li>
             </ul>
 
-            {!currentUser && (
+            {!currentUser ? (
               <Link href="/signup">
                 <Button variant="outline" className="w-full" size="lg">
                   Continue with Free
+                </Button>
+              </Link>
+            ) : (
+              <Link href="/dashboard">
+                <Button variant="ghost" className="w-full" size="lg">
+                  Stay Free
                 </Button>
               </Link>
             )}
@@ -514,13 +555,23 @@ export default function PricingContent() {
         <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg z-50">
           <div className="max-w-xl mx-auto">
             <div className="text-center mb-2">
-              <p className="text-sm font-semibold text-gray-900">Upgrade to Premium — from $30/month</p>
-              <p className="text-xs text-gray-600">$60 for 3 months (best value)</p>
+              <p className="text-sm font-semibold text-gray-900">Upgrade to Premium — from $29/month</p>
+              <p className="text-xs text-gray-600">Discover trades up to 50km</p>
             </div>
             {currentUser ? (
-              <Button onClick={handleUpgrade} disabled={checkoutLoading} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-                {checkoutLoading ? 'Loading…' : 'Upgrade'}
-              </Button>
+              <div>
+                <Button onClick={handleUpgrade} disabled={checkoutLoading} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                  {checkoutLoading ? 'Loading…' : 'Upgrade'}
+                </Button>
+                {showWaitlist && (
+                  <a
+                    href="mailto:hello@tradehub.com.au?subject=Premium%20Waitlist"
+                    className="mt-2 block text-center text-xs text-blue-600 hover:underline"
+                  >
+                    Join waitlist →
+                  </a>
+                )}
+              </div>
             ) : (
               <Link href="/signup">
                 <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
