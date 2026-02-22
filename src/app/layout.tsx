@@ -1,7 +1,6 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
-import { Analytics } from '@vercel/analytics/react';
 
 // ✅ IMPORTANT: single source of truth for auth exports
 // Make sure you have `lib/auth.ts` that re-exports from `auth-context.tsx`
@@ -64,7 +63,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={inter.className}>
         <BillingSimulationBanner />
         <AuthProvider>{children}</AuthProvider>
-        <Analytics />
       </body>
     </html>
   );

@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import { AppLayout } from '@/components/app-nav';
 import { Button } from '@/components/ui/button';
-import { Check, Sparkles, TrendingUp, ChevronDown, ChevronUp, BadgeCheck } from 'lucide-react';
+import { Check, Crown, TrendingUp, ChevronDown, ChevronUp, BadgeCheck } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth';
 import { isPremiumForDiscovery } from '@/lib/discovery';
@@ -61,21 +62,37 @@ export default function PricingContent() {
 
   return (
     <AppLayout>
-      <div className="max-w-7xl mx-auto p-4 md:p-6 py-16 pb-32 md:pb-16">
-        <div className="mb-12 text-center">
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">Get discovered by more builders</h1>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+      <div className="max-w-7xl mx-auto p-4 md:p-6 py-12 md:py-16 pb-12 md:pb-16 text-white">
+        {/* Hero intro - no card, sits on blue background */}
+        <div className="mx-auto max-w-5xl px-6 py-16 text-center text-white md:py-24 mb-8 md:mb-12">
+          <Link href="/" className="group block">
+            <div className="relative mx-auto mb-8 h-16 w-72 cursor-pointer transition-opacity duration-200 group-hover:opacity-80 md:h-24 md:w-96">
+              <Image
+                src="/tradehub-logo-white.svg"
+                alt="TradeHub"
+                fill
+                priority
+                className="object-contain"
+              />
+            </div>
+          </Link>
+          <h1 className="text-3xl font-bold tracking-tight text-white md:text-5xl">Get discovered by more builders</h1>
+          <p className="mt-4 text-base text-blue-100 md:text-lg max-w-2xl mx-auto">
             Premium expands your discovery radius to 50km and unlocks search-from location. No lead selling.
           </p>
         </div>
 
-        <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-8">
+        <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-5 md:gap-8">
           {/* Premium Plan - appears first on mobile, second on desktop */}
-          <div className="bg-gradient-to-br from-blue-600 to-blue-700 border-2 border-blue-600 rounded-2xl p-5 md:p-8 flex flex-col text-white relative overflow-hidden shadow-xl order-1 md:order-2">
+          <div className="group relative rounded-2xl border border-amber-400/30 bg-gradient-to-br from-amber-500 via-amber-500 to-orange-500 p-4 md:p-8 flex flex-col text-white shadow-xl order-1 md:order-2 overflow-hidden ring-2 ring-amber-300/40 transition-all duration-200 hover:-translate-y-1 hover:shadow-2xl">
+            {/* Subtle amber glow */}
+            <div className="pointer-events-none absolute -inset-24 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+              <div className="absolute inset-0 bg-[radial-gradient(closest-side,rgba(245,158,11,0.22),transparent_70%)]" />
+            </div>
             <div className="absolute top-3 right-3 md:top-4 md:right-4">
-              <span className="px-2 py-0.5 md:px-3 md:py-1 bg-white/10 md:bg-white/20 backdrop-blur-sm text-white text-[10px] md:text-xs font-semibold rounded-full flex items-center gap-1">
-                <Sparkles className="w-2.5 h-2.5 md:w-3 md:h-3" />
-                RECOMMENDED
+              <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-amber-600 shadow flex items-center gap-1">
+                <Crown className="w-3 h-3" />
+                Most popular
               </span>
             </div>
 
@@ -84,19 +101,19 @@ export default function PricingContent() {
               <div className="mb-2 md:mb-3">
                 <div className="flex items-baseline gap-2">
                   <span className="text-5xl font-bold">$29</span>
-                  <span className="text-blue-100 text-sm md:text-base">/ month</span>
+                  <span className="text-amber-100 text-sm md:text-base">/ month</span>
                 </div>
-                <div className="mt-1 md:mt-2 text-xs md:text-sm text-blue-100">
+                <div className="mt-1 md:mt-2 text-xs md:text-sm text-amber-100">
                   or <span className="font-semibold text-white">$60 / 3 months</span> (save $30)
                 </div>
               </div>
-              <p className="text-blue-100 leading-snug md:leading-relaxed hidden md:block mb-2 text-sm">
+              <p className="text-amber-100 leading-snug md:leading-relaxed hidden md:block mb-2 text-sm">
                 Discover trades up to 50km. Search from any location. Full access. No lead selling.
               </p>
-              <p className="text-blue-100 leading-snug md:hidden mb-1 text-xs">
+              <p className="text-amber-100 leading-snug md:hidden mb-1 text-xs">
                 Discover trades up to 50km. Search from location.
               </p>
-              <p className="text-[10px] md:text-xs text-blue-200">
+              <p className="text-[10px] md:text-xs text-amber-200">
                 Best value for active contractors
               </p>
             </div>
@@ -130,31 +147,31 @@ export default function PricingContent() {
             {/* Desktop: Full feature list */}
             <ul className="space-y-3 mb-6 flex-1 hidden md:block">
               <li className="flex items-start gap-3">
-                <Check className="w-5 h-5 text-blue-200 flex-shrink-0 mt-0.5" />
+                <Check className="w-5 h-5 text-amber-200 flex-shrink-0 mt-0.5" />
                 <span className="text-sm md:text-base">Unlimited project tenders — post and manage work without caps</span>
               </li>
               <li className="flex items-start gap-3">
-                <Check className="w-5 h-5 text-blue-200 flex-shrink-0 mt-0.5" />
+                <Check className="w-5 h-5 text-amber-200 flex-shrink-0 mt-0.5" />
                 <span className="text-sm md:text-base">Unlimited quotes — no per-lead or per-quote fees</span>
               </li>
               <li className="flex items-start gap-3">
-                <Check className="w-5 h-5 text-blue-200 flex-shrink-0 mt-0.5" />
+                <Check className="w-5 h-5 text-amber-200 flex-shrink-0 mt-0.5" />
                 <span className="text-sm md:text-base">Instant trade alerts — notify available local trades (email + SMS)</span>
               </li>
               <li className="flex items-start gap-3">
-                <Check className="w-5 h-5 text-blue-200 flex-shrink-0 mt-0.5" />
+                <Check className="w-5 h-5 text-amber-200 flex-shrink-0 mt-0.5" />
                 <span className="text-sm md:text-base">Multi-trade access — work across multiple trades</span>
               </li>
               <li className="flex items-start gap-3">
-                <Check className="w-5 h-5 text-blue-200 flex-shrink-0 mt-0.5" />
+                <Check className="w-5 h-5 text-amber-200 flex-shrink-0 mt-0.5" />
                 <span className="text-sm md:text-base">Discover trades up to 50km — 3x the Free radius</span>
               </li>
               <li className="flex items-start gap-3">
-                <Check className="w-5 h-5 text-blue-200 flex-shrink-0 mt-0.5" />
+                <Check className="w-5 h-5 text-amber-200 flex-shrink-0 mt-0.5" />
                 <span className="text-sm md:text-base">Search from location — find trades anywhere you work</span>
               </li>
               <li className="flex items-start gap-3">
-                <Check className="w-5 h-5 text-blue-200 flex-shrink-0 mt-0.5" />
+                <Check className="w-5 h-5 text-amber-200 flex-shrink-0 mt-0.5" />
                 <span className="text-sm md:text-base">Appear higher in discovery lists</span>
               </li>
             </ul>
@@ -163,7 +180,7 @@ export default function PricingContent() {
             <div className="mb-4 md:mb-6">
               <button
                 onClick={() => setShowAllFeatures(!showAllFeatures)}
-                className="text-xs md:text-sm text-blue-100 hover:text-white underline flex items-center gap-1"
+                className="text-xs md:text-sm text-amber-100 hover:text-white underline flex items-center gap-1"
               >
                 {showAllFeatures ? 'Show less' : 'Show all Premium features'}
                 {showAllFeatures ? <ChevronUp className="w-3 h-3 md:w-4 md:h-4" /> : <ChevronDown className="w-3 h-3 md:w-4 md:h-4" />}
@@ -172,52 +189,52 @@ export default function PricingContent() {
               {showAllFeatures && (
                 <ul className="space-y-2 md:space-y-3 mt-3 md:mt-4 pt-3 md:pt-4 border-t border-white/20">
                   <li className="flex items-start gap-2 md:gap-3">
-                    <Check className="w-4 h-4 md:w-5 md:h-5 text-blue-200 flex-shrink-0 mt-0.5" />
+                    <Check className="w-4 h-4 md:w-5 md:h-5 text-amber-200 flex-shrink-0 mt-0.5" />
                     <div>
                       <span className="text-xs md:text-sm font-medium block">60-day availability calendar</span>
-                      <span className="text-[10px] md:hidden text-blue-100 leading-snug block mt-0.5">Plan ahead and show availability</span>
+                      <span className="text-[10px] md:hidden text-amber-100 leading-snug block mt-0.5">Plan ahead and show availability</span>
                     </div>
                   </li>
                   <li className="flex items-start gap-2 md:gap-3">
-                    <Check className="w-4 h-4 md:w-5 md:h-5 text-blue-200 flex-shrink-0 mt-0.5" />
+                    <Check className="w-4 h-4 md:w-5 md:h-5 text-amber-200 flex-shrink-0 mt-0.5" />
                     <div>
                       <span className="text-xs md:text-sm font-medium block">Market Rate Insights</span>
-                      <span className="text-[10px] md:hidden text-blue-100 leading-snug block mt-0.5">Aggregated pricing data (no individual rates)</span>
+                      <span className="text-[10px] md:hidden text-amber-100 leading-snug block mt-0.5">Aggregated pricing data (no individual rates)</span>
                     </div>
                   </li>
                   <li className="flex items-start gap-2 md:gap-3">
-                    <Check className="w-4 h-4 md:w-5 md:h-5 text-blue-200 flex-shrink-0 mt-0.5" />
+                    <Check className="w-4 h-4 md:w-5 md:h-5 text-amber-200 flex-shrink-0 mt-0.5" />
                     <div>
                       <span className="text-xs md:text-sm font-medium block">Unlimited project tenders</span>
-                      <span className="text-[10px] md:hidden text-blue-100 leading-snug block mt-0.5">Post and manage work without caps</span>
+                      <span className="text-[10px] md:hidden text-amber-100 leading-snug block mt-0.5">Post and manage work without caps</span>
                     </div>
                   </li>
                   <li className="flex items-start gap-2 md:gap-3">
-                    <Check className="w-4 h-4 md:w-5 md:h-5 text-blue-200 flex-shrink-0 mt-0.5" />
+                    <Check className="w-4 h-4 md:w-5 md:h-5 text-amber-200 flex-shrink-0 mt-0.5" />
                     <div>
                       <span className="text-xs md:text-sm font-medium block">Unlimited quotes</span>
-                      <span className="text-[10px] md:hidden text-blue-100 leading-snug block mt-0.5">No per-lead or per-quote fees</span>
+                      <span className="text-[10px] md:hidden text-amber-100 leading-snug block mt-0.5">No per-lead or per-quote fees</span>
                     </div>
                   </li>
                   <li className="flex items-start gap-2 md:gap-3">
-                    <Check className="w-4 h-4 md:w-5 md:h-5 text-blue-200 flex-shrink-0 mt-0.5" />
+                    <Check className="w-4 h-4 md:w-5 md:h-5 text-amber-200 flex-shrink-0 mt-0.5" />
                     <div>
                       <span className="text-xs md:text-sm font-medium block">Instant trade alerts</span>
-                      <span className="text-[10px] md:hidden text-blue-100 leading-snug block mt-0.5">Notify available local trades (email + SMS)</span>
+                      <span className="text-[10px] md:hidden text-amber-100 leading-snug block mt-0.5">Notify available local trades (email + SMS)</span>
                     </div>
                   </li>
                   <li className="flex items-start gap-2 md:gap-3">
-                    <Check className="w-4 h-4 md:w-5 md:h-5 text-blue-200 flex-shrink-0 mt-0.5" />
+                    <Check className="w-4 h-4 md:w-5 md:h-5 text-amber-200 flex-shrink-0 mt-0.5" />
                     <div>
                       <span className="text-xs md:text-sm font-medium block">Multi-trade access</span>
-                      <span className="text-[10px] md:hidden text-blue-100 leading-snug block mt-0.5">Work across multiple trades</span>
+                      <span className="text-[10px] md:hidden text-amber-100 leading-snug block mt-0.5">Work across multiple trades</span>
                     </div>
                   </li>
                   <li className="flex items-start gap-2 md:gap-3">
-                    <Check className="w-4 h-4 md:w-5 md:h-5 text-blue-200 flex-shrink-0 mt-0.5" />
+                    <Check className="w-4 h-4 md:w-5 md:h-5 text-amber-200 flex-shrink-0 mt-0.5" />
                     <div>
                       <span className="text-xs md:text-sm font-medium block">Expanded matching radius</span>
-                      <span className="text-[10px] md:hidden text-blue-100 leading-snug block mt-0.5">Reach the right trades, not everyone</span>
+                      <span className="text-[10px] md:hidden text-amber-100 leading-snug block mt-0.5">Reach the right trades, not everyone</span>
                     </div>
                   </li>
                 </ul>
@@ -228,13 +245,13 @@ export default function PricingContent() {
             <div className="hidden md:block">
               {currentUser ? (
                 <>
-                  <Button onClick={handleUpgrade} disabled={checkoutLoading} className="w-full bg-white text-blue-600 hover:bg-blue-50" size="lg">
+                  <Button onClick={handleUpgrade} disabled={checkoutLoading} className="w-full bg-white text-amber-600 hover:bg-amber-50" size="lg">
                     {checkoutLoading ? 'Loading…' : 'Upgrade to Premium'}
                   </Button>
                   {showWaitlist && (
                     <a
                       href="mailto:hello@tradehub.com.au?subject=Premium%20Waitlist"
-                      className="mt-3 block text-center text-sm text-blue-100 hover:text-white underline"
+                      className="mt-3 block text-center text-sm text-amber-100 hover:text-white underline"
                     >
                       Join the Premium waitlist →
                     </a>
@@ -242,20 +259,20 @@ export default function PricingContent() {
                 </>
               ) : (
                 <Link href="/signup">
-                  <Button className="w-full bg-white text-blue-600 hover:bg-blue-50" size="lg">
+                  <Button className="w-full bg-white text-amber-600 hover:bg-amber-50" size="lg">
                     Upgrade to Premium
                   </Button>
                 </Link>
               )}
 
-              <p className="text-xs text-blue-100 text-center mt-3">
+              <p className="text-xs text-amber-100 text-center mt-3">
                 $60 for 3 months — save $30
               </p>
             </div>
           </div>
 
           {/* Free Plan - appears second on mobile, first on desktop */}
-          <div className="bg-white border-2 border-gray-200 rounded-2xl p-6 md:p-8 flex flex-col order-2 md:order-1">
+          <div className="group bg-white border-2 border-gray-200 rounded-2xl p-5 md:p-8 flex flex-col order-2 md:order-1 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
             <div className="mb-6">
               <h3 className="text-2xl font-bold text-gray-900 mb-3">Free</h3>
               <div className="flex items-baseline gap-2 mb-3">
@@ -330,7 +347,7 @@ export default function PricingContent() {
 
         {/* Requirements Note */}
         <div className="max-w-5xl mx-auto mt-6 text-center">
-          <p className="text-xs md:text-sm text-gray-600">
+          <p className="text-sm text-blue-100">
             ABN verification required to post jobs or tenders. Browsing is always free.
           </p>
         </div>
@@ -544,44 +561,12 @@ export default function PricingContent() {
         </div>
 
         <div className="mt-8 text-center">
-          <p className="text-sm text-gray-500">
-            Questions about pricing? <Link href="/messages" className="text-blue-600 hover:underline">Contact our team</Link>
+          <p className="text-sm text-blue-100">
+            Questions about pricing? <Link href="/messages" className="text-white/90 hover:text-white hover:underline">Contact our team</Link>
           </p>
         </div>
       </div>
 
-      {/* Sticky Mobile CTA - For ALL non-Premium users (logged in and logged out) */}
-      {!isPremium && (
-        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg z-50">
-          <div className="max-w-xl mx-auto">
-            <div className="text-center mb-2">
-              <p className="text-sm font-semibold text-gray-900">Upgrade to Premium — from $29/month</p>
-              <p className="text-xs text-gray-600">Discover trades up to 50km</p>
-            </div>
-            {currentUser ? (
-              <div>
-                <Button onClick={handleUpgrade} disabled={checkoutLoading} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-                  {checkoutLoading ? 'Loading…' : 'Upgrade'}
-                </Button>
-                {showWaitlist && (
-                  <a
-                    href="mailto:hello@tradehub.com.au?subject=Premium%20Waitlist"
-                    className="mt-2 block text-center text-xs text-blue-600 hover:underline"
-                  >
-                    Join waitlist →
-                  </a>
-                )}
-              </div>
-            ) : (
-              <Link href="/signup">
-                <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-                  Get Started
-                </Button>
-              </Link>
-            )}
-          </div>
-        </div>
-      )}
     </AppLayout>
   );
 }

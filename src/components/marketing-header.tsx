@@ -33,8 +33,8 @@ export function MarketingHeader() {
           <Link href={tendersHref} className="text-sm font-medium text-gray-600 hover:text-gray-900">
             Tenders
           </Link>
-          <Link href="/discover/plumber" className="text-sm font-medium text-gray-600 hover:text-gray-900">
-            Discover
+          <Link href="/how-it-works" className="text-sm font-medium text-gray-600 hover:text-gray-900">
+            How it works
           </Link>
           <Link href="/pricing" className="text-sm font-medium text-gray-600 hover:text-gray-900">
             Pricing

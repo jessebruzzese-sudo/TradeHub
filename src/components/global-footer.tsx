@@ -1,8 +1,9 @@
 import Link from 'next/link';
+import Image from 'next/image';
 
 export function GlobalFooter() {
   return (
-    <footer className="border-t border-gray-200 bg-gray-50 mt-auto">
+    <footer className="relative border-t border-gray-200 bg-gray-50 mt-auto">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="text-xs text-gray-500 space-y-3">
           <p>
@@ -26,6 +27,21 @@ export function GlobalFooter() {
           </div>
         </div>
       </div>
+
+      <Link
+        href="/"
+        aria-label="Return to homepage"
+        className="absolute bottom-6 right-6 md:bottom-8 md:right-8 group"
+      >
+        <div className="relative h-10 w-10 md:h-12 md:w-12 cursor-pointer transition-all duration-200 group-hover:scale-105 group-hover:opacity-90">
+          <Image
+            src="/favicon.png"
+            alt="TradeHub"
+            fill
+            className="object-contain"
+          />
+        </div>
+      </Link>
     </footer>
   );
 }

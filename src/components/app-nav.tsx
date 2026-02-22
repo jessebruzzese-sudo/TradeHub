@@ -109,7 +109,7 @@ export function SideNav() {
     <div className="hidden md:flex flex-col w-64 border-r border-gray-200 bg-white">
       <div className="p-6 border-b border-gray-200">
         <Link href="/">
-          <Image src="/TradeHub  -Mark-Main.svg" alt="TradeHub" width={48} height={48} className="w-12 h-12" />
+          <Image src="/tradehub-mark.svg" alt="TradeHub" width={48} height={48} className="w-12 h-12" />
         </Link>
       </div>
       <nav className="flex-1 overflow-y-auto p-4">

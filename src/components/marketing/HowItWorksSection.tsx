@@ -1,105 +1,113 @@
-import {
-  Briefcase,
-  CalendarCheck,
-  BadgeCheck,
-  CircleCheck as CheckCircle2,
-} from 'lucide-react';
+import { User, Search, Briefcase } from "lucide-react";
+
+const steps = [
+  {
+    title: "Create your profile",
+    shortDesc: "Add your trade, service area, and availability.",
+    expandDesc:
+      "Add your trade(s), where you work, and when you're available. Choose public or private visibility so you control who can see you.",
+    Icon: User,
+    iconBg: "bg-blue-50",
+    iconFg: "text-blue-600",
+    iconRing: "ring-1 ring-blue-200/70",
+    accent: "from-blue-500/12 to-transparent",
+  },
+  {
+    title: "Get discovered",
+    shortDesc: "Trades near you can find your profile when searching by trade and suburb.",
+    expandDesc:
+      "Trades near you can find your profile when searching by trade and suburb. Your radius keeps it relevant — no spam.",
+    Icon: Search,
+    iconBg: "bg-emerald-50",
+    iconFg: "text-emerald-600",
+    iconRing: "ring-1 ring-emerald-200/70",
+    accent: "from-emerald-500/12 to-transparent",
+  },
+  {
+    title: "Win work",
+    shortDesc: "Apply to jobs, quote tenders, and message directly.",
+    expandDesc:
+      "Apply to jobs, quote tenders, and message directly. No lead fees — you keep control of pricing and relationships.",
+    Icon: Briefcase,
+    iconBg: "bg-amber-50",
+    iconFg: "text-amber-700",
+    iconRing: "ring-1 ring-amber-200/70",
+    accent: "from-amber-500/12 to-transparent",
+  },
+] as const;
 
 export default function HowItWorksSection() {
   return (
-    <section id="how-tradehub-works" className="scroll-mt-24 bg-gray-50 py-12 md:py-16">
+    <section id="how-tradehub-works" className="scroll-mt-24 py-10 md:py-12">
       <div className="mx-auto max-w-7xl px-4">
         <div className="mb-8 text-center">
-          <h2 className="mb-2 text-2xl font-bold text-gray-900 md:text-3xl">How TradeHub works</h2>
-          <p className="text-sm text-gray-600 md:text-base">
+          <div className="flex items-center justify-center gap-3">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900">
+              How TradeHub works
+            </h2>
+
+            <div className="ml-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#1E73E8]">
+              <img
+                src="/tradehub-mark-white.svg"
+                alt="TradeHub"
+                className="h-[30px] w-[30px]"
+                draggable={false}
+              />
+            </div>
+          </div>
+          <p className="mt-2 text-sm text-gray-600 md:text-base">
             Built to help businesses stay busy, flexible, and in control — without lead fees.
           </p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-3">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 shadow-sm">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 rounded-xl bg-slate-200 p-2">
-                <Briefcase className="h-5 w-5 text-slate-700" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Be your own agency</h3>
-                <p className="mt-1 text-sm text-gray-700">
-                  TradeHub lets you operate like your own labour agency. Post job listings or project tenders when work appears,
-                  reach verified local trades, and fill gaps quickly — without recruiters or phone trees.
-                </p>
-                <ul className="mt-4 space-y-2 text-sm text-gray-700">
-                  {[
-                    'Post short-term or ongoing work',
-                    'Reach trades by trade + distance',
-                    'Compare availability and responses in one place',
-                    'Hire directly — no commissions or lead fees',
-                  ].map((t) => (
-                    <li key={t} className="flex items-start gap-2">
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 text-slate-600" />
-                      <span>{t}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </div>
+          {steps.map((s) => (
+            <div
+              key={s.title}
+              className="
+                group relative overflow-hidden rounded-2xl
+                bg-white/90 backdrop-blur
+                border border-white/30
+                shadow-[0_10px_30px_rgba(2,6,23,0.08)]
+                hover:shadow-[0_18px_50px_rgba(2,6,23,0.14)]
+                transition-all duration-300
+                hover:-translate-y-0.5
+              "
+            >
+              {/* sheen */}
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/60 via-white/20 to-transparent opacity-70" />
 
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 rounded-xl bg-emerald-100 p-2">
-                <CalendarCheck className="h-5 w-5 text-emerald-700" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Fill the gaps in your schedule</h3>
-                <p className="mt-1 text-sm text-gray-700">
-                  Trades can list availability ahead of time or respond to relevant work nearby. Instead of chasing leads,
-                  you get contacted for real jobs that fit your trade, location, and timing.
-                </p>
-                <ul className="mt-4 space-y-2 text-sm text-gray-700">
-                  {[
-                    'List available days or weeks',
-                    'Get contacted for relevant work',
-                    'Quote real projects — not bought leads',
-                    'Stay flexible without over-committing',
-                  ].map((t) => (
-                    <li key={t} className="flex items-start gap-2">
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-700" />
-                      <span>{t}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </div>
+              {/* accent glow */}
+              <div
+                className={`pointer-events-none absolute -top-16 -right-16 h-40 w-40 rounded-full bg-gradient-to-br ${s.accent} blur-2xl opacity-80`}
+              />
 
-          <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-6 shadow-sm">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 rounded-xl bg-indigo-100 p-2">
-                <BadgeCheck className="h-5 w-5 text-indigo-700" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Build a profile that works for you</h3>
-                <p className="mt-1 text-sm text-gray-700">
-                  Your TradeHub profile becomes a professional snapshot of your business — trade, experience, location, and reliability —
-                  helping the right people trust and contact you.
-                </p>
-                <ul className="mt-4 space-y-2 text-sm text-gray-700">
-                  {[
-                    'Trade, location, and business details',
-                    'Work history and portfolio',
-                    'Reliability and communication reviews',
-                    'Clear signals that build trust over time',
-                  ].map((t) => (
-                    <li key={t} className="flex items-start gap-2">
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 text-indigo-700" />
-                      <span>{t}</span>
-                    </li>
-                  ))}
-                </ul>
+              <div className="relative p-6">
+                <details className="group/details">
+                  <summary className="cursor-pointer list-none">
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${s.iconBg} ${s.iconRing} shadow-sm`}
+                      >
+                        <s.Icon className={`h-5 w-5 ${s.iconFg}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-gray-900">{s.title}</div>
+                        <div className="text-sm text-gray-600">{s.shortDesc}</div>
+                      </div>
+                      <div className="mt-1 text-gray-400 transition-transform group-open/details:rotate-180">
+                        ⌄
+                      </div>
+                    </div>
+                  </summary>
+
+                  <div className="mt-3 text-sm text-gray-600 leading-relaxed">
+                    {s.expandDesc}
+                  </div>
+                </details>
               </div>
             </div>
-          </div>
+          ))}
         </div>
       </div>
     </section>
