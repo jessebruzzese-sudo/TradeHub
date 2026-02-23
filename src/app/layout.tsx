@@ -16,11 +16,6 @@ export const metadata: Metadata = {
   title: 'TradeHub – B2B Marketplace for Australian Contractors',
   description:
     'TradeHub connects contractors and subcontractors based on availability, trade and distance — without lead fees.',
-  icons: {
-    icon: '/TradeHub  -Mark-Main.svg',
-    shortcut: '/TradeHub  -Mark-Main.svg',
-    apple: '/TradeHub  -Mark-Main.svg',
-  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',

@@ -58,7 +58,6 @@ function SectionHeader({
 
 export default function SignupPage() {
   const [step, setStep] = useState(1);
-  const [accountType, setAccountType] = useState<'contractor' | 'subcontractor' | 'supplier'>('contractor');
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -90,28 +89,22 @@ export default function SignupPage() {
   const searchParams = useSearchParams();
   const returnUrlParam = searchParams.get('returnUrl');
 
-  const totalSteps = 7;
+  const totalSteps = 6;
 
   const handleNext = () => {
     setError('');
 
     if (step === 1) {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('tradehub_signup_account_type', accountType);
-      }
-    }
-
-    if (step === 2) {
       if (!name.trim()) return setError('Please enter your full name');
       if (!email.trim()) return setError('Please enter your email address');
       if (!password || password.length < 6) return setError('Password must be at least 6 characters');
     }
 
-    if (step === 3 && tradeCategories.length === 0) {
+    if (step === 2 && tradeCategories.length === 0) {
       return setError('Please select at least one trade.');
     }
 
-    if (step === 5) {
+    if (step === 4) {
       if (!location.trim()) return setError('Please select your business location');
       if (!postcode.trim()) return setError('Please select a complete location with postcode');
     }
@@ -240,61 +233,6 @@ export default function SignupPage() {
 
             {step === 1 && (
               <div className="space-y-6 min-w-0">
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-900">Choose your account type</h3>
-                  <p className="text-sm text-slate-500 mt-0.5">
-                    This just helps tailor your onboarding. You can change it later.
-                  </p>
-                </div>
-                <div className="h-px bg-slate-200 my-4" />
-                <div className="flex rounded-xl border border-slate-200 overflow-hidden [&>button]:flex-1 [&>button]:py-3 [&>button]:text-sm [&>button]:font-medium [&>button]:transition-colors">
-                  <button
-                    type="button"
-                    onClick={() => setAccountType('contractor')}
-                    className={
-                      accountType === 'contractor'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-white text-slate-700 hover:bg-slate-50'
-                    }
-                  >
-                    Contractor
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAccountType('subcontractor')}
-                    className={
-                      accountType === 'subcontractor'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-white text-slate-700 hover:bg-slate-50'
-                    }
-                  >
-                    Subcontractor
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAccountType('supplier')}
-                    className={
-                      accountType === 'supplier'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-white text-slate-700 hover:bg-slate-50'
-                    }
-                  >
-                    Supplier
-                  </button>
-                </div>
-                <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm text-blue-900">
-                  {accountType === 'contractor' &&
-                    'Contractors manage projects and hire subcontractors or suppliers when needed.'}
-                  {accountType === 'subcontractor' &&
-                    'Subcontractors provide skilled services and work on projects for contractors.'}
-                  {accountType === 'supplier' &&
-                    'Suppliers provide materials and equipment to contractors and subcontractors.'}
-                </div>
-              </div>
-            )}
-
-            {step === 2 && (
-              <div className="space-y-6 min-w-0">
                 <SectionHeader
                   icon={User}
                   title="Account setup"
@@ -348,7 +286,7 @@ export default function SignupPage() {
               </div>
             )}
 
-            {step === 3 && (
+            {step === 2 && (
               <div className="space-y-6">
                 <SectionHeader
                   icon={Wrench}
@@ -367,7 +305,7 @@ export default function SignupPage() {
               </div>
             )}
 
-            {step === 4 && (
+            {step === 3 && (
               <div className="space-y-6">
                 <SectionHeader
                   icon={Building2}
@@ -420,7 +358,7 @@ export default function SignupPage() {
               </div>
             )}
 
-            {step === 5 && (
+            {step === 4 && (
               <div className="space-y-6">
                 <SectionHeader
                   icon={MapPin}
@@ -445,7 +383,7 @@ export default function SignupPage() {
               </div>
             )}
 
-            {step === 6 && (
+            {step === 5 && (
               <div className="space-y-6">
                 <SectionHeader
                   icon={CalendarDays}
@@ -472,7 +410,7 @@ export default function SignupPage() {
               </div>
             )}
 
-            {step === 7 && (
+            {step === 6 && (
               <div className="space-y-6 min-w-0">
                 <SectionHeader
                   icon={ShieldCheck}

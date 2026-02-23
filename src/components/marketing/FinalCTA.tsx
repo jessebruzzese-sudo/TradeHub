@@ -33,7 +33,7 @@ export function FinalCTA() {
               Ready to get booked?
             </h2>
             <p className="mt-2 text-sm text-gray-600 md:text-base">
-              15km free radius. No credit card. Australia-wide.
+              20km free radius. No credit card. Australia-wide.
             </p>
             <Button
               size="lg"
@@ -42,7 +42,7 @@ export function FinalCTA() {
             >
               Join free
             </Button>
-            <p className="mt-3 text-xs text-gray-500">15km free radius • Upgrade anytime</p>
+            <p className="mt-3 text-xs text-gray-500">20km free radius • Upgrade anytime</p>
           </div>
         </div>
       </div>

@@ -35,7 +35,7 @@ export function GlobalFooter() {
       >
         <div className="relative h-10 w-10 md:h-12 md:w-12 cursor-pointer transition-all duration-200 group-hover:scale-105 group-hover:opacity-90">
           <Image
-            src="/favicon.png"
+            src="/tradehub-mark.svg"
             alt="TradeHub"
             fill
             className="object-contain"

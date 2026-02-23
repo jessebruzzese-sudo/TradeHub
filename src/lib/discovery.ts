@@ -120,11 +120,13 @@ export function bboxForRadiusKm(
   };
 }
 
-/** Discovery radius: free = 15km, premium = 50km. */
+import { getTier, getLimits } from './plan-limits';
+
+/** Discovery radius: free = 20km, premium = 100km. Uses plan-limits. */
 export function getDiscoveryRadiusKm(
   currentUser: PremiumUser | null | undefined
 ): number {
-  return isPremiumForDiscovery(currentUser) ? 50 : 15;
+  return getLimits(getTier(currentUser)).radiusKm;
 }
 
 /** Haversine distance in km (pure JS). */

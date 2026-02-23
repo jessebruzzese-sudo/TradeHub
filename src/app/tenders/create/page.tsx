@@ -19,8 +19,6 @@ import { buildLoginUrl } from '@/lib/url-utils';
 import { callTradeHubAI } from '@/lib/ai-client';
 import { hasBuilderPremium } from '@/lib/capability-utils';
 import { needsBusinessVerification, redirectToVerifyBusiness, getVerifyBusinessUrl } from '@/lib/verification-guard';
-import { MVP_FREE_MODE } from '@/lib/feature-flags';
-import { checkMvpTenderPostCap } from '@/lib/tender-utils';
 import { trackEvent } from '@/lib/analytics';
 
 import { TRADE_CATEGORIES } from '@/lib/trades';
@@ -43,11 +41,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 import { AlertCircle, ChevronLeft, ChevronRight, Info, Upload, X, Sparkles } from 'lucide-react';
 
-import type { Database } from '@/lib/database.types';
-
-type TenderInsert = Database['public']['Tables']['tenders']['Insert'];
-type TradeReqInsert = Database['public']['Tables']['tender_trade_requirements']['Insert'];
-
 interface TradeRequirement {
   trade: string;
   subDescription: string;
@@ -59,21 +52,6 @@ interface TradeRequirement {
 
 function norm(v?: string | null) {
   return String(v || '').trim().toLowerCase();
-}
-
-function isLikelyRlsRejection(err: any): boolean {
-  const code = String(err?.code ?? '').trim();
-  const message = String(err?.message ?? '').toLowerCase();
-  const details = String(err?.details ?? '').toLowerCase();
-  const combined = `${message} ${details}`;
-
-  // Strong signals for Postgres RLS / permission errors
-  if (code === '42501') return true;
-  if (combined.includes('row-level security')) return true;
-  if (combined.includes('row level security')) return true;
-  if (combined.includes('permission denied')) return true;
-
-  return false;
 }
 
 // (Display-only) DD/MM/YYYY preview for Review screen
@@ -363,15 +341,6 @@ export default function CreateTenderPage() {
       return;
     }
 
-    // MVP soft cap: 3 tenders posted per month
-    if (MVP_FREE_MODE && !isAdmin(userProfile)) {
-      const capResult = await checkMvpTenderPostCap(supabase, authUser.id);
-      if (!capResult.allowed) {
-        setError(capResult.message || 'Monthly tender posting limit reached.');
-        return;
-      }
-    }
-
     // ✅ Guardrail: limit pending guest tenders (single-account: applies to non-admins)
     if (mode === 'guest' && !isAdmin(userProfile)) {
       const { count, error: pendingErr } = await supabase
@@ -398,52 +367,44 @@ export default function CreateTenderPage() {
       return;
     }
 
-    // ✅ Tier removed from UI; hard-set default for now
     const tierToUse: TenderTier = DEFAULT_TIER;
-
     const statusToUse = mode === 'guest' ? ('PENDING_APPROVAL' as any) : ('PUBLISHED' as any);
 
-    const tenderInsert: TenderInsert = {
-      builder_id: authUser.id,
-      status: statusToUse,
-      tier: tierToUse as any,
-      is_name_hidden: isNameHidden,
-      project_name: projectName,
-      project_description: projectDescription,
-      suburb,
-      postcode,
-      lat: 0,
-      lng: 0,
-      // If these columns exist in your DB, keep them:
-      // desired_start_date: desiredStartDate || null,
-      // desired_end_date: desiredEndDate || null,
-    };
-
-    console.warn('[ABN WRITE ATTEMPT]', 'tenders', tenderInsert); // ABN_QA_ONLY
-    const { data: tender, error: tenderError } = await supabase.from('tenders').insert(tenderInsert).select().single();
-    if (tenderError) {
-      if (isLikelyRlsRejection(tenderError)) {
-        const msg = 'Trial used — upgrade to Premium to post more tenders.';
-        toast.error(msg);
-        setError(msg);
-        return;
-      }
-      throw tenderError;
-    }
-
-    const tradeReqs: TradeReqInsert[] = tradeRequirements.map((req) => ({
-      tender_id: tender.id,
+    const tradeReqsForApi = tradeRequirements.map((req) => ({
       trade: req.trade,
-      sub_description: req.subDescription,
-      min_budget_cents: req.budgetMin ? Math.round(Number(req.budgetMin) * 100) : null,
-      max_budget_cents: req.budgetMax ? Math.round(Number(req.budgetMax) * 100) : null,
+      subDescription: req.subDescription,
+      budgetMin: req.budgetMin,
+      budgetMax: req.budgetMax,
     }));
 
-    console.warn('[ABN WRITE ATTEMPT]', 'tender_trade_requirements', tradeReqs); // ABN_QA_ONLY
-    const { error: tradeError } = await supabase.from('tender_trade_requirements').insert(tradeReqs);
-    if (tradeError) throw tradeError;
+    const res = await fetch('/api/tenders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        projectName,
+        projectDescription,
+        suburb,
+        postcode,
+        isNameHidden,
+        status: statusToUse,
+        tier: tierToUse,
+        tradeRequirements: tradeReqsForApi,
+      }),
+    });
 
-    // Preserve your existing flag behaviour
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 403 && data.error) {
+        toast.error(data.error);
+        setError(data.error);
+        return;
+      }
+      throw new Error(data.error || 'Failed to create tender');
+    }
+
+    const tender = data.tender;
+    if (!tender?.id) throw new Error('Invalid response from server');
+
     if (tierToUse === 'FREE_TRIAL' && !builderFreeTrialUsed) {
       await supabase.from('users').update({ builder_free_trial_tender_used: true }).eq('id', authUser.id);
     }

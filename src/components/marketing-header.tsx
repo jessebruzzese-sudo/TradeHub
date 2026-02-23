@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { useAuth } from '@/lib/auth';
 import { buildLoginUrl } from '@/lib/url-utils';
 
@@ -15,14 +14,11 @@ export function MarketingHeader() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white/95 backdrop-blur">
       <div className="mx-auto flex h-12 max-w-6xl items-center justify-between gap-4 px-4 md:h-14">
-        <Link href="/" className="flex shrink-0 items-center">
-          <Image
-            src="/TradeHub -Horizontal-Main.svg"
+        <Link href="/" className="flex shrink-0 items-center min-w-0">
+          <img
+            src="/tradehub-horizontal-main-tagline.svg"
             alt="TradeHub"
-            width={140}
-            height={32}
-            className="h-7 w-auto md:h-8"
-            priority
+            className="h-8 w-auto min-w-[100px] object-contain"
           />
         </Link>
 

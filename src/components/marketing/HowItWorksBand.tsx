@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, UserPlus, Search, Briefcase } from 'lucide-react';
 
@@ -50,15 +51,17 @@ export function HowItWorksBand() {
     <section className="py-8 md:py-10">
       <div className="mx-auto max-w-6xl px-4">
         <div className="mb-6 text-center">
-          <div className="flex items-center justify-center gap-4">
-            <h2 className="text-2xl font-semibold text-gray-900 md:text-3xl">
+          <div className="flex items-center justify-center gap-3 md:gap-5">
+            <Image
+              src="/tradehub-mark.svg"
+              alt="TradeHub"
+              width={40}
+              height={40}
+              className="h-8 w-8 md:h-12 md:w-12"
+            />
+            <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
               How it works
             </h2>
-            <img
-              src="/favicon.png"
-              alt="TradeHub"
-              className="h-8 w-8 object-contain md:h-10 md:w-10"
-            />
           </div>
           <p className="mt-1.5 text-sm text-slate-600 md:text-base">
             Three steps to more booked days.
@@ -66,21 +69,30 @@ export function HowItWorksBand() {
         </div>
 
         <div className="mt-6 space-y-3 md:hidden">
-          {STEPS.map((step) => (
-            <Link
-              key={step.title}
-              href={step.href}
-              className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm transition hover:bg-slate-50"
-            >
-              <span className="text-base font-semibold text-gray-900">{step.title}</span>
-              <ArrowRight className="h-5 w-5 text-gray-400" />
-            </Link>
-          ))}
+          {STEPS.map((step) => {
+            const Icon = step.icon;
+            return (
+              <Link
+                key={step.title}
+                href={step.href}
+                className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm transition hover:bg-slate-50"
+              >
+                <div className="flex items-center gap-3">
+                  <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${step.iconBg} ${step.iconText}`}>
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <span className="text-base font-semibold text-slate-900">{step.title}</span>
+                </div>
+                <ArrowRight className="h-5 w-5 shrink-0 text-slate-400" />
+              </Link>
+            );
+          })}
         </div>
 
-        <div className="hidden gap-6 md:grid md:grid-cols-3">
+        <div className="hidden gap-5 md:grid md:grid-cols-3">
           {STEPS.map((step, i) => {
             const Icon = step.icon;
+            const ringColor = step.borderColor.replace('border-', 'ring-');
             return (
               <Link
                 key={step.title}
@@ -88,24 +100,24 @@ export function HowItWorksBand() {
                 className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500"
               >
                 <div
-                  className={`flex flex-col rounded-xl border p-5 transition-all hover:-translate-y-0.5 hover:shadow-md ${step.cardBg} ${step.borderColor} ${step.hoverRing}`}
+                  className={`flex flex-col rounded-2xl border p-6 transition-all hover:-translate-y-0.5 hover:shadow-md ${step.cardBg} ${step.borderColor} ${step.hoverRing}`}
                 >
-                  <span
-                    className={`mb-3 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${step.pillBg} ${step.pillText}`}
-                  >
-                    {i + 1}
-                  </span>
-                  <div
-                    className={`mb-3 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${step.iconBg}`}
-                  >
-                    <Icon className={`h-4 w-4 ${step.iconText}`} />
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/70 text-sm font-semibold text-slate-700 ring-1 ring-slate-200">
+                      {i + 1}
+                    </span>
+                    <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${step.iconBg} ring-1 ${ringColor}`}>
+                      <Icon className={`h-5 w-5 ${step.iconText}`} />
+                    </span>
                   </div>
-                  <h3 className="text-base font-semibold text-gray-900">{step.title}</h3>
-                  <p className="mt-2 flex-1 text-sm text-slate-600">{step.desc}</p>
-                  <span className={`mt-4 inline-flex items-center text-sm font-medium ${step.pillText} group-hover:underline`}>
-                    Learn more
-                    <span className="ml-1">→</span>
-                  </span>
+                  <div className="mt-4 space-y-3">
+                    <h3 className="text-lg font-semibold text-slate-900">{step.title}</h3>
+                    <p className="text-sm leading-relaxed text-slate-600">{step.desc}</p>
+                    <span className={`inline-flex items-center gap-2 text-base font-semibold ${step.pillText} group-hover:underline`}>
+                      Learn more
+                      <span>→</span>
+                    </span>
+                  </div>
                 </div>
               </Link>
             );

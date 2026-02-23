@@ -53,16 +53,13 @@ import {
   getStatusDisplayName,
   canSubmitQuote,
   getPublicQuoteStatus,
-  checkMvpTenderApplyCap,
 } from '@/lib/tender-utils';
-import { MVP_FREE_MODE } from '@/lib/feature-flags';
 
 import { formatDistanceToNow } from 'date-fns';
 import { ABNRequiredModal } from '@/components/abn-required-modal';
 import { hasValidABN } from '@/lib/abn-utils';
 import { isUUID, parseTradeSuburbSlug } from '@/lib/slug-utils';
 import TradeSuburbTenders from '@/components/trade-suburb-tenders';
-import { checkQuoteSubmissionPermission } from '@/lib/permission-utils';
 
 type TenderDoc = {
   id: string;
@@ -476,18 +473,9 @@ function TenderDetailUuidPage({ id }: { id: string }) {
       return;
     }
 
-    // MVP soft cap: 3 quotes/applications per month
-    if (MVP_FREE_MODE && currentUser) {
-      const capResult = await checkMvpTenderApplyCap(supabase, currentUser.id);
-      if (!capResult.allowed) {
-        setQuotePermissionError(capResult.message || 'Monthly quote limit reached.');
-        return;
-      }
-    }
-
     const n = Number(quotePrice);
     if (!quotePrice || Number.isNaN(n) || n <= 0) {
-      alert('Please enter a valid quote amount');
+      toast.error('Please enter a valid quote amount');
       return;
     }
 
@@ -495,33 +483,37 @@ function TenderDetailUuidPage({ id }: { id: string }) {
       setIsSubmitting(true);
       setQuotePermissionError(null);
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
+      const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         safeRouterPush(router, `/login?returnUrl=/tenders/${tender.id}`, '/login');
         return;
       }
 
-      const permission = await checkQuoteSubmissionPermission(session.access_token, tender.id);
+      const priceCents = Math.round(n * 100);
+      const res = await fetch(`/api/tenders/${tender.id}/quotes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priceCents, notes: quoteNotes?.trim() || null }),
+      });
 
-      if (!permission.canSubmit) {
-        setQuotePermissionError(permission.message || permission.reason || 'You cannot submit a quote.');
-        return;
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 403 && data.error) {
+          setQuotePermissionError(data.error);
+          toast.error(data.error);
+          return;
+        }
+        throw new Error(data.error || 'Failed to submit quote');
       }
 
-      // TODO: insert into quotes table when you wire it.
-      console.warn('[ABN WRITE ATTEMPT]', 'quotes (demo)', { tenderId: tender.id }); // ABN_QA_ONLY
-      setTimeout(() => {
-        alert('Quote submitted successfully! (demo)');
-        setQuotePrice('');
-        setQuoteNotes('');
-        setIsSubmitting(false);
-      }, 600);
+      toast.success('Quote submitted successfully!');
+      setQuotePrice('');
+      setQuoteNotes('');
     } catch (e) {
       console.error('Error submitting quote:', e);
       setQuotePermissionError('An error occurred. Please try again.');
+      toast.error('An error occurred. Please try again.');
+    } finally {
       setIsSubmitting(false);
     }
   };

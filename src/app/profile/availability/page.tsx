@@ -73,36 +73,23 @@ export default function AvailabilityPage() {
 
     setSaving(true);
     try {
-      await supabase
-        .from('subcontractor_availability')
-        .delete()
-        .eq('user_id', currentUser.id);
+      const dateStrings = selectedDates.map((d) => d.toISOString().split('T')[0]);
+      const res = await fetch('/api/availability', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dates: dateStrings, description: description.trim() }),
+      });
 
-      if (selectedDates.length > 0) {
-        const records = selectedDates.map(date => ({
-          user_id: currentUser.id,
-          date: date.toISOString().split('T')[0],
-          description: description.trim() || null
-        }));
-
-        const { error: insertError } = await supabase
-          .from('subcontractor_availability')
-          .insert(records);
-
-        if (insertError) throw insertError;
-
-        await notifyContractorsAboutAvailability(currentUser, selectedDates);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 403 && data.error) {
+          toast.error(data.error);
+          return;
+        }
+        throw new Error(data.error || 'Failed to save');
       }
 
-      const { error: userError } = await supabase
-        .from('users')
-        .update({
-          availability_description: description.trim()
-        })
-        .eq('id', currentUser.id);
-
-      if (userError) throw userError;
-
+      await notifyContractorsAboutAvailability(currentUser, selectedDates);
       toast.success('Subcontracting dates updated successfully');
       router.push('/dashboard');
     } catch (err) {

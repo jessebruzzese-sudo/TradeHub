@@ -130,7 +130,7 @@ export function HowItWorksHero() {
           <img
             src="/tradehub-horizontal-main-tagline.svg"
             alt="TradeHub"
-            className="mx-auto h-12 md:h-20 lg:h-24 object-contain"
+            className="mx-auto h-10 w-auto object-contain md:h-12"
           />
           <p className="mt-1 text-gray-600 text-sm md:text-base">
             Connecting Aussie trades. No lead fees. Get booked locally.

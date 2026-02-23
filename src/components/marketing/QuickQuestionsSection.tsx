@@ -55,6 +55,7 @@ export function QuickQuestionsSection() {
               alt="TradeHub"
               width={180}
               height={40}
+              className="h-8 w-auto object-contain"
             />
           </div>
         </div>
@@ -86,6 +87,7 @@ export function QuickQuestionsSection() {
               alt="TradeHub"
               width={180}
               height={40}
+              className="h-8 w-auto object-contain"
             />
           </div>
         </div>

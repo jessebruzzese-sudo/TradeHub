@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { AppLayout } from '@/components/app-nav';
 import { Button } from '@/components/ui/button';
-import { Check, Crown, TrendingUp, ChevronDown, ChevronUp, BadgeCheck } from 'lucide-react';
+import { Check, Crown, TrendingUp, BadgeCheck } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { toast } from 'sonner';
@@ -12,8 +12,6 @@ import { isPremiumForDiscovery } from '@/lib/discovery';
 
 export default function PricingContent() {
   const { currentUser } = useAuth();
-  const [accordionOpen, setAccordionOpen] = useState(false);
-  const [showAllFeatures, setShowAllFeatures] = useState(false);
   const userForDiscovery = currentUser
     ? {
         is_premium: currentUser.isPremium ?? undefined,
@@ -62,29 +60,53 @@ export default function PricingContent() {
 
   return (
     <AppLayout>
-      <div className="max-w-7xl mx-auto p-4 md:p-6 py-12 md:py-16 pb-12 md:pb-16 text-white">
+      <div className="relative min-h-screen bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800">
+        {/* Dotted overlay - behind watermark */}
+        <div
+          className="pointer-events-none absolute inset-0 opacity-20"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.25) 1px, transparent 0)',
+            backgroundSize: '20px 20px',
+          }}
+          aria-hidden
+        />
+
+        {/* Watermark (fixed to viewport) - above background, behind content */}
+        <div className="pointer-events-none fixed bottom-[-220px] right-[-220px] z-0">
+          <img
+            src="/TradeHub-Mark-whiteout.svg"
+            alt=""
+            aria-hidden="true"
+            className="h-[1600px] w-[1600px] opacity-[0.08]"
+          />
+        </div>
+
+        {/* Page content */}
+        <div className="relative z-10 mx-auto max-w-6xl px-4 py-16 text-white pb-12 md:pb-16">
         {/* Hero intro - no card, sits on blue background */}
         <div className="mx-auto max-w-5xl px-6 py-16 text-center text-white md:py-24 mb-8 md:mb-12">
           <Link href="/" className="group block">
-            <div className="relative mx-auto mb-8 h-16 w-72 cursor-pointer transition-opacity duration-200 group-hover:opacity-80 md:h-24 md:w-96">
+            <div className="mx-auto mb-8 flex justify-center">
               <Image
                 src="/tradehub-logo-white.svg"
                 alt="TradeHub"
-                fill
+                width={240}
+                height={48}
+                className="h-10 w-auto object-contain transition-opacity group-hover:opacity-80 sm:h-14 lg:h-24"
                 priority
-                className="object-contain"
               />
             </div>
           </Link>
           <h1 className="text-3xl font-bold tracking-tight text-white md:text-5xl">Get discovered by more builders</h1>
           <p className="mt-4 text-base text-blue-100 md:text-lg max-w-2xl mx-auto">
-            Premium expands your discovery radius to 50km and unlocks search-from location. No lead selling.
+            Premium expands your discovery radius to 100km and unlocks search-from location. No lead selling.
           </p>
         </div>
 
         <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-5 md:gap-8">
           {/* Premium Plan - appears first on mobile, second on desktop */}
-          <div className="group relative rounded-2xl border border-amber-400/30 bg-gradient-to-br from-amber-500 via-amber-500 to-orange-500 p-4 md:p-8 flex flex-col text-white shadow-xl order-1 md:order-2 overflow-hidden ring-2 ring-amber-300/40 transition-all duration-200 hover:-translate-y-1 hover:shadow-2xl">
+          <div className="group relative rounded-2xl border border-amber-400/30 bg-gradient-to-br from-amber-500 via-amber-500 to-orange-500 p-4 md:p-8 flex flex-col text-white order-1 md:order-2 overflow-hidden ring-2 ring-amber-300/40 transition-all duration-200 hover:-translate-y-1 shadow-[0_25px_80px_rgba(0,0,0,0.25)] hover:shadow-[0_25px_80px_rgba(0,0,0,0.35)]">
             {/* Subtle amber glow */}
             <div className="pointer-events-none absolute -inset-24 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
               <div className="absolute inset-0 bg-[radial-gradient(closest-side,rgba(245,158,11,0.22),transparent_70%)]" />
@@ -103,22 +125,19 @@ export default function PricingContent() {
                   <span className="text-5xl font-bold">$29</span>
                   <span className="text-amber-100 text-sm md:text-base">/ month</span>
                 </div>
-                <div className="mt-1 md:mt-2 text-xs md:text-sm text-amber-100">
-                  or <span className="font-semibold text-white">$60 / 3 months</span> (save $30)
-                </div>
               </div>
               <p className="text-amber-100 leading-snug md:leading-relaxed hidden md:block mb-2 text-sm">
-                Discover trades up to 50km. Search from any location. Full access. No lead selling.
+                Discover trades up to 100km. Search from any location. Full access. No lead selling.
               </p>
               <p className="text-amber-100 leading-snug md:hidden mb-1 text-xs">
-                Discover trades up to 50km. Search from location.
+                Discover trades up to 100km. Search from location.
               </p>
               <p className="text-[10px] md:text-xs text-amber-200">
                 Best value for active contractors
               </p>
             </div>
 
-            {/* Mobile: Feature chips */}
+            {/* Mobile: Feature chips (highlights) + expandable full list */}
             <div className="md:hidden mb-4 flex-1">
               <div className="grid grid-cols-2 gap-2">
                 <div className="bg-white/10 rounded-full px-3 py-1.5 text-xs text-white flex items-center gap-1.5">
@@ -142,6 +161,76 @@ export default function PricingContent() {
                   <span>Expanded radius</span>
                 </div>
               </div>
+
+              {/* Mobile: expand/collapse full Premium features */}
+              <div className="mt-4">
+                <details className="group rounded-xl bg-white/10 px-4 py-3">
+                  <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-semibold text-white [&::-webkit-details-marker]:hidden">
+                    <span>Show all Premium features</span>
+                    <span className="transition-transform group-open:rotate-180">⌄</span>
+                  </summary>
+
+                  <div className="mt-3 space-y-3 text-sm text-white/90">
+                    <div className="flex items-start gap-2">
+                      <Check className="w-4 h-4 text-amber-200 flex-shrink-0 mt-0.5" />
+                      <span>Unlimited project tenders — post and manage work without caps</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="w-4 h-4 text-amber-200 flex-shrink-0 mt-0.5" />
+                      <span>Unlimited quotes — no per-lead or per-quote fees</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="w-4 h-4 text-amber-200 flex-shrink-0 mt-0.5" />
+                      <span>Instant trade alerts — notify available local trades (email + SMS)</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="w-4 h-4 text-amber-200 flex-shrink-0 mt-0.5" />
+                      <span>Multi-trade access — work across multiple trades</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="w-4 h-4 text-amber-200 flex-shrink-0 mt-0.5" />
+                      <span>Discover trades up to 100km — 5x the Free radius</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="w-4 h-4 text-amber-200 flex-shrink-0 mt-0.5" />
+                      <span>Search from location — find trades anywhere you work</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="w-4 h-4 text-amber-200 flex-shrink-0 mt-0.5" />
+                      <span>Up to 3 months availability calendar</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="w-4 h-4 text-amber-200 flex-shrink-0 mt-0.5" />
+                      <span>Appear higher in discovery lists</span>
+                    </div>
+                  </div>
+                </details>
+              </div>
+
+              {/* Mobile CTA */}
+              <div className="mt-4">
+                {currentUser ? (
+                  <>
+                    <Button onClick={handleUpgrade} disabled={checkoutLoading} className="w-full bg-white text-amber-600 hover:bg-amber-50" size="lg">
+                      {checkoutLoading ? 'Loading…' : 'Upgrade to Premium'}
+                    </Button>
+                    {showWaitlist && (
+                      <a
+                        href="mailto:hello@tradehub.com.au?subject=Premium%20Waitlist"
+                        className="mt-3 block text-center text-sm text-amber-100 hover:text-white underline"
+                      >
+                        Join the Premium waitlist →
+                      </a>
+                    )}
+                  </>
+                ) : (
+                  <Link href="/signup">
+                    <Button className="w-full bg-white text-amber-600 hover:bg-amber-50" size="lg">
+                      Upgrade to Premium
+                    </Button>
+                  </Link>
+                )}
+              </div>
             </div>
 
             {/* Desktop: Full feature list */}
@@ -164,7 +253,7 @@ export default function PricingContent() {
               </li>
               <li className="flex items-start gap-3">
                 <Check className="w-5 h-5 text-amber-200 flex-shrink-0 mt-0.5" />
-                <span className="text-sm md:text-base">Discover trades up to 50km — 3x the Free radius</span>
+                <span className="text-sm md:text-base">Discover trades up to 100km — 5x the Free radius</span>
               </li>
               <li className="flex items-start gap-3">
                 <Check className="w-5 h-5 text-amber-200 flex-shrink-0 mt-0.5" />
@@ -172,74 +261,13 @@ export default function PricingContent() {
               </li>
               <li className="flex items-start gap-3">
                 <Check className="w-5 h-5 text-amber-200 flex-shrink-0 mt-0.5" />
+                <span className="text-sm md:text-base">Up to 3 months availability calendar</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <Check className="w-5 h-5 text-amber-200 flex-shrink-0 mt-0.5" />
                 <span className="text-sm md:text-base">Appear higher in discovery lists</span>
               </li>
             </ul>
-
-            {/* Show all Premium features toggle */}
-            <div className="mb-4 md:mb-6">
-              <button
-                onClick={() => setShowAllFeatures(!showAllFeatures)}
-                className="text-xs md:text-sm text-amber-100 hover:text-white underline flex items-center gap-1"
-              >
-                {showAllFeatures ? 'Show less' : 'Show all Premium features'}
-                {showAllFeatures ? <ChevronUp className="w-3 h-3 md:w-4 md:h-4" /> : <ChevronDown className="w-3 h-3 md:w-4 md:h-4" />}
-              </button>
-
-              {showAllFeatures && (
-                <ul className="space-y-2 md:space-y-3 mt-3 md:mt-4 pt-3 md:pt-4 border-t border-white/20">
-                  <li className="flex items-start gap-2 md:gap-3">
-                    <Check className="w-4 h-4 md:w-5 md:h-5 text-amber-200 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <span className="text-xs md:text-sm font-medium block">60-day availability calendar</span>
-                      <span className="text-[10px] md:hidden text-amber-100 leading-snug block mt-0.5">Plan ahead and show availability</span>
-                    </div>
-                  </li>
-                  <li className="flex items-start gap-2 md:gap-3">
-                    <Check className="w-4 h-4 md:w-5 md:h-5 text-amber-200 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <span className="text-xs md:text-sm font-medium block">Market Rate Insights</span>
-                      <span className="text-[10px] md:hidden text-amber-100 leading-snug block mt-0.5">Aggregated pricing data (no individual rates)</span>
-                    </div>
-                  </li>
-                  <li className="flex items-start gap-2 md:gap-3">
-                    <Check className="w-4 h-4 md:w-5 md:h-5 text-amber-200 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <span className="text-xs md:text-sm font-medium block">Unlimited project tenders</span>
-                      <span className="text-[10px] md:hidden text-amber-100 leading-snug block mt-0.5">Post and manage work without caps</span>
-                    </div>
-                  </li>
-                  <li className="flex items-start gap-2 md:gap-3">
-                    <Check className="w-4 h-4 md:w-5 md:h-5 text-amber-200 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <span className="text-xs md:text-sm font-medium block">Unlimited quotes</span>
-                      <span className="text-[10px] md:hidden text-amber-100 leading-snug block mt-0.5">No per-lead or per-quote fees</span>
-                    </div>
-                  </li>
-                  <li className="flex items-start gap-2 md:gap-3">
-                    <Check className="w-4 h-4 md:w-5 md:h-5 text-amber-200 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <span className="text-xs md:text-sm font-medium block">Instant trade alerts</span>
-                      <span className="text-[10px] md:hidden text-amber-100 leading-snug block mt-0.5">Notify available local trades (email + SMS)</span>
-                    </div>
-                  </li>
-                  <li className="flex items-start gap-2 md:gap-3">
-                    <Check className="w-4 h-4 md:w-5 md:h-5 text-amber-200 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <span className="text-xs md:text-sm font-medium block">Multi-trade access</span>
-                      <span className="text-[10px] md:hidden text-amber-100 leading-snug block mt-0.5">Work across multiple trades</span>
-                    </div>
-                  </li>
-                  <li className="flex items-start gap-2 md:gap-3">
-                    <Check className="w-4 h-4 md:w-5 md:h-5 text-amber-200 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <span className="text-xs md:text-sm font-medium block">Expanded matching radius</span>
-                      <span className="text-[10px] md:hidden text-amber-100 leading-snug block mt-0.5">Reach the right trades, not everyone</span>
-                    </div>
-                  </li>
-                </ul>
-              )}
-            </div>
 
             {/* Desktop CTA */}
             <div className="hidden md:block">
@@ -264,15 +292,72 @@ export default function PricingContent() {
                   </Button>
                 </Link>
               )}
-
-              <p className="text-xs text-amber-100 text-center mt-3">
-                $60 for 3 months — save $30
-              </p>
             </div>
           </div>
 
-          {/* Free Plan - appears second on mobile, first on desktop */}
-          <div className="group bg-white border-2 border-gray-200 rounded-2xl p-5 md:p-8 flex flex-col order-2 md:order-1 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
+          {/* Free Plan - Mobile: accordion (collapsed by default) */}
+          <div className="md:hidden order-2">
+            <details className="group overflow-hidden rounded-2xl bg-white shadow-[0_25px_80px_rgba(0,0,0,0.25)]">
+              <summary className="flex list-none cursor-pointer items-center justify-between px-6 py-5 [&::-webkit-details-marker]:hidden">
+                <div>
+                  <div className="text-base font-semibold text-slate-900">Free</div>
+                  <div className="text-4xl font-bold text-slate-900">$0</div>
+                  <div className="mt-1 text-sm text-slate-600">Browse, trial, and get started.</div>
+                </div>
+                <div className="ml-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  <span className="group-open:hidden">Show</span>
+                  <span className="hidden group-open:inline">Hide</span>
+                  <span className="transition-transform group-open:rotate-180">⌄</span>
+                </div>
+              </summary>
+
+              <div className="px-6 pb-6 border-t border-gray-100">
+                <ul className="space-y-3 mb-6 mt-4">
+                  <li className="flex items-start gap-3">
+                    <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm text-gray-700">Browse jobs & tenders</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm text-gray-700">1 active tender per month</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm text-gray-700">Up to 3 quotes per tender</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm text-gray-700">20km discovery radius</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm text-gray-700">Basic messaging</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm text-gray-700">30-day availability calendar</span>
+                  </li>
+                </ul>
+
+                {!currentUser ? (
+                  <Link href="/signup">
+                    <Button variant="outline" className="w-full text-black" size="lg">
+                      Continue with Free
+                    </Button>
+                  </Link>
+                ) : (
+                  <Link href="/dashboard">
+                    <Button variant="ghost" className="w-full" size="lg">
+                      Stay Free
+                    </Button>
+                  </Link>
+                )}
+              </div>
+            </details>
+          </div>
+
+          {/* Free Plan - Desktop: normal card */}
+          <div className="hidden md:block group bg-white rounded-2xl p-8 flex flex-col order-1 transition-all duration-200 hover:-translate-y-1 shadow-[0_25px_80px_rgba(0,0,0,0.25)] hover:shadow-[0_25px_80px_rgba(0,0,0,0.35)]">
             <div className="mb-6">
               <h3 className="text-2xl font-bold text-gray-900 mb-3">Free</h3>
               <div className="flex items-baseline gap-2 mb-3">
@@ -288,7 +373,7 @@ export default function PricingContent() {
               </li>
               <li className="flex items-start gap-3">
                 <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                <span className="text-sm md:text-base text-gray-700">1 trial project tender</span>
+                <span className="text-sm md:text-base text-gray-700">1 active tender per month</span>
               </li>
               <li className="flex items-start gap-3">
                 <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
@@ -296,7 +381,7 @@ export default function PricingContent() {
               </li>
               <li className="flex items-start gap-3">
                 <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                <span className="text-sm md:text-base text-gray-700">15km discovery radius</span>
+                <span className="text-sm md:text-base text-gray-700">20km discovery radius</span>
               </li>
               <li className="flex items-start gap-3">
                 <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
@@ -304,13 +389,13 @@ export default function PricingContent() {
               </li>
               <li className="flex items-start gap-3">
                 <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                <span className="text-sm md:text-base text-gray-700">Availability calendar (14 days)</span>
+                <span className="text-sm md:text-base text-gray-700">30-day availability calendar</span>
               </li>
             </ul>
 
             {!currentUser ? (
               <Link href="/signup">
-                <Button variant="outline" className="w-full" size="lg">
+                <Button variant="outline" className="w-full text-black" size="lg">
                   Continue with Free
                 </Button>
               </Link>
@@ -352,82 +437,7 @@ export default function PricingContent() {
           </p>
         </div>
 
-        {/* Mobile Accordion - What's included in Premium? - moved after Premium card */}
-        <div className="max-w-5xl mx-auto mt-8 md:hidden">
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-            <button
-              onClick={() => setAccordionOpen(!accordionOpen)}
-              className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
-            >
-              <span className="font-semibold text-gray-900">What's included in Premium?</span>
-              {accordionOpen ? (
-                <ChevronUp className="w-5 h-5 text-gray-500" />
-              ) : (
-                <ChevronDown className="w-5 h-5 text-gray-500" />
-              )}
-            </button>
-            {accordionOpen && (
-              <div className="px-6 pb-6 border-t border-gray-200">
-                <div className="pt-4">
-                  <h4 className="font-semibold text-gray-900 mb-2">Market Rate Insights</h4>
-                  <p className="text-sm text-gray-700 mb-4">
-                    Price work confidently without undercutting.
-                  </p>
-
-                  <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                    <h5 className="text-sm font-semibold text-gray-900 mb-2">Data sources (aggregated only):</h5>
-                    <ul className="space-y-2 text-sm text-gray-700">
-                      <li className="flex items-start gap-2">
-                        <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
-                        <span>Anonymised submitted quotes (delayed)</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
-                        <span>Accepted job prices</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
-                        <span>Subcontractor availability signals</span>
-                      </li>
-                    </ul>
-                  </div>
-
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <h5 className="text-sm font-semibold text-gray-900 mb-2">Rules:</h5>
-                    <ul className="space-y-2 text-sm text-gray-700">
-                      <li className="flex items-start gap-2">
-                        <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
-                        <span>25km radius</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
-                        <span>Rounded ranges only (e.g. $55–$70/hr)</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
-                        <span>Minimum sample size required</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
-                        <span>Rolling 60–90 day window</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
-                        <span>No real-time data</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
-                        <span>No individual accounts shown</span>
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Desktop Market Rate Insights (unchanged) */}
+        {/* Desktop Market Rate Insights */}
         <div className="mt-16 max-w-4xl mx-auto hidden md:block">
           <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-8 mb-8">
             <div className="flex items-start gap-4">
@@ -564,6 +574,7 @@ export default function PricingContent() {
           <p className="text-sm text-blue-100">
             Questions about pricing? <Link href="/messages" className="text-white/90 hover:text-white hover:underline">Contact our team</Link>
           </p>
+        </div>
         </div>
       </div>
 

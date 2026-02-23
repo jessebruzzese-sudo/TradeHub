@@ -177,7 +177,7 @@ export const BUILDER_PLAN_OPTIONS = [
     value: 'PREMIUM_SUBSCRIPTION' as BuilderPlan,
     label: 'Premium Subscription',
     description: 'Unlimited premium tenders',
-    price: '$30/month or $60/3 months',
+    price: '$29/month',
     features: [
       'Unlimited Premium tenders',
       'No per-tender charges',

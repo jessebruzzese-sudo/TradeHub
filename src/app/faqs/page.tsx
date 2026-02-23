@@ -68,7 +68,7 @@ export default function FAQsPage() {
               How does pricing work?
             </AccordionTrigger>
             <AccordionContent className="text-sm text-gray-600 pb-4">
-              Everyone gets free access to browse tenders and jobs, with 1 trial tender included. After that, pay per tender or subscribe to Premium ($30/month or $60 for 3 months) for unlimited tenders, quotes, multi-trade access, alerts, and market rate insights. One account type for everyone — no lead selling.
+              Everyone gets free access to browse tenders and jobs, with 1 trial tender included. After that, pay per tender or subscribe to Premium ($29/month) for unlimited tenders, quotes, multi-trade access, alerts, and market rate insights. One account type for everyone — no lead selling.
             </AccordionContent>
           </AccordionItem>
 

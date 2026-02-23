@@ -1,5 +1,6 @@
 import { SubcontractorPlan, SubcontractorSubStatus } from './types';
 import { MVP_FREE_MODE, MVP_RADIUS_KM, MVP_AVAILABILITY_HORIZON_DAYS } from './feature-flags';
+import { getTier, getLimits } from './plan-limits';
 
 /** Structural type covering both User (types.ts) and CurrentUser (auth-context). */
 type SubscriptionUser = {
@@ -108,16 +109,10 @@ export function getEffectiveRadiusKm(user: SubscriptionUser): number {
   return Math.min(preferredRadius, maxRadius);
 }
 
-/** Single-account: based on plan only. MVP: everyone gets 60-day horizon. */
-export function getAvailabilityHorizonDays(user: SubscriptionUser): number {
+/** Single-account: Free=30 days, Premium=90 days. MVP: everyone gets 60-day horizon. */
+export function getAvailabilityHorizonDays(user: SubscriptionUser | null | undefined): number {
   if (MVP_FREE_MODE) return MVP_AVAILABILITY_HORIZON_DAYS;
-
-  if (!user || !isSubcontractorPro(user)) {
-    return 14;
-  }
-
-  const isPro = isSubcontractorPro(user);
-  return isPro ? TIER_LIMITS.PRO_10.availabilityHorizonDays : TIER_LIMITS.NONE.availabilityHorizonDays;
+  return getLimits(getTier(user)).availabilityDays;
 }
 
 /** Single-account: based on plan only. MVP: all channels enabled for everyone. */
