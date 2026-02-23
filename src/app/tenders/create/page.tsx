@@ -41,6 +41,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 import { AlertCircle, ChevronLeft, ChevronRight, Info, Upload, X, Sparkles } from 'lucide-react';
 
+const MVP_FREE_MODE = process.env.NEXT_PUBLIC_MVP_FREE_MODE === 'true';
+
 interface TradeRequirement {
   trade: string;
   subDescription: string;
