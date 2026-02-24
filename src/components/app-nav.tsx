@@ -64,7 +64,7 @@ export function TopBar() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem disabled className="truncate max-w-[200px]">{currentUser.name}</DropdownMenuItem>
+              <DropdownMenuItem disabled className="truncate max-w-[200px]">{currentUser.name || 'TradeHub user'}</DropdownMenuItem>
               {!isAdmin(currentUser) && (
                 <>
                   <DropdownMenuItem asChild>

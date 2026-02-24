@@ -591,9 +591,9 @@ export default function JobDetailPage() {
               <h3 className="font-semibold text-gray-900 mb-2">Posted by</h3>
               <Link href={`/users/${poster.id}`}>
                 <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer border border-transparent hover:border-gray-200">
-                  <UserAvatar avatarUrl={poster.avatar} userName={poster.name} size="md" />
+                  <UserAvatar avatarUrl={poster.avatar} userName={poster.name || 'TradeHub user'} size="md" />
                   <div>
-                    <p className="font-medium text-gray-900 hover:text-blue-600 transition-colors">{poster.name}</p>
+                    <p className="font-medium text-gray-900 hover:text-blue-600 transition-colors">{poster.name || 'TradeHub user'}</p>
                     <p className="text-sm text-gray-600">{poster.businessName}</p>
                   </div>
                 </div>
@@ -770,7 +770,7 @@ export default function JobDetailPage() {
                 <p className="text-sm font-medium text-gray-900 mb-1">Job Cancelled</p>
                 <p className="text-xs text-gray-600">
                   Cancelled on {format(job.cancelledAt, 'MMM dd, yyyy')} by{' '}
-                  {job.cancelledBy === currentUser.id ? 'you' : store.getUserById(job.cancelledBy || '')?.name}
+                  {job.cancelledBy === currentUser.id ? 'you' : store.getUserById(job.cancelledBy || '')?.name || 'TradeHub user'}
                 </p>
                 {job.cancellationReason && <p className="text-sm text-gray-700 mt-2">{job.cancellationReason}</p>}
               </div>
@@ -789,9 +789,9 @@ export default function JobDetailPage() {
                     <div key={app.id} className="border border-gray-200 rounded-lg p-4">
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex items-center gap-3">
-                          <UserAvatar avatarUrl={applicant.avatar} userName={applicant.name} size="md" />
+                          <UserAvatar avatarUrl={applicant.avatar} userName={applicant.name || 'TradeHub user'} size="md" />
                           <div>
-                            <p className="font-medium text-gray-900">{applicant.name}</p>
+                            <p className="font-medium text-gray-900">{applicant.name || 'TradeHub user'}</p>
                             <p className="text-sm text-gray-600">
                               {applicant.rating} ★ · {applicant.completedJobs} jobs
                             </p>
@@ -897,7 +897,7 @@ export default function JobDetailPage() {
             <ReliabilityReviewForm
               job={job}
               recipientId={recipientId!}
-              recipientName={recipient.name}
+              recipientName={recipient.name || 'TradeHub user'}
               open={showReviewDialog}
               onOpenChange={setShowReviewDialog}
               onSubmit={handleSubmitReview}

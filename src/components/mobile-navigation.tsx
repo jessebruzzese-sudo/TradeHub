@@ -113,11 +113,11 @@ export function MobileDrawer() {
             <div className="p-6 bg-gray-50 border-b border-gray-200">
               <div className="flex items-start gap-3">
                 <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold text-lg">
-                  {(currentUser.name ?? '?').charAt(0).toUpperCase()}
+                  {(currentUser.name || '?').charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-gray-900 truncate">
-                    {currentUser.name ?? ''}
+                    {currentUser.name || 'TradeHub user'}
                   </h3>
                   <p className="text-sm text-gray-600 truncate">
                     {primaryTrade}

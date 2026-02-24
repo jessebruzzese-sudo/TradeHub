@@ -89,11 +89,12 @@ function mapToCard(
   avatar_url: string | null;
   isPremium: boolean;
 } {
+  // Prefer users.name (visible/display name), then business_name, with safe fallback
   const displayName =
+    (row as Record<string, unknown>).name ??
     (row as Record<string, unknown>).business_name ??
     (row as Record<string, unknown>).display_name ??
     (row as Record<string, unknown>).full_name ??
-    (row as Record<string, unknown>).name ??
     'TradeHub user';
 
   const suburb =

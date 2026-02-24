@@ -58,7 +58,7 @@ export function AuditLogView({
                     </span>
                     {targetUser && (
                       <span>
-                        User: <span className="font-medium text-gray-700">{targetUser.name}</span>
+                        User: <span className="font-medium text-gray-700">{targetUser.name || 'TradeHub user'}</span>
                       </span>
                     )}
                   </div>

@@ -124,12 +124,51 @@ async function lookupAbn(abn: string): Promise<AbrResult> {
   };
 }
 
-/* ── Route handler ────────────────────────────────────────────────── */
+/* ── Route handler (public — no auth required for signup flow) ─────── */
 
 export async function POST(req: Request) {
-  /* ── Auth ── */
-  const cookieStore = cookies();
+  /* ── Parse & validate ── */
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json(
+      { active: false, error: 'Invalid JSON' },
+      { status: 400 },
+    );
+  }
 
+  const abn = sanitizeAbn(String(body?.abn ?? ''));
+
+  if (abn.length !== 11) {
+    return NextResponse.json(
+      { active: false, error: 'ABN must be 11 digits' },
+      { status: 400 },
+    );
+  }
+
+  /* ── Call ABR ── */
+  let result: AbrResult;
+  try {
+    result = await lookupAbn(abn);
+  } catch (err) {
+    console.error('[abn/verify] ABR lookup error:', (err as Error).message);
+    return NextResponse.json(
+      { active: false, error: 'ABN lookup temporarily unavailable' },
+      { status: 502 },
+    );
+  }
+
+  if (!result.found) {
+    return NextResponse.json({ active: false }, { status: 200 });
+  }
+
+  if (!result.active) {
+    return NextResponse.json({ active: false }, { status: 200 });
+  }
+
+  /* ── Optional: persist when user is authenticated (e.g. verify-business page) ── */
+  const cookieStore = cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -147,131 +186,55 @@ export async function POST(req: Request) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    return NextResponse.json(
-      { ok: false, error: 'Not authenticated' },
-      { status: 401 },
+  if (user) {
+    const admin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { persistSession: false } },
     );
+
+    const now = new Date().toISOString();
+
+    await admin
+      .from('abn_verifications')
+      .insert({
+        user_id: user.id,
+        business_name: result.businessName,
+        entity_type: result.entityType,
+        status: 'verified',
+        provider: 'abr',
+        checked_at: now,
+      })
+      .then(({ error }) => {
+        if (error) console.warn('[abn/verify] audit insert skipped:', error.message);
+      });
+
+    const { error: updateError } = await admin
+      .from('users')
+      .update({
+        abn,
+        business_name: result.businessName,
+        abn_status: 'VERIFIED',
+        abn_verified_at: now,
+      })
+      .eq('id', user.id);
+
+    if (updateError) {
+      console.error('[abn/verify] profile update failed:', updateError.message);
+    }
+
+    await admin
+      .from('users')
+      .update({
+        entity_type: result.entityType,
+        abn_last_checked_at: now,
+      })
+      .eq('id', user.id)
+      .then(({ error }) => {
+        if (error) console.warn('[abn/verify] extended columns not yet migrated:', error.message);
+      });
   }
 
-  /* ── Parse & validate ── */
-  let body: Record<string, unknown>;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json(
-      { ok: false, error: 'Invalid JSON' },
-      { status: 400 },
-    );
-  }
-
-  const abn = sanitizeAbn(String(body?.abn ?? ''));
-
-  if (abn.length !== 11) {
-    return NextResponse.json(
-      { ok: false, error: 'Invalid ABN' },
-      { status: 400 },
-    );
-  }
-
-  /* ── Call ABR ── */
-  let result: AbrResult;
-  try {
-    result = await lookupAbn(abn);
-  } catch (err) {
-    // Do not expose internal details to the client.
-    console.error('[abn/verify] ABR lookup error:', (err as Error).message);
-    return NextResponse.json(
-      { ok: false, error: 'ABN service unavailable' },
-      { status: 502 },
-    );
-  }
-
-  if (!result.found) {
-    return NextResponse.json(
-      { ok: false, status: 'NOT_FOUND' },
-      { status: 404 },
-    );
-  }
-
-  if (!result.active) {
-    return NextResponse.json({
-      ok: false,
-      status: 'INACTIVE',
-      displayStatus: 'ABN not active',
-    });
-  }
-
-  /* ── Persist (service-role client) ── */
-  const admin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } },
-  );
-
-  const now = new Date().toISOString();
-
-  // Audit trail — abn_verifications table (requires migration, see notes).
-  // We use .insert() and silently ignore errors if the table doesn't exist yet.
-  await admin
-    .from('abn_verifications')
-    .insert({
-      user_id: user.id,
-      business_name: result.businessName,
-      entity_type: result.entityType,
-      status: 'verified',
-      provider: 'abr',
-      checked_at: now,
-    })
-    .then(({ error }) => {
-      if (error) {
-        console.warn('[abn/verify] audit insert skipped:', error.message);
-      }
-    });
-
-  // Update user profile.
-  // ABN is stored in the existing private `abn` column for future re-verification.
-  // It is NEVER returned to the client or rendered in public UI.
-  const { error: updateError } = await admin
-    .from('users')
-    .update({
-      abn,
-      business_name: result.businessName,
-      abn_status: 'VERIFIED',
-      abn_verified_at: now,
-    })
-    .eq('id', user.id);
-
-  if (updateError) {
-    console.error('[abn/verify] profile update failed:', updateError.message);
-    return NextResponse.json(
-      { ok: false, error: 'Failed to update profile' },
-      { status: 500 },
-    );
-  }
-
-  // Best-effort: update new columns (entity_type, abn_last_checked_at).
-  // These columns require a migration — see supabase/migrations notes.
-  // If the columns don't exist yet this update silently fails and doesn't
-  // block the verification flow.
-  await admin
-    .from('users')
-    .update({
-      entity_type: result.entityType,
-      abn_last_checked_at: now,
-    })
-    .eq('id', user.id)
-    .then(({ error }) => {
-      if (error) {
-        console.warn('[abn/verify] extended columns not yet migrated:', error.message);
-      }
-    });
-
-  /* ── Safe response — ABN value is NEVER included ── */
-  return NextResponse.json({
-    ok: true,
-    status: 'ACTIVE',
-    displayStatus: 'ABN verified',
-    businessName: result.businessName,
-  });
+  /* ── Response: only active true/false (no business details for public) ── */
+  return NextResponse.json({ active: true }, { status: 200 });
 }

@@ -21,9 +21,9 @@ export function ReliabilityReviewCard({ review, author }: ReliabilityReviewCardP
       )}
 
       <div className="flex items-start gap-3 mb-3">
-        <UserAvatar avatarUrl={author.avatar} userName={author.name} size="md" />
+        <UserAvatar avatarUrl={author.avatar} userName={author.name || 'TradeHub user'} size="md" />
         <div className="flex-1">
-          <div className="font-semibold text-gray-900">{author.name}</div>
+          <div className="font-semibold text-gray-900">{author.name || 'TradeHub user'}</div>
           <div className="text-xs text-gray-600">{format(review.createdAt, 'MMM dd, yyyy')}</div>
         </div>
       </div>

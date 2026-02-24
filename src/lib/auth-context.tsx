@@ -17,6 +17,40 @@ import {
   hasContractorPremium,
 } from '@/lib/capability-utils';
 
+export async function ensureProfileRow(supabase: any, user: any) {
+  if (!user?.id) return;
+
+  const { data: existing, error: fetchError } = await supabase
+    .from('users')
+    .select('id')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (fetchError) {
+    console.error('ensureProfileRow fetch error', fetchError);
+    return;
+  }
+
+  if (existing?.id) return;
+
+  const { error: insertError } = await supabase.from('users').insert({
+    id: user.id,
+    email: user.email ?? null,
+    name: user.user_metadata?.full_name ?? null,
+  });
+
+  if (insertError) {
+    if (insertError.code === '23505') return; // already exists
+    console.error('ensureProfileRow insert error', insertError);
+  }
+}
+
+const numOrNull = (v: unknown): number | null => {
+  if (v === '' || v === undefined || v === null) return null;
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+
 type Day = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
 type Availability = Record<Day, boolean>;
 
@@ -50,6 +84,11 @@ type DbUserRow = {
   search_postcode?: string | null;
   search_lat?: number | null;
   search_lng?: number | null;
+  location_lat?: number | null;
+  location_lng?: number | null;
+  radius?: number | null;
+  preferred_radius_km?: number | null;
+  subcontractor_preferred_radius_km?: number | null;
   is_public_profile?: boolean | null;
 };
 
@@ -121,6 +160,8 @@ type SignupExtras = {
   additionalTrades?: string[];
   /** Full trade selection (1 for free, up to 5 for premium). TODO: migrate backend to use this. */
   tradeCategories?: string[];
+  /** Legal/full name (stored in metadata only; display name goes via `name` param). */
+  legal_name?: string;
 };
 
 type UpdateUserInput = Partial<
@@ -242,8 +283,17 @@ function mapUiPatchToDb(patch: UpdateUserInput): Partial<DbUserRow> {
   if (patch.additionalTrades !== undefined) out.additional_trades = patch.additionalTrades ?? null;
   if (patch.searchLocation !== undefined) out.search_location = patch.searchLocation ?? null;
   if (patch.searchPostcode !== undefined) out.search_postcode = patch.searchPostcode ?? null;
-  if (patch.searchLat !== undefined) out.search_lat = patch.searchLat ?? null;
-  if (patch.searchLng !== undefined) out.search_lng = patch.searchLng ?? null;
+  // Search-from coords
+  if (patch.searchLat !== undefined) out.search_lat = numOrNull(patch.searchLat);
+  if (patch.searchLng !== undefined) out.search_lng = numOrNull(patch.searchLng);
+  // Location coords (if patch supports them)
+  if ((patch as any).locationLat !== undefined) out.location_lat = numOrNull((patch as any).locationLat);
+  if ((patch as any).locationLng !== undefined) out.location_lng = numOrNull((patch as any).locationLng);
+  // Radius fields (often come from inputs/sliders as strings)
+  if ((patch as any).radius !== undefined) out.radius = numOrNull((patch as any).radius);
+  if ((patch as any).preferredRadiusKm !== undefined) out.preferred_radius_km = numOrNull((patch as any).preferredRadiusKm);
+  if ((patch as any).subcontractorPreferredRadiusKm !== undefined)
+    out.subcontractor_preferred_radius_km = numOrNull((patch as any).subcontractorPreferredRadiusKm);
   if (patch.isPublicProfile !== undefined) out.is_public_profile = patch.isPublicProfile ?? false;
   return out;
 }
@@ -286,44 +336,12 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
     [supabase]
   );
 
-  const ensureProfileRow = useCallback(
+  const ensureProfileRowInContext = useCallback(
     async (user: User): Promise<void> => {
-      const userId = user?.id;
-      if (!userId) return;
-
       try {
-        const existing = await loadProfile(userId);
-        if (existing) {
-          setCurrentUser(existing);
-          return;
-        }
-
-        const payload: Partial<DbUserRow> = {
-          id: userId,
-          email: user.email ?? null,
-          name:
-            (user.user_metadata?.name as string | undefined) ??
-            (user.user_metadata?.full_name as string | undefined) ??
-            null,
-          role: (user.user_metadata?.role as string | undefined) ?? null,
-          trust_status: 'pending',
-          avatar: null,
-          bio: null,
-          rating: null,
-          reliability_rating: null,
-        };
-
-        const { error: upsertErr } = await (supabase.from('users') as any).upsert(payload, {
-          onConflict: 'id',
-        });
-
-        if (upsertErr) {
-          console.error('ensureProfileRow upsert error', upsertErr);
-          return;
-        }
-
-        const profile = await loadProfile(userId);
-        setCurrentUser(profile);
+        await ensureProfileRow(supabase, user);
+        const profile = await loadProfile(user.id);
+        if (profile) setCurrentUser(profile);
       } catch (e) {
         console.error('ensureProfileRow unexpected error', e);
       }
@@ -351,13 +369,13 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
       // background profile ensure/load (ignore stale completions)
       (async () => {
         try {
-          await ensureProfileRow(user);
+          await ensureProfileRowInContext(user);
         } finally {
           if (seq !== seqRef.current) return;
         }
       })();
     },
-    [ensureProfileRow]
+    [ensureProfileRowInContext]
   );
 
   const refreshUser = useCallback(async () => {
@@ -444,6 +462,8 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
               additionalTrades: extras.additionalTrades ?? null,
               // TODO: migrate trigger to use trade_categories; for now primary_trade = first
               trade_categories: extras.tradeCategories ?? null,
+              legal_name: extras.legal_name ?? null,
+              full_name: extras.legal_name ?? null, // Preserve full name in metadata (no DB column)
             },
           },
         });
@@ -454,7 +474,7 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
 
         // Best-effort: ensure profile row exists even if session is null
         if (data?.user) {
-          await ensureProfileRow(data.user);
+          await ensureProfileRowInContext(data.user);
         }
 
         // Merge extras into in-memory currentUser so UI doesn't break
@@ -484,7 +504,7 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
         setIsLoading(false);
       }
     },
-    [applySession, ensureProfileRow, supabase]
+    [applySession, ensureProfileRowInContext, supabase]
   );
 
   const updateUser: AuthCtx['updateUser'] = useCallback(
