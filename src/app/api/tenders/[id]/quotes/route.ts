@@ -49,6 +49,27 @@ export async function POST(
       const tier = getTier(dbUser);
       const limits = getLimits(tier);
 
+      // Free plan total quotes in rolling 30 days (across all tenders)
+      // Deleted quotes still count because we soft-delete (deleted_at) instead of hard delete.
+      if (limits.quotesPerMonth && limits.quotesPerMonth !== 'unlimited') {
+        const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        const { count: monthCount, error: monthCountErr } = await supabase
+          .from('tender_quotes')
+          .select('id', { count: 'exact', head: true })
+          .eq('contractor_id', dbUser.id)
+          .gte('created_at', since);
+
+        if (!monthCountErr && (monthCount ?? 0) >= (limits.quotesPerMonth as number)) {
+          console.log(
+            `[plan-limits] user_id=${dbUser.id} tier=${tier} reason=quotes_rolling_30d_limit since=${since} count=${monthCount}`
+          );
+          return NextResponse.json(
+            { error: 'Free plan allows up to 3 tender quotes per 30 days. Upgrade for more.' },
+            { status: 402 }
+          );
+        }
+      }
+
       if (limits.quotesPerTender !== 'unlimited') {
         const { count, error: countErr } = await supabase
           .from('tender_quotes')
@@ -71,6 +92,7 @@ export async function POST(
       }
     }
 
+    // Keep billing_month_key for analytics/UX, but enforcement is rolling 30 days
     const billingMonthKey = getMonthKeyBrisbane();
 
     const { data: quote, error: insertErr } = await supabase

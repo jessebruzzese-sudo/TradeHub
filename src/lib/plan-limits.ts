@@ -40,6 +40,8 @@ export type PlanLimits = {
   availabilityDays: number;
   tenderPerMonth: number | 'unlimited';
   quotesPerTender: number | 'unlimited';
+  /** Total quotes per month across all tenders (Free plan cap) */
+  quotesPerMonth?: number | 'unlimited';
 };
 
 const FREE_LIMITS: PlanLimits = {
@@ -48,6 +50,7 @@ const FREE_LIMITS: PlanLimits = {
   availabilityDays: 30,
   tenderPerMonth: 1,
   quotesPerTender: 3,
+  quotesPerMonth: 3,
 };
 
 const PREMIUM_LIMITS: PlanLimits = {
@@ -56,6 +59,7 @@ const PREMIUM_LIMITS: PlanLimits = {
   availabilityDays: 90,
   tenderPerMonth: 'unlimited',
   quotesPerTender: 'unlimited',
+  quotesPerMonth: 'unlimited',
 };
 
 function isPremium(user: TierUser | null | undefined): boolean {

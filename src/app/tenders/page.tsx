@@ -168,7 +168,8 @@ export default function TendersPage() {
     try {
       let q = supabase
         .from('tenders')
-        .select('id,builder_id,status,tier,is_name_hidden,project_name,project_description,suburb,postcode');
+        .select('id,builder_id,status,tier,is_name_hidden,project_name,project_description,suburb,postcode')
+        .is('deleted_at', null);
 
       // =========================
       // Visibility / View rules
@@ -254,7 +255,11 @@ export default function TendersPage() {
     if (!ok) return;
 
     try {
-      const { error } = await supabase.from('tenders').delete().eq('id', tenderId).eq('builder_id', myUserId);
+      const { error } = await supabase
+        .from('tenders')
+        .update({ deleted_at: new Date().toISOString() } as any)
+        .eq('id', tenderId)
+        .eq('builder_id', myUserId);
       if (error) throw error;
 
       toast.success('Tender deleted');

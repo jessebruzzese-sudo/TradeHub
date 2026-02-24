@@ -47,13 +47,12 @@ export default function AdminTendersPage() {
         .select(`
           id,
           project_name,
-          suburb,
-          approval_status,
           created_at,
-          builder_id,
-          builder:users!tenders_builder_id_fkey(name),
-          tradeRequirements:tender_trade_requirements(trade)
+          status,
+          builder_id
         `)
+        // Typed client: use PostgREST "is null" filter
+        .filter('deleted_at', 'is', null as any)
         .order('created_at', { ascending: false });
 
       if (error) throw error;

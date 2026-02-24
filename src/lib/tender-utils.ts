@@ -63,6 +63,7 @@ export async function checkMvpTenderPostCap(
   const { monthStart, monthEnd } = getCurrentMonthBoundsAEST();
   const { count, error } = await supabase
     .from('tenders')
+    .is('deleted_at', null)
     .select('id', { count: 'exact', head: true })
     .eq('builder_id', userId)
     .gte('created_at', monthStart)

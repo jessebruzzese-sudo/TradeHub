@@ -48,6 +48,9 @@ export default function TradeSuburbTenders({ trade, suburb }: TradeSuburbTenders
         .eq('status', 'LIVE')
         .order('created_at', { ascending: false });
 
+      // Hide soft-deleted tenders (typed client: null needs casting)
+      query = (query as any).eq('deleted_at', null);
+
       const { data, error } = await query;
 
       if (error) throw error;

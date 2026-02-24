@@ -3,7 +3,9 @@
  */
 
 import { getTier, getLimits } from './plan-limits';
-import { getCurrentMonthBoundsAEST } from './tender-utils';
+
+// Rolling window limits: quota is based on last 30 days from *now* (submission time),
+// not calendar month start. Deleted items still count (soft delete).
 
 /** Tenders that count toward monthly limit: published, live, or pending approval. */
 const ACTIVE_TENDER_STATUSES = ['PUBLISHED', 'LIVE', 'PENDING_APPROVAL'] as const;
@@ -26,14 +28,14 @@ export async function checkTenderCreationLimit(
     return { allowed: true };
   }
 
-  const { monthStart, monthEnd } = getCurrentMonthBoundsAEST();
+  const start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
   const { count, error } = await supabase
     .from('tenders')
     .select('id', { count: 'exact', head: true })
     .eq('builder_id', userId)
     .in('status', ACTIVE_TENDER_STATUSES)
-    .gte('created_at', monthStart)
-    .lt('created_at', monthEnd);
+    .gte('created_at', start);
 
   if (error) {
     console.error('Tender limit check error:', error);

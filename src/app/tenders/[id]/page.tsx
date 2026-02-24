@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
+import { isPremiumForDiscovery } from '@/lib/discovery';
 import { useAuth } from '@/lib/auth';
 import { isAdmin } from '@/lib/is-admin';
 import { safeRouterPush } from '@/lib/safe-nav';
@@ -164,6 +165,32 @@ function TenderDetailUuidPage({ id }: { id: string }) {
 
   const isMyTender = (t: TenderDetail) => !!currentUser && t.builderId === currentUser.id;
 
+  const handleEditQuoteClick = () => {
+    const userForDiscovery = {
+      id: currentUser?.id,
+      is_premium: currentUser?.isPremium ?? undefined,
+      subscription_status: currentUser?.subscriptionStatus,
+      active_plan: currentUser?.activePlan,
+      subcontractor_plan: undefined,
+    };
+    const isPremium = isPremiumForDiscovery(userForDiscovery as Parameters<typeof isPremiumForDiscovery>[0]);
+
+    if (!isPremium) {
+      // Keep button visible for Free, but send to pricing
+      toast.error('Upgrade to edit quotes', {
+        description:
+          "Editing tender quotes is a Premium feature. You can delete this quote, but it will still count toward your monthly quote limit.",
+        duration: 5000,
+      });
+      router.push('/pricing');
+      return;
+    }
+
+    // Premium: proceed to edit flow (if you have one). For now, show a helpful toast.
+    toast('Edit quote', { description: 'Opening quote editor…' });
+    // TODO: router.push(`/tenders/${tenderId}/quotes/${quoteId}/edit`)
+  };
+
   // Fetch tender from Supabase
   useEffect(() => {
     const run = async () => {
@@ -187,6 +214,7 @@ function TenderDetailUuidPage({ id }: { id: string }) {
           `
           )
           .eq('id', id)
+          .is('deleted_at', null)
           .maybeSingle();
 
         if (error) throw error;
@@ -762,10 +790,20 @@ function TenderDetailUuidPage({ id }: { id: string }) {
                               </div>
                             </div>
 
-                            <Button onClick={handleSubmitQuote} disabled={isSubmitting || !quotePrice} className="w-full">
-                              <Send className="mr-2 h-4 w-4" />
-                              {isSubmitting ? 'Submitting…' : 'Submit Quote'}
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button onClick={handleSubmitQuote} disabled={isSubmitting || !quotePrice} className="flex-1">
+                                <Send className="mr-2 h-4 w-4" />
+                                {isSubmitting ? 'Submitting…' : 'Submit Quote'}
+                              </Button>
+                              {/* Edit Quote (blocked) */}
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={handleEditQuoteClick}
+                              >
+                                Edit quote
+                              </Button>
+                            </div>
                           </div>
                         )}
                       </CardContent>
