@@ -5,8 +5,7 @@
 
 export type PlanTier = 'free' | 'premium';
 
-type TierUser = {
-  id?: string;
+export type PlanUser = {
   is_premium?: boolean | null;
   subscription_status?: string | null;
   subscriptionStatus?: string | null;
@@ -14,48 +13,84 @@ type TierUser = {
   active_plan?: string | null;
   activePlan?: string | null;
   subcontractor_plan?: string | null;
-  subcontractor_sub_status?: string | null;
   subcontractorPlan?: string | null;
+  premium_until?: string | Date | null;
+  premiumUntil?: string | Date | null;
+  complimentary_premium_until?: string | Date | null;
+  complimentaryPremiumUntil?: string | Date | null;
+};
+
+type TierUser = PlanUser & {
+  id?: string;
+  subcontractor_sub_status?: string | null;
   subcontractorSubStatus?: string | null;
 };
 
-
-export const FREE_LIMITS = {
-  radiusKm: 20,
-  availabilityDays: 30,
-  tenderPerMonth: 1 as const,
-  quotesPerTender: 3 as const,
-} as const;
-
-export const PREMIUM_LIMITS = {
-  radiusKm: 100,
-  availabilityDays: 90,
-  tenderPerMonth: 'unlimited' as const,
-  quotesPerTender: 'unlimited' as const,
-} as const;
+function isFutureDate(d: unknown): boolean {
+  if (!d) return false;
+  const dt = d instanceof Date ? d : new Date(d as string);
+  return !Number.isNaN(dt.getTime()) && dt.getTime() > Date.now();
+}
 
 export type PlanLimits = {
+  /** Discovery/search radius cap (used for jobs + tenders discovery) */
+  discoveryRadiusKm: number;
+  /** Back-compat alias (some older callers may still use radiusKm) */
   radiusKm: number;
   availabilityDays: number;
   tenderPerMonth: number | 'unlimited';
   quotesPerTender: number | 'unlimited';
 };
 
+const FREE_LIMITS: PlanLimits = {
+  discoveryRadiusKm: 20,
+  radiusKm: 20,
+  availabilityDays: 30,
+  tenderPerMonth: 1,
+  quotesPerTender: 3,
+};
+
+const PREMIUM_LIMITS: PlanLimits = {
+  discoveryRadiusKm: 100,
+  radiusKm: 100,
+  availabilityDays: 90,
+  tenderPerMonth: 'unlimited',
+  quotesPerTender: 'unlimited',
+};
+
 function isPremium(user: TierUser | null | undefined): boolean {
   if (!user) return false;
+
+  // Strong explicit flag
   if (user.is_premium === true) return true;
+
+  // Complimentary premium (admin grant)
+  if (
+    isFutureDate(user.complimentary_premium_until) ||
+    isFutureDate(user.complimentaryPremiumUntil)
+  ) {
+    return true;
+  }
+
+  // Time-boxed premium
+  if (isFutureDate(user.premium_until) || isFutureDate(user.premiumUntil)) {
+    return true;
+  }
+
   const tier = (user.subscription_tier ?? '').toString().toLowerCase();
   if (tier === 'premium') return true;
+
   const status = (user.subscription_status ?? user.subscriptionStatus ?? '').toString().toLowerCase();
-  const subStatus = (user.subcontractor_sub_status ?? user.subcontractorSubStatus ?? '').toString().toLowerCase();
   const plan = (user.active_plan ?? user.activePlan ?? '').toString().toLowerCase();
   const subPlan = (user.subcontractor_plan ?? user.subcontractorPlan ?? '').toString().toLowerCase();
-  return (
-    ['active', 'trialing'].includes(status) ||
-    ['active', 'trialing'].includes(subStatus) ||
-    ['pro', 'premium'].includes(plan) ||
-    ['pro', 'premium'].includes(subPlan)
-  );
+
+  // Strict: only treat as premium when ACTIVE and plan indicates premium/pro
+  if (status === 'active') {
+    if (['pro', 'premium'].includes(plan)) return true;
+    if (['pro', 'premium'].includes(subPlan)) return true;
+  }
+
+  return false;
 }
 
 /** Determine tier from database-backed user. Never accept tier from request body. */

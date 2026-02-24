@@ -1,15 +1,27 @@
 /**
- * Discovery helpers: radius, haversine distance, count formatting,
- * premium detection, viewer center, and bounding-box prefilter.
+ * Discovery helpers (viewer center, bounding-box prefilter).
+ * Premium/limits must come from plan-limits to avoid drift.
  */
 
-type PremiumUser = {
+import { getTier, getLimits, type PlanUser } from './plan-limits';
+
+// Hard cap constants (defensive — real values still come from plan-limits)
+const ABS_MAX_FREE_RADIUS_KM = 20;
+const ABS_MAX_PREMIUM_RADIUS_KM = 100;
+
+export type DbUserRow = {
+  id: string;
+  role?: string | null;
   is_premium?: boolean | null;
   subscription_status?: string | null;
-  subcontractor_sub_status?: string | null;
   active_plan?: string | null;
   subcontractor_plan?: string | null;
+  subcontractor_sub_status?: string | null;
+  premium_until?: string | null;
+  complimentary_premium_until?: string | null;
 };
+
+type PremiumUser = DbUserRow;
 
 type ViewerCenterUser = PremiumUser & {
   search_lat?: number | null;
@@ -22,44 +34,16 @@ type ViewerCenterUser = PremiumUser & {
 
 /** Premium detection for ranking candidates (not eligibility). */
 export function isPremiumCandidate(row: unknown): boolean {
-  const r = row as Record<string, unknown> | null | undefined;
-  if (!r) return false;
-  const status = (r.subscription_status ?? '').toString().toLowerCase();
-  const subStatus = (r.subcontractor_sub_status ?? '').toString().toLowerCase();
-  const activePlan = (r.active_plan ?? '').toString().toLowerCase();
-  const subPlan = (r.subcontractor_plan ?? '').toString().toLowerCase();
-
-  return (
-    r.is_premium === true ||
-    status === 'active' ||
-    status === 'trialing' ||
-    subStatus === 'active' ||
-    subStatus === 'trialing' ||
-    activePlan === 'pro' ||
-    activePlan === 'premium' ||
-    subPlan === 'pro' ||
-    subPlan === 'premium'
-  );
+  return getTier(row as DbUserRow) === 'premium';
 }
 
-/** Strict premium detection to avoid accidental 50km radius. */
-export function isPremiumForDiscovery(
-  currentUser: PremiumUser | null | undefined
-): boolean {
-  if (!currentUser) return false;
+export function isPremiumRow(r: DbUserRow): boolean {
+  return getTier(r) === 'premium';
+}
 
-  const status = (currentUser.subscription_status ?? '').toLowerCase();
-  const subStatus = (currentUser.subcontractor_sub_status ?? '').toLowerCase();
-  const plan = (currentUser.active_plan ?? '').toLowerCase();
-  const subPlan = (currentUser.subcontractor_plan ?? '').toLowerCase();
-
-  return (
-    currentUser.is_premium === true ||
-    ['active', 'trialing'].includes(status) ||
-    ['active', 'trialing'].includes(subStatus) ||
-    ['pro', 'premium'].includes(plan) ||
-    ['pro', 'premium'].includes(subPlan)
-  );
+/** Strict premium detection for discovery: defer to plan-limits tier. */
+export function isPremiumForDiscovery(currentUser: PlanUser | null | undefined): boolean {
+  return getTier(currentUser) === 'premium';
 }
 
 /** Viewer center: premium uses search_from if set; free never uses search_from; clean fallbacks. */
@@ -120,13 +104,30 @@ export function bboxForRadiusKm(
   };
 }
 
-import { getTier, getLimits } from './plan-limits';
-
-/** Discovery radius: free = 20km, premium = 100km. Uses plan-limits. */
+/**
+ * Discovery radius enforced server-side (used by API routes).
+ * - Free: up to 20km
+ * - Premium: up to 100km
+ * Always clamps to plan limits and absolute safety caps.
+ */
 export function getDiscoveryRadiusKm(
-  currentUser: PremiumUser | null | undefined
+  user: PlanUser | DbUserRow | null | undefined,
+  requestedRadiusKm?: number | null
 ): number {
-  return getLimits(getTier(currentUser)).radiusKm;
+  const tier = getTier(user ?? {});
+  const limits = getLimits(tier);
+
+  const planRadius = limits.discoveryRadiusKm ?? limits.radiusKm;
+  const raw =
+    typeof requestedRadiusKm === 'number' && Number.isFinite(requestedRadiusKm)
+      ? requestedRadiusKm
+      : planRadius;
+
+  const planCap = planRadius;
+  const absCap = tier === 'premium' ? ABS_MAX_PREMIUM_RADIUS_KM : ABS_MAX_FREE_RADIUS_KM;
+
+  const clamped = Math.max(1, Math.min(raw, planCap, absCap));
+  return clamped;
 }
 
 /** Haversine distance in km (pure JS). */

@@ -43,6 +43,7 @@ type DbUserRow = {
   subscription_started_at?: string | null;
   subscription_canceled_at?: string | null;
   complimentary_premium_until?: string | null;
+  premium_until?: string | null;
   additional_trades_unlocked?: boolean | null;
   additional_trades?: string[] | null;
   search_location?: string | null;
@@ -97,6 +98,7 @@ export type CurrentUser = {
   subscriptionStartedAt?: string | null;
   subscriptionCanceledAt?: string | null;
   complimentaryPremiumUntil?: string | null;
+  premiumUntil?: string | null;
 
   // Premium "search-from" location (from DB)
   searchLocation?: string | null;
@@ -216,6 +218,7 @@ function mapDbToUi(row: DbUserRow): CurrentUser {
     subscriptionStartedAt: row.subscription_started_at ?? null,
     subscriptionCanceledAt: row.subscription_canceled_at ?? null,
     complimentaryPremiumUntil: row.complimentary_premium_until ?? null,
+    premiumUntil: row.premium_until ?? null,
 
     searchLocation: row.search_location ?? null,
     searchPostcode: row.search_postcode ?? null,
@@ -262,7 +265,7 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
           .select(
             'id,email,name,role,is_admin,trust_status,avatar,bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,' +
               'is_premium,active_plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,' +
-              'complimentary_premium_until,additional_trades_unlocked,search_location,search_postcode,search_lat,search_lng,' +
+              'complimentary_premium_until,premium_until,additional_trades_unlocked,search_location,search_postcode,search_lat,search_lng,' +
               'is_public_profile'
           )
           .eq('id', userId)
