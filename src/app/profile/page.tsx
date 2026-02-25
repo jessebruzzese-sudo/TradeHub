@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import {
   Star,
@@ -20,6 +21,7 @@ import { AppLayout } from '@/components/app-nav';
 import StatusPill from '@/components/status-pill';
 import { ReliabilityReviewCard } from '@/components/reliability-review-card';
 import { ProfileAvatar } from '@/components/profile-avatar';
+import { ProfileCover } from '@/components/profile-cover';
 import { ProBadge } from '@/components/pro-badge';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
@@ -35,8 +37,15 @@ import { useSimulatedPremium } from '@/lib/use-simulated-premium';
 import { MVP_FREE_MODE } from '@/lib/feature-flags';
 
 export default function ProfilePage() {
-  const { session, currentUser } = useAuth();
+  const { session, currentUser, updateUser } = useAuth();
+  const router = useRouter();
   const store = useMemo(() => getStore(), []);
+
+  useEffect(() => {
+    if (currentUser === null) {
+      router.replace('/');
+    }
+  }, [currentUser, router]);
   const [isSimulated, setSimulated] = useSimulatedPremium();
   const [portalLoading, setPortalLoading] = useState(false);
 
@@ -60,7 +69,13 @@ export default function ProfilePage() {
     );
   }
 
-  if (!currentUser) return null;
+  if (!currentUser) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-sm text-slate-500">
+        Redirecting...
+      </div>
+    );
+  }
 
   const reviews = store.getReviewsByRecipient(currentUser.id);
   const reliabilityReviews = reviews.filter((r: any) => r.isReliabilityReview);
@@ -111,6 +126,17 @@ export default function ProfilePage() {
               Back to Dashboard
             </Button>
           </Link>
+        </div>
+
+        {/* Cover banner */}
+        <div className="mb-6">
+          <ProfileCover
+            userId={currentUser.id}
+            coverUrl={currentUser.coverUrl ?? undefined}
+            onCoverUpdate={async (url) => {
+              await updateUser({ coverUrl: url });
+            }}
+          />
         </div>
 
         {/* Header card */}

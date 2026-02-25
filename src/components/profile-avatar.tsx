@@ -2,9 +2,14 @@
 
 import { useRef, useState } from 'react';
 import Image from 'next/image';
+import Cropper from 'react-easy-crop';
+import type { Area } from 'react-easy-crop';
 import { Camera } from 'lucide-react';
 import { toast } from 'sonner';
 import { getBrowserSupabase } from '@/lib/supabase-client';
+import { getCroppedImageBlob } from '@/lib/crop-image';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Slider } from '@/components/ui/slider';
 
 interface ProfileAvatarProps {
   userId: string;
@@ -29,8 +34,30 @@ export function ProfileAvatar({
 }: ProfileAvatarProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [cropOpen, setCropOpen] = useState(false);
+  const [imageSrc, setImageSrc] = useState<string | null>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isAutoCenteringRef = useRef(false);
   const supabase = getBrowserSupabase();
+
+  const onCropComplete = (_: Area, cropped: Area) => {
+    setCroppedAreaPixels(cropped);
+  };
+
+  const handleZoomChange = (newZoom: number) => {
+    isAutoCenteringRef.current = true;
+
+    setZoom(newZoom);
+    setCrop({ x: 0, y: 0 });
+
+    requestAnimationFrame(() => {
+      setCrop({ x: 0, y: 0 });
+      isAutoCenteringRef.current = false;
+    });
+  };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -46,32 +73,63 @@ export function ProfileAvatar({
       return;
     }
 
+    // Open cropper instead of uploading immediately
+    const reader = new FileReader();
+    reader.onload = () => {
+      const src = reader.result as string;
+
+      setImageSrc(src);
+      setCrop({ x: 0, y: 0 });
+      setCroppedAreaPixels(null);
+
+      const img = document.createElement('img');
+      img.onload = () => {
+        const fitZoom = computeCircleFitZoom(img.width, img.height, CROP_BOX);
+        setZoom(Math.max(1, fitZoom));
+        setCropOpen(true);
+      };
+      img.src = src;
+    };
+    reader.readAsDataURL(file);
+
+    // Clear input so selecting same file again still triggers change
+    if (fileInputRef.current) fileInputRef.current.value = '';
+
+    return;
+  };
+
+  const handleSaveCrop = async () => {
+    if (!imageSrc || !croppedAreaPixels) return;
+
     setIsUploading(true);
 
     const bucket = 'avatars';
     const filePath = `${userId}/avatar.png`;
 
     try {
+      const blob = await getCroppedImageBlob(imageSrc, croppedAreaPixels, 512);
+
       const { error: uploadError } = await supabase.storage
         .from(bucket)
-        .upload(filePath, file, {
+        .upload(filePath, blob, {
           cacheControl: '3600',
           upsert: true,
+          contentType: 'image/png',
         });
 
       if (uploadError) throw uploadError;
 
       const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
-
       const freshUrl = `${data.publicUrl}?v=${Date.now()}`;
 
       onAvatarUpdate(freshUrl);
       toast.success('Profile photo updated successfully');
+
+      setCropOpen(false);
+      setImageSrc(null);
     } catch (error: unknown) {
-      console.error('[ProfileAvatar] upload failed', {
+      console.error('[ProfileAvatar] crop upload failed', {
         userId,
-        file: file.name,
-        size: file.size,
         bucket,
         path: filePath,
         error,
@@ -80,13 +138,21 @@ export function ProfileAvatar({
       toast.error(message || 'Failed to upload profile photo. Please try again.');
     } finally {
       setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
   const handleClick = () => {
     if (editable && !isUploading) fileInputRef.current?.click();
   };
+
+  const computeCircleFitZoom = (imgW: number, imgH: number, containerSize: number) => {
+    const diag = Math.sqrt(imgW * imgW + imgH * imgH);
+    const fit = containerSize / diag;
+    const SAFETY = 0.98;
+    return Math.min(1, fit * SAFETY);
+  };
+
+  const CROP_BOX = 340;
 
   const getInitials = (name: string) => {
     const parts = name.trim().split(/\s+/);
@@ -108,7 +174,7 @@ export function ProfileAvatar({
         onClick={handleClick}
       >
         {currentAvatarUrl ? (
-          <Image src={currentAvatarUrl} alt={userName} fill className="object-cover" unoptimized />
+          <Image src={currentAvatarUrl} alt={userName} fill className="object-cover" unoptimized sizes={`${size}px`} />
         ) : (
           <div className="text-white text-3xl font-semibold">{initials}</div>
         )}
@@ -133,6 +199,77 @@ export function ProfileAvatar({
           </button>
         )}
       </div>
+
+      <Dialog
+        open={cropOpen}
+        onOpenChange={(open) => {
+          if (isUploading) return;
+          setCropOpen(open);
+          if (!open) setImageSrc(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>Adjust profile photo</DialogTitle>
+          </DialogHeader>
+
+          <div className="relative mt-2 h-[340px] w-full overflow-hidden rounded-2xl bg-slate-100">
+            {imageSrc ? (
+              <Cropper
+                image={imageSrc}
+                crop={crop}
+                zoom={zoom}
+                aspect={1}
+                cropShape="round"
+                showGrid={false}
+                onCropChange={(next) => {
+                  if (isAutoCenteringRef.current) return;
+                  setCrop(next);
+                }}
+                onZoomChange={handleZoomChange}
+                onCropComplete={onCropComplete}
+                minZoom={1}
+                maxZoom={3}
+              />
+            ) : null}
+          </div>
+
+          <div className="mt-5 space-y-2">
+            <div className="text-xs font-semibold text-slate-700">Zoom</div>
+            <Slider
+              value={[zoom]}
+              min={1}
+              max={3}
+              step={0.01}
+              onValueChange={(v) => handleZoomChange(v[0])}
+            />
+          </div>
+
+          <div className="mt-6 flex justify-end gap-2">
+            <button
+              type="button"
+              className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              onClick={() => {
+                if (isUploading) return;
+                setCropOpen(false);
+                setImageSrc(null);
+              }}
+              disabled={isUploading}
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              className="inline-flex h-10 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+              onClick={handleSaveCrop}
+              disabled={isUploading || !imageSrc || !croppedAreaPixels}
+            >
+              {isUploading ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {editable && (
         <input

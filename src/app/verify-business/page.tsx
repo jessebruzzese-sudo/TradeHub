@@ -7,7 +7,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ShieldCheck, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react';
 
 import { useAuth } from '@/lib/auth';
+import { getBrowserSupabase } from '@/lib/supabase-client';
 import { getSafeReturnUrl, safeRouterPush } from '@/lib/safe-nav';
+import { toast } from 'sonner';
 
 import { UnauthorizedAccess } from '@/components/unauthorized-access';
 import { Button } from '@/components/ui/button';
@@ -15,8 +17,54 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 type VerifyResponse =
-  | { ok: true; abn: string; businessName?: string; status?: string }
+  | { ok: true; abn: string; entityName?: string; businessName?: string; status?: string }
   | { error: string };
+
+async function persistAbnVerification(params: {
+  abn: string;
+  entityName?: string | null;
+  verified: boolean;
+}) {
+  const supabase = getBrowserSupabase();
+
+  const { data: userRes, error: userErr } = await supabase.auth.getUser();
+  if (userErr || !userRes?.user) throw new Error('NOT_AUTHENTICATED');
+
+  const userId = userRes.user.id;
+  const nowIso = new Date().toISOString();
+
+  if (params.verified) {
+    const { error } = await supabase
+      .from('users')
+      .update({
+        abn: params.abn,
+        abn_status: 'VERIFIED',
+        abn_verified_at: nowIso,
+        business_name: params.entityName ?? null,
+      })
+      .eq('id', userId);
+
+    if (error) {
+      console.error('[abn] persist verified failed', error);
+      throw new Error('PERSIST_FAILED');
+    }
+    return;
+  }
+
+  const { error } = await supabase
+    .from('users')
+    .update({
+      abn: params.abn,
+      abn_status: 'UNVERIFIED',
+      abn_verified_at: null,
+    })
+    .eq('id', userId);
+
+  if (error) {
+    console.error('[abn] persist unverified failed', error);
+    throw new Error('PERSIST_FAILED');
+  }
+}
 
 function normalizeAbn(input: string) {
   return (input || '').replace(/\s+/g, '');
@@ -104,16 +152,33 @@ export default function VerifyBusinessPage() {
 
       if (!res.ok) {
         setError('error' in data && data.error ? data.error : 'ABN verification failed. Please try again.');
+        persistAbnVerification({
+          abn: cleaned,
+          entityName: null,
+          verified: false,
+        }).catch(() => {});
         setLoading(false);
         return;
       }
 
-      // Success
-      const biz = 'businessName' in data ? data.businessName : undefined;
-      if (biz) setBusinessName(biz);
+      // Success: persist to DB
+      try {
+        await persistAbnVerification({
+          abn: data.abn ?? cleaned,
+          entityName: ('entityName' in data ? data.entityName : undefined) ?? ('businessName' in data ? data.businessName : undefined) ?? null,
+          verified: true,
+        });
+      } catch (e) {
+        toast.error('ABN verified, but could not save verification. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      const biz = ('entityName' in data ? data.entityName : undefined) ?? ('businessName' in data ? data.businessName : undefined);
+      if (biz) setBusinessName(String(biz));
       setStatusMsg('ABN verified successfully.');
 
-      // Redirect back (status will be fresh on next page load)
+      router.refresh();
       safeRouterPush(router, returnUrl, '/dashboard');
     } catch (err) {
       console.error('[Verify Business] Error:', err);

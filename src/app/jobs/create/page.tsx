@@ -43,6 +43,12 @@ export default function CreateJobPage() {
   const router = useRouter();
   const store = getStore();
 
+  useEffect(() => {
+    if (currentUser === null) {
+      router.replace('/');
+    }
+  }, [currentUser, router]);
+
   const hasRedirected = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -113,7 +119,13 @@ export default function CreateJobPage() {
     );
   }
 
-  if (!currentUser) return null;
+  if (!currentUser) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-sm text-slate-500">
+        Redirecting...
+      </div>
+    );
+  }
 
   const abnStatusMessage = getABNStatusMessage(currentUser);
   const hasAbnPending = hasABNButNotVerified(currentUser);

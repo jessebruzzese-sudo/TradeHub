@@ -14,7 +14,29 @@ export const metadata = {
 
 export default function HowItWorksPage() {
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-slate-50">
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200">
+      {/* Dotted overlay */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-25"
+        style={{
+          backgroundImage:
+            'radial-gradient(rgba(0,0,0,0.12) 1px, transparent 1px)',
+          backgroundSize: '18px 18px',
+        }}
+        aria-hidden
+      />
+
+      {/* Watermark (bottom-right, scrolls with page) */}
+      <div className="pointer-events-none absolute bottom-0 right-0">
+        <img
+          src="/TradeHub-Mark-blackout.svg"
+          alt=""
+          aria-hidden="true"
+          className="h-[1600px] w-[1600px] opacity-[0.06]"
+        />
+      </div>
+
+      {/* Page content */}
       <div className="relative z-10">
         <MarketingHeader />
         <main className="relative overflow-hidden bg-transparent">

@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import { AppLayout } from '@/components/app-nav';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -100,39 +101,66 @@ safeRouterReplace(router, safeReturnUrl);
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-600">Loading...</div>
-      </div>
+      <AppLayout>
+        <div className="relative min-h-screen bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800 flex items-center justify-center">
+          <div className="text-white/90 text-sm">Loading...</div>
+        </div>
+      </AppLayout>
     );
   }
 
   return (
-    <div className="min-h-screen w-full bg-gray-50 flex flex-col justify-center py-8 pb-8">
-      <div className="w-full px-4 sm:px-6 flex justify-center">
-        <div className="w-full max-w-md">
-          <Link href="/" className="flex justify-center mb-6">
-            <Image
-              src="/TradeHub -Horizontal-Main.svg"
-              alt="TradeHub"
-              width={180}
-              height={40}
-              className="h-10 w-auto"
-            />
-          </Link>
+    <AppLayout>
+      <div className="relative min-h-screen bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800">
+        {/* Dotted overlay - behind watermark */}
+        <div
+          className="pointer-events-none absolute inset-0 opacity-20"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.25) 1px, transparent 0)',
+            backgroundSize: '20px 20px',
+          }}
+          aria-hidden
+        />
 
-          <h2 className="text-center text-3xl font-bold text-gray-900">Welcome back</h2>
+        {/* Watermark (fixed to viewport) - above background, behind content */}
+        <div className="pointer-events-none fixed bottom-[-220px] right-[-220px] z-0">
+          <img
+            src="/TradeHub-Mark-whiteout.svg"
+            alt=""
+            aria-hidden="true"
+            className="h-[1600px] w-[1600px] opacity-[0.08]"
+          />
+        </div>
 
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Don&apos;t have an account?{' '}
-            <Link
-              href={`/signup${returnUrlParam ? `?returnUrl=${encodeURIComponent(returnUrlParam)}` : ''}`}
-              className="font-medium text-blue-600 hover:text-blue-500"
-            >
-              Sign up
-            </Link>
-          </p>
+        {/* Page content */}
+        <div className="relative z-10 flex min-h-screen items-center justify-center px-4">
+          <div className="w-full max-w-md">
+            <div className="mb-8 text-center">
+              <Link href="/" className="inline-flex justify-center">
+                <Image
+                  src="/tradehub-logo-white.svg"
+                  alt="TradeHub"
+                  width={180}
+                  height={48}
+                  className="h-14 sm:h-16 md:h-36 lg:h-44 w-auto object-contain"
+                />
+              </Link>
 
-          <div className="mt-8 w-full bg-white p-5 sm:p-6 shadow-sm rounded-xl border border-gray-200">
+              <h2 className="mt-6 text-center text-3xl font-bold text-white">Welcome back</h2>
+
+              <p className="mt-2 text-center text-sm text-white/90">
+              Don&apos;t have an account?{' '}
+              <Link
+                href={`/signup${returnUrlParam ? `?returnUrl=${encodeURIComponent(returnUrlParam)}` : ''}`}
+                className="font-medium text-white hover:text-white/80 underline"
+              >
+                Sign up
+              </Link>
+            </p>
+            </div>
+
+            <div className="w-full bg-white p-5 sm:p-6 shadow-sm rounded-xl border border-gray-200">
             <form className="space-y-6" onSubmit={handleSubmit}>
               {error && (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
@@ -192,10 +220,10 @@ safeRouterReplace(router, safeReturnUrl);
                 </Button>
               </div>
             </form>
+            </div>
           </div>
-
         </div>
       </div>
-    </div>
+    </AppLayout>
   );
 }

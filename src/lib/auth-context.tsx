@@ -22,7 +22,7 @@ export async function ensureProfileRow(supabase: any, user: any) {
 
   const { data: existing, error: fetchError } = await supabase
     .from('users')
-    .select('id')
+    .select('id, abn, abn_status, abn_verified_at, business_name')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -31,38 +31,82 @@ export async function ensureProfileRow(supabase: any, user: any) {
     return;
   }
 
-  if (existing?.id) return;
-
   const meta = user.user_metadata ?? {};
-  const { error: insertError } = await supabase.from('users').insert({
-    id: user.id,
-    email: user.email ?? null,
-    name: meta.full_name ?? meta.name ?? null,
-    primary_trade: meta.primaryTrade ?? meta.primary_trade ?? null,
-    trades: Array.isArray(meta.trade_categories)
-      ? [meta.trade_categories[0]].filter(Boolean)
-      : Array.isArray(meta.trades)
-        ? meta.trades
-        : meta.primaryTrade
-          ? [meta.primaryTrade]
-          : [],
-  });
 
-  if (insertError) {
-    if (insertError.code === '23505') return; // already exists
-    console.error('ensureProfileRow insert error', insertError);
-    return;
+  // Create row only if missing
+  if (!existing?.id) {
+    const { error: insertError } = await supabase.from('users').insert({
+      id: user.id,
+      email: user.email ?? null,
+      name: meta.full_name ?? meta.name ?? null,
+      primary_trade: meta.primaryTrade ?? meta.primary_trade ?? null,
+      trades: Array.isArray(meta.trade_categories)
+        ? [meta.trade_categories[0]].filter(Boolean)
+        : Array.isArray(meta.trades)
+          ? meta.trades
+          : meta.primaryTrade
+            ? [meta.primaryTrade]
+            : [],
+    });
+
+    if (insertError) {
+      // If row was created elsewhere between fetch and insert, continue to ABN backfill.
+      if (insertError.code !== '23505') {
+        console.error('ensureProfileRow insert error', insertError);
+        return;
+      }
+    }
   }
 
-  // If signup included ABN verification data, update the new row
-  if (meta.abnVerified && meta.abn) {
+  // --- ABN Persistence / Backfill (runs even if row already existed) ---
+  const normalizeAbnLocal = (input?: string) => (input || '').replace(/\s+/g, '');
+  const metaAbn = normalizeAbnLocal(meta.abn);
+
+  const metaVerifiedRaw = meta.abnVerified ?? meta.abn_verified ?? meta.abn_status ?? meta.abnStatus;
+  const metaVerified =
+    metaVerifiedRaw === true ||
+    String(metaVerifiedRaw || '').toUpperCase() === 'TRUE' ||
+    String(metaVerifiedRaw || '').toUpperCase() === 'VERIFIED';
+
+  const metaEntityName =
+    meta.abnEntityName ??
+    meta.abn_entity_name ??
+    meta.businessName ??
+    null;
+
+  // Fetch latest row state before deciding if we need to backfill
+  const { data: rowNow } = await supabase
+    .from('users')
+    .select('id, abn, abn_status, abn_verified_at, business_name')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  const dbStatus = String(rowNow?.abn_status || '').toUpperCase();
+  const dbVerified = dbStatus === 'VERIFIED' && !!rowNow?.abn_verified_at;
+
+  // If metadata indicates VERIFIED, ensure DB is VERIFIED too (this is the bug you're seeing)
+  if (metaAbn && metaVerified && !dbVerified) {
     const abnUpdate: Record<string, unknown> = {
-      abn: meta.abn ?? null,
+      abn: metaAbn || null,
       abn_status: 'VERIFIED',
       abn_verified_at: new Date().toISOString(),
     };
-    if (meta.abnEntityName) abnUpdate.business_name = meta.abnEntityName;
-    await supabase.from('users').update(abnUpdate).eq('id', user.id);
+    if (metaEntityName) abnUpdate.business_name = metaEntityName;
+    const { error: upErr } = await supabase.from('users').update(abnUpdate).eq('id', user.id);
+    if (upErr) console.error('ensureProfileRow ABN verified backfill error', upErr);
+    return;
+  }
+
+  // If metadata has an ABN but not verified, keep DB consistent (only if DB has no status yet)
+  if (metaAbn && !metaVerified && !dbStatus) {
+    const abnUpdate: Record<string, unknown> = {
+      abn: metaAbn || null,
+      abn_status: 'UNVERIFIED',
+      abn_verified_at: null,
+    };
+    if (metaEntityName && !rowNow?.business_name) abnUpdate.business_name = metaEntityName;
+    const { error: upErr } = await supabase.from('users').update(abnUpdate).eq('id', user.id);
+    if (upErr) console.error('ensureProfileRow ABN unverified persist error', upErr);
   }
 }
 
@@ -83,6 +127,7 @@ type DbUserRow = {
   is_admin?: boolean | null;
   trust_status: string | null;
   avatar: string | null;
+  cover_url: string | null;
   bio: string | null;
   rating: number | null;
   reliability_rating: number | null;
@@ -90,6 +135,8 @@ type DbUserRow = {
   business_name?: string | null;
   abn?: string | null;
   abn_status?: string | null;
+  show_abn_on_profile?: boolean | null;
+  show_business_name_on_profile?: boolean | null;
   trades?: any;
   // Subscription / premium (from users table)
   is_premium?: boolean | null;
@@ -112,6 +159,12 @@ type DbUserRow = {
   preferred_radius_km?: number | null;
   subcontractor_preferred_radius_km?: number | null;
   is_public_profile?: boolean | null;
+  website?: string | null;
+  instagram?: string | null;
+  facebook?: string | null;
+  linkedin?: string | null;
+  tiktok?: string | null;
+  youtube?: string | null;
 };
 
 export type CurrentUser = {
@@ -125,6 +178,7 @@ export type CurrentUser = {
   trustStatus?: string | null;
 
   avatar?: string | null;
+  coverUrl?: string | null;
   bio?: string | null;
 
   rating?: number | null;
@@ -134,12 +188,16 @@ export type CurrentUser = {
   primaryTrade?: string | null;
   location?: string | null;
   postcode?: string | null;
+  lat?: number | null;
+  lng?: number | null;
 
   abn?: string | null;
   businessName?: string | null;
   abnStatus?: string | null;
   abnVerified?: boolean;
   abnEntityName?: string | null;
+  showAbnOnProfile?: boolean;
+  showBusinessNameOnProfile?: boolean;
 
   trades?: string[];
   additionalTrades?: string[];
@@ -171,6 +229,13 @@ export type CurrentUser = {
 
   /** When true, profile appears in Trades near you discovery. */
   isPublicProfile?: boolean;
+
+  website?: string | null;
+  instagram?: string | null;
+  facebook?: string | null;
+  linkedin?: string | null;
+  tiktok?: string | null;
+  youtube?: string | null;
 }
 
 type SignupExtras = {
@@ -198,12 +263,15 @@ type UpdateUserInput = Partial<
     | 'role'
     | 'bio'
     | 'avatar'
+    | 'coverUrl'
     | 'primaryTrade'
     | 'location'
     | 'postcode'
     | 'businessName'
     | 'abn'
     | 'abnStatus'
+    | 'showAbnOnProfile'
+    | 'showBusinessNameOnProfile'
     | 'trades'
     | 'additionalTrades'
     | 'searchLocation'
@@ -211,6 +279,12 @@ type UpdateUserInput = Partial<
     | 'searchLat'
     | 'searchLng'
     | 'isPublicProfile'
+    | 'website'
+    | 'instagram'
+    | 'facebook'
+    | 'linkedin'
+    | 'tiktok'
+    | 'youtube'
   >
 >;
 
@@ -261,6 +335,7 @@ function mapDbToUi(row: DbUserRow): CurrentUser {
     is_admin: row.is_admin ?? false,
     trustStatus: row.trust_status ?? null,
     avatar: row.avatar ?? null,
+    coverUrl: row.cover_url ?? null,
     bio: row.bio ?? null,
     rating: row.rating ?? null,
     reliabilityRating: row.reliability_rating ?? null,
@@ -268,11 +343,15 @@ function mapDbToUi(row: DbUserRow): CurrentUser {
     primaryTrade: row.primary_trade ?? null,
     location: (row as any).location ?? null,
     postcode: (row as any).postcode ?? null,
+    lat: (row as any).location_lat != null ? Number((row as any).location_lat) : (row.search_lat != null ? Number(row.search_lat) : null),
+    lng: (row as any).location_lng != null ? Number((row as any).location_lng) : (row.search_lng != null ? Number(row.search_lng) : null),
     abn: row.abn ?? null,
     businessName: row.business_name ?? null,
     abnStatus: (row.abn_status ? (String(row.abn_status).toUpperCase() as CurrentUser['abnStatus']) : null),
     abnVerified: String(row.abn_status || '').toUpperCase() === 'VERIFIED',
     abnEntityName: row.business_name ?? null,
+    showAbnOnProfile: row.show_abn_on_profile === true,
+    showBusinessNameOnProfile: row.show_business_name_on_profile !== false,
     trades: Array.isArray(row.trades)
       ? (row.trades as any[]).map(String)
       : (row.trades ? (row.trades as any[]).map?.(String) : undefined),
@@ -298,6 +377,13 @@ function mapDbToUi(row: DbUserRow): CurrentUser {
     searchLng: row.search_lng != null ? Number(row.search_lng) : null,
 
     isPublicProfile: row.is_public_profile === true,
+
+    website: row.website ?? null,
+    instagram: row.instagram ?? null,
+    facebook: row.facebook ?? null,
+    linkedin: row.linkedin ?? null,
+    tiktok: row.tiktok ?? null,
+    youtube: row.youtube ?? null,
   };
 }
 
@@ -307,10 +393,14 @@ function mapUiPatchToDb(patch: UpdateUserInput): Partial<DbUserRow> {
   if (patch.role !== undefined) out.role = patch.role ?? null;
   if (patch.bio !== undefined) out.bio = patch.bio ?? null;
   if (patch.avatar !== undefined) out.avatar = patch.avatar ?? null;
+  if (patch.coverUrl !== undefined) out.cover_url = patch.coverUrl ?? null;
   if (patch.primaryTrade !== undefined) out.primary_trade = patch.primaryTrade ?? null;
   if (patch.businessName !== undefined) out.business_name = patch.businessName ?? null;
   if (patch.abn !== undefined) out.abn = patch.abn ?? null;
   if (patch.abnStatus !== undefined) out.abn_status = patch.abnStatus ?? null;
+  if (patch.showAbnOnProfile !== undefined) out.show_abn_on_profile = patch.showAbnOnProfile ?? false;
+  if (patch.showBusinessNameOnProfile !== undefined)
+    out.show_business_name_on_profile = patch.showBusinessNameOnProfile ?? true;
   if (patch.additionalTrades !== undefined) out.additional_trades = patch.additionalTrades ?? null;
   if (patch.searchLocation !== undefined) out.search_location = patch.searchLocation ?? null;
   if (patch.searchPostcode !== undefined) out.search_postcode = patch.searchPostcode ?? null;
@@ -326,6 +416,12 @@ function mapUiPatchToDb(patch: UpdateUserInput): Partial<DbUserRow> {
   if ((patch as any).subcontractorPreferredRadiusKm !== undefined)
     out.subcontractor_preferred_radius_km = numOrNull((patch as any).subcontractorPreferredRadiusKm);
   if (patch.isPublicProfile !== undefined) out.is_public_profile = patch.isPublicProfile ?? false;
+  if (patch.website !== undefined) out.website = patch.website ?? null;
+  if (patch.instagram !== undefined) out.instagram = patch.instagram ?? null;
+  if (patch.facebook !== undefined) out.facebook = patch.facebook ?? null;
+  if (patch.linkedin !== undefined) out.linkedin = patch.linkedin ?? null;
+  if (patch.tiktok !== undefined) out.tiktok = patch.tiktok ?? null;
+  if (patch.youtube !== undefined) out.youtube = patch.youtube ?? null;
   return out;
 }
 
@@ -342,23 +438,51 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
   const loadProfile = useCallback(
     async (userId: string): Promise<CurrentUser | null> => {
       try {
-        const { data, error } = await (supabase.from('users') as any)
-          .select(
-            'id,email,name,role,is_admin,trust_status,avatar,bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,trades,additional_trades,' +
-              'is_premium,active_plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,' +
-              'complimentary_premium_until,premium_until,additional_trades_unlocked,search_location,search_postcode,search_lat,search_lng,' +
-              'is_public_profile,trades'
-          )
+        const fullSelect =
+          'id,email,name,role,is_admin,trust_status,avatar,cover_url,bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,show_abn_on_profile,show_business_name_on_profile,trades,additional_trades,website,instagram,facebook,linkedin,tiktok,youtube,' +
+          'location,postcode,location_lat,location_lng,' +
+          'is_premium,active_plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,' +
+          'complimentary_premium_until,premium_until,additional_trades_unlocked,search_location,search_postcode,search_lat,search_lng,' +
+          'is_public_profile,trades';
+
+        const legacySelect =
+          'id,email,name,role,is_admin,trust_status,avatar,cover_url,bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,trades,additional_trades,website,instagram,facebook,linkedin,tiktok,youtube,' +
+          'location,postcode,location_lat,location_lng,' +
+          'is_premium,active_plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,' +
+          'complimentary_premium_until,premium_until,additional_trades_unlocked,search_location,search_postcode,search_lat,search_lng,' +
+          'is_public_profile,trades';
+
+        // First try the full select (new columns)
+        let { data: profile, error } = await (supabase.from('users') as any)
+          .select(fullSelect)
           .eq('id', userId)
           .maybeSingle();
+
+        // If the DB hasn't been migrated yet, retry without new columns
+        if (error && (error as any).code === '42703') {
+          console.warn('loadProfile: missing new columns, retrying legacy select');
+          const retry = await (supabase.from('users') as any)
+            .select(legacySelect)
+            .eq('id', userId)
+            .maybeSingle();
+
+          profile = retry.data as any;
+          error = retry.error as any;
+
+          // Provide sane defaults so UI doesn't break
+          if (profile) {
+            (profile as any).show_abn_on_profile ??= false;
+            (profile as any).show_business_name_on_profile ??= true;
+          }
+        }
 
         if (error) {
           console.error('loadProfile error', error);
           return null;
         }
-        if (!data) return null;
+        if (!profile) return null;
 
-        return mapDbToUi(data as DbUserRow);
+        return mapDbToUi(profile as DbUserRow);
       } catch (e) {
         console.error('loadProfile unexpected error', e);
         return null;
@@ -535,7 +659,9 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
                 postcode: extras.postcode ?? prev.postcode ?? null,
                 businessName: extras.businessName ?? prev.businessName ?? null,
                 abn: cleanedAbn || prev.abn || null,
-                abnStatus: cleanedAbn ? 'pending' : prev.abnStatus ?? null,
+                abnStatus: cleanedAbn
+                  ? (extras.abnVerified ? 'VERIFIED' : 'UNVERIFIED')
+                  : prev.abnStatus ?? null,
                 trades: extras.tradeCategories ?? extras.trades ?? prev.trades,
                 additionalTrades: extras.additionalTrades ?? prev.additionalTrades,
 

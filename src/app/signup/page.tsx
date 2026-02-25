@@ -16,6 +16,7 @@ import { SuburbAutocomplete } from '@/components/suburb-autocomplete';
 
 import { getSafeReturnUrl, safeRouterReplace } from '@/lib/safe-nav';
 import { getBrowserSupabase } from '@/lib/supabase-client';
+import { toast } from 'sonner';
 
 import {
   AlertCircle,
@@ -75,6 +76,52 @@ const stepAccent = (n: number) => {
       };
   }
 };
+
+async function persistAbnVerification(params: {
+  abn: string;
+  entityName?: string | null;
+  verified: boolean;
+}) {
+  const supabase = getBrowserSupabase();
+
+  const { data: userRes, error: userErr } = await supabase.auth.getUser();
+  if (userErr || !userRes?.user) throw new Error('NOT_AUTHENTICATED');
+
+  const userId = userRes.user.id;
+  const nowIso = new Date().toISOString();
+
+  if (params.verified) {
+    const { error } = await supabase
+      .from('users')
+      .update({
+        abn: params.abn,
+        abn_status: 'VERIFIED',
+        abn_verified_at: nowIso,
+        business_name: params.entityName ?? null,
+      })
+      .eq('id', userId);
+
+    if (error) {
+      console.error('[abn] persist verified failed', error);
+      throw new Error('PERSIST_FAILED');
+    }
+    return;
+  }
+
+  const { error } = await supabase
+    .from('users')
+    .update({
+      abn: params.abn,
+      abn_status: 'UNVERIFIED',
+      abn_verified_at: null,
+    })
+    .eq('id', userId);
+
+  if (error) {
+    console.error('[abn] persist unverified failed', error);
+    throw new Error('PERSIST_FAILED');
+  }
+}
 
 function CollapsibleSection({
   number,
@@ -260,26 +307,26 @@ export default function SignupPage() {
 
       if (!res.ok) {
         setAbnError(data?.error || 'ABN verification failed');
+        persistAbnVerification({
+          abn: clean,
+          entityName: null,
+          verified: false,
+        }).catch(() => {});
         return;
       }
 
       if (currentUser?.id) {
-        const supabase = getBrowserSupabase();
-        const { error } = await supabase
-          .from('users')
-          .update({
-            abn: data.abn,
-            business_name: data.entityName ?? undefined,
-            abn_status: 'VERIFIED',
-            abn_verified_at: new Date().toISOString(),
-          })
-          .eq('id', currentUser.id);
-
-        if (error) {
-          console.error('Save ABN verification failed', error);
-          setAbnError('Verified, but failed to save. Please try again.');
+        try {
+          await persistAbnVerification({
+            abn: data.abn ?? clean,
+            entityName: data.entityName ?? null,
+            verified: true,
+          });
+        } catch (e) {
+          toast.error('ABN verified, but could not save verification. Please try again.');
           return;
         }
+        router.refresh();
       }
 
       setAbnVerified(true);
