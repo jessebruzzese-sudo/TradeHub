@@ -33,15 +33,36 @@ export async function ensureProfileRow(supabase: any, user: any) {
 
   if (existing?.id) return;
 
+  const meta = user.user_metadata ?? {};
   const { error: insertError } = await supabase.from('users').insert({
     id: user.id,
     email: user.email ?? null,
-    name: user.user_metadata?.full_name ?? null,
+    name: meta.full_name ?? meta.name ?? null,
+    primary_trade: meta.primaryTrade ?? meta.primary_trade ?? null,
+    trades: Array.isArray(meta.trade_categories)
+      ? [meta.trade_categories[0]].filter(Boolean)
+      : Array.isArray(meta.trades)
+        ? meta.trades
+        : meta.primaryTrade
+          ? [meta.primaryTrade]
+          : [],
   });
 
   if (insertError) {
     if (insertError.code === '23505') return; // already exists
     console.error('ensureProfileRow insert error', insertError);
+    return;
+  }
+
+  // If signup included ABN verification data, update the new row
+  if (meta.abnVerified && meta.abn) {
+    const abnUpdate: Record<string, unknown> = {
+      abn: meta.abn ?? null,
+      abn_status: 'VERIFIED',
+      abn_verified_at: new Date().toISOString(),
+    };
+    if (meta.abnEntityName) abnUpdate.business_name = meta.abnEntityName;
+    await supabase.from('users').update(abnUpdate).eq('id', user.id);
   }
 }
 
@@ -69,6 +90,7 @@ type DbUserRow = {
   business_name?: string | null;
   abn?: string | null;
   abn_status?: string | null;
+  trades?: any;
   // Subscription / premium (from users table)
   is_premium?: boolean | null;
   active_plan?: string | null;
@@ -116,6 +138,8 @@ export type CurrentUser = {
   abn?: string | null;
   businessName?: string | null;
   abnStatus?: string | null;
+  abnVerified?: boolean;
+  abnEntityName?: string | null;
 
   trades?: string[];
   additionalTrades?: string[];
@@ -152,6 +176,9 @@ export type CurrentUser = {
 type SignupExtras = {
   businessName?: string;
   abn?: string;
+  abnEntityName?: string;
+  abnEntityType?: string;
+  abnVerified?: boolean;
   location?: string;
   postcode?: string;
   availability?: Record<string, boolean>;
@@ -239,13 +266,17 @@ function mapDbToUi(row: DbUserRow): CurrentUser {
     reliabilityRating: row.reliability_rating ?? null,
 
     primaryTrade: row.primary_trade ?? null,
-    location: null,
-    postcode: null,
+    location: (row as any).location ?? null,
+    postcode: (row as any).postcode ?? null,
     abn: row.abn ?? null,
     businessName: row.business_name ?? null,
     abnStatus: (row.abn_status ? (String(row.abn_status).toUpperCase() as CurrentUser['abnStatus']) : null),
-    trades: undefined,
-    additionalTrades: undefined,
+    abnVerified: String(row.abn_status || '').toUpperCase() === 'VERIFIED',
+    abnEntityName: row.business_name ?? null,
+    trades: Array.isArray(row.trades)
+      ? (row.trades as any[]).map(String)
+      : (row.trades ? (row.trades as any[]).map?.(String) : undefined),
+    additionalTrades: Array.isArray((row as any).additional_trades) ? ((row as any).additional_trades as string[]) : undefined,
     completedJobs: null,
     memberSince: null,
     createdAt: null,
@@ -313,10 +344,10 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
       try {
         const { data, error } = await (supabase.from('users') as any)
           .select(
-            'id,email,name,role,is_admin,trust_status,avatar,bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,' +
+            'id,email,name,role,is_admin,trust_status,avatar,bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,trades,additional_trades,' +
               'is_premium,active_plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,' +
               'complimentary_premium_until,premium_until,additional_trades_unlocked,search_location,search_postcode,search_lat,search_lng,' +
-              'is_public_profile'
+              'is_public_profile,trades'
           )
           .eq('id', userId)
           .maybeSingle();
@@ -456,6 +487,9 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
               primaryTrade: primaryTrade ?? null,
               businessName: extras.businessName ?? null,
               abn: cleanedAbn || null,
+              abnEntityName: extras.abnEntityName ?? null,
+              abnEntityType: extras.abnEntityType ?? null,
+              abnVerified: extras.abnVerified ?? false,
               location: extras.location ?? null,
               postcode: extras.postcode ?? null,
               trades: extras.trades ?? null,
@@ -475,6 +509,20 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
         // Best-effort: ensure profile row exists even if session is null
         if (data?.user) {
           await ensureProfileRowInContext(data.user);
+        }
+
+        if (data?.user?.id) {
+          const normalizedTrades =
+            extras.tradeCategories?.length
+              ? [extras.tradeCategories[0]]
+              : primaryTrade
+                ? [primaryTrade]
+                : [];
+
+          await supabase
+            .from('users')
+            .update({ trades: normalizedTrades })
+            .eq('id', data.user.id);
         }
 
         // Merge extras into in-memory currentUser so UI doesn't break

@@ -11,11 +11,11 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
 import { TradeMultiSelect } from '@/components/trade-multiselect';
 import { SuburbAutocomplete } from '@/components/suburb-autocomplete';
 
 import { getSafeReturnUrl, safeRouterReplace } from '@/lib/safe-nav';
+import { getBrowserSupabase } from '@/lib/supabase-client';
 
 import {
   AlertCircle,
@@ -26,11 +26,8 @@ import {
   Building2,
   Wrench,
   MapPin,
-  CalendarDays,
   ShieldCheck,
 } from 'lucide-react';
-
-const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
 
 const stepAccent = (n: number) => {
   switch (n) {
@@ -187,22 +184,17 @@ export default function SignupPage() {
   const [abn, setAbn] = useState('');
   const [location, setLocation] = useState('');
   const [postcode, setPostcode] = useState('');
-  const [availability, setAvailability] = useState<Record<string, boolean>>({
-    Monday: true,
-    Tuesday: true,
-    Wednesday: true,
-    Thursday: true,
-    Friday: true,
-    Saturday: false,
-    Sunday: false,
-  });
-
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [abnVerifying, setAbnVerifying] = useState(false);
+  const [abnVerified, setAbnVerified] = useState(false);
+  const [abnEntityName, setAbnEntityName] = useState<string | null>(null);
+  const [abnEntityType, setAbnEntityType] = useState<string | null>(null);
+  const [abnError, setAbnError] = useState<string | null>(null);
 
-  const TOTAL_STEPS = 6;
+  const TOTAL_STEPS = 5;
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
 
   const markStepDone = (n: number) => {
@@ -227,7 +219,6 @@ export default function SignupPage() {
 
   const step1Valid =
     fullName.trim().length > 1 &&
-    visibleName.trim().length > 1 &&
     emailValid &&
     passwordValid &&
     passwordsMatch;
@@ -242,17 +233,69 @@ export default function SignupPage() {
     tradeCategories.length > 0 &&
     location.trim().length > 0 &&
     postcode.trim().length > 0;
-  const step5Valid = Object.values(availability).some(Boolean);
   const step6Valid = formValid;
 
-  useEffect(() => {
-    if (!visibleName && fullName) {
-      setVisibleName(fullName);
-    }
-  }, [fullName, visibleName]);
-
-
   const { signup, currentUser } = useAuth();
+
+  const verifyAbnNow = async () => {
+    const clean = (abn || '').replace(/\s/g, '');
+
+    setAbnError(null);
+
+    if (!/^\d{11}$/.test(clean)) {
+      setAbnError('Enter a valid 11-digit ABN');
+      return;
+    }
+
+    try {
+      setAbnVerifying(true);
+
+      const res = await fetch('/api/abn/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ abn: clean }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setAbnError(data?.error || 'ABN verification failed');
+        return;
+      }
+
+      if (currentUser?.id) {
+        const supabase = getBrowserSupabase();
+        const { error } = await supabase
+          .from('users')
+          .update({
+            abn: data.abn,
+            business_name: data.entityName ?? undefined,
+            abn_status: 'VERIFIED',
+            abn_verified_at: new Date().toISOString(),
+          })
+          .eq('id', currentUser.id);
+
+        if (error) {
+          console.error('Save ABN verification failed', error);
+          setAbnError('Verified, but failed to save. Please try again.');
+          return;
+        }
+      }
+
+      setAbnVerified(true);
+      setAbnEntityName(data.entityName ?? null);
+      setAbnEntityType(data.entityType ?? null);
+
+      if (!businessName?.trim() && data.entityName) {
+        setBusinessName(data.entityName);
+      }
+    } catch (e) {
+      console.error(e);
+      setAbnError('ABN verification failed');
+    } finally {
+      setAbnVerifying(false);
+    }
+  };
   // TODO: Map to real field if different (e.g. subscription_tier vs active_plan/is_premium)
   const isPremium = currentUser?.isPremium === true;
   const router = useRouter();
@@ -290,15 +333,31 @@ export default function SignupPage() {
     try {
       // Backward compat: backend expects primary_trade (single). TODO: migrate fully to trade_categories.
       const primaryTrade = tradeCategories[0] ?? null;
-      await signup(visibleName, email, password, primaryTrade, {
+      const normalizedTrades = primaryTrade ? [primaryTrade] : [];
+
+      await signup(visibleName?.trim() || '', email, password, primaryTrade ?? '', {
         businessName,
         abn,
+        abnEntityName: abnVerified ? abnEntityName ?? undefined : undefined,
+        abnEntityType: abnVerified ? abnEntityType ?? undefined : undefined,
+        abnVerified: abnVerified ? true : undefined,
         location,
         postcode,
-        availability,
+        availability: {},
         tradeCategories,
+        trades: normalizedTrades,
         legal_name: fullName,
       });
+
+      const supabase = getBrowserSupabase();
+      const { data: authed } = await supabase.auth.getUser();
+
+      if (authed?.user?.id && normalizedTrades.length > 0) {
+        await supabase
+          .from('users')
+          .update({ trades: normalizedTrades })
+          .eq('id', authed.user.id);
+      }
 
       router.push('/profile/edit');
     } catch (err: any) {
@@ -467,8 +526,8 @@ export default function SignupPage() {
                     <button
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700"
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition"
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
@@ -497,8 +556,8 @@ export default function SignupPage() {
                     <button
                       type="button"
                       onClick={() => setShowConfirmPassword((v) => !v)}
-                      aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700"
+                      aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
                     >
                       {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
@@ -600,26 +659,73 @@ export default function SignupPage() {
                     id="abn"
                     type="text"
                     value={abn}
-                    onChange={(e) => setAbn(e.target.value)}
+                    onChange={(e) => {
+                      setAbn(e.target.value);
+                      setAbnError(null);
+                    }}
                     placeholder="12 345 678 901"
                     className="mt-1"
+                    disabled={abnVerified}
                   />
-                  <p className="text-xs text-slate-500 mt-1">
-                    Required to post jobs and apply for tenders
-                  </p>
+                  <div className="mt-2 flex items-start gap-2 text-sm font-semibold text-blue-700">
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="w-4 h-4 mt-[2px] fill-blue-600 shrink-0"
+                    >
+                      <path d="M12 2l2.1 2.1 3-.3-.3 3L19 9l3 3-3 3 .3 3-3-.3L12 22l-2.1-2.1-3 .3.3-3L5 15l-3-3 3-3-.3-3 3 .3L12 2z"/>
+                    </svg>
+                    <span>Required to post jobs and apply for tenders</span>
+                  </div>
 
                   <div className="mt-3 flex items-center gap-3">
                     <button
                       type="button"
-                      disabled
-                      className="rounded-md bg-gray-300 px-4 py-2 text-sm font-medium text-gray-600 opacity-50 cursor-not-allowed"
+                      disabled={abnVerifying || abnVerified || !(abn || '').replace(/\s/g, '')}
+                      onClick={verifyAbnNow}
+                      className={`
+                        inline-flex items-center gap-2 rounded-xl px-5 py-2.5
+                        font-semibold text-white
+                        transition-all duration-200
+                        shadow-lg
+                        ${abnVerified
+                          ? 'bg-emerald-600 shadow-emerald-900/30 cursor-default'
+                          : abnVerifying
+                            ? 'bg-blue-500 opacity-80 cursor-wait'
+                            : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 hover:-translate-y-[1px] shadow-blue-900/30'
+                        }
+                      `}
                     >
-                      Verify now
+                      {abnVerified ? (
+                        <>
+                          <span>Verified</span>
+                          <svg viewBox="0 0 24 24" className="w-4 h-4 fill-white">
+                            <path d="M22 12l-2.1 2.1.3 3-3-.3L15 19l-3 3-2.1-2.1-3 .3.3-3L2 12l2.1-2.1-.3-3 3 .3L9 2l3 3 2.1-2.1 3-.3-.3 3L22 12zm-11 3.5l6-6-1.4-1.4L11 12.7l-2.6-2.6L7 11.5l4 4z" />
+                          </svg>
+                        </>
+                      ) : (
+                        <>
+                          <span>{abnVerifying ? 'Verifying...' : 'Verify now'}</span>
+                          <svg viewBox="0 0 24 24" className="w-4 h-4 fill-white opacity-90">
+                            <path d="M12 2l2.1 2.1 3-.3-.3 3L19 9l3 3-3 3 .3 3-3-.3L12 22l-2.1-2.1-3 .3.3-3L5 15l-3-3 3-3-.3-3 3 .3L12 2zm-1 13l6-6-1.4-1.4L11 11.6 8.4 9 7 10.4 11 15z" />
+                          </svg>
+                        </>
+                      )}
                     </button>
-                    <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-semibold text-yellow-800">
-                      Coming soon
-                    </span>
                   </div>
+
+                  {abnVerified && abnEntityName && (
+                    <div className="mt-2 text-sm text-emerald-600 flex items-center gap-2">
+                      <span>✅</span>
+                      <span>
+                        {abnEntityName}
+                        {abnEntityType ? ` • ${abnEntityType}` : ''}
+                      </span>
+                    </div>
+                  )}
+
+                  {abnError && (
+                    <div className="mt-2 text-sm text-red-600">{abnError}</div>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between pt-4">
@@ -684,51 +790,6 @@ export default function SignupPage() {
                     onClick={() => {
                       if (!step4Valid) return;
                       markStepDone(4);
-                      setMaxUnlockedStep((s) => Math.max(s, 5));
-                      setOpenSection(5);
-                    }}
-                  >
-                    Done
-                  </Button>
-                </div>
-              </div>
-            </CollapsibleSection>
-
-            <CollapsibleSection
-              number={5}
-              icon={CalendarDays}
-              title="Set your availability"
-              subtitle="Let others know when you are typically available for work. You can change this anytime from your profile."
-              enabled={maxUnlockedStep >= 5}
-              open={openSection === 5}
-              completed={isStepDone(5)}
-              onToggle={() => setOpenSection(openSection === 5 ? 0 : 5)}
-              cardClassName={stepCardClass(5)}
-            >
-              <div className="space-y-6">
-                <div className="space-y-3">
-                  {DAYS_OF_WEEK.map((day) => (
-                    <div key={day} className="flex items-center gap-3">
-                      <Checkbox
-                        id={day}
-                        checked={availability[day]}
-                        onCheckedChange={(checked) =>
-                          setAvailability((prev) => ({ ...prev, [day]: checked as boolean }))
-                        }
-                      />
-                      <Label htmlFor={day} className="cursor-pointer font-normal">
-                        {day}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-6 flex justify-end">
-                  <Button
-                    type="button"
-                    disabled={!step5Valid}
-                    onClick={() => {
-                      if (!step5Valid) return;
-                      markStepDone(5);
                       setMaxUnlockedStep((s) => Math.max(s, 6));
                       setOpenSection(6);
                     }}
