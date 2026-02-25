@@ -161,11 +161,19 @@ export default function VerifyBusinessPage() {
         return;
       }
 
-      // Success: persist to DB
+      if (!data || 'error' in data) {
+        throw new Error(data?.error ?? 'ABN verification failed');
+      }
+
       try {
         await persistAbnVerification({
-          abn: data.abn ?? cleaned,
-          entityName: ('entityName' in data ? data.entityName : undefined) ?? ('businessName' in data ? data.businessName : undefined) ?? null,
+          abn: cleaned,
+          entityName:
+            'entityName' in data
+              ? data.entityName
+              : 'businessName' in data
+                ? data.businessName
+                : undefined,
           verified: true,
         });
       } catch (e) {
