@@ -165,6 +165,10 @@ type DbUserRow = {
   linkedin?: string | null;
   tiktok?: string | null;
   youtube?: string | null;
+  mini_bio?: string | null;
+  phone?: string | null;
+  show_phone_on_profile?: boolean | null;
+  show_email_on_profile?: boolean | null;
 };
 
 export type CurrentUser = {
