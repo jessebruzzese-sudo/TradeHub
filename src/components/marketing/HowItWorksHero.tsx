@@ -76,7 +76,9 @@ export function HowItWorksHero() {
                 </Link>
               </Button>
               <Button asChild variant="outline" className="w-full">
-                <Link href="/tendering">See how tendering works</Link>
+                <Link href="/how-it-works">
+                  How to grow my network
+                </Link>
               </Button>
             </div>
             <button
@@ -157,7 +159,9 @@ export function HowItWorksHero() {
                   </Link>
                 </Button>
                 <Button asChild variant="outline" className="w-full sm:w-auto">
-                  <Link href="/tendering">See how tendering works</Link>
+                  <Link href="/how-it-works">
+                    How to grow my network
+                  </Link>
                 </Button>
               </div>
               <div className="mt-6 grid gap-3 md:grid-cols-3">

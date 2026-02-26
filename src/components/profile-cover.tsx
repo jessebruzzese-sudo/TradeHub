@@ -16,6 +16,24 @@ import { Slider } from '@/components/ui/slider';
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
+function extractCoversPathFromUrl(url?: string | null): string | null {
+  if (!url) return null;
+
+  const cleaned = String(url).split('?')[0];
+
+  // If it's already a storage path (e.g. "userId/cover_123.png")
+  if (!cleaned.startsWith('http')) return cleaned.replace(/^\/+/, '');
+
+  try {
+    const u = new URL(cleaned);
+    const parts = u.pathname.split('/covers/');
+    if (parts.length < 2) return null;
+    return parts[1].replace(/^\/+/, '') || null;
+  } catch {
+    return null;
+  }
+}
+
 type Point = { x: number; y: number };
 
 export function ProfileCover({
@@ -82,19 +100,34 @@ export function ProfileCover({
 
     setIsUploading(true);
     try {
-      const blob = await getCroppedImageBlob(imageSrc, croppedAreaPixels as any, CROP_W, CROP_H);
+      const blob = await getCroppedImageBlob(imageSrc, croppedAreaPixels as any, 512, {
+        outputWidth: CROP_W,
+        outputHeight: CROP_H,
+        mimeType: 'image/png',
+        quality: 0.92,
+      });
 
       const bucket = 'covers';
-      const filePath = `${userId}/cover.png`;
+      const oldPath = extractCoversPathFromUrl(coverUrl ?? null);
+      const filePath = `${userId}/cover_${Date.now()}.png`;
 
       const { error: uploadError } = await supabase.storage
         .from(bucket)
-        .upload(filePath, blob, { cacheControl: '3600', upsert: true, contentType: 'image/png' });
+        .upload(filePath, blob, { cacheControl: '3600', upsert: false, contentType: 'image/png' });
 
       if (uploadError) throw uploadError;
 
       const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
       const freshUrl = `${data.publicUrl}?v=${Date.now()}`;
+
+      // best-effort: delete previous cover file
+      if (oldPath && oldPath !== filePath && oldPath.startsWith(`${userId}/`)) {
+        try {
+          await supabase.storage.from(bucket).remove([oldPath]);
+        } catch (e) {
+          console.warn('[ProfileCover] failed to remove old cover (best effort)', e);
+        }
+      }
 
       await onCoverUpdate(freshUrl);
       toast.success('Cover image updated');
@@ -112,8 +145,10 @@ export function ProfileCover({
     try {
       setIsUploading(true);
 
-      // optional: remove file from storage (safe even if it doesn't exist)
-      await supabase.storage.from('covers').remove([`${userId}/cover.png`]);
+      const oldPath = extractCoversPathFromUrl(coverUrl ?? null);
+      if (oldPath && oldPath.startsWith(`${userId}/`)) {
+        await supabase.storage.from('covers').remove([oldPath]);
+      }
 
       await onCoverUpdate(null);
       toast.success('Cover image removed');
@@ -129,7 +164,7 @@ export function ProfileCover({
     <>
       <div className="relative overflow-hidden rounded-2xl border bg-slate-200">
         {/* Cover */}
-        <div className="relative h-[180px] sm:h-[220px] md:h-[260px] w-full">
+        <div className="relative h-[162px] sm:h-[198px] md:h-[234px] w-full">
           {coverUrl ? (
             <Image src={coverUrl} alt="" fill className="object-cover" unoptimized />
           ) : (

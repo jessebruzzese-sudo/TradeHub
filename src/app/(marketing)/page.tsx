@@ -5,7 +5,6 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
-import { MarketingHeader } from '@/components/marketing-header';
 import { HeroCard } from '@/components/marketing/HeroCard';
 import { HowItWorksBand } from '@/components/marketing/HowItWorksBand';
 import { useAuth } from '@/lib/auth';
@@ -29,7 +28,7 @@ export default function HomePage() {
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200">
       {/* Dotted overlay */}
       <div
-        className="pointer-events-none absolute inset-0 opacity-25"
+        className="pointer-events-none absolute inset-0 z-0 opacity-25"
         style={{
           backgroundImage:
             'radial-gradient(rgba(0,0,0,0.12) 1px, transparent 1px)',
@@ -39,7 +38,7 @@ export default function HomePage() {
       />
 
       {/* Watermark (bottom-right, large, subtle) */}
-      <div className="pointer-events-none absolute bottom-0 right-0">
+      <div className="pointer-events-none absolute bottom-0 right-0 z-0">
         <img
           src="/TradeHub-Mark-blackout.svg"
           alt=""
@@ -50,8 +49,6 @@ export default function HomePage() {
 
       {/* Page Content */}
       <div className="relative z-10">
-      <MarketingHeader />
-
       <main className="relative min-h-screen overflow-hidden bg-transparent">
         <div className="mx-auto max-w-6xl space-y-6 px-4 py-4 md:space-y-8 md:py-5">
         {/* Desktop: Logo with tagline - always visible */}

@@ -48,7 +48,7 @@ const STEPS = [
 
 export function HowItWorksBand() {
   return (
-    <section className="py-8 md:py-10">
+    <section id="how-it-works" className="py-8 md:py-10 scroll-mt-20">
       <div className="mx-auto max-w-6xl px-4">
         <div className="mb-6 text-center">
           <div className="flex items-center justify-center gap-3 md:gap-5">

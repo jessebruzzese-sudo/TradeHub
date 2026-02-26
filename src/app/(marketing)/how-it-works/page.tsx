@@ -2,7 +2,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowRight, Gauge, BadgeCheck, Users } from 'lucide-react';
 
-import { MarketingHeader } from '@/components/marketing-header';
 import { HowItWorksPopularWaysAccordion } from '@/components/marketing/HowItWorksPopularWaysAccordion';
 import { Button } from '@/components/ui/button';
 
@@ -17,7 +16,7 @@ export default function HowItWorksPage() {
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200">
       {/* Dotted overlay */}
       <div
-        className="pointer-events-none absolute inset-0 opacity-25"
+        className="pointer-events-none absolute inset-0 z-0 opacity-25"
         style={{
           backgroundImage:
             'radial-gradient(rgba(0,0,0,0.12) 1px, transparent 1px)',
@@ -27,7 +26,7 @@ export default function HowItWorksPage() {
       />
 
       {/* Watermark (bottom-right, scrolls with page) */}
-      <div className="pointer-events-none absolute bottom-0 right-0">
+      <div className="pointer-events-none absolute bottom-0 right-0 z-0">
         <img
           src="/TradeHub-Mark-blackout.svg"
           alt=""
@@ -38,10 +37,9 @@ export default function HowItWorksPage() {
 
       {/* Page content */}
       <div className="relative z-10">
-        <MarketingHeader />
         <main className="relative overflow-hidden bg-transparent">
           {/* Hero-style background (dotted + glow) */}
-          <div aria-hidden className="pointer-events-none absolute inset-0">
+          <div aria-hidden className="pointer-events-none absolute inset-0 z-0">
             <div className="absolute inset-0 opacity-[0.08] [background-image:radial-gradient(#0f172a_1px,transparent_1px)] [background-size:18px_18px]" />
             <div className="absolute -top-40 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(59,130,246,0.18),transparent_60%)] md:h-[720px] md:w-[720px] md:-top-48" />
           </div>

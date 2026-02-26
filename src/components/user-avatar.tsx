@@ -39,7 +39,7 @@ export function UserAvatar({
   if (!avatarUrl) {
     return (
       <div
-        className={`${sizeClasses[size]} rounded-full bg-blue-600 text-white font-semibold flex items-center justify-center flex-shrink-0 ${className}`}
+        className={`${sizeClasses[size]} rounded-full bg-white text-slate-900 border border-slate-200 font-semibold flex items-center justify-center flex-shrink-0 ${className}`}
       >
         {initials}
       </div>
@@ -48,7 +48,7 @@ export function UserAvatar({
 
   return (
     <div
-      className={`${sizeClasses[size]} rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex-shrink-0 ${className}`}
+      className={`${sizeClasses[size]} rounded-full overflow-hidden bg-white border border-gray-200 flex-shrink-0 ${className}`}
     >
       <Image
         src={avatarUrl ?? undefined}

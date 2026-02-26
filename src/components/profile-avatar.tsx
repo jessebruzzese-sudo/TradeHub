@@ -4,7 +4,6 @@ import { useRef, useState } from 'react';
 import Image from 'next/image';
 import Cropper from 'react-easy-crop';
 import type { Area } from 'react-easy-crop';
-import { Camera } from 'lucide-react';
 import { toast } from 'sonner';
 import { getBrowserSupabase } from '@/lib/supabase-client';
 import { getCroppedImageBlob } from '@/lib/crop-image';
@@ -33,7 +32,6 @@ export function ProfileAvatar({
   size = 96,
 }: ProfileAvatarProps) {
   const [isUploading, setIsUploading] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
   const [cropOpen, setCropOpen] = useState(false);
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -104,17 +102,21 @@ export function ProfileAvatar({
     setIsUploading(true);
 
     const bucket = 'avatars';
-    const filePath = `${userId}/avatar.png`;
+    const filePath = `${userId}/avatar.jpg`;
 
     try {
-      const blob = await getCroppedImageBlob(imageSrc, croppedAreaPixels, 512);
+      const blob = await getCroppedImageBlob(imageSrc, croppedAreaPixels, 512, {
+        background: '#FFFFFF',
+        mimeType: 'image/jpeg',
+        quality: 0.92,
+      });
 
       const { error: uploadError } = await supabase.storage
         .from(bucket)
         .upload(filePath, blob, {
           cacheControl: '3600',
           upsert: true,
-          contentType: 'image/png',
+          contentType: 'image/jpeg',
         });
 
       if (uploadError) throw uploadError;
@@ -165,39 +167,34 @@ export function ProfileAvatar({
   return (
     <div className="relative">
       <div
-        className={`group relative rounded-full overflow-hidden bg-blue-600 border-2 border-gray-200 flex items-center justify-center ${
+        className={`group relative rounded-full overflow-hidden bg-white border-2 border-gray-200 flex items-center justify-center transition-transform duration-200 hover:scale-[1.02] ${
           editable && !isUploading ? 'cursor-pointer' : ''
         }`}
         style={{ width: size, height: size }}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
         onClick={handleClick}
       >
         {currentAvatarUrl ? (
           <Image src={currentAvatarUrl} alt={userName} fill className="object-cover" unoptimized sizes={`${size}px`} />
         ) : (
-          <div className="text-white text-3xl font-semibold">{initials}</div>
-        )}
-
-        {editable && (isHovered || isUploading) && (
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center transition-opacity md:opacity-0 md:group-hover:opacity-100">
-            <div className="text-white text-center text-sm font-medium px-2">
-              {isUploading ? 'Uploading...' : 'Change photo'}
-            </div>
-          </div>
+          <div className="text-slate-900 text-3xl font-semibold">{initials}</div>
         )}
 
         {editable && (
-          <button
-            type="button"
-            onClick={handleClick}
-            disabled={isUploading}
-            className="md:hidden absolute bottom-0 right-0 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center border-2 border-white shadow-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-            aria-label="Change profile photo"
+          <div
+            className="
+              absolute inset-0
+              flex items-center justify-center
+              bg-black/40
+              text-white text-sm font-semibold
+              opacity-0
+              transition-opacity duration-200
+              group-hover:opacity-100
+            "
           >
-            <Camera className="w-4 h-4 text-white" />
-          </button>
+            {isUploading ? 'Uploading…' : 'Change photo'}
+          </div>
         )}
+
       </div>
 
       <Dialog

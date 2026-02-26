@@ -337,6 +337,7 @@ function mapDbToUi(row: DbUserRow): CurrentUser {
     avatar: row.avatar ?? null,
     coverUrl: row.cover_url ?? null,
     bio: row.bio ?? null,
+    miniBio: (row as any).mini_bio ?? null,
     rating: row.rating ?? null,
     reliabilityRating: row.reliability_rating ?? null,
 
@@ -384,6 +385,10 @@ function mapDbToUi(row: DbUserRow): CurrentUser {
     linkedin: row.linkedin ?? null,
     tiktok: row.tiktok ?? null,
     youtube: row.youtube ?? null,
+
+    phone: (row as any).phone ?? null,
+    showPhoneOnProfile: (row as any).show_phone_on_profile === true,
+    showEmailOnProfile: (row as any).show_email_on_profile === true,
   };
 }
 
@@ -392,6 +397,7 @@ function mapUiPatchToDb(patch: UpdateUserInput): Partial<DbUserRow> {
   if (patch.name !== undefined) out.name = patch.name ?? null;
   if (patch.role !== undefined) out.role = patch.role ?? null;
   if (patch.bio !== undefined) out.bio = patch.bio ?? null;
+  if ((patch as any).mini_bio !== undefined) out.mini_bio = (patch as any).mini_bio ?? null;
   if (patch.avatar !== undefined) out.avatar = patch.avatar ?? null;
   if (patch.coverUrl !== undefined) out.cover_url = patch.coverUrl ?? null;
   if (patch.primaryTrade !== undefined) out.primary_trade = patch.primaryTrade ?? null;
@@ -422,6 +428,12 @@ function mapUiPatchToDb(patch: UpdateUserInput): Partial<DbUserRow> {
   if (patch.linkedin !== undefined) out.linkedin = patch.linkedin ?? null;
   if (patch.tiktok !== undefined) out.tiktok = patch.tiktok ?? null;
   if (patch.youtube !== undefined) out.youtube = patch.youtube ?? null;
+  if ((patch as any).phone !== undefined) out.phone = (patch as any).phone ?? null;
+  const showPhone = (patch as any).showPhoneOnProfile ?? (patch as any).show_phone_on_profile;
+  if (showPhone !== undefined) out.show_phone_on_profile = !!showPhone;
+  const showEmail = (patch as any).showEmailOnProfile ?? (patch as any).show_email_on_profile;
+  if (showEmail !== undefined) out.show_email_on_profile = !!showEmail;
+  // Do NOT persist abn_verified / abn_verified_at — DB trigger sets them when abn updates
   return out;
 }
 
@@ -439,7 +451,7 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
     async (userId: string): Promise<CurrentUser | null> => {
       try {
         const fullSelect =
-          'id,email,name,role,is_admin,trust_status,avatar,cover_url,bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,show_abn_on_profile,show_business_name_on_profile,trades,additional_trades,website,instagram,facebook,linkedin,tiktok,youtube,' +
+          'id,email,name,role,is_admin,trust_status,avatar,cover_url,bio,mini_bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,show_abn_on_profile,show_business_name_on_profile,trades,additional_trades,website,instagram,facebook,linkedin,tiktok,youtube,phone,show_phone_on_profile,show_email_on_profile,' +
           'location,postcode,location_lat,location_lng,' +
           'is_premium,active_plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,' +
           'complimentary_premium_until,premium_until,additional_trades_unlocked,search_location,search_postcode,search_lat,search_lng,' +

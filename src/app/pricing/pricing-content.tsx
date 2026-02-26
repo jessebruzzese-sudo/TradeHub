@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { AppLayout } from '@/components/app-nav';
 import { Button } from '@/components/ui/button';
 import { Check, Crown, TrendingUp, BadgeCheck } from 'lucide-react';
 import Link from 'next/link';
@@ -59,8 +58,7 @@ export default function PricingContent() {
   };
 
   return (
-    <AppLayout>
-      <div className="relative min-h-screen bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800">
+    <div className="relative min-h-screen">
         {/* Dotted overlay - behind watermark */}
         <div
           className="pointer-events-none absolute inset-0 opacity-20"
@@ -93,7 +91,7 @@ export default function PricingContent() {
                 alt="TradeHub"
                 width={240}
                 height={48}
-                className="h-10 w-auto object-contain transition-opacity group-hover:opacity-80 sm:h-14 lg:h-24"
+                className="h-20 w-auto object-contain transition-opacity group-hover:opacity-80 sm:h-14 lg:h-24"
                 priority
               />
             </div>
@@ -577,7 +575,5 @@ export default function PricingContent() {
         </div>
         </div>
       </div>
-
-    </AppLayout>
   );
 }

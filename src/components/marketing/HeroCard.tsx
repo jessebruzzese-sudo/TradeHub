@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -41,7 +42,6 @@ export function HeroCard({ mobileMinimal, heroOpen: _heroOpen, onHeroToggle: _on
     safeRouterPush(router, '/signup', '/signup');
   };
 
-  const handleTendering = () => safeRouterPush(router, '/tendering', '/tendering');
   const tradesNearYouHref = isAuthed ? '/discover/plumber' : '/login?returnUrl=%2Fdiscover%2Fplumber';
   const handleTradesNearYou = () => safeRouterPush(router, tradesNearYouHref, tradesNearYouHref);
 
@@ -76,12 +76,12 @@ export function HeroCard({ mobileMinimal, heroOpen: _heroOpen, onHeroToggle: _on
 
   const minimalSecondaryCta = (
     <Button
-      variant="outline"
+      asChild
       size="lg"
-      onClick={handleTendering}
-      className="w-full rounded-xl border-white/40 bg-transparent px-6 py-6 text-base font-medium text-white hover:bg-white/15"
+      variant="outline"
+      className="w-full rounded-xl border-white/30 bg-white/10 px-6 py-6 text-base font-semibold text-white shadow-sm transition hover:bg-white/15"
     >
-      See how tendering works
+      <Link href="/how-it-works">How to grow my network?</Link>
     </Button>
   );
 

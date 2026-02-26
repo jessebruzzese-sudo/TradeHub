@@ -3,9 +3,18 @@ export type PixelCrop = { x: number; y: number; width: number; height: number };
 export async function getCroppedImageBlob(
   imageSrc: string,
   pixelCrop: PixelCrop,
-  outputWidth = 512,
-  outputHeight = 512
+  outputSize = 512,
+  opts?: {
+    background?: string;
+    mimeType?: string;
+    quality?: number;
+    outputWidth?: number;
+    outputHeight?: number;
+  }
 ): Promise<Blob> {
+  const outW = opts?.outputWidth ?? outputSize;
+  const outH = opts?.outputHeight ?? outputSize;
+
   const image = await new Promise<HTMLImageElement>((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
@@ -15,16 +24,22 @@ export async function getCroppedImageBlob(
   });
 
   const canvas = document.createElement('canvas');
-  canvas.width = outputWidth;
-  canvas.height = outputHeight;
+  canvas.width = outW;
+  canvas.height = outH;
 
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Could not get canvas context');
 
+  const background = opts?.background ?? '#FFFFFF';
+  const mimeType = opts?.mimeType ?? 'image/jpeg';
+  const quality = opts?.quality ?? 0.92;
+
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
 
-  // Draw cropped area scaled into output dimensions
+  ctx.fillStyle = background;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
   ctx.drawImage(
     image,
     pixelCrop.x,
@@ -33,15 +48,15 @@ export async function getCroppedImageBlob(
     pixelCrop.height,
     0,
     0,
-    outputWidth,
-    outputHeight
+    outW,
+    outH
   );
 
   const blob: Blob = await new Promise((resolve, reject) => {
     canvas.toBlob(
       (b) => (b ? resolve(b) : reject(new Error('Canvas export failed'))),
-      'image/png',
-      0.92
+      mimeType,
+      quality
     );
   });
 

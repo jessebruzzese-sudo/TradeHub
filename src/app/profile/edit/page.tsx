@@ -48,6 +48,7 @@ export default function EditProfilePage() {
 
   // Controlled values (always defined so hooks are stable)
   const [name, setName] = useState<string>('');
+  const [miniBio, setMiniBio] = useState<string>('');
   const [businessName, setBusinessName] = useState<string>('');
   const [bio, setBio] = useState<string>('');
   const [primaryTrade, setPrimaryTrade] = useState<string>('');
@@ -64,6 +65,10 @@ export default function EditProfilePage() {
   const [tiktok, setTiktok] = useState<string>('');
   const [youtube, setYoutube] = useState<string>('');
 
+  const [phone, setPhone] = useState<string>('');
+  const [showPhoneOnProfile, setShowPhoneOnProfile] = useState<boolean>(false);
+  const [showEmailOnProfile, setShowEmailOnProfile] = useState<boolean>(false);
+
   const [isSaving, setIsSaving] = useState(false);
   const [savedTick, setSavedTick] = useState(false);
 
@@ -77,6 +82,7 @@ export default function EditProfilePage() {
     if (!currentUser) return;
 
     setName(currentUser.name ?? '');
+    setMiniBio((currentUser as any)?.miniBio ?? (currentUser as any)?.mini_bio ?? '');
     setBusinessName(currentUser.businessName ?? '');
     setBio(currentUser.bio ?? '');
     setPrimaryTrade((currentUser.primaryTrade as string | undefined) ?? ((currentUser as any)?.trades?.[0] as string | undefined) ?? '');
@@ -90,6 +96,10 @@ export default function EditProfilePage() {
     setLinkedin((currentUser as any)?.linkedin ?? '');
     setTiktok((currentUser as any)?.tiktok ?? '');
     setYoutube((currentUser as any)?.youtube ?? '');
+
+    setPhone((currentUser as any)?.phone ?? '');
+    setShowPhoneOnProfile((currentUser as any)?.showPhoneOnProfile ?? (currentUser as any)?.show_phone_on_profile ?? false);
+    setShowEmailOnProfile((currentUser as any)?.showEmailOnProfile ?? (currentUser as any)?.show_email_on_profile ?? false);
   }, [currentUser]);
 
   // Auto-open Links section if user already has links saved
@@ -316,27 +326,44 @@ export default function EditProfilePage() {
        * - Everything else is merged in-memory by auth-context so the UI stays consistent.
        * - Free-text "Additional Trade Skills" (parsedTrades) is NOT persisted to trades (profile copy only).
        */
-      await updateUser(
-        {
-          name: name.trim() ? name.trim() : undefined,
-          bio: bio.trim() ? bio.trim() : undefined,
+      const cleanedAbn = String(abnNumber || '').replace(/\s+/g, '');
+      const enteredAbn = cleanedAbn.length > 0;
 
-          // UI-only fields for now (safe because auth merges them into state)
-          businessName: isAbnVerified ? undefined : (businessName.trim() ? businessName.trim() : undefined),
-          primaryTrade: effectivePrimaryTrade.trim() ? effectivePrimaryTrade.trim() : undefined,
-          isPublicProfile,
+      const payload: Record<string, unknown> = {
+        name: name.trim() ? name.trim() : undefined,
+        mini_bio: miniBio.trim() ? miniBio.trim() : null,
+        bio: bio.trim() ? bio.trim() : undefined,
 
-          website: normalizeWebsite(website) || undefined,
-          instagram: instagram.trim() ? normalizeInstagram(instagram) : undefined,
-          facebook: facebook.trim() ? normalizeFacebook(facebook) : undefined,
-          linkedin: linkedin.trim() ? normalizeLinkedin(linkedin) : undefined,
-          tiktok: tiktok.trim() ? normalizeTiktok(tiktok) : undefined,
-          youtube: youtube.trim() ? normalizeYoutube(youtube) : undefined,
+        // UI-only fields for now (safe because auth merges them into state)
+        businessName: isAbnVerified ? undefined : (businessName.trim() ? businessName.trim() : undefined),
+        primaryTrade: effectivePrimaryTrade.trim() ? effectivePrimaryTrade.trim() : undefined,
+        isPublicProfile,
 
-          location: undefined,
-          postcode: undefined,
-        } as any
-      );
+        website: normalizeWebsite(website) || undefined,
+        instagram: instagram.trim() ? normalizeInstagram(instagram) : undefined,
+        facebook: facebook.trim() ? normalizeFacebook(facebook) : undefined,
+        linkedin: linkedin.trim() ? normalizeLinkedin(linkedin) : undefined,
+        tiktok: tiktok.trim() ? normalizeTiktok(tiktok) : undefined,
+        youtube: youtube.trim() ? normalizeYoutube(youtube) : undefined,
+
+        phone: phone.trim() ? phone.trim() : null,
+        show_phone_on_profile: !!showPhoneOnProfile,
+        show_email_on_profile: !!showEmailOnProfile,
+
+        location: undefined,
+        postcode: undefined,
+
+        abn: enteredAbn ? cleanedAbn : null,
+      };
+
+      // Strip ABN verification state — DB trigger handles abn_verified / abn_verified_at when abn updates
+      delete (payload as any).abn_verified;
+      delete (payload as any).abnVerified;
+      delete (payload as any).abn_verified_at;
+      delete (payload as any).abn_status;
+      delete (payload as any).verified_abn;
+
+      await updateUser(payload as any);
 
       toast.success('Profile updated successfully');
       setSavedTick(true);
@@ -461,10 +488,66 @@ export default function EditProfilePage() {
                   className={inputClass}
                 />
               </div>
+              <div className="mt-4">
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Mini Bio
+                </label>
+                <textarea
+                  value={miniBio}
+                  onChange={(e) =>
+                    setMiniBio(e.target.value.slice(0, 120))
+                  }
+                  placeholder="Short headline about you (e.g. Licensed plumber • 12+ years experience)"
+                  rows={2}
+                  maxLength={120}
+                  className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <div className="mt-1 text-xs text-slate-500 text-right">
+                  {miniBio?.length || 0}/120
+                </div>
+              </div>
               <div>
                 <Label htmlFor="email" className="text-sm font-medium text-slate-800">Email</Label>
                 <Input id="email" type="email" value={currentUser.email ?? ''} disabled className={`${inputClass} bg-slate-50`} />
                 <p className="mt-1 text-xs text-slate-600">Email cannot be changed</p>
+                <div className="mt-3 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="show-email-on-profile"
+                    checked={showEmailOnProfile}
+                    onChange={(e) => setShowEmailOnProfile(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-slate-700">Show email on profile</span>
+                </div>
+              </div>
+              <div className="mt-4">
+                <Label htmlFor="phone" className="text-sm font-medium text-slate-800">
+                  Mobile Number
+                </Label>
+                <input
+                  id="phone"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="e.g. 04xx xxx xxx or +61 4xx xxx xxx"
+                  className={`mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 ${inputClass}`}
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  Optional. Only shown if you enable the toggle below.
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="show-phone-on-profile"
+                    checked={showPhoneOnProfile}
+                    onChange={(e) => setShowPhoneOnProfile(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-slate-700">Show mobile number on profile</span>
+                </div>
               </div>
               {!isAdmin(currentUser) && (
                 <div>
