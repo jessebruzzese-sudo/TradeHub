@@ -39,6 +39,9 @@ export interface User {
 
   bio?: string;
   miniBio?: string | null;
+  phone?: string | null;
+  showPhoneOnProfile?: boolean | null;
+  showEmailOnProfile?: boolean | null;
   rating: number;
   reliabilityRating?: number;
   completedJobs: number;

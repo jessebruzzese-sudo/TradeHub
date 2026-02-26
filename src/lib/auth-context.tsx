@@ -181,6 +181,9 @@ export type CurrentUser = {
   coverUrl?: string | null;
   bio?: string | null;
   miniBio?: string | null;
+  phone?: string | null;
+  showPhoneOnProfile?: boolean | null;
+  showEmailOnProfile?: boolean | null;
 
   rating?: number | null;
   reliabilityRating?: number | null;
