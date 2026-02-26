@@ -180,6 +180,7 @@ export type CurrentUser = {
   avatar?: string | null;
   coverUrl?: string | null;
   bio?: string | null;
+  miniBio?: string | null;
 
   rating?: number | null;
   reliabilityRating?: number | null;

@@ -38,6 +38,7 @@ export interface User {
   avatar?: string | null;
 
   bio?: string;
+  miniBio?: string | null;
   rating: number;
   reliabilityRating?: number;
   completedJobs: number;
