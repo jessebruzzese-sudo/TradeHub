@@ -22,7 +22,7 @@ export async function ensureProfileRow(supabase: any, user: any) {
 
   const { data: existing, error: fetchError } = await supabase
     .from('users')
-    .select('id, abn, abn_status, abn_verified_at, business_name')
+    .select('id, abn, abn_status, abn_verified_at, business_name, is_public_profile')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -77,7 +77,7 @@ export async function ensureProfileRow(supabase: any, user: any) {
   // Fetch latest row state before deciding if we need to backfill
   const { data: rowNow } = await supabase
     .from('users')
-    .select('id, abn, abn_status, abn_verified_at, business_name')
+    .select('id, abn, abn_status, abn_verified_at, business_name, is_public_profile')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -135,6 +135,7 @@ type DbUserRow = {
   business_name?: string | null;
   abn?: string | null;
   abn_status?: string | null;
+  abn_verified_at?: string | null;
   show_abn_on_profile?: boolean | null;
   show_business_name_on_profile?: boolean | null;
   trades?: any;
@@ -203,6 +204,7 @@ export type CurrentUser = {
   businessName?: string | null;
   abnStatus?: string | null;
   abnVerified?: boolean;
+  abnVerifiedAt?: string | null;
   abnEntityName?: string | null;
   showAbnOnProfile?: boolean;
   showBusinessNameOnProfile?: boolean;
@@ -237,6 +239,8 @@ export type CurrentUser = {
 
   /** When true, profile appears in Trades near you discovery. */
   isPublicProfile?: boolean;
+  /** Snake-case alias for compatibility. */
+  is_public_profile?: boolean | null;
 
   website?: string | null;
   instagram?: string | null;
@@ -357,7 +361,10 @@ function mapDbToUi(row: DbUserRow): CurrentUser {
     abn: row.abn ?? null,
     businessName: row.business_name ?? null,
     abnStatus: (row.abn_status ? (String(row.abn_status).toUpperCase() as CurrentUser['abnStatus']) : null),
-    abnVerified: String(row.abn_status || '').toUpperCase() === 'VERIFIED',
+    abnVerified:
+      String(row.abn_status || '').toUpperCase() === 'VERIFIED' ||
+      !!row.abn_verified_at,
+    abnVerifiedAt: row.abn_verified_at ?? null,
     abnEntityName: row.business_name ?? null,
     showAbnOnProfile: row.show_abn_on_profile === true,
     showBusinessNameOnProfile: row.show_business_name_on_profile !== false,
@@ -385,7 +392,8 @@ function mapDbToUi(row: DbUserRow): CurrentUser {
     searchLat: row.search_lat != null ? Number(row.search_lat) : null,
     searchLng: row.search_lng != null ? Number(row.search_lng) : null,
 
-    isPublicProfile: row.is_public_profile === true,
+    isPublicProfile: row.is_public_profile ?? true,
+    is_public_profile: row.is_public_profile ?? true,
 
     website: row.website ?? null,
     instagram: row.instagram ?? null,
@@ -459,14 +467,14 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
     async (userId: string): Promise<CurrentUser | null> => {
       try {
         const fullSelect =
-          'id,email,name,role,is_admin,trust_status,avatar,cover_url,bio,mini_bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,show_abn_on_profile,show_business_name_on_profile,trades,additional_trades,website,instagram,facebook,linkedin,tiktok,youtube,phone,show_phone_on_profile,show_email_on_profile,' +
+          'id,email,name,role,is_admin,trust_status,avatar,cover_url,bio,mini_bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,abn_verified_at,show_abn_on_profile,show_business_name_on_profile,trades,additional_trades,website,instagram,facebook,linkedin,tiktok,youtube,phone,show_phone_on_profile,show_email_on_profile,' +
           'location,postcode,location_lat,location_lng,' +
           'is_premium,active_plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,' +
           'complimentary_premium_until,premium_until,additional_trades_unlocked,search_location,search_postcode,search_lat,search_lng,' +
           'is_public_profile,trades';
 
         const legacySelect =
-          'id,email,name,role,is_admin,trust_status,avatar,cover_url,bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,trades,additional_trades,website,instagram,facebook,linkedin,tiktok,youtube,' +
+          'id,email,name,role,is_admin,trust_status,avatar,cover_url,bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,abn_verified_at,trades,additional_trades,website,instagram,facebook,linkedin,tiktok,youtube,' +
           'location,postcode,location_lat,location_lng,' +
           'is_premium,active_plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,' +
           'complimentary_premium_until,premium_until,additional_trades_unlocked,search_location,search_postcode,search_lat,search_lng,' +
@@ -493,6 +501,7 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
           if (profile) {
             (profile as any).show_abn_on_profile ??= false;
             (profile as any).show_business_name_on_profile ??= true;
+            (profile as any).is_public_profile ??= true;
           }
         }
 

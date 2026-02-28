@@ -5,13 +5,15 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { isAdmin } from '@/lib/is-admin';
-import { Chrome as Home, Briefcase, MessageSquare, Bell, Menu, X, User, FileText, Calendar, CirclePlus as PlusCircle, Lock, Settings, CircleHelp as HelpCircle, Shield, Eye, LogOut, CircleCheck as CheckCircle, CircleAlert as AlertCircle, CreditCard } from 'lucide-react';
+import { Chrome as Home, Search, Briefcase, MessageSquare, Bell, Menu, X, User, FileText, Calendar, CirclePlus as PlusCircle, Lock, Settings, CircleHelp as HelpCircle, Shield, Eye, LogOut, CircleCheck as CheckCircle, CircleAlert as AlertCircle, CreditCard, CheckCircle2, Crown } from 'lucide-react';
 import { getStore } from '@/lib/store';
 import { MVP_FREE_MODE } from '@/lib/feature-flags';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { ProfileAvatar } from '@/components/profile-avatar';
 import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 
 const BOTTOM_NAV_ITEMS = [
   { label: 'Dashboard', href: '/dashboard', icon: Home },
@@ -79,8 +81,31 @@ export function MobileDrawer() {
     return null;
   }
 
-  const isVerified = currentUser.trustStatus === 'verified';
-  const primaryTrade = currentUser.primaryTrade || 'No trade selected';
+  const abnStatus = String(
+    (currentUser as any)?.abn_status ??
+    (currentUser as any)?.abnStatus ??
+    ''
+  ).toUpperCase();
+
+  const isVerified =
+    abnStatus === 'VERIFIED' ||
+    Boolean((currentUser as any)?.abn_verified_at) ||
+    Boolean((currentUser as any)?.abnVerifiedAt) ||
+    Boolean((currentUser as any)?.abn_verified);
+
+  const isPremium =
+    Boolean((currentUser as any)?.is_premium) ||
+    (typeof (currentUser as any)?.premium_until === 'string' &&
+      new Date((currentUser as any).premium_until).getTime() > Date.now()) ||
+    (typeof (currentUser as any)?.complimentary_premium_until === 'string' &&
+      new Date((currentUser as any).complimentary_premium_until).getTime() > Date.now()) ||
+    ['active', 'trialing'].includes(String((currentUser as any)?.subscription_status || '').toLowerCase());
+
+  const primaryTrade =
+    (currentUser as any)?.primary_trade ??
+    (Array.isArray((currentUser as any)?.trades) && (currentUser as any)?.trades?.[0]) ??
+    (currentUser as any)?.trade ??
+    null;
 
   const handleNavigation = (href: string, requiresABN: boolean = false) => {
     if (requiresABN && !isVerified) {
@@ -109,31 +134,77 @@ export function MobileDrawer() {
           </Button>
         </SheetTrigger>
         <SheetContent side="left" className="w-[300px] p-0 overflow-y-auto">
+          <SheetTitle className="sr-only">
+            Mobile Navigation
+          </SheetTitle>
+          <SheetDescription className="sr-only">
+            Main navigation menu for TradeHub
+          </SheetDescription>
           <div className="flex flex-col h-full">
-            <div className="p-6 bg-gray-50 border-b border-gray-200">
-              <div className="flex items-start gap-3">
-                <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold text-lg">
-                  {(currentUser.name || '?').charAt(0).toUpperCase()}
+            <div className="px-6 py-3 bg-gray-50 border-b border-gray-200">
+              <div className="flex items-start gap-2">
+                <div
+                  className={cn(
+                    'relative inline-flex items-center justify-center rounded-full transition-transform duration-200',
+                    'hover:scale-[1.02] active:scale-[0.99]'
+                  )}
+                >
+                  <div
+                    className={cn(
+                      'relative rounded-full',
+                      isPremium && 'ring-2 ring-amber-400/40 ring-offset-2 ring-offset-white/80'
+                    )}
+                  >
+                    <ProfileAvatar
+                      userId={currentUser.id}
+                      currentAvatarUrl={currentUser?.avatar ?? undefined}
+                      userName={currentUser?.name ?? ''}
+                      onAvatarUpdate={() => {}}
+                      size={56}
+                      editable={false}
+                    />
+
+                    {isVerified && (
+                      <span className="absolute -bottom-1 -right-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white shadow-sm">
+                        <CheckCircle2 className="h-5 w-5 text-blue-600" />
+                      </span>
+                    )}
+
+                    {isPremium && (
+                      <span className="absolute -top-1 -right-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white shadow-sm">
+                        <Crown className="h-4 w-4 text-amber-600" />
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-gray-900 truncate">
                     {currentUser.name || 'TradeHub user'}
                   </h3>
                   <p className="text-sm text-gray-600 truncate">
-                    {primaryTrade}
+                    {primaryTrade ? String(primaryTrade) : '—'}
                   </p>
                   <div className="mt-2">
-                    {isVerified ? (
-                      <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-100">
-                        <CheckCircle className="w-3 h-3 mr-1" />
-                        ABN Verified
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-                        <AlertCircle className="w-3 h-3 mr-1" />
-                        Unverified
-                      </Badge>
-                    )}
+                    {(() => {
+                      const verified = Boolean(isVerified);
+                      const label = verified ? 'Verified' : 'Unverified';
+
+                      const base =
+                        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset';
+                      const verifiedCls = 'bg-blue-50 text-blue-700 ring-blue-200';
+                      const unverifiedCls = 'bg-amber-50 text-amber-800 ring-amber-200';
+
+                      return (
+                        <span className={`${base} ${verified ? verifiedCls : unverifiedCls}`}>
+                          {verified ? (
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          ) : (
+                            <AlertCircle className="h-3.5 w-3.5" />
+                          )}
+                          {label}
+                        </span>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
@@ -150,6 +221,12 @@ export function MobileDrawer() {
                     label="Dashboard"
                     onClick={() => handleNavigation('/dashboard')}
                     active={pathname.startsWith('/dashboard')}
+                  />
+                  <DrawerMenuItem
+                    icon={Search}
+                    label="Search"
+                    onClick={() => handleNavigation('/search')}
+                    active={pathname.startsWith('/search')}
                   />
                   <DrawerMenuItem
                     icon={Briefcase}
@@ -197,7 +274,7 @@ export function MobileDrawer() {
                   />
                   <DrawerMenuItem
                     icon={Shield}
-                    label="Verify Business (ABN)"
+                    label={isVerified ? 'Business Verified' : 'Verify Business (ABN)'}
                     onClick={() => handleNavigation('/verify-business')}
                     active={pathname === '/verify-business'}
                     badge={isVerified ? 'Verified' : undefined}
@@ -298,9 +375,18 @@ function DrawerMenuItem({
           <span className="text-sm font-medium truncate">{label}</span>
           {locked && <Lock className="w-3.5 h-3.5 flex-shrink-0" />}
           {badge && (
-            <Badge variant="secondary" className="text-xs py-0 h-5">
+            <span
+              className="
+                inline-flex items-center gap-1
+                rounded-full px-2 py-0.5
+                text-[11px] font-semibold
+                bg-blue-50 text-blue-700
+                ring-1 ring-inset ring-blue-200
+              "
+            >
+              <CheckCircle2 className="w-3 h-3" />
               {badge}
-            </Badge>
+            </span>
           )}
         </div>
         {helperText && (

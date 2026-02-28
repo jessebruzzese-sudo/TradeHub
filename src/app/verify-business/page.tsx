@@ -78,7 +78,7 @@ function formatAbnPretty(input: string) {
 }
 
 export default function VerifyBusinessPage() {
-  const { currentUser } = useAuth();
+  const { currentUser, refreshUser } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -186,6 +186,7 @@ export default function VerifyBusinessPage() {
       if (biz) setBusinessName(String(biz));
       setStatusMsg('ABN verified successfully.');
 
+      await refreshUser?.();
       router.refresh();
       safeRouterPush(router, returnUrl, '/dashboard');
     } catch (err) {

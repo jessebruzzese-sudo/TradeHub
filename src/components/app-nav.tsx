@@ -5,7 +5,18 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { isAdmin } from '@/lib/is-admin';
 import { MVP_FREE_MODE } from '@/lib/feature-flags';
-import { Bell, LogOut, MoreHorizontal } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Search,
+  Briefcase,
+  FileText,
+  MessageSquare,
+  Bell,
+  CreditCard,
+  User,
+  LogOut,
+  MoreHorizontal,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { GlobalFooter } from '@/components/global-footer';
@@ -15,14 +26,15 @@ import { MobileBottomNav, MobileDrawer } from '@/components/mobile-navigation';
 
 const navConfig = {
   business: [
-    { label: 'Dashboard', href: '/dashboard' },
-    { label: 'Jobs', href: '/jobs' },
-    { label: 'Tenders', href: '/tenders' },
-    { label: 'Messages', href: '/messages' },
-    { label: 'Notifications', href: '/notifications' },
+    { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { label: 'Search', href: '/search', icon: Search },
+    { label: 'Jobs', href: '/jobs', icon: Briefcase },
+    { label: 'Tenders', href: '/tenders', icon: FileText },
+    { label: 'Messages', href: '/messages', icon: MessageSquare },
+    { label: 'Notifications', href: '/notifications', icon: Bell },
     // Hide Pricing nav item during MVP free launch
-    ...(MVP_FREE_MODE ? [] : [{ label: 'Pricing', href: '/pricing' }]),
-    { label: 'Profile', href: '/profile' },
+    ...(MVP_FREE_MODE ? [] : [{ label: 'Pricing', href: '/pricing', icon: CreditCard }]),
+    { label: 'Profile', href: '/profile', icon: User },
   ],
   admin: [
     { label: 'Home', href: '/admin' },
@@ -113,24 +125,28 @@ export function SideNav() {
         </Link>
       </div>
       <nav className="flex-1 overflow-y-auto p-4">
-        {nav.map((item) => (
-          <Link key={item.href} href={item.href}>
-            <div
-              className={`px-4 py-3 rounded-lg font-medium text-sm transition-colors relative ${
+        {nav.map((item) => {
+          const Icon = 'icon' in item ? item.icon : null;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors relative ${
                 pathname.startsWith(item.href)
                   ? 'bg-blue-50 text-blue-600'
                   : 'text-gray-700 hover:bg-gray-50'
               }`}
             >
+              {Icon && <Icon className="h-4 w-4" />}
               <span>{item.label}</span>
               {item.label === 'Messages' && unreadCount > 0 && (
                 <span className="ml-2 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-yellow-800 bg-yellow-400 rounded-full">
                   {unreadCount}
                 </span>
               )}
-            </div>
-          </Link>
-        ))}
+            </Link>
+          );
+        })}
       </nav>
     </div>
   );
