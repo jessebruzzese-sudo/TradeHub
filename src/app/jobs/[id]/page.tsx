@@ -21,6 +21,9 @@ import {
   DollarSign,
   MapPin,
   ArrowLeft,
+  ArrowRight,
+  BadgeCheck,
+  Crown,
   CheckCircle,
   XCircle,
   Ban,
@@ -28,6 +31,12 @@ import {
   Flag,
   MessageSquare,
   Edit,
+  FileText,
+  Download,
+  ChevronLeft,
+  ChevronRight,
+  X,
+  Star,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -48,6 +57,236 @@ import { isAdmin } from '@/lib/is-admin';
 import { ownsJob } from '@/lib/permissions';
 import { trackEvent } from '@/lib/analytics';
 
+function AttachmentRow({
+  attachment,
+  onImageClick,
+}: {
+  attachment: any;
+  onImageClick?: (img: { url: string; name: string }) => void;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+
+  const supabase = useState(() => getBrowserSupabase())[0];
+
+  useEffect(() => {
+    let alive = true;
+
+    async function run() {
+      if (!attachment) return;
+
+      // Legacy: string url
+      if (typeof attachment === 'string') {
+        if (attachment.startsWith('blob:')) return;
+        if (alive) setUrl(attachment);
+        return;
+      }
+
+      // Schema: { name, path, size, type, bucket }
+      const bucket = attachment?.bucket ?? 'job-attachments';
+      const path = attachment?.path;
+
+      // If a direct URL was ever stored, use it
+      if (attachment?.url) {
+        if (alive) setUrl(String(attachment.url));
+        return;
+      }
+
+      if (!path) return;
+
+      const { data, error } = await supabase.storage
+        .from(bucket)
+        .createSignedUrl(path, 60 * 60); // 1 hour
+
+      if (!alive) return;
+
+      if (error) {
+        console.warn('Signed URL error', error);
+        return;
+      }
+
+      setUrl(data?.signedUrl ?? null);
+    }
+
+    run();
+    return () => {
+      alive = false;
+    };
+  }, [attachment, supabase]);
+
+  const name =
+    typeof attachment === 'string'
+      ? attachment.split('/').pop() || 'Attachment'
+      : attachment?.name ?? attachment?.path?.split('/')?.pop() ?? 'Attachment';
+
+  const type = typeof attachment === 'string' ? '' : String(attachment?.type ?? '');
+  const size = typeof attachment === 'string' ? undefined : (typeof attachment?.size === 'number' ? attachment.size : undefined);
+
+  const ext = (name.split('.').pop() || '').toLowerCase();
+  const isImage =
+    (type && type.startsWith('image/')) || ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic'].includes(ext);
+
+  const isPdf = type === 'application/pdf' || ext === 'pdf';
+
+  const prettySize =
+    typeof size === 'number'
+      ? size >= 1024 * 1024
+        ? `${(size / (1024 * 1024)).toFixed(1)} MB`
+        : `${Math.max(1, Math.round(size / 1024))} KB`
+      : null;
+
+  if (!url) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border bg-slate-50 px-3 py-2 text-sm text-slate-700">
+        <FileText className="h-4 w-4 text-slate-500" />
+        <span className="truncate">{name}</span>
+        <span className="ml-auto text-xs text-slate-500">Preparing…</span>
+      </div>
+    );
+  }
+
+  // ✅ Image tile (for grid)
+  if (isImage) {
+    return (
+      <button
+        type="button"
+        onClick={() => onImageClick?.({ url, name })}
+        className="group w-full text-left"
+        title="View image"
+      >
+        <div className="overflow-hidden rounded-xl border bg-white">
+          <div className="aspect-[4/3] bg-slate-100">
+            <img
+              src={url}
+              alt={name}
+              className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
+              loading="lazy"
+            />
+          </div>
+          <div className="p-2">
+            <div className="text-sm font-medium text-slate-900 truncate">{name}</div>
+            <div className="text-xs text-slate-500">
+              {prettySize ? `Image • ${prettySize}` : 'Image'}
+            </div>
+          </div>
+        </div>
+      </button>
+    );
+  }
+
+  // ✅ File row
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2"
+    >
+      <div className="flex items-center gap-2">
+        <FileText className="w-4 h-4 text-slate-400" />
+        <span className="text-sm text-slate-700 truncate">{name}</span>
+      </div>
+
+      {isPdf ? (
+        <span className="text-xs text-slate-500">
+          {prettySize ? `View PDF • ${prettySize}` : 'View PDF'}
+        </span>
+      ) : (
+        <span className="flex items-center gap-2 text-xs text-slate-500">
+          {prettySize ? prettySize : null}
+          <Download className="h-4 w-4 text-slate-400" />
+        </span>
+      )}
+    </a>
+  );
+}
+
+function formatDateRange(dates: (string | Date)[] | undefined): string | null {
+  if (!dates || dates.length === 0) return null;
+
+  const parsed = dates
+    .map((d) => new Date(d))
+    .filter((d) => !isNaN(d.getTime()))
+    .sort((a, b) => a.getTime() - b.getTime());
+
+  if (parsed.length === 0) return null;
+
+  const first = parsed[0];
+  const last = parsed[parsed.length - 1];
+
+  const sameDay = first.toDateString() === last.toDateString();
+
+  const format = (date: Date) =>
+    date.toLocaleDateString('en-AU', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+
+  return sameDay
+    ? format(first)
+    : `${format(first)} - ${format(last)}`;
+}
+
+function normalizeDates(input: any): Date[] {
+  const arr: any[] = Array.isArray(input) ? input : [];
+  return arr
+    .map((d) => new Date(d))
+    .filter((d) => !isNaN(d.getTime()))
+    .sort((a, b) => a.getTime() - b.getTime());
+}
+
+function isConsecutiveDays(dates: Date[]): boolean {
+  if (dates.length <= 1) return true;
+  for (let i = 1; i < dates.length; i++) {
+    const prev = new Date(dates[i - 1]);
+    const next = new Date(dates[i]);
+    prev.setHours(0, 0, 0, 0);
+    next.setHours(0, 0, 0, 0);
+    const diff = next.getTime() - prev.getTime();
+    if (diff !== 24 * 60 * 60 * 1000) return false;
+  }
+  return true;
+}
+
+function formatAu(date: Date) {
+  return date.toLocaleDateString('en-AU', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function formatJobDatesDisplay(input: any): { label: string; badge?: string } | null {
+  const dates = normalizeDates(input);
+  if (!dates.length) return null;
+
+  if (dates.length === 1) {
+    return { label: formatAu(dates[0]) };
+  }
+
+  const first = dates[0];
+  const last = dates[dates.length - 1];
+  const consecutive = isConsecutiveDays(dates);
+
+  if (consecutive) {
+    const days = Math.round(
+      (new Date(last).setHours(0, 0, 0, 0) - new Date(first).setHours(0, 0, 0, 0)) /
+        (24 * 60 * 60 * 1000)
+    ) + 1;
+
+    return {
+      label: `${formatAu(first)} - ${formatAu(last)}`,
+      badge: `${days} day${days === 1 ? '' : 's'}`,
+    };
+  }
+
+  // Non-consecutive picked dates (e.g. Mon/Wed/Fri)
+  return {
+    label: `Multiple dates (${dates.length})`,
+    badge: `${dates.length} day${dates.length === 1 ? '' : 's'}`,
+  };
+}
+
 export default function JobDetailPage() {
   const { currentUser } = useAuth();
   const params = useParams();
@@ -62,14 +301,34 @@ export default function JobDetailPage() {
   const [showWithdrawDialog, setShowWithdrawDialog] = useState(false);
   const [withdrawReason, setWithdrawReason] = useState('');
   const [showCloseDialog, setShowCloseDialog] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
   const [isLoadingJob, setIsLoadingJob] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState<number>(0);
+  type LightboxItem = {
+    name: string;
+    url?: string;
+    bucket?: string;
+    path?: string;
+  };
+  const [lightboxItems, setLightboxItems] = useState<LightboxItem[]>([]);
+  const sb = useState(() => getBrowserSupabase())[0];
 
   useEffect(() => {
     const fetchJobIfNeeded = async () => {
       if (!jobId || isLoadingJob) return;
 
-      const existingJob = store.getJobById(jobId);
-      if (existingJob) return;
+      const existingJob: any = store.getJobById(jobId);
+
+      // ✅ Only skip fetch if cached job already has BOTH attachments AND dates loaded
+      // Prevents stale single-date display after editing multiple dates.
+      const cachedHasAttachments =
+        Array.isArray(existingJob?.attachments) && existingJob.attachments.length > 0;
+
+      const cachedHasDates =
+        Array.isArray(existingJob?.dates) && existingJob.dates.length > 0;
+
+      if (existingJob && cachedHasAttachments && cachedHasDates) return;
 
       setIsLoadingJob(true);
       try {
@@ -105,10 +364,6 @@ export default function JobDetailPage() {
             durationDays = 1;
           }
 
-          const attachments: string[] | undefined = Array.isArray(jobData.attachments)
-            ? (jobData.attachments.filter((x) => typeof x === 'string') as string[])
-            : undefined;
-
           const job = {
             id: jobData.id,
             title: jobData.title,
@@ -126,13 +381,37 @@ export default function JobDetailPage() {
             cancelledAt: jobData.cancelled_at ? new Date(jobData.cancelled_at) : undefined,
             cancelledBy: jobData.cancelled_by ?? undefined,
             cancellationReason: jobData.cancellation_reason ?? undefined,
-            attachments,
+            attachments: jobData.attachments,
             startTime: jobData.start_time || undefined,
             selectedSubcontractor: jobData.selected_subcontractor || undefined,
             confirmedSubcontractor: jobData.confirmed_subcontractor || undefined,
           };
 
-          store.jobs.push(job);
+          if (existingJob) {
+            // ✅ Update cached job with fresh DB fields (including attachments)
+            store.updateJob(jobData.id, {
+              description: jobData.description,
+              location: jobData.location,
+              postcode: jobData.postcode,
+              dates,
+              payType: jobData.pay_type as PayType,
+              rate: jobData.rate ?? 0,
+              duration: durationDays > 0 ? durationDays : (jobData.duration ?? undefined),
+              status: jobData.status as unknown as JobStatus,
+              cancelledAt: jobData.cancelled_at ? new Date(jobData.cancelled_at) : undefined,
+              cancelledBy: jobData.cancelled_by ?? undefined,
+              cancellationReason: jobData.cancellation_reason ?? undefined,
+
+              // ✅ key fields
+              attachments: (jobData.attachments as any) ?? undefined,
+
+              startTime: jobData.start_time || undefined,
+              selectedSubcontractor: jobData.selected_subcontractor || undefined,
+              confirmedSubcontractor: jobData.confirmed_subcontractor || undefined,
+            });
+          } else {
+            store.jobs.push(job as any);
+          }
 
           // Fetch poster (jobData.contractor_id) into store if missing
           if (jobData.contractor_id) {
@@ -193,6 +472,69 @@ export default function JobDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId, isLoadingJob]);
 
+  useEffect(() => {
+    if (!lightboxOpen) return;
+    const len = lightboxItems.length;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightboxOpen(false);
+      if (e.key === 'ArrowLeft' && len > 1) {
+        setLightboxIndex((i) => (i - 1 + len) % len);
+      }
+      if (e.key === 'ArrowRight' && len > 1) {
+        setLightboxIndex((i) => (i + 1) % len);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [lightboxOpen, lightboxItems.length]);
+
+  useEffect(() => {
+    if (!lightboxOpen) return;
+    if (!lightboxItems.length) return;
+
+    const item = lightboxItems[lightboxIndex];
+    if (!item) return;
+
+    // Already have URL (string attachments or previously signed)
+    if (item.url) return;
+
+    // Need bucket+path to sign
+    if (!item.bucket || !item.path) return;
+
+    let alive = true;
+
+    (async () => {
+      const { data, error } = await sb.storage
+        .from(item.bucket!)
+        .createSignedUrl(item.path!, 60 * 60); // 1 hour
+
+      if (!alive) return;
+
+      if (error) {
+        console.warn('Lightbox signed URL error', error);
+        return;
+      }
+
+      const signedUrl = data?.signedUrl ?? null;
+      if (!signedUrl) return;
+
+      // Patch only the active item
+      setLightboxItems((prev) => {
+        const copy = [...prev];
+        const current = copy[lightboxIndex];
+        if (!current) return prev;
+        copy[lightboxIndex] = { ...current, url: signedUrl };
+        return copy;
+      });
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [lightboxOpen, lightboxIndex, lightboxItems.length, sb, lightboxItems]);
+
   const job = store.getJobById(jobId);
   const poster = job ? store.getUserById(job.contractorId) : null;
   const applications = job ? store.getApplicationsByJob(job.id) : [];
@@ -219,9 +561,32 @@ export default function JobDetailPage() {
   if (isLoadingJob || !currentUser) {
     return (
       <AppLayout>
-        <div className="max-w-4xl mx-auto p-4 md:p-6">
-          <div className="text-center py-12">
-            <div className="text-gray-600">Loading...</div>
+        {/* Grey wrapper (match /jobs) */}
+        <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-blue-50 via-white to-blue-100">
+          {/* dotted overlay */}
+          <div
+            className="pointer-events-none absolute inset-0 opacity-25"
+            style={{
+              backgroundImage: 'radial-gradient(rgba(0,0,0,0.12) 1px, transparent 1px)',
+              backgroundSize: '18px 18px',
+            }}
+          />
+
+          {/* watermark */}
+          <div className="pointer-events-none absolute -right-[520px] -bottom-[520px] opacity-[0.06]">
+            <img
+              src="/TradeHub-Mark-blackout.svg"
+              alt=""
+              className="h-[1600px] w-[1600px]"
+            />
+          </div>
+
+          <div className="relative mx-auto w-full max-w-6xl px-4 pb-24 pt-6 sm:px-6 lg:px-8">
+            <div className="max-w-4xl mx-auto">
+              <div className="text-center py-12">
+                <div className="text-gray-600">Loading...</div>
+              </div>
+            </div>
           </div>
         </div>
       </AppLayout>
@@ -231,12 +596,35 @@ export default function JobDetailPage() {
   if (!job || !poster) {
     return (
       <AppLayout>
-        <div className="max-w-4xl mx-auto p-4 md:p-6">
-          <div className="text-center py-12">
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Job not found</h2>
-            <Link href="/jobs">
-              <Button variant="outline">Back to Jobs</Button>
-            </Link>
+        {/* Grey wrapper (match /jobs) */}
+        <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-blue-50 via-white to-blue-100">
+          {/* dotted overlay */}
+          <div
+            className="pointer-events-none absolute inset-0 opacity-25"
+            style={{
+              backgroundImage: 'radial-gradient(rgba(0,0,0,0.12) 1px, transparent 1px)',
+              backgroundSize: '18px 18px',
+            }}
+          />
+
+          {/* watermark */}
+          <div className="pointer-events-none absolute -right-[520px] -bottom-[520px] opacity-[0.06]">
+            <img
+              src="/TradeHub-Mark-blackout.svg"
+              alt=""
+              className="h-[1600px] w-[1600px]"
+            />
+          </div>
+
+          <div className="relative mx-auto w-full max-w-6xl px-4 pb-24 pt-6 sm:px-6 lg:px-8">
+            <div className="max-w-4xl mx-auto">
+              <div className="text-center py-12">
+                <h2 className="text-xl font-semibold text-gray-900 mb-2">Job not found</h2>
+                <Link href="/jobs">
+                  <Button variant="outline">Back to Jobs</Button>
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       </AppLayout>
@@ -247,23 +635,46 @@ export default function JobDetailPage() {
   if (!isMyJob && !isAdminUser && job.tradeCategory !== currentUser.primaryTrade) {
     return (
       <AppLayout>
-        <div className="max-w-4xl mx-auto p-4 md:p-6">
-          <Link
-            href="/jobs"
-            className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4 mr-1" />
-            Back to Jobs
-          </Link>
-          <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
-            <AlertCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">This job isn't available for your trade.</h2>
-            <p className="text-gray-600 mb-6">
-              TradeHub only shows work that matches your primary trade to keep listings relevant.
-            </p>
-            <Link href="/jobs">
-              <Button variant="outline">← Back to Jobs</Button>
-            </Link>
+        {/* Grey wrapper (match /jobs) */}
+        <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-blue-50 via-white to-blue-100">
+          {/* dotted overlay */}
+          <div
+            className="pointer-events-none absolute inset-0 opacity-25"
+            style={{
+              backgroundImage: 'radial-gradient(rgba(0,0,0,0.12) 1px, transparent 1px)',
+              backgroundSize: '18px 18px',
+            }}
+          />
+
+          {/* watermark */}
+          <div className="pointer-events-none absolute -right-[520px] -bottom-[520px] opacity-[0.06]">
+            <img
+              src="/TradeHub-Mark-blackout.svg"
+              alt=""
+              className="h-[1600px] w-[1600px]"
+            />
+          </div>
+
+          <div className="relative mx-auto w-full max-w-6xl px-4 pb-24 pt-6 sm:px-6 lg:px-8">
+            <div className="max-w-4xl mx-auto">
+              <Link
+                href="/jobs"
+                className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4 mr-1" />
+                Back to Jobs
+              </Link>
+              <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
+                <AlertCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h2 className="text-xl font-semibold text-gray-900 mb-2">This job isn't available for your trade.</h2>
+                <p className="text-gray-600 mb-6">
+                  TradeHub only shows work that matches your primary trade to keep listings relevant.
+                </p>
+                <Link href="/jobs">
+                  <Button variant="outline">← Back to Jobs</Button>
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       </AppLayout>
@@ -272,6 +683,22 @@ export default function JobDetailPage() {
 
   const needsAbnForActions = needsBusinessVerification(currentUser);
   const returnUrl = `/jobs/${jobId}`;
+  const attachments = (job as any)?.attachments ?? [];
+
+  const canGoPrev = lightboxItems.length > 1;
+  const canGoNext = lightboxItems.length > 1;
+
+  const goPrev = () => {
+    if (!lightboxItems.length) return;
+    setLightboxIndex((i) => (i - 1 + lightboxItems.length) % lightboxItems.length);
+  };
+
+  const goNext = () => {
+    if (!lightboxItems.length) return;
+    setLightboxIndex((i) => (i + 1) % lightboxItems.length);
+  };
+
+  const activeLightbox = lightboxItems[lightboxIndex] ?? null;
 
   const handleStartApply = () => {
     if (needsAbnForActions) {
@@ -404,16 +831,34 @@ export default function JobDetailPage() {
     router.refresh();
   };
 
-  const handleCloseJob = () => {
-    if (!lifecycleState?.canClose) {
-      alert('Cannot close job at this time');
+  async function handleCloseJob() {
+    if (!currentUser?.id) {
+      toast.error('You must be logged in.');
       return;
     }
+    if (!job) return;
 
-    store.updateJob(job.id, { status: 'closed' });
-    setShowCloseDialog(false);
-    router.refresh();
-  };
+    setIsClosing(true);
+
+    try {
+      const supabase = getBrowserSupabase();
+
+      const { error } = await supabase
+        .from('jobs')
+        .update({ status: 'closed' })
+        .eq('id', job.id);
+
+      if (error) throw error;
+
+      toast.success('Job closed successfully');
+      router.refresh();
+    } catch (err) {
+      console.error('[jobs] close failed', err);
+      toast.error('Could not close job. Check permissions.');
+    } finally {
+      setIsClosing(false);
+    }
+  }
 
   const handleCompleteJob = () => {
     if (!lifecycleState?.canComplete) {
@@ -511,8 +956,30 @@ export default function JobDetailPage() {
 
   return (
     <AppLayout>
-      <div className="max-w-4xl mx-auto p-4 md:p-6">
-          <div className="flex items-center justify-between mb-4">
+      {/* Grey wrapper (match /jobs) */}
+      <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-blue-50 via-white to-blue-100">
+        {/* dotted overlay */}
+        <div
+          className="pointer-events-none absolute inset-0 opacity-25"
+          style={{
+            backgroundImage:
+              'radial-gradient(rgba(0,0,0,0.12) 1px, transparent 1px)',
+            backgroundSize: '18px 18px',
+          }}
+        />
+
+        {/* watermark */}
+        <div className="pointer-events-none absolute -right-[520px] -bottom-[520px] opacity-[0.06]">
+          <img
+            src="/TradeHub-Mark-blackout.svg"
+            alt=""
+            className="h-[1600px] w-[1600px]"
+          />
+        </div>
+
+        <div className="relative mx-auto w-full max-w-6xl px-4 pb-24 pt-6 sm:px-6 lg:px-8">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-center justify-between mb-4">
             <Link
               href="/jobs"
               className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 transition-colors"
@@ -528,7 +995,81 @@ export default function JobDetailPage() {
             </Link>
           </div>
 
-          <div className="bg-white border border-gray-200 rounded-xl p-6 mb-6">
+          <div className="rounded-xl border border-slate-300 bg-slate-50 p-6 mb-6">
+            <div className="mb-6 pb-6 border-b border-slate-100">
+              <h3 className="text-sm font-semibold text-slate-900 mb-3">Posted by</h3>
+
+              <Link href={`/users/${poster.id}`} className="block group">
+                <div
+                  className={[
+                    'relative flex items-center gap-4 rounded-2xl border bg-white p-4 transition-all duration-200',
+                    'hover:bg-slate-50 hover:border-slate-200',
+                    // Premium glow
+                    (poster as any)?.isPremium ||
+                    (poster as any)?.is_premium ||
+                    (poster as any)?.subscription_status === 'active'
+                      ? 'ring-2 ring-amber-300/50 shadow-[0_0_0_6px_rgba(251,191,36,0.08)]'
+                      : 'border-slate-200'
+                  ].join(' ')}
+                >
+                  {/* Premium badge (top right) */}
+                  {((poster as any)?.isPremium ||
+                    (poster as any)?.is_premium ||
+                    (poster as any)?.subscription_status === 'active') && (
+                    <div className="absolute right-4 top-4 inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-900">
+                      <Crown className="h-3.5 w-3.5 text-amber-700" />
+                      Premium
+                    </div>
+                  )}
+
+                  {/* Avatar (larger) */}
+                  <UserAvatar
+                    avatarUrl={poster.avatar}
+                    userName={poster.name || 'TradeHub user'}
+                    size="xl"
+                  />
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-base font-semibold text-slate-900">
+                        {poster.name || 'TradeHub user'}
+                      </p>
+
+                      {/* Verified badge */}
+                      {String((poster as any)?.abnStatus ?? (poster as any)?.abn_status ?? '')
+                        .toUpperCase() === 'VERIFIED' && (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-800">
+                          <BadgeCheck className="h-3.5 w-3.5 text-blue-600" />
+                          Verified
+                        </span>
+                      )}
+                    </div>
+
+                    {poster.businessName && (
+                      <p className="mt-0.5 truncate text-sm text-slate-600">
+                        {poster.businessName}
+                      </p>
+                    )}
+
+                    {typeof (poster as any)?.rating === 'number' && (
+                      <div className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+                        <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                        <span className="font-medium text-slate-700">
+                          {(poster as any).rating.toFixed(1)}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Subtle CTA */}
+                    <div className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-blue-600 transition-colors group-hover:text-blue-700">
+                      View profile
+                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            </div>
+
             <div className="flex justify-between items-start mb-4">
               <div className="flex-1">
                 <h1 className="text-2xl font-bold text-gray-900 mb-2">{job.title}</h1>
@@ -559,46 +1100,167 @@ export default function JobDetailPage() {
 
             <div className="grid md:grid-cols-2 gap-4 mb-6">
               <div className="flex items-center gap-2 text-gray-700">
-                <MapPin className="w-5 h-5 text-gray-400" />
+                <MapPin className="w-5 h-5 text-blue-600" />
                 <span>
                   {job.location}, {job.postcode}
                 </span>
               </div>
-              <div className="flex items-center gap-2 text-gray-700">
-                <Calendar className="w-5 h-5 text-gray-400" />
-                <span>{job.dates.map((d) => format(d, 'dd MMM yyyy')).join(', ')}</span>
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-indigo-500" />
+                <span className="text-sm font-medium text-slate-700">
+                  {formatDateRange(job.dates)}
+                </span>
               </div>
               {job.startTime && (
                 <div className="flex items-center gap-2 text-gray-700">
-                  <Clock className="w-5 h-5 text-gray-400" />
+                  <Clock className="w-5 h-5 text-slate-500" />
                   <span>{job.startTime}</span>
                 </div>
               )}
               <div className="flex items-center gap-2 text-gray-700">
-                <DollarSign className="w-5 h-5 text-gray-400" />
+                <DollarSign className="w-5 h-5 text-emerald-600" />
                 <span>
                   ${job.rate} {job.payType === 'hourly' ? 'per hour' : 'fixed price'}
                 </span>
               </div>
             </div>
 
-            <div className="mb-6">
-              <h3 className="font-semibold text-gray-900 mb-2">Description</h3>
-              <p className="text-gray-700 whitespace-pre-wrap">{job.description}</p>
+            <div className="mb-6 rounded-xl border border-slate-300 bg-slate-50 p-6 shadow-sm">
+              <h3 className="text-base font-semibold text-slate-900 mb-3">
+                Description
+              </h3>
+              <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+                {job.description}
+              </p>
             </div>
 
-            <div className="mb-6">
-              <h3 className="font-semibold text-gray-900 mb-2">Posted by</h3>
-              <Link href={`/users/${poster.id}`}>
-                <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer border border-transparent hover:border-gray-200">
-                  <UserAvatar avatarUrl={poster.avatar} userName={poster.name || 'TradeHub user'} size="md" />
-                  <div>
-                    <p className="font-medium text-gray-900 hover:text-blue-600 transition-colors">{poster.name || 'TradeHub user'}</p>
-                    <p className="text-sm text-gray-600">{poster.businessName}</p>
-                  </div>
+            {Array.isArray(attachments) && attachments.length > 0 && (() => {
+              const isImage = (a: any) => {
+                const name = typeof a === 'string' ? (a.split('/').pop() || '') : String(a?.name ?? '');
+                const type = typeof a === 'string' ? '' : String(a?.type ?? '');
+                const ext = (name.split('.').pop() || '').toLowerCase();
+                return (type && type.startsWith('image/')) || ['jpg','jpeg','png','webp','gif','heic'].includes(ext);
+              };
+
+              const imageAttachments = attachments.filter(isImage);
+              const lightboxList = imageAttachments.map((a: any) => ({
+                url: '',
+                name: typeof a === 'string' ? (a.split('/').pop() || 'Image') : (a?.name ?? 'Image'),
+                _raw: a,
+              }));
+              const fileAttachments = attachments.filter((a: any) => !isImage(a));
+
+              return (
+                <div className="mt-6">
+                  <h3 className="text-sm font-semibold text-slate-900 mb-2">Attachments</h3>
+
+                  {imageAttachments.length > 0 && (
+                    <div className="mb-4">
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {imageAttachments.map((a: any, idx: number) => (
+                          <AttachmentRow
+                            key={a?.path ?? idx}
+                            attachment={a}
+                            onImageClick={(img) => {
+                              const items: LightboxItem[] = imageAttachments.map((a: any) => {
+                                if (typeof a === 'string') {
+                                  return { name: a.split('/').pop() || 'Image', url: a };
+                                }
+                                return {
+                                  name: a?.name ?? a?.path?.split('/')?.pop() ?? 'Image',
+                                  bucket: a?.bucket ?? 'job-attachments',
+                                  path: a?.path,
+                                };
+                              });
+
+                              const clickedName = img.name;
+                              const idx = items.findIndex((x) => x.name === clickedName);
+
+                              // Inject the clicked signed URL immediately (best UX)
+                              if (idx >= 0) items[idx] = { ...items[idx], url: img.url };
+
+                              setLightboxItems(items);
+                              setLightboxIndex(Math.max(0, idx));
+                              setLightboxOpen(true);
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {fileAttachments.length > 0 && (
+                    <div className="space-y-2">
+                      {fileAttachments.map((a: any, idx: number) => (
+                        <AttachmentRow key={a?.path ?? idx} attachment={a} />
+                      ))}
+                    </div>
+                  )}
+
+                  <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
+                    <DialogContent className="max-w-5xl">
+                      <DialogHeader>
+                        <DialogTitle className="truncate">{activeLightbox?.name ?? 'Image'}</DialogTitle>
+                      </DialogHeader>
+
+                      <div className="relative mt-2 overflow-hidden rounded-xl border bg-black/5">
+                        {/* Close button */}
+                        <button
+                          type="button"
+                          onClick={() => setLightboxOpen(false)}
+                          className="absolute right-3 top-3 z-10 rounded-full bg-white/90 p-2 shadow hover:bg-white"
+                          aria-label="Close"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+
+                        {/* Prev */}
+                        {canGoPrev && (
+                          <button
+                            type="button"
+                            onClick={goPrev}
+                            className="absolute left-3 top-1/2 z-10 -translate-y-1/2 rounded-full bg-white/90 p-2 shadow hover:bg-white"
+                            aria-label="Previous image"
+                          >
+                            <ChevronLeft className="h-5 w-5" />
+                          </button>
+                        )}
+
+                        {/* Next */}
+                        {canGoNext && (
+                          <button
+                            type="button"
+                            onClick={goNext}
+                            className="absolute right-3 top-1/2 z-10 -translate-y-1/2 rounded-full bg-white/90 p-2 shadow hover:bg-white"
+                            aria-label="Next image"
+                          >
+                            <ChevronRight className="h-5 w-5" />
+                          </button>
+                        )}
+
+                        {activeLightbox?.url ? (
+                          <img
+                            src={activeLightbox.url}
+                            alt={activeLightbox.name}
+                            className="w-full h-auto"
+                          />
+                        ) : (
+                          <div className="p-10 text-center text-sm text-slate-600">
+                            Loading image…
+                          </div>
+                        )}
+                      </div>
+
+                      {lightboxItems.length > 1 && (
+                        <div className="mt-3 text-center text-xs text-slate-500">
+                          {lightboxIndex + 1} / {lightboxItems.length}
+                        </div>
+                      )}
+                    </DialogContent>
+                  </Dialog>
                 </div>
-              </Link>
-            </div>
+              );
+            })()}
 
             {canApply && (
               <div className="space-y-3">
@@ -747,8 +1409,22 @@ export default function JobDetailPage() {
             )}
 
             {isMyJob && job.status === 'open' && lifecycleState?.canClose && (
-              <Button onClick={() => setShowCloseDialog(true)} variant="outline" className="w-full">
-                Close Job Posting
+              <Button
+                onClick={handleCloseJob}
+                disabled={isClosing}
+                className="
+                  mt-4
+                  w-full
+                  border-red-200
+                  bg-red-50
+                  text-red-700
+                  hover:bg-red-100
+                  hover:border-red-300
+                  hover:text-red-800
+                  transition-colors
+                "
+              >
+                {isClosing ? 'Closing…' : 'Close Job Posting'}
               </Button>
             )}
 
@@ -903,7 +1579,9 @@ export default function JobDetailPage() {
               onSubmit={handleSubmitReview}
             />
           )}
+          </div>
         </div>
-      </AppLayout>
+      </div>
+    </AppLayout>
   );
 }

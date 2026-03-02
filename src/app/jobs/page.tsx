@@ -10,24 +10,67 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Briefcase, Plus, ShieldCheck, ArrowRight } from 'lucide-react';
+import { Briefcase, Plus, ShieldCheck, ArrowRight, Crown } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { AppLayout } from '@/components/app-nav';
 import { JobCard } from '@/components/job-card';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import { useAuth } from '@/lib/auth';
 import { getStore } from '@/lib/store';
+import { getBrowserSupabase } from '@/lib/supabase-client';
+import { isPremiumForDiscovery } from '@/lib/discovery';
 import { buildLoginUrl } from '@/lib/url-utils';
 import { safeRouterPush } from '@/lib/safe-nav';
 import { needsBusinessVerification, getVerifyBusinessUrl } from '@/lib/verification-guard';
+import { getTradeIcon } from '@/lib/trade-icons';
 
 type JobsTab = 'find' | 'posts' | 'applications';
 
-function norm(v?: string | null) {
-  return String(v || '').trim().toLowerCase();
+function normalizeJobRow(row: Record<string, unknown>): Record<string, unknown> {
+  const rawDates: unknown[] = Array.isArray(row.dates) ? row.dates : [];
+  const dates: Date[] = rawDates
+    .filter(Boolean)
+    .map((d) => new Date(d as string))
+    .filter((d) => !isNaN(d.getTime()));
+
+  const r = row as Record<string, unknown>;
+
+  return {
+    id: row.id,
+    contractorId: row.contractor_id ?? row.contractorId,
+    poster_is_premium:
+      (row as any).poster_is_premium ??
+      (row as any).posterIsPremium ??
+      (row as any).poster_premium ??
+      (row as any).posterPremium ??
+      null,
+    poster_plan:
+      (row as any).poster_plan ??
+      (row as any).posterPlan ??
+      (row as any).poster_active_plan ??
+      (row as any).posterActivePlan ??
+      null,
+    title: row.title,
+    description: row.description ?? '',
+    tradeCategory: row.trade_category ?? row.tradeCategory ?? '',
+    location: row.location ?? '',
+    postcode: row.postcode ?? '',
+    dates: dates.length > 0 ? dates : [new Date()],
+    startTime: row.start_time ?? row.startTime,
+    payType: row.pay_type ?? row.payType ?? 'fixed',
+    rate: row.rate ?? 0,
+    status: row.status ?? 'open',
+    createdAt: row.created_at ? new Date(row.created_at as string) : new Date(),
+    distance_km: r.distance_km ?? r.distanceKm ?? null,
+    location_lat: r.location_lat ?? r.locationLat ?? null,
+    location_lng: r.location_lng ?? r.locationLng ?? null,
+  };
 }
+
 export default function JobsPage() {
   const { currentUser, isLoading } = useAuth();
   const router = useRouter();
@@ -35,9 +78,15 @@ export default function JobsPage() {
   const hasRedirected = useRef(false);
 
   const [tab, setTab] = useState<JobsTab>('find');
+  const [visibleJobs, setVisibleJobs] = useState<any[]>([]);
+  const [loadingJobs, setLoadingJobs] = useState(false);
+  const [jobsError, setJobsError] = useState<string | null>(null);
+  const [sortMode, setSortMode] = useState<'newest' | 'nearest'>('newest');
 
-  // Snapshot store arrays (memoize fallbacks so useMemo deps stay stable)
-  const jobs = useMemo(() => store.jobs ?? [], [store.jobs]);
+  const [myPostsDb, setMyPostsDb] = useState<any[]>([]);
+  const [loadingMyPosts, setLoadingMyPosts] = useState(false);
+  const [myPostsError, setMyPostsError] = useState<string | null>(null);
+
   const applications = useMemo(() => store.applications ?? [], [store.applications]);
 
   // Compute ABN verified state (optional field right now)
@@ -46,15 +95,98 @@ export default function JobsPage() {
     [currentUser]
   );
 
+  const userForDiscovery = currentUser
+    ? {
+        is_premium: (currentUser as any).isPremium ?? (currentUser as any).is_premium ?? undefined,
+        subscription_status: (currentUser as any).subscriptionStatus ?? (currentUser as any).subscription_status ?? null,
+        active_plan: (currentUser as any).activePlan ?? (currentUser as any).active_plan ?? null,
+        subcontractor_plan: undefined,
+        subcontractor_sub_status: undefined,
+      }
+    : null;
+
+  const isPremium = isPremiumForDiscovery(userForDiscovery);
+
+  const allowedRadiusKm = isPremium ? 100 : 20;
+  const TradeIcon = getTradeIcon(currentUser?.primaryTrade ?? undefined);
+
+  // Fetch Find Work jobs via RPC (server-enforced radius)
+  useEffect(() => {
+    const run = async () => {
+      if (!currentUser?.id) return;
+      if (tab !== 'find') return;
+
+      setLoadingJobs(true);
+      setJobsError(null);
+
+      try {
+        const supabase = getBrowserSupabase();
+
+        const { data, error } = await (supabase as any).rpc('get_jobs_visible_to_viewer', {
+          viewer_id: currentUser.id,
+          trade_filter: currentUser.primaryTrade ?? null,
+          limit_count: 50,
+        });
+
+        if (error) {
+          console.error('[jobs] rpc error', error);
+          setVisibleJobs([]);
+          setJobsError(error.message || 'Could not load jobs');
+          return;
+        }
+
+        const rows = Array.isArray(data) ? data : [];
+        setVisibleJobs(rows.map((r) => normalizeJobRow(r as Record<string, unknown>)));
+      } catch (e: any) {
+        console.error('[jobs] unexpected error', e);
+        setVisibleJobs([]);
+        setJobsError('Could not load jobs');
+      } finally {
+        setLoadingJobs(false);
+      }
+    };
+
+    run();
+  }, [currentUser?.id, currentUser?.primaryTrade, tab]);
+
+  // Fetch my posts from DB so it matches the jobs table schema
+  useEffect(() => {
+    const run = async () => {
+      if (!currentUser?.id) return;
+      if (tab !== 'posts') return;
+
+      setLoadingMyPosts(true);
+      setMyPostsError(null);
+
+      try {
+        const supabase = getBrowserSupabase();
+        const { data, error } = await supabase
+          .from('jobs')
+          .select('*')
+          .eq('contractor_id', currentUser.id)
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        if (error) throw error;
+
+        const rows = Array.isArray(data) ? data : [];
+        setMyPostsDb(rows.map((r) => normalizeJobRow(r as Record<string, unknown>)));
+      } catch (e: unknown) {
+        console.error('[jobs] my posts load failed', e);
+        setMyPostsDb([]);
+        setMyPostsError(e instanceof Error ? e.message : 'Could not load your job posts');
+      } finally {
+        setLoadingMyPosts(false);
+      }
+    };
+
+    run();
+  }, [currentUser?.id, tab]);
+
   const myPosts = useMemo(() => {
-    if (!currentUser?.id) return [];
-    try {
-      return store.getJobsByContractor(currentUser.id) || [];
-    } catch {
-      return [];
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser?.id]);
+    if (tab !== 'posts') return [];
+    return myPostsDb ?? [];
+  }, [myPostsDb, tab]);
 
   const myApplications = useMemo(() => {
     if (!currentUser?.id) return [];
@@ -62,15 +194,33 @@ export default function JobsPage() {
   }, [applications, currentUser?.id]);
 
   const availableJobs = useMemo(() => {
-    if (!currentUser?.id) return [];
-    return jobs.filter((j: any) => {
-      const alreadyApplied = myApplications.some((a: any) => a.jobId === j.id);
-      const tradeMatches = j.tradeCategory === currentUser.primaryTrade;
-      const isOpen = j.status === 'open';
-      const notOwnJob = j.contractorId !== currentUser.id;
-      return isOpen && !alreadyApplied && tradeMatches && notOwnJob;
+    if (tab !== 'find') return [];
+    const rows = (visibleJobs ?? []).slice();
+
+    const getNum = (v: unknown) => (typeof v === 'number' && isFinite(v) ? v : null);
+    const isPrem = (j: Record<string, unknown>) => !!(j?.poster_is_premium ?? j?.posterIsPremium);
+
+    // Always pin premium first
+    rows.sort((a: Record<string, unknown>, b: Record<string, unknown>) => {
+      const ap = isPrem(a) ? 1 : 0;
+      const bp = isPrem(b) ? 1 : 0;
+      if (bp !== ap) return bp - ap;
+
+      if (sortMode === 'nearest') {
+        const ad = getNum(a?.distance_km ?? a?.distanceKm);
+        const bd = getNum(b?.distance_km ?? b?.distanceKm);
+        if (ad != null && bd != null && ad !== bd) return ad - bd;
+        if (ad == null && bd != null) return 1;
+        if (ad != null && bd == null) return -1;
+      }
+
+      const at = a?.createdAt instanceof Date ? a.createdAt.getTime() : new Date((a?.created_at ?? 0) as string).getTime();
+      const bt = b?.createdAt instanceof Date ? b.createdAt.getTime() : new Date((b?.created_at ?? 0) as string).getTime();
+      return bt - at; // newest fallback
     });
-  }, [jobs, myApplications, currentUser?.primaryTrade, currentUser?.id]);
+
+    return rows;
+  }, [visibleJobs, tab, sortMode]);
 
   // Redirect only after auth finishes initializing
   useEffect(() => {
@@ -79,7 +229,11 @@ export default function JobsPage() {
 
     if (!currentUser) {
       hasRedirected.current = true;
-      safeRouterPush(router, buildLoginUrl('/jobs'), buildLoginUrl('/jobs'));
+
+      // defensive safety check
+      if (router) {
+        safeRouterPush(router, buildLoginUrl('/jobs'), buildLoginUrl('/jobs'));
+      }
     }
   }, [isLoading, currentUser, router]);
 
@@ -104,136 +258,308 @@ export default function JobsPage() {
 
   return (
     <AppLayout>
-      <div className="mx-auto max-w-7xl p-4 md:p-6">
-        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Jobs</h1>
-            <p className="text-gray-600">Find subcontracting work or post jobs to hire subcontractors</p>
-          </div>
+      {/* Grey wrapper */}
+      <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-blue-50 via-white to-blue-100">
+        {/* dotted overlay */}
+        <div
+          className="pointer-events-none absolute inset-0 opacity-25"
+          style={{
+            backgroundImage:
+              'radial-gradient(rgba(0,0,0,0.12) 1px, transparent 1px)',
+            backgroundSize: '18px 18px',
+          }}
+        />
 
-          {/* Post Job CTA (gate the action, not the page) */}
-          {showAbnGateForPosting ? (
-            <div className="flex items-center gap-2">
-              <Link href={getVerifyBusinessUrl('/jobs')}>
-                <Button className="min-w-[160px] gap-2">
-                  <ShieldCheck className="h-4 w-4" />
-                  Verify ABN to Post
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </Link>
-            </div>
-          ) : (
-            <Link href="/jobs/create">
-              <Button variant="primary-green" className="min-w-[160px]">
-                <Plus className="mr-2 h-4 w-4" />
-                Post Job
-              </Button>
-            </Link>
-          )}
+        {/* watermark */}
+        <div className="pointer-events-none absolute -right-[520px] -bottom-[520px] opacity-[0.06]">
+          <img
+            src="/TradeHub-Mark-blackout.svg"
+            alt=""
+            className="h-[1600px] w-[1600px]"
+          />
         </div>
 
-        {/* Optional ABN callout for contractors */}
-        {showAbnGateForPosting && (
-          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4">
-            <div className="flex items-start gap-3">
-              <ShieldCheck className="mt-0.5 h-5 w-5 text-red-600" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-red-900">Verify your ABN to post jobs.</p>
-                <p className="mt-1 text-sm text-red-800">
-                  Browsing jobs still works — verification is required for trust-critical actions like posting.
-                </p>
-                <div className="mt-3">
-                  <Link href={getVerifyBusinessUrl('/jobs')}>
-                    <Button size="sm" className="gap-2">
-                      <ShieldCheck className="h-4 w-4" />
-                      Verify now
-                      <ArrowRight className="h-4 w-4" />
-                    </Button>
-                  </Link>
+        <div className="relative mx-auto w-full max-w-6xl px-4 pb-24 pt-6 sm:px-6 lg:px-8">
+          {/* Header row */}
+          <div className="mb-4 flex flex-col gap-2 sm:mb-6">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/70 shadow-sm ring-1 ring-black/5 backdrop-blur">
+                  <Briefcase className="h-5 w-5 text-slate-800" />
+                </div>
+                <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Jobs</h1>
+              </div>
+              <p className="mt-1 text-sm text-slate-600">
+                Find subcontracting work or post jobs to hire subcontractors
+              </p>
+            </div>
+          </div>
+
+          {/* Optional ABN callout for contractors */}
+          {showAbnGateForPosting && (
+            <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4">
+              <div className="flex items-start gap-3">
+                <ShieldCheck className="mt-0.5 h-5 w-5 text-red-600" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-red-900">Verify your ABN to post jobs.</p>
+                  <p className="mt-1 text-sm text-red-800">
+                    Browsing jobs still works — verification is required for trust-critical actions like posting.
+                  </p>
+                  <div className="mt-3">
+                    <Link href={getVerifyBusinessUrl('/jobs')}>
+                      <Button size="sm" className="gap-2">
+                        <ShieldCheck className="h-4 w-4" />
+                        Verify now
+                        <ArrowRight className="h-4 w-4" />
+                      </Button>
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as JobsTab)}>
-          <TabsList>
-            <TabsTrigger value="find">Find Work</TabsTrigger>
-            <TabsTrigger value="posts">My Job Posts</TabsTrigger>
-            <TabsTrigger value="applications">My Applications</TabsTrigger>
-          </TabsList>
+          <Tabs value={tab} onValueChange={(v) => setTab(v as JobsTab)}>
+            {/* Main surface */}
+            <Card className="border-black/5 bg-white/75 shadow-sm backdrop-blur">
+              <CardHeader className="border-b border-black/5 p-4 sm:p-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  {/* Tabs */}
+                  <TabsList className="w-full justify-start rounded-2xl bg-slate-100/80 p-1 ring-1 ring-black/5 sm:w-auto">
+                    <TabsTrigger value="find" className="rounded-xl px-4">
+                      Find Work
+                    </TabsTrigger>
+                    <TabsTrigger value="posts" className="rounded-xl px-4">
+                      My Job Posts
+                    </TabsTrigger>
+                    <TabsTrigger value="applications" className="rounded-xl px-4">
+                      My Applications
+                    </TabsTrigger>
+                  </TabsList>
 
-          <TabsContent value="find" className="mt-4">
-            <div className="mb-4 text-sm text-gray-600">
-              Showing jobs in your trade:{' '}
-              <span className="font-medium">{currentUser.primaryTrade || '—'}</span>
-            </div>
+                  {/* CTA (keep ABN gate exactly) */}
+                  {showAbnGateForPosting ? (
+                    <Link href={getVerifyBusinessUrl('/jobs')}>
+                      <Button className="h-10 gap-2 rounded-xl shadow-sm transition-all hover:shadow-md active:scale-[0.99]">
+                        <ShieldCheck className="h-4 w-4" />
+                        Verify ABN to Post
+                        <ArrowRight className="h-4 w-4" />
+                      </Button>
+                    </Link>
+                  ) : (
+                    <Link href="/jobs/create">
+                      <Button
+                        variant="primary-green"
+                        className="h-10 gap-2 rounded-xl shadow-sm transition-all hover:shadow-md active:scale-[0.99]"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Post Job
+                      </Button>
+                    </Link>
+                  )}
+                </div>
+              </CardHeader>
 
-            {availableJobs.length > 0 ? (
-              <div className="space-y-3">
-                {availableJobs.map((job: any) => (
-                  <JobCard key={job.id} job={job} showStatus={false} />
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-xl border border-gray-200 bg-white p-12 text-center">
-                <Briefcase className="mx-auto mb-4 h-16 w-16 text-gray-400" />
-                <h3 className="mb-2 text-lg font-semibold text-gray-900">No jobs available</h3>
-                <p className="text-gray-600">Check back soon for new opportunities in your trade</p>
-              </div>
-            )}
-          </TabsContent>
+              <CardContent className="p-4 sm:p-6">
+                <TabsContent value="find" className="mt-6">
+                  <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                      <span className="inline-flex items-center gap-2">
+                        <span>Showing jobs in your trade:</span>
+                        <span className="inline-flex items-center gap-2 font-semibold text-slate-800">
+                          {TradeIcon ? <TradeIcon className="h-4 w-4 text-blue-600" /> : null}
+                          {String(currentUser?.primaryTrade || 'Your trade')}
+                        </span>
+                      </span>
 
-          <TabsContent value="posts" className="mt-4">
-            {myPosts.length > 0 ? (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {myPosts.map((job: any) => (
-                  <JobCard key={job.id} job={job} />
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-xl border border-gray-200 bg-white p-12 text-center">
-                <Briefcase className="mx-auto mb-4 h-16 w-16 text-gray-400" />
-                <h3 className="mb-2 text-lg font-semibold text-gray-900">No jobs posted yet</h3>
-                <p className="mb-6 text-gray-600">Create your first job posting to find subcontractors</p>
+                      <span className="text-slate-300">•</span>
 
-                {showAbnGateForPosting ? (
-                  <Link href={getVerifyBusinessUrl('/jobs')}>
-                    <Button>
-                      <ShieldCheck className="mr-2 h-4 w-4" />
-                      Verify ABN to Post
-                    </Button>
-                  </Link>
-                ) : (
-                  <Link href="/jobs/create">
-                    <Button variant="secondary-green">
-                      <Plus className="mr-2 h-4 w-4" />
-                      Post Your First Job
-                    </Button>
-                  </Link>
-                )}
-              </div>
-            )}
-          </TabsContent>
+                      <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs text-slate-700 shadow-sm">
+                        <span className="text-slate-500">Radius</span>
+                        <span className="rounded-full border border-indigo-100 bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700">
+                          {allowedRadiusKm}km radius
+                        </span>
+                      </span>
+                    </div>
 
-          <TabsContent value="applications" className="mt-4">
-            {myApplications.length > 0 ? (
-              <div className="space-y-3">
-                {myApplications.map((app: any) => {
-                  const job = jobs.find((j: any) => j.id === app.jobId);
-                  if (!job) return null;
-                  return <JobCard key={app.id} job={job} />;
-                })}
-              </div>
-            ) : (
-              <div className="rounded-xl border border-gray-200 bg-white p-12 text-center">
-                <Briefcase className="mx-auto mb-4 h-16 w-16 text-gray-400" />
-                <h3 className="mb-2 text-lg font-semibold text-gray-900">No applications yet</h3>
-                <p className="text-gray-600">Apply for a job and your applications will show up here</p>
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-slate-600">Sort:</span>
+
+                      <button
+                        type="button"
+                        onClick={() => setSortMode('newest')}
+                        className={`rounded-lg px-2 py-1 text-xs font-medium ring-1 ring-black/5 ${
+                          sortMode === 'newest'
+                            ? 'bg-white text-slate-900'
+                            : 'bg-slate-100/70 text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Newest
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setSortMode('nearest')}
+                        className={`rounded-lg px-2 py-1 text-xs font-medium ring-1 ring-black/5 ${
+                          sortMode === 'nearest'
+                            ? 'bg-white text-slate-900'
+                            : 'bg-slate-100/70 text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Nearest
+                      </button>
+                    </div>
+                  </div>
+
+                  {loadingJobs ? (
+                    <div className="space-y-3">
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <div key={i} className="animate-pulse rounded-xl border border-slate-200 bg-white p-4">
+                          <div className="h-4 w-2/3 rounded bg-slate-200" />
+                          <div className="mt-3 h-3 w-1/2 rounded bg-slate-200" />
+                          <div className="mt-4 h-10 w-full rounded bg-slate-100" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : jobsError ? (
+                    <div className="rounded-xl border border-red-200 bg-red-50 p-6">
+                      <p className="text-sm font-medium text-red-900">Could not load jobs</p>
+                      <p className="mt-1 text-sm text-red-800">{jobsError}</p>
+                      <div className="mt-3">
+                        <Button size="sm" onClick={() => toast.info('Tip: check Supabase logs for RPC errors')}>
+                          OK
+                        </Button>
+                      </div>
+                    </div>
+                  ) : availableJobs.length > 0 ? (
+                    <div className="space-y-3">
+                      {availableJobs.map((job: any) => (
+                        <JobCard key={job.id} job={job} showStatus={false} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {!isPremium && (
+                        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                          <div className="flex items-start gap-3">
+                            <Crown className="mt-0.5 h-5 w-5 text-amber-700" />
+                            <div className="flex-1">
+                              <p className="text-sm font-semibold text-amber-900">
+                                No jobs within your {allowedRadiusKm}km radius.
+                              </p>
+                              <p className="mt-1 text-sm text-amber-800">
+                                Premium expands your radius to 100km and unlocks search-from location — so you can find work anywhere you&apos;re building.
+                              </p>
+                              <div className="mt-3">
+                                <Link href="/pricing">
+                                  <Button
+                                    className="group relative gap-2 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500 px-5 py-2.5 font-semibold text-black shadow-lg shadow-amber-500/40 transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.03] hover:shadow-xl hover:shadow-amber-500/60 active:scale-[0.98]"
+                                  >
+                                    <span className="pointer-events-none absolute inset-0 rounded-xl bg-white/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+                                    <Crown className="h-4 w-4" />
+                                    <span>See Premium</span>
+                                  </Button>
+                                </Link>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
+                        <Briefcase className="mx-auto mb-4 h-16 w-16 text-slate-400" />
+                        <h3 className="mb-2 text-lg font-semibold text-slate-900">
+                          No jobs in your radius
+                        </h3>
+                        <p className="text-slate-600">
+                          We couldn&apos;t find open jobs within {allowedRadiusKm}km for your trade right now.
+                        </p>
+                        <p className="mt-2 text-sm text-slate-500">
+                          Try again later — new jobs appear as builders post work.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="posts" className="mt-6">
+                  {loadingMyPosts ? (
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <div key={i} className="animate-pulse rounded-xl border border-slate-200 bg-white p-4">
+                          <div className="h-4 w-2/3 rounded bg-slate-200" />
+                          <div className="mt-3 h-3 w-1/2 rounded bg-slate-200" />
+                          <div className="mt-4 h-10 w-full rounded bg-slate-100" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : myPostsError ? (
+                    <div className="rounded-xl border border-red-200 bg-red-50 p-6">
+                      <p className="text-sm font-medium text-red-900">Could not load your job posts</p>
+                      <p className="mt-1 text-sm text-red-800">{myPostsError}</p>
+                    </div>
+                  ) : myPosts.length > 0 ? (
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                      {myPosts.map((job: any) => (
+                        <JobCard key={job.id} job={job} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-black/10 bg-white/60 px-6 py-12 text-center">
+                      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
+                        <Briefcase className="h-6 w-6 text-slate-500" />
+                      </div>
+                      <div className="text-sm font-medium text-slate-900">No jobs posted yet</div>
+                      <div className="mt-1 max-w-md text-sm text-slate-600">
+                        Create your first job posting to find subcontractors
+                      </div>
+
+                      <div className="mt-5">
+                        {showAbnGateForPosting ? (
+                          <Link href={getVerifyBusinessUrl('/jobs')}>
+                            <Button>
+                              <ShieldCheck className="mr-2 h-4 w-4" />
+                              Verify ABN to Post
+                            </Button>
+                          </Link>
+                        ) : (
+                          <Link href="/jobs/create">
+                            <Button variant="secondary-green">
+                              <Plus className="mr-2 h-4 w-4" />
+                              Post Your First Job
+                            </Button>
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="applications" className="mt-6">
+                  {myApplications.length > 0 ? (
+                    <div className="space-y-3">
+                      {myApplications.map((app: any) => {
+                        const job = store.getJobById(app.jobId);
+                        if (!job) return null;
+                        return <JobCard key={app.id} job={job} />;
+                      })}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-black/10 bg-white/60 px-6 py-12 text-center">
+                      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
+                        <Briefcase className="h-6 w-6 text-slate-500" />
+                      </div>
+                      <div className="text-sm font-medium text-slate-900">No applications yet</div>
+                      <div className="mt-1 max-w-md text-sm text-slate-600">
+                        Apply for a job and your applications will show up here
+                      </div>
+                    </div>
+                  )}
+                </TabsContent>
+              </CardContent>
+            </Card>
+          </Tabs>
+        </div>
       </div>
     </AppLayout>
   );

@@ -3,7 +3,7 @@ import Image from 'next/image';
 interface UserAvatarProps {
   avatarUrl?: string | null;
   userName: string;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
 }
 
@@ -25,12 +25,14 @@ export function UserAvatar({
     sm: 'w-8 h-8 text-xs',
     md: 'w-10 h-10 text-sm',
     lg: 'w-12 h-12 text-base',
+    xl: 'w-24 h-24 text-xl',
   } as const;
 
   const sizePixels = {
     sm: 32,
     md: 40,
     lg: 48,
+    xl: 96,
   } as const;
 
   const initials = getInitials(userName);

@@ -443,6 +443,9 @@ export type Database = {
           fulfillment_marked_by: string | null
           id: string
           location: string
+          location_lat: number | null
+          location_lng: number | null
+          location_place_id: string | null
           pay_type: string
           postcode: string
           rate: number
@@ -477,6 +480,9 @@ export type Database = {
           fulfillment_marked_by?: string | null
           id?: string
           location: string
+          location_lat?: number | null
+          location_lng?: number | null
+          location_place_id?: string | null
           pay_type: string
           postcode: string
           rate: number
@@ -511,6 +517,9 @@ export type Database = {
           fulfillment_marked_by?: string | null
           id?: string
           location?: string
+          location_lat?: number | null
+          location_lng?: number | null
+          location_place_id?: string | null
           pay_type?: string
           postcode?: string
           rate?: number
@@ -1541,6 +1550,14 @@ export type Database = {
     Functions: {
       check_email_exists: { Args: { check_email: string }; Returns: boolean }
       is_premium_user: { Args: { uid: string }; Returns: boolean }
+      get_jobs_visible_to_viewer: {
+        Args: {
+          viewer_id: string
+          trade_filter: string | null
+          limit_count: number
+        }
+        Returns: Record<string, unknown>[]
+      }
     }
     Enums: {
       abn_verification_status:

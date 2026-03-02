@@ -24,13 +24,14 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { PopoverContentWithDone } from '@/components/ui/popover-content-with-done';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Switch } from '@/components/ui/switch';
 
 import { SuburbAutocomplete } from '@/components/suburb-autocomplete';
 
 import { useAuth } from '@/lib/auth';
-import { getStore } from '@/lib/store';
+import { getBrowserSupabase } from '@/lib/supabase-client';
 import { getABNStatusMessage, hasABNButNotVerified } from '@/lib/abn-utils';
 import { safeRouterPush } from '@/lib/safe-nav';
 import { needsBusinessVerification, redirectToVerifyBusiness, getVerifyBusinessUrl } from '@/lib/verification-guard';
@@ -41,7 +42,6 @@ type PayType = 'fixed' | 'hourly';
 export default function CreateJobPage() {
   const { session, currentUser, isLoading } = useAuth();
   const router = useRouter();
-  const store = getStore();
 
   useEffect(() => {
     if (currentUser === null) {
@@ -57,6 +57,9 @@ export default function CreateJobPage() {
   const [tradeCategory, setTradeCategory] = useState(''); // auto-set from primary trade
   const [location, setLocation] = useState('');
   const [postcode, setPostcode] = useState('');
+  const [jobPlaceId, setJobPlaceId] = useState<string | null>(null);
+  const [jobLat, setJobLat] = useState<number | null>(null);
+  const [jobLng, setJobLng] = useState<number | null>(null);
   const [startTime, setStartTime] = useState('08:00');
   const [durationDays, setDurationDays] = useState('1');
   const [payType, setPayType] = useState<PayType>('fixed');
@@ -70,7 +73,7 @@ export default function CreateJobPage() {
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
 
   // files
-  const [files, setFiles] = useState<File[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   // success modal
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -139,11 +142,10 @@ export default function CreateJobPage() {
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = e.target.files;
-    if (!selectedFiles) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-    const newFiles = Array.from(selectedFiles);
-    const totalSize = [...files, ...newFiles].reduce((sum, f) => sum + f.size, 0);
+    const totalSize = files.reduce((sum, f) => sum + f.size, 0);
     const maxSize = 50 * 1024 * 1024;
 
     if (totalSize > maxSize) {
@@ -152,22 +154,55 @@ export default function CreateJobPage() {
       return;
     }
 
-    setFiles((prev) => [...prev, ...newFiles]);
-    toast.success(`${newFiles.length} file(s) added`);
+    setSelectedFiles(files);
+    toast.success(`${files.length} file(s) selected`);
 
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const removeFile = (index: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  async function uploadJobFiles(supabase: any, jobId: string, files: File[]) {
+    const uploaded: any[] = [];
+
+    for (const file of files) {
+      const ext = file.name.split('.').pop() || 'bin';
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const path = `${jobId}/${Date.now()}_${crypto.randomUUID()}.${ext}`;
+
+      const { error: upErr } = await supabase.storage
+        .from('job-attachments')
+        .upload(path, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type || 'application/octet-stream',
+        });
+
+      if (upErr) throw upErr;
+
+      uploaded.push({
+        bucket: 'job-attachments',
+        path,
+        name: safeName,
+        type: file.type || null,
+        size: file.size || null,
+      });
+    }
+
+    return uploaded;
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!title.trim()) return toast.error('Please enter a job title');
     if (!tradeCategory.trim()) return toast.error('Please set a trade category');
     if (!location.trim() || !postcode.trim()) return toast.error('Please select a location with postcode');
+    if (jobLat == null || jobLng == null) {
+      return toast.error('Please select a location from the dropdown so we can calculate distance.');
+    }
     if (!description.trim()) return toast.error('Please enter a job description');
     if (!rate || Number(rate) <= 0) return toast.error('Please enter a valid price / hourly rate');
 
@@ -187,27 +222,6 @@ export default function CreateJobPage() {
       duration = Math.max(1, parseInt(durationDays || '1', 10) || 1);
     }
 
-    // Note: these are local blob URLs (MVP). Replace with Supabase storage later.
-    const attachments = files.map((file) => URL.createObjectURL(file));
-
-    const newJob = {
-      id: `job-${Date.now()}`,
-      contractorId: currentUser.id, // "postedBy" user id (single account)
-      title: title.trim(),
-      description: description.trim(),
-      tradeCategory: tradeCategory.trim(),
-      location: location.trim(),
-      postcode: postcode.trim(),
-      dates: jobDates,
-      startTime,
-      duration,
-      payType,
-      rate: Number(rate),
-      attachments: attachments.length > 0 ? attachments : undefined,
-      status: 'open' as const,
-      createdAt: new Date(),
-    };
-
     if (currentUser && needsBusinessVerification(currentUser)) {
       toast.error('Verify your ABN to continue.');
       redirectToVerifyBusiness(router, '/jobs/create');
@@ -215,21 +229,99 @@ export default function CreateJobPage() {
     }
 
     try {
-      console.warn('[ABN WRITE ATTEMPT]', 'jobs (store)', { id: newJob.id, title: newJob.title }); // ABN_QA_ONLY
-      store.createJob(newJob);
-      setCreatedJobId(newJob.id);
+      const supabase = getBrowserSupabase();
+
+      // store dates as ISO strings for jsonb
+      const datesIso = jobDates.map((d) => d.toISOString());
+
+      const insertPayload = {
+        contractor_id: currentUser.id,
+        title: title.trim(),
+        description: description.trim(),
+        trade_category: tradeCategory.trim(),
+        location: location.trim(),
+        postcode: postcode.trim(),
+        dates: datesIso,
+        start_time: startTime,
+        duration,
+        pay_type: payType,
+        rate: Number(rate),
+        attachments: null,
+        status: 'open',
+        location_place_id: jobPlaceId,
+        location_lat: jobLat,
+        location_lng: jobLng,
+      };
+
+      const { data: created, error: insertError } = await supabase
+        .from('jobs')
+        .insert(insertPayload)
+        .select('id')
+        .single();
+
+      if (insertError) throw insertError;
+
+      const createdJobId = created.id;
+
+      // Upload attachments (optional)
+      let uploaded: any[] = [];
+      if (selectedFiles.length > 0) {
+        uploaded = await uploadJobFiles(supabase, createdJobId, selectedFiles);
+      }
+
+      // Persist attachment metadata to the job row
+      if (uploaded.length > 0) {
+        const { error: attachUpdateError } = await supabase
+          .from('jobs')
+          .update({
+            attachments: uploaded,
+            file_url: null,
+            file_name: uploaded?.[0]?.name ?? null,
+          })
+          .eq('id', createdJobId);
+
+        if (attachUpdateError) {
+          console.error('[jobs/create] failed to save attachments', attachUpdateError);
+          toast.error('Job posted, but attachments failed to save.');
+        }
+      }
+
+      setCreatedJobId(createdJobId);
       setShowSuccessModal(true);
       toast.success('Job posted');
     } catch (err) {
-      console.error('[Jobs] createJob failed:', err);
+      console.error('[Jobs] insert failed:', err);
       toast.error('Failed to post job. Please try again.');
     }
   };
 
   return (
     <AppLayout>
-        <div className="mx-auto max-w-4xl p-4 md:p-6">
-          <PageHeader backLink={{ href: '/jobs' }} title="Post a New Job" />
+      <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-blue-600 via-blue-700 to-slate-900">
+        {/* Dotted overlay - behind watermark */}
+        <div
+          className="pointer-events-none absolute inset-0 opacity-20"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.25) 1px, transparent 0)',
+            backgroundSize: '20px 20px',
+          }}
+          aria-hidden
+        />
+
+        {/* Watermark (fixed to viewport) - above background, behind content */}
+        <div className="pointer-events-none fixed bottom-[-220px] right-[-220px] z-0">
+          <img
+            src="/TradeHub-Mark-whiteout.svg"
+            alt=""
+            aria-hidden="true"
+            className="h-[1600px] w-[1600px] opacity-[0.08]"
+          />
+        </div>
+
+        {/* Page content */}
+        <div className="relative z-10 mx-auto w-full max-w-3xl px-4 py-8 pb-24 sm:px-6 lg:px-8">
+          <PageHeader backLink={{ href: '/jobs' }} title="Post a New Job" tone="dark" />
 
           {abnStatusMessage && (
             <div className="mb-6 rounded-xl border border-yellow-200 bg-yellow-50 p-4">
@@ -291,8 +383,20 @@ export default function CreateJobPage() {
               <SuburbAutocomplete
                 value={location}
                 postcode={postcode}
-                onSuburbChange={setLocation}
+                onSuburbChange={(v) => {
+                  setLocation(v);
+                  // User typed manually — clear auto-filled fields so we don't post stale data
+                  setPostcode('');
+                  setJobLat(null);
+                  setJobLng(null);
+                  setJobPlaceId(null);
+                }}
                 onPostcodeChange={setPostcode}
+                onPlaceIdChange={setJobPlaceId}
+                onLatLngChange={(lat, lng) => {
+                  setJobLat(typeof lat === 'number' ? lat : null);
+                  setJobLng(typeof lng === 'number' ? lng : null);
+                }}
                 required
               />
 
@@ -321,9 +425,9 @@ export default function CreateJobPage() {
                             {singleDate ? formatDate(singleDate, 'dd/MM/yyyy') : 'Select date'}
                           </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
+                        <PopoverContentWithDone className="w-auto" align="start">
                           <CalendarComponent mode="single" selected={singleDate} onSelect={setSingleDate} initialFocus />
-                        </PopoverContent>
+                        </PopoverContentWithDone>
                       </Popover>
                     </div>
 
@@ -366,9 +470,9 @@ export default function CreateJobPage() {
                             {dateFrom ? formatDate(dateFrom, 'dd/MM/yyyy') : 'Select start date'}
                           </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
+                        <PopoverContentWithDone className="w-auto" align="start">
                           <CalendarComponent mode="single" selected={dateFrom} onSelect={setDateFrom} initialFocus />
-                        </PopoverContent>
+                        </PopoverContentWithDone>
                       </Popover>
                     </div>
 
@@ -384,7 +488,7 @@ export default function CreateJobPage() {
                             {dateTo ? formatDate(dateTo, 'dd/MM/yyyy') : 'Select end date'}
                           </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
+                        <PopoverContentWithDone className="w-auto" align="start">
                           <CalendarComponent
                             mode="single"
                             selected={dateTo}
@@ -392,7 +496,7 @@ export default function CreateJobPage() {
                             disabled={(date) => (dateFrom ? date < dateFrom : false)}
                             initialFocus
                           />
-                        </PopoverContent>
+                        </PopoverContentWithDone>
                       </Popover>
                     </div>
 
@@ -477,9 +581,9 @@ export default function CreateJobPage() {
                   <p className="mt-1 text-xs text-gray-500">Images, PDFs, or documents. Max 50MB total.</p>
                 </div>
 
-                {files.length > 0 && (
+                {selectedFiles.length > 0 && (
                   <div className="mt-3 space-y-2">
-                    {files.map((file, index) => (
+                    {selectedFiles.map((file, index) => (
                       <div
                         key={`${file.name}-${index}`}
                         className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 bg-gray-50 p-2"
@@ -523,7 +627,8 @@ export default function CreateJobPage() {
             </form>
           </div>
         </div>
-        {!MVP_FREE_MODE && (
+      </div>
+      {!MVP_FREE_MODE && (
           <PremiumJobUpsellModal open={showSuccessModal} onOpenChange={setShowSuccessModal} jobId={createdJobId} />
         )}
       </AppLayout>

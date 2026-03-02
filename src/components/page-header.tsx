@@ -9,25 +9,31 @@ interface PageHeaderProps {
   title: string;
   description?: string;
   action?: React.ReactNode;
+  tone?: 'light' | 'dark';
 }
 
-export function PageHeader({ backLink, title, description, action }: PageHeaderProps) {
+export function PageHeader({ backLink, title, description, action, tone = 'light' }: PageHeaderProps) {
+  const titleClass = tone === 'dark' ? 'text-white' : 'text-slate-900';
+  const backClass = tone === 'dark' ? 'text-white/80 hover:text-white' : 'text-slate-600 hover:text-slate-900';
+  const descClass = tone === 'dark' ? 'text-white/70' : 'text-slate-600';
+  const iconClass = tone === 'dark' ? 'text-white/80' : 'text-slate-600';
+
   return (
     <div className="mb-6">
       {backLink && (
         <Link
           href={backLink.href}
-          className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-3 transition-colors"
+          className={`inline-flex items-center text-sm mb-3 transition-colors ${backClass}`}
         >
-          <ArrowLeft className="w-4 h-4 mr-1" />
+          <ArrowLeft className={`w-4 h-4 mr-1 ${iconClass}`} />
           Back to Dashboard
         </Link>
       )}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="flex-1">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{title}</h1>
+          <h1 className={`text-2xl sm:text-3xl font-bold ${titleClass}`}>{title}</h1>
           {description && (
-            <p className="mt-2 text-gray-600">{description}</p>
+            <p className={`mt-2 ${descClass}`}>{description}</p>
           )}
         </div>
         {action && (

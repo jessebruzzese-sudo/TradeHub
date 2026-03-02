@@ -25,10 +25,45 @@ import { useParams, useRouter } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { PopoverContentWithDone } from '@/components/ui/popover-content-with-done';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format as formatDate } from 'date-fns';
-import { Calendar as CalendarIcon } from 'lucide-react';
+import { Calendar as CalendarIcon, X, Upload, FileText, Image as ImageIcon } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
+import { getBrowserSupabase } from '@/lib/supabase-client';
+
+type JobAttachment = {
+  name: string;
+  path: string;
+  size?: number;
+  type?: string;
+  bucket?: string;
+};
+
+function buildDateRangeISO(from: Date, to: Date): string[] {
+  const start = new Date(from);
+  const end = new Date(to);
+  start.setHours(12, 0, 0, 0);
+  end.setHours(12, 0, 0, 0);
+
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return [];
+
+  const out: string[] = [];
+  const cur = new Date(start);
+
+  while (cur.getTime() <= end.getTime()) {
+    out.push(cur.toISOString());
+    cur.setDate(cur.getDate() + 1);
+  }
+
+  return out;
+}
+
+function prettySize(bytes?: number) {
+  if (typeof bytes !== 'number') return '';
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
 
 export default function EditJobPage() {
   const { session, currentUser, isLoading } = useAuth();
@@ -55,6 +90,10 @@ export default function EditJobPage() {
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [multipleDates, setMultipleDates] = useState(false);
 
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [attachments, setAttachments] = useState<JobAttachment[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+
   const hasRedirectedAbn = useRef(false);
   const hydratedRef = useRef(false);
 
@@ -75,6 +114,7 @@ export default function EditJobPage() {
     });
     const firstDate = job.dates?.[0];
     setSingleDate(firstDate ? (firstDate instanceof Date ? firstDate : new Date(firstDate)) : undefined);
+    setAttachments(Array.isArray((job as any).attachments) ? ((job as any).attachments as JobAttachment[]) : []);
   }, [job, currentUser?.primaryTrade]);
 
   // Redirect only after profile has loaded (avoid redirect loops / gating during load).
@@ -116,7 +156,7 @@ export default function EditJobPage() {
     );
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser || !job || !canEditJob(currentUser, job)) {
       if (currentUser && job && ownsJob(currentUser, job) && needsBusinessVerification(currentUser)) {
@@ -125,9 +165,6 @@ export default function EditJobPage() {
       }
       return;
     }
-
-    let jobDates: Date[];
-    let duration: number;
 
     if (multipleDates) {
       if (!dateFrom || !dateTo) {
@@ -138,48 +175,154 @@ export default function EditJobPage() {
         toast.error('End date cannot be earlier than start date');
         return;
       }
-      jobDates = [dateFrom];
-      const diffTime = Math.abs(dateTo.getTime() - dateFrom.getTime());
-      duration = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
     } else {
       if (!singleDate) {
         toast.error('Please select a date');
         return;
       }
-      jobDates = [singleDate];
-      duration = parseInt(formData.duration, 10) || 1;
     }
 
-    store.updateJob(jobId, {
+    const datesISO = multipleDates
+      ? buildDateRangeISO(dateFrom!, dateTo!)
+      : singleDate
+        ? [new Date(singleDate).toISOString()]
+        : [];
+
+    const durationDays = parseInt(formData.duration, 10) || 1;
+
+    const payload: Record<string, unknown> = {
       title: formData.title,
       description: formData.description,
-      tradeCategory: formData.tradeCategory,
+      trade_category: formData.tradeCategory,
       location: formData.location,
       postcode: formData.postcode,
-      dates: jobDates,
-      startTime: formData.startTime,
-      duration,
-      payType: formData.payType as 'fixed' | 'hourly',
-      rate: parseFloat(formData.rate),
-    });
+      pay_type: formData.payType,
+      rate: Number(formData.rate) || 0,
+      start_time: formData.startTime || null,
+      duration: multipleDates ? (datesISO.length || null) : durationDays,
+      dates: datesISO,
+      attachments,
+    };
 
-    toast.success('Job updated successfully');
-    safeRouterPush(router, `/jobs/${jobId}`, '/jobs');
+    try {
+      const supabase = getBrowserSupabase();
+      const { error } = await supabase.from('jobs').update(payload).eq('id', jobId);
+
+      if (error) throw error;
+
+      store.updateJob(jobId, {
+        title: formData.title,
+        description: formData.description,
+        tradeCategory: formData.tradeCategory,
+        location: formData.location,
+        postcode: formData.postcode,
+        dates: datesISO.map((d) => new Date(d)),
+        startTime: formData.startTime,
+        duration: multipleDates ? datesISO.length : durationDays,
+        payType: formData.payType as 'fixed' | 'hourly',
+        rate: Number(formData.rate) || 0,
+        attachments: attachments as any,
+      });
+
+      toast.success('Job updated successfully');
+      safeRouterPush(router, `/jobs/${jobId}`, '/jobs');
+    } catch (err) {
+      console.error('[jobs/edit] update failed', err);
+      toast.error('Failed to save changes. Please try again.');
+    }
   };
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  async function handleAddAttachments(files: FileList | null) {
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    try {
+      const supabase = getBrowserSupabase();
+
+      const uploaded: JobAttachment[] = [];
+
+      for (const file of Array.from(files)) {
+        const ext = file.name.split('.').pop() || 'bin';
+        const cleanName = file.name.replace(/[^\w.\-() ]+/g, '_');
+        const path = `${jobId}/${Date.now()}_${crypto.randomUUID()}.${ext}`;
+
+        const { error: upErr } = await supabase.storage
+          .from('job-attachments')
+          .upload(path, file, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: file.type || undefined,
+          });
+
+        if (upErr) {
+          console.error('upload error', upErr);
+          toast.error(`Upload failed: ${file.name}`);
+          continue;
+        }
+
+        uploaded.push({
+          name: cleanName,
+          path,
+          size: file.size,
+          type: file.type,
+          bucket: 'job-attachments',
+        });
+      }
+
+      if (uploaded.length) {
+        setAttachments((prev) => [...prev, ...uploaded]);
+        toast.success(`Uploaded ${uploaded.length} file(s)`);
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error('Upload failed');
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
+  function removeAttachment(idx: number) {
+    setAttachments((prev) => prev.filter((_, i) => i !== idx));
+  }
+
   return (
     <AppLayout>
-      <div className="mx-auto max-w-4xl p-4 md:p-6">
-        <PageHeader backLink={{ href: `/jobs/${jobId}` }} title="Edit Job" />
+      <div className="relative min-h-screen bg-gradient-to-b from-blue-700 via-blue-800 to-blue-900">
+        {/* Dotted overlay - behind watermark */}
+        <div
+          className="pointer-events-none absolute inset-0 opacity-20"
+          style={{
+            backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.25) 1px, transparent 0)',
+            backgroundSize: '20px 20px',
+          }}
+          aria-hidden
+        />
 
-        <div className="rounded-xl border border-gray-200 bg-white p-6">
+        {/* Watermark (fixed to viewport) - above background, behind content */}
+        <div className="pointer-events-none fixed bottom-[-220px] right-[-220px] z-0">
+          <img
+            src="/TradeHub-Mark-whiteout.svg"
+            alt=""
+            aria-hidden="true"
+            className="h-[1600px] w-[1600px] opacity-[0.08]"
+          />
+        </div>
+
+        {/* Page content */}
+        <div className="relative z-10 mx-auto w-full max-w-4xl px-4 py-10 pb-16 md:pb-20">
+          <PageHeader backLink={{ href: `/jobs/${jobId}` }} title="Edit Job" tone="dark" />
+
+          <div className="rounded-2xl bg-white shadow-[0_25px_80px_rgba(0,0,0,0.25)] hover:shadow-[0_25px_80px_rgba(0,0,0,0.35)] transition-shadow p-6 sm:p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <Label htmlFor="title">Job Title</Label>
+            {/* Section: Job details */}
+            <div className="space-y-6">
+              <div>
+                <Label htmlFor="title">Job Title</Label>
               <Input
                 id="title"
                 required
@@ -188,10 +331,10 @@ export default function EditJobPage() {
                 placeholder="e.g. Electrical Rewire - Kitchen & Living Room"
                 className="mt-1"
               />
-            </div>
+              </div>
 
-            <div>
-              <Label htmlFor="tradeCategory">Trade Category</Label>
+              <div>
+                <Label htmlFor="tradeCategory">Trade Category</Label>
               <Input
                 id="tradeCategory"
                 type="text"
@@ -211,16 +354,20 @@ export default function EditJobPage() {
                   </>
                 )}
               </p>
+              </div>
+
+              <SuburbAutocomplete
+                value={formData.location}
+                postcode={formData.postcode}
+                onSuburbChange={(value) => handleChange('location', value)}
+                onPostcodeChange={(value) => handleChange('postcode', value)}
+                required
+              />
             </div>
 
-            <SuburbAutocomplete
-              value={formData.location}
-              postcode={formData.postcode}
-              onSuburbChange={(value) => handleChange('location', value)}
-              onPostcodeChange={(value) => handleChange('postcode', value)}
-              required
-            />
+            <hr className="my-6 border-t border-slate-200" />
 
+            {/* Section: Schedule */}
             <div>
               <div className="mb-3 flex items-center justify-between">
                 <Label>Date</Label>
@@ -246,14 +393,14 @@ export default function EditJobPage() {
                           {singleDate ? formatDate(singleDate, 'dd/MM/yyyy') : 'Select date'}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
+                      <PopoverContentWithDone className="w-auto" align="start">
                         <CalendarComponent
                           mode="single"
                           selected={singleDate}
                           onSelect={setSingleDate}
                           initialFocus
                         />
-                      </PopoverContent>
+                      </PopoverContentWithDone>
                     </Popover>
                   </div>
                   <div>
@@ -294,14 +441,14 @@ export default function EditJobPage() {
                           {dateFrom ? formatDate(dateFrom, 'dd/MM/yyyy') : 'Select start date'}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
+                      <PopoverContentWithDone className="w-auto" align="start">
                         <CalendarComponent
                           mode="single"
                           selected={dateFrom}
                           onSelect={setDateFrom}
                           initialFocus
                         />
-                      </PopoverContent>
+                      </PopoverContentWithDone>
                     </Popover>
                   </div>
                   <div>
@@ -316,7 +463,7 @@ export default function EditJobPage() {
                           {dateTo ? formatDate(dateTo, 'dd/MM/yyyy') : 'Select end date'}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
+                      <PopoverContentWithDone className="w-auto" align="start">
                         <CalendarComponent
                           mode="single"
                           selected={dateTo}
@@ -324,7 +471,7 @@ export default function EditJobPage() {
                           disabled={(date) => (dateFrom ? date < dateFrom : false)}
                           initialFocus
                         />
-                      </PopoverContent>
+                      </PopoverContentWithDone>
                     </Popover>
                   </div>
                   <div>
@@ -347,6 +494,9 @@ export default function EditJobPage() {
               )}
             </div>
 
+            <hr className="my-6 border-t border-slate-200" />
+
+            {/* Section: Pay */}
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <Label htmlFor="payType">Pay Type</Label>
@@ -378,6 +528,9 @@ export default function EditJobPage() {
               </div>
             </div>
 
+            <hr className="my-6 border-t border-slate-200" />
+
+            {/* Section: Description */}
             <div>
               <Label htmlFor="description">Job Description</Label>
               <Textarea
@@ -391,17 +544,92 @@ export default function EditJobPage() {
               />
             </div>
 
-            <div className="flex gap-3">
-              <Button type="submit" className="flex-1">
+            <hr className="my-6 border-t border-slate-200" />
+
+            {/* Section: Attachments */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-slate-900">Attachments</h3>
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept="image/*,application/pdf"
+                    className="hidden"
+                    onChange={(e) => handleAddAttachments(e.target.files)}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isUploading}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    {isUploading ? 'Uploading…' : 'Add files'}
+                  </Button>
+                </div>
+              </div>
+
+              {attachments.length === 0 ? (
+                <div className="rounded-lg border bg-slate-50 p-3 text-sm text-slate-600">
+                  No attachments yet. Add images or PDFs (plans).
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {attachments.map((a, idx) => {
+                    const isImg = String(a.type || '').startsWith('image/');
+                    return (
+                      <div
+                        key={`${a.path}-${idx}`}
+                        className="flex items-center gap-3 rounded-lg border bg-white px-3 py-2"
+                      >
+                        {isImg ? (
+                          <ImageIcon className="h-4 w-4 text-slate-500" />
+                        ) : (
+                          <FileText className="h-4 w-4 text-slate-500" />
+                        )}
+
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-medium text-slate-900 truncate">{a.name}</div>
+                          <div className="text-xs text-slate-500">
+                            {a.type ? a.type : 'file'}
+                            {a.size ? ` • ${prettySize(a.size)}` : ''}
+                          </div>
+                        </div>
+
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeAttachment(idx)}
+                          title="Remove"
+                        >
+                          <X className="h-4 w-4 text-slate-500" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-8 flex gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push(`/jobs/${jobId}`)}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700">
                 Save Changes
               </Button>
-              <Link href={`/jobs/${jobId}`} className="flex-1">
-                <Button type="button" variant="outline" className="w-full">
-                  Cancel
-                </Button>
-              </Link>
             </div>
           </form>
+          </div>
         </div>
       </div>
     </AppLayout>

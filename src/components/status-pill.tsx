@@ -31,9 +31,9 @@ const trustStatusConfig = {
 
 const jobStatusConfig = {
   open: {
-    bg: 'bg-yellow-50 border-yellow-200',
-    dot: 'bg-yellow-400',
-    text: 'text-yellow-700',
+    bg: 'bg-emerald-50 border-emerald-200',
+    dot: 'bg-emerald-500',
+    text: 'text-emerald-700',
     label: 'Open',
   },
   pending_approval: {
