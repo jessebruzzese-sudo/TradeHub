@@ -10,7 +10,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Briefcase, Plus, ShieldCheck, ArrowRight, Crown } from 'lucide-react';
+import { Briefcase, Plus, ShieldCheck, ArrowRight, Crown, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { AppLayout } from '@/components/app-nav';
@@ -20,7 +20,6 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import { useAuth } from '@/lib/auth';
-import { getStore } from '@/lib/store';
 import { getBrowserSupabase } from '@/lib/supabase-client';
 import { isPremiumForDiscovery } from '@/lib/discovery';
 import { buildLoginUrl } from '@/lib/url-utils';
@@ -28,7 +27,7 @@ import { safeRouterPush } from '@/lib/safe-nav';
 import { needsBusinessVerification, getVerifyBusinessUrl } from '@/lib/verification-guard';
 import { getTradeIcon } from '@/lib/trade-icons';
 
-type JobsTab = 'find' | 'posts' | 'applications';
+type JobsTab = 'find' | 'posts';
 
 function normalizeJobRow(row: Record<string, unknown>): Record<string, unknown> {
   const rawDates: unknown[] = Array.isArray(row.dates) ? row.dates : [];
@@ -42,6 +41,7 @@ function normalizeJobRow(row: Record<string, unknown>): Record<string, unknown> 
   return {
     id: row.id,
     contractorId: row.contractor_id ?? row.contractorId,
+    poster: (row as any).poster ?? null,
     poster_is_premium:
       (row as any).poster_is_premium ??
       (row as any).posterIsPremium ??
@@ -74,7 +74,6 @@ function normalizeJobRow(row: Record<string, unknown>): Record<string, unknown> 
 export default function JobsPage() {
   const { currentUser, isLoading } = useAuth();
   const router = useRouter();
-  const store = getStore();
   const hasRedirected = useRef(false);
 
   const [tab, setTab] = useState<JobsTab>('find');
@@ -86,8 +85,7 @@ export default function JobsPage() {
   const [myPostsDb, setMyPostsDb] = useState<any[]>([]);
   const [loadingMyPosts, setLoadingMyPosts] = useState(false);
   const [myPostsError, setMyPostsError] = useState<string | null>(null);
-
-  const applications = useMemo(() => store.applications ?? [], [store.applications]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Compute ABN verified state (optional field right now)
   const showAbnGateForPosting = useMemo(
@@ -136,7 +134,22 @@ export default function JobsPage() {
         }
 
         const rows = Array.isArray(data) ? data : [];
-        setVisibleJobs(rows.map((r) => normalizeJobRow(r as Record<string, unknown>)));
+        const contractorIds = Array.from(new Set(rows.map((r: any) => r?.contractor_id).filter(Boolean)));
+        let posterMap: Record<string, any> = {};
+        if (contractorIds.length > 0) {
+          const { data: usersData } = await supabase
+            .from('users')
+            .select('id, name, business_name, avatar, rating')
+            .in('id', contractorIds);
+          if (Array.isArray(usersData)) {
+            posterMap = Object.fromEntries(usersData.map((u) => [u.id, u]));
+          }
+        }
+        const rowsWithPoster = rows.map((r: any) => ({
+          ...r,
+          poster: r?.contractor_id ? posterMap[r.contractor_id] ?? null : null,
+        }));
+        setVisibleJobs(rowsWithPoster.map((r) => normalizeJobRow(r as Record<string, unknown>)));
       } catch (e: any) {
         console.error('[jobs] unexpected error', e);
         setVisibleJobs([]);
@@ -149,20 +162,28 @@ export default function JobsPage() {
     run();
   }, [currentUser?.id, currentUser?.primaryTrade, tab]);
 
-  // Fetch my posts from DB so it matches the jobs table schema
+  // Fetch my posts from DB (owner view: jobs created by current user)
   useEffect(() => {
     const run = async () => {
-      if (!currentUser?.id) return;
       if (tab !== 'posts') return;
+
+      if (!currentUser?.id) {
+        setMyPostsDb([]);
+        return;
+      }
 
       setLoadingMyPosts(true);
       setMyPostsError(null);
 
       try {
         const supabase = getBrowserSupabase();
+
         const { data, error } = await supabase
           .from('jobs')
-          .select('*')
+          .select(`
+            *,
+            poster:contractor_id(id, name, business_name, avatar, rating)
+          `)
           .eq('contractor_id', currentUser.id)
           .order('created_at', { ascending: false })
           .limit(50);
@@ -183,15 +204,52 @@ export default function JobsPage() {
     run();
   }, [currentUser?.id, tab]);
 
+  async function handleDeleteJob(jobId: string) {
+    if (!currentUser?.id) {
+      toast.error('You must be logged in.');
+      return;
+    }
+
+    try {
+      setDeletingId(jobId);
+
+      const supabase = getBrowserSupabase();
+
+      const res = await supabase
+        .from('jobs')
+        .delete()
+        .eq('id', jobId)
+        .eq('contractor_id', currentUser.id)
+        .select('id');
+
+      if (res.error) {
+        console.error('[jobs] delete error', res.error);
+        toast.error(res.error.message || 'Delete failed');
+        return;
+      }
+
+      if (!res.data || res.data.length === 0) {
+        console.warn('[jobs] delete returned 0 rows (RLS mismatch or contractor_id mismatch)');
+        toast.error('Delete failed (no rows deleted). Check ownership/RLS.');
+        return;
+      }
+
+      toast.success('Job deleted');
+
+      // Update the same state your UI maps over:
+      setMyPostsDb((prev: any[]) => (prev ?? []).filter((j) => j.id !== jobId));
+    } catch (err) {
+      console.error('[jobs] delete failed', err);
+      toast.error('Could not delete job.');
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   const myPosts = useMemo(() => {
     if (tab !== 'posts') return [];
     return myPostsDb ?? [];
   }, [myPostsDb, tab]);
-
-  const myApplications = useMemo(() => {
-    if (!currentUser?.id) return [];
-    return applications.filter((a: any) => a.subcontractorId === currentUser.id);
-  }, [applications, currentUser?.id]);
 
   const availableJobs = useMemo(() => {
     if (tab !== 'find') return [];
@@ -236,6 +294,52 @@ export default function JobsPage() {
       }
     }
   }, [isLoading, currentUser, router]);
+
+  // ---- JobRow: full-width row used by both Find Work and My Job Posts ----
+  function JobRow({
+    job,
+    showActions = false,
+    onDelete,
+    deletingId,
+  }: {
+    job: any;
+    showActions?: boolean;
+    onDelete?: (id: string) => void;
+    deletingId?: string | null;
+  }) {
+    const deleteActions =
+      showActions && String(job.status || '').toLowerCase() === 'closed' ? (
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-red-600"
+          disabled={deletingId === job.id}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDelete?.(job.id);
+          }}
+        >
+          <Trash2 className="h-4 w-4" />
+          <span className="ml-2 hidden sm:inline">Delete</span>
+        </button>
+      ) : undefined;
+
+    return (
+      <JobCard
+        job={job}
+        showStatus={showActions}
+        extraActions={
+          showActions && deleteActions ? (
+            <div className="ml-3 flex items-center gap-2">{deleteActions}</div>
+          ) : undefined
+        }
+      />
+    );
+  }
 
   // ---- Renders (no TradeGate; never return null forever) ----
 
@@ -331,9 +435,6 @@ export default function JobsPage() {
                     </TabsTrigger>
                     <TabsTrigger value="posts" className="rounded-xl px-4">
                       My Job Posts
-                    </TabsTrigger>
-                    <TabsTrigger value="applications" className="rounded-xl px-4">
-                      My Applications
                     </TabsTrigger>
                   </TabsList>
 
@@ -434,7 +535,7 @@ export default function JobsPage() {
                   ) : availableJobs.length > 0 ? (
                     <div className="space-y-3">
                       {availableJobs.map((job: any) => (
-                        <JobCard key={job.id} job={job} showStatus={false} />
+                        <JobRow key={job.id} job={job} />
                       ))}
                     </div>
                   ) : (
@@ -484,7 +585,7 @@ export default function JobsPage() {
 
                 <TabsContent value="posts" className="mt-6">
                   {loadingMyPosts ? (
-                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    <div className="space-y-3">
                       {Array.from({ length: 6 }).map((_, i) => (
                         <div key={i} className="animate-pulse rounded-xl border border-slate-200 bg-white p-4">
                           <div className="h-4 w-2/3 rounded bg-slate-200" />
@@ -499,9 +600,15 @@ export default function JobsPage() {
                       <p className="mt-1 text-sm text-red-800">{myPostsError}</p>
                     </div>
                   ) : myPosts.length > 0 ? (
-                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    <div className="space-y-3">
                       {myPosts.map((job: any) => (
-                        <JobCard key={job.id} job={job} />
+                        <JobRow
+                          key={job.id}
+                          job={job}
+                          showActions
+                          onDelete={(id) => handleDeleteJob(id)}
+                          deletingId={deletingId}
+                        />
                       ))}
                     </div>
                   ) : (
@@ -530,28 +637,6 @@ export default function JobsPage() {
                             </Button>
                           </Link>
                         )}
-                      </div>
-                    </div>
-                  )}
-                </TabsContent>
-
-                <TabsContent value="applications" className="mt-6">
-                  {myApplications.length > 0 ? (
-                    <div className="space-y-3">
-                      {myApplications.map((app: any) => {
-                        const job = store.getJobById(app.jobId);
-                        if (!job) return null;
-                        return <JobCard key={app.id} job={job} />;
-                      })}
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-black/10 bg-white/60 px-6 py-12 text-center">
-                      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
-                        <Briefcase className="h-6 w-6 text-slate-500" />
-                      </div>
-                      <div className="text-sm font-medium text-slate-900">No applications yet</div>
-                      <div className="mt-1 max-w-md text-sm text-slate-600">
-                        Apply for a job and your applications will show up here
                       </div>
                     </div>
                   )}
