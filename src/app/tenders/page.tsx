@@ -5,16 +5,18 @@ import Link from 'next/link';
 
 import { AppLayout } from '@/components/app-nav';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import { ProfileAvatar } from '@/components/profile-avatar';
-import { PricingBlueWrapper } from '@/components/marketing/PricingBlueWrapper';
+import { PremiumUpsellBar } from '@/components/premium-upsell-bar';
 import { useAuth } from '@/lib/auth';
 import { isAdmin } from '@/lib/is-admin';
 import { getBrowserSupabase } from '@/lib/supabase-client';
+import { getTradeIcon } from '@/lib/trade-icons';
+import { isPremiumForDiscovery } from '@/lib/discovery';
 
 import { toast } from 'sonner';
 import {
@@ -27,6 +29,8 @@ import {
   Star,
   XCircle,
   BadgeCheck,
+  FileText,
+  Plus,
 } from 'lucide-react';
 
 type TenderStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'PUBLISHED' | 'LIVE' | 'CLOSED' | string;
@@ -45,6 +49,7 @@ type TenderRow = {
   desired_start_date?: string | null;
   desired_end_date?: string | null;
   poster?: any;
+  distance_km?: number | null;
 };
 
 type BuilderMap = Record<
@@ -58,6 +63,7 @@ type BuilderMap = Record<
     rating_count: number | null;
     abn_status: string | null;
     abn_verified_at: string | null;
+    is_premium: boolean | null;
   }
 >;
 
@@ -152,6 +158,18 @@ function isLikelyRlsRejection(err: any): boolean {
   return false;
 }
 
+function isPremiumPoster(t: any, builders: BuilderMap): boolean {
+  if (t?.is_name_hidden) return false;
+  const b = builders?.[t?.builder_id];
+  return !!(b?.is_premium);
+}
+
+function getTenderDistanceKm(t: any): number | null {
+  const raw = t?.distance_km ?? t?.distanceKm ?? null;
+  const n = typeof raw === 'number' ? raw : raw != null ? Number(raw) : null;
+  return Number.isFinite(n as number) ? (n as number) : null;
+}
+
 function isBuilderVerified(t: any, builders: BuilderMap): boolean {
   if (t?.is_name_hidden) return false;
   const b = builders?.[t?.builder_id];
@@ -193,9 +211,25 @@ export default function TendersPage() {
   const myUserId = currentUser?.id ?? null;
   const isAdminUser = isAdmin(currentUser);
 
+  const userForDiscovery = currentUser
+    ? {
+        is_premium: (currentUser as any).isPremium ?? (currentUser as any).is_premium ?? undefined,
+        subscription_status:
+          (currentUser as any).subscriptionStatus ?? (currentUser as any).subscription_status ?? null,
+        active_plan: (currentUser as any).activePlan ?? (currentUser as any).active_plan ?? null,
+        subcontractor_plan: undefined,
+        subcontractor_sub_status: undefined,
+      }
+    : null;
+
+  const isPremium = isPremiumForDiscovery(userForDiscovery);
+  const allowedRadiusKm = isPremium ? 100 : 20;
+  const TradeIcon = getTradeIcon((currentUser as any)?.primaryTrade ?? undefined);
+
   const [view, setView] = useState<'find' | 'posts'>('find');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<'all' | 'DRAFT' | 'PENDING_APPROVAL' | 'LIVE' | 'CLOSED'>('all');
+  const [sortMode, setSortMode] = useState<'newest' | 'nearest'>('newest');
 
   const [findRows, setFindRows] = useState<TenderRow[]>([]);
   const [myRows, setMyRows] = useState<TenderRow[]>([]);
@@ -207,13 +241,14 @@ export default function TendersPage() {
 
   const selectColumns = `id,builder_id,status,tier,is_name_hidden,project_name,project_description,suburb,postcode,created_at,desired_start_date,desired_end_date`;
 
-  async function fetchBuilderNames(builderIds: string[]) {
+  async function fetchBuilderNames(builderIds: string[]): Promise<BuilderMap> {
     const uniq = Array.from(new Set(builderIds.filter(Boolean)));
-    if (uniq.length === 0) return;
+    const empty: BuilderMap = {};
+    if (uniq.length === 0) return empty;
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('id,name,business_name,avatar_url,rating,rating_count,abn_status,abn_verified_at')
+        .select('id,name,business_name,avatar_url,rating,rating_count,abn_status,abn_verified_at,is_premium')
         .in('id', uniq);
       if (error) throw error;
       const map: BuilderMap = {};
@@ -227,11 +262,14 @@ export default function TendersPage() {
           rating_count: u.rating_count != null ? Number(u.rating_count) : null,
           abn_status: u.abn_status ?? null,
           abn_verified_at: u.abn_verified_at ?? null,
+          is_premium: (u as any).is_premium ?? null,
         };
       }
       setBuilders((prev) => ({ ...prev, ...map }));
+      return { ...map };
     } catch (e) {
       console.warn('[Tenders] Failed to load builder names', e);
+      return empty;
     }
   }
 
@@ -279,15 +317,29 @@ export default function TendersPage() {
           q = q.or(`project_name.ilike.${s},suburb.ilike.${s}`);
         }
 
-        const { data, error } = await q.order('created_at', { ascending: false });
+        const orderAscending = false;
+        // NOTE: We don't have distance for tenders yet (like jobs RPC).
+        // Keep "Nearest" UI for now but fallback to newest ordering.
+        // Later: implement a tenders RPC that returns distance_km.
+        const { data, error } = await q.order('created_at', { ascending: orderAscending });
         if (error) throw error;
         const list = (data ?? []) as TenderRow[];
-        setFindRows(list);
+
+        const buildersMap = await fetchBuilderNames(list.map((t) => t.builder_id).filter(Boolean));
+        await fetchTenderBudgets(list.map((t) => t.id));
+
+        const sorted = list.slice().sort((a: any, b: any) => {
+          const ap = isPremiumPoster(a, buildersMap);
+          const bp = isPremiumPoster(b, buildersMap);
+          if (bp !== ap) return Number(bp) - Number(ap);
+
+          const at = new Date(a?.created_at ?? 0).getTime();
+          const bt = new Date(b?.created_at ?? 0).getTime();
+          return bt - at;
+        });
+
+        setFindRows(sorted);
         setMyRows([]);
-        await Promise.all([
-          fetchTenderBudgets(list.map((t) => t.id)),
-          fetchBuilderNames(list.map((t) => t.builder_id).filter(Boolean)),
-        ]);
       } else {
         // My Tenders: own tenders only
         if (!myUserId) {
@@ -312,7 +364,8 @@ export default function TendersPage() {
           q = q.or(`project_name.ilike.${s},suburb.ilike.${s}`);
         }
 
-        const { data, error } = await q.order('created_at', { ascending: false });
+        const orderAscending = false;
+        const { data, error } = await q.order('created_at', { ascending: orderAscending });
         if (error) throw error;
         const list = (data ?? []) as TenderRow[];
         setMyRows(list);
@@ -420,10 +473,6 @@ export default function TendersPage() {
   const findTenders = view === 'find' ? findRows : [];
   const myTenders = view === 'posts' ? myRows : [];
 
-  const showDraftFilter = view === 'posts';
-  const showPendingFilter = view === 'posts';
-  const showClosedFilter = view === 'posts' || isAdminUser;
-
   function TenderRow({
     tender,
     showActions = false,
@@ -454,11 +503,11 @@ export default function TendersPage() {
     const isClosed = String(tender.status || '').toUpperCase() === 'CLOSED';
 
     return (
-      <Card className="hover:shadow-sm">
+      <Card className="border-white/15 bg-white/90 shadow-sm backdrop-blur hover:shadow-md transition-shadow">
         <CardContent className="p-0">
           <Link
             href={`/tenders/${tender.id}`}
-            className="block rounded-lg px-4 py-4 hover:bg-slate-50/60"
+            className="block rounded-lg px-4 py-4 hover:bg-white/60"
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               {/* LEFT: title + trade/tier + poster */}
@@ -604,132 +653,238 @@ export default function TendersPage() {
     );
   }
 
-  const emptyTitle = view === 'find' ? 'No tenders found' : "You haven't created any tenders yet";
-  const emptyHint = view === 'find' ? 'Try changing filters or search.' : 'Click "Create Tender" to post your first tender.';
-
   return (
-    <AppLayout>
-      <PricingBlueWrapper>
-        <div className="min-h-[calc(100vh-72px)] w-full bg-gradient-to-b from-sky-50 via-white to-slate-50">
-          <div className="mx-auto w-full max-w-6xl px-4 py-8">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight">Tenders</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Browse live project tenders or manage the ones you've posted.
-            </p>
-          </div>
-          <Button asChild className="gap-2">
-            <Link href="/tenders/create">+ Create Tender</Link>
-          </Button>
+    <AppLayout transparentBackground>
+      {/* PRICING-STYLE BLUE WRAPPER */}
+      <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800">
+        {/* Dotted overlay */}
+        <div
+          className="pointer-events-none absolute inset-0 opacity-20"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.25) 1px, transparent 0)',
+            backgroundSize: '20px 20px',
+          }}
+          aria-hidden
+        />
+
+        {/* White watermark (fixed like Pricing) */}
+        <div className="pointer-events-none fixed bottom-[-220px] right-[-220px] z-0">
+          <img
+            src="/TradeHub-Mark-whiteout.svg"
+            alt=""
+            aria-hidden="true"
+            className="h-[1600px] w-[1600px] opacity-[0.08]"
+          />
         </div>
 
-        <Card className="mt-5">
-          <CardContent className="p-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <Tabs value={view} onValueChange={(v) => setView(v as 'find' | 'posts')} className="w-full md:w-auto">
-                <TabsList className="w-full justify-start rounded-2xl bg-slate-100/80 p-1 ring-1 ring-black/5 sm:w-auto">
-                  <TabsTrigger value="find" className="rounded-xl px-4">
-                    Find Work
-                  </TabsTrigger>
-                  <TabsTrigger value="posts" className="rounded-xl px-4">
-                    My Tenders
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
-
-              <div className="flex w-full flex-col gap-2 md:w-[560px] md:flex-row">
-                <Input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search by project name or suburb..."
-                />
-                <div className="flex flex-wrap gap-2">
-                  <Button variant={status === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setStatus('all')}>
-                    All
-                  </Button>
-                  {showDraftFilter ? (
-                    <Button
-                      variant={status === 'DRAFT' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setStatus('DRAFT')}
-                    >
-                      Draft
-                    </Button>
-                  ) : null}
-                  {showPendingFilter ? (
-                    <Button
-                      variant={status === 'PENDING_APPROVAL' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setStatus('PENDING_APPROVAL')}
-                    >
-                      Pending
-                    </Button>
-                  ) : null}
-                  <Button variant={status === 'LIVE' ? 'default' : 'outline'} size="sm" onClick={() => setStatus('LIVE')}>
-                    Live
-                  </Button>
-                  {showClosedFilter ? (
-                    <Button
-                      variant={status === 'CLOSED' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setStatus('CLOSED')}
-                    >
-                      Closed
-                    </Button>
-                  ) : null}
+        {/* PAGE CONTENT */}
+        <div className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-24 pt-6 sm:px-6 lg:px-8">
+          {/* Header row (Jobs structure, but white text) */}
+          <div className="mb-4 flex flex-col gap-2 sm:mb-6">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 shadow-sm ring-1 ring-white/15 backdrop-blur">
+                  <FileText className="h-5 w-5 text-white" />
                 </div>
+                <h1 className="text-2xl font-semibold tracking-tight text-white">Tenders</h1>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="mt-5 space-y-3">
-          {loading ? (
-            <Card>
-              <CardContent className="p-6 text-sm text-muted-foreground">Loading tenders…</CardContent>
-            </Card>
-          ) : view === 'find' && findTenders.length === 0 ? (
-            <Card>
-              <CardContent className="p-6">
-                <div className="text-base font-medium">{emptyTitle}</div>
-                <div className="mt-1 text-sm text-muted-foreground">{emptyHint}</div>
-              </CardContent>
-            </Card>
-          ) : view === 'posts' && myTenders.length === 0 ? (
-            <Card>
-              <CardContent className="p-6">
-                <div className="text-base font-medium">{emptyTitle}</div>
-                <div className="mt-1 text-sm text-muted-foreground">{emptyHint}</div>
-              </CardContent>
-            </Card>
-          ) : view === 'find' ? (
-            <div className="space-y-3">
-              {findTenders.map((t) => (
-                <TenderRow key={t.id} tender={t} budgetCents={budgetMap[t.id]} builders={builders} />
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {myTenders.map((t) => (
-                <TenderRow
-                  key={t.id}
-                  tender={t}
-                  showActions
-                  budgetCents={budgetMap[t.id]}
-                  onDelete={handleDeleteTender}
-                  onClose={handleCloseTender}
-                  deletingId={deletingId}
-                  closingId={closingId}
-                  builders={builders}
-                />
-              ))}
-            </div>
-          )}
+              <p className="mt-1 text-sm text-white/80">
+                View available tenders or manage the ones you&apos;ve posted
+              </p>
             </div>
           </div>
+
+          <Tabs value={view} onValueChange={(v) => setView(v as 'find' | 'posts')}>
+            {!isPremium && (
+              <PremiumUpsellBar
+                title={`No tenders within your ${allowedRadiusKm}km radius.`}
+                description="Premium expands your radius to 100km, increases your visibility, and allows you to post more tenders — so you can win more work."
+                className="mb-6"
+              />
+            )}
+
+            {/* Main surface (Jobs-style card but glass on blue) */}
+            <Card className="border-white/15 bg-white/90 shadow-sm backdrop-blur">
+              <CardHeader className="border-b border-black/5 p-4 sm:p-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  {/* Tabs */}
+                  <TabsList className="w-full justify-start rounded-2xl bg-slate-100/80 p-1 ring-1 ring-black/5 sm:w-auto">
+                    <TabsTrigger value="find" className="rounded-xl px-4">
+                      View available tenders
+                    </TabsTrigger>
+                    <TabsTrigger value="posts" className="rounded-xl px-4">
+                      My Tenders
+                    </TabsTrigger>
+                  </TabsList>
+
+                  {/* CTA (match Jobs positioning/style) */}
+                  <Link href="/tenders/create">
+                    <Button
+                      className="h-10 gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md transition-all hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Post Tender
+                    </Button>
+                  </Link>
+                </div>
+              </CardHeader>
+
+              <CardContent className="p-4 sm:p-6">
+                <TabsContent value="find" className="mt-6">
+                  {/* Showing + Radius + Sort row (match jobs) */}
+                  <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                      <span className="inline-flex items-center gap-2">
+                        <span>Showing tenders in your trade:</span>
+                        <span className="inline-flex items-center gap-2 font-semibold text-slate-800">
+                          {TradeIcon ? <TradeIcon className="h-4 w-4 text-blue-600" /> : null}
+                          {String((currentUser as any)?.primaryTrade || 'Your trade')}
+                        </span>
+                      </span>
+
+                      <span className="text-slate-300">•</span>
+
+                      <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs text-slate-700 shadow-sm">
+                        <span className="text-slate-500">Radius</span>
+                        <span className="rounded-full border border-indigo-100 bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700">
+                          {allowedRadiusKm}km radius
+                        </span>
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-slate-600">Sort:</span>
+
+                      <button
+                        type="button"
+                        onClick={() => setSortMode('newest')}
+                        className={`rounded-lg px-2 py-1 text-xs font-medium ring-1 ring-black/5 ${
+                          sortMode === 'newest'
+                            ? 'bg-white text-slate-900'
+                            : 'bg-slate-100/70 text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Newest
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSortMode('nearest');
+                          toast.info('Nearest sorting will be enabled when tenders include distance (RPC).');
+                        }}
+                        className={`rounded-lg px-2 py-1 text-xs font-medium ring-1 ring-black/5 ${
+                          sortMode === 'nearest'
+                            ? 'bg-white text-slate-900'
+                            : 'bg-slate-100/70 text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Nearest
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Search + status controls */}
+                  <div className="mb-4 flex w-full flex-col gap-2 md:flex-row md:items-center">
+                    <Input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search by project name or suburb..."
+                      className="md:flex-1"
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant={status === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setStatus('all')}>
+                        All
+                      </Button>
+                      <Button variant={status === 'LIVE' ? 'default' : 'outline'} size="sm" onClick={() => setStatus('LIVE')}>
+                        Live
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* List render */}
+                  <div className="space-y-3">
+                    {loading ? (
+                      <Card className="border-white/15 bg-white/90 shadow-sm backdrop-blur">
+                        <CardContent className="p-6 text-sm text-muted-foreground">Loading tenders…</CardContent>
+                      </Card>
+                    ) : findTenders.length === 0 ? (
+                      <Card className="border-white/15 bg-white/90 shadow-sm backdrop-blur">
+                        <CardContent className="p-6">
+                          <div className="text-base font-medium">No tenders found</div>
+                          <div className="mt-1 text-sm text-muted-foreground">Try changing filters or search.</div>
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      findTenders.map((t) => (
+                        <TenderRow key={t.id} tender={t} budgetCents={budgetMap[t.id]} builders={builders} />
+                      ))
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="posts" className="mt-6">
+                  <div className="mb-4 flex w-full flex-col gap-2 md:flex-row md:items-center">
+                    <Input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search by project name or suburb..."
+                      className="md:flex-1"
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant={status === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setStatus('all')}>
+                        All
+                      </Button>
+                      <Button variant={status === 'DRAFT' ? 'default' : 'outline'} size="sm" onClick={() => setStatus('DRAFT')}>
+                        Draft
+                      </Button>
+                      <Button variant={status === 'PENDING_APPROVAL' ? 'default' : 'outline'} size="sm" onClick={() => setStatus('PENDING_APPROVAL')}>
+                        Pending
+                      </Button>
+                      <Button variant={status === 'LIVE' ? 'default' : 'outline'} size="sm" onClick={() => setStatus('LIVE')}>
+                        Live
+                      </Button>
+                      <Button variant={status === 'CLOSED' ? 'default' : 'outline'} size="sm" onClick={() => setStatus('CLOSED')}>
+                        Closed
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                  {loading ? (
+                    <Card className="border-white/15 bg-white/90 shadow-sm backdrop-blur">
+                      <CardContent className="p-6 text-sm text-muted-foreground">Loading tenders…</CardContent>
+                    </Card>
+                  ) : myTenders.length === 0 ? (
+                    <Card className="border-white/15 bg-white/90 shadow-sm backdrop-blur">
+                        <CardContent className="p-6">
+                          <div className="text-base font-medium">You haven&apos;t created any tenders yet</div>
+                          <div className="mt-1 text-sm text-muted-foreground">Click &quot;Post Tender&quot; to create your first tender.</div>
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      myTenders.map((t) => (
+                        <TenderRow
+                          key={t.id}
+                          tender={t}
+                          showActions
+                          budgetCents={budgetMap[t.id]}
+                          onDelete={handleDeleteTender}
+                          onClose={handleCloseTender}
+                          deletingId={deletingId}
+                          closingId={closingId}
+                          builders={builders}
+                        />
+                      ))
+                    )}
+                  </div>
+                </TabsContent>
+              </CardContent>
+            </Card>
+          </Tabs>
         </div>
-      </PricingBlueWrapper>
+      </div>
     </AppLayout>
   );
 }

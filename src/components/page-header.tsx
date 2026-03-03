@@ -15,7 +15,7 @@ interface PageHeaderProps {
 export function PageHeader({ backLink, title, description, action, tone = 'light' }: PageHeaderProps) {
   const titleClass = tone === 'dark' ? 'text-white' : 'text-slate-900';
   const backClass = tone === 'dark' ? 'text-white/80 hover:text-white' : 'text-slate-600 hover:text-slate-900';
-  const descClass = tone === 'dark' ? 'text-white/70' : 'text-slate-600';
+  const descClass = tone === 'dark' ? 'text-white/80' : 'text-slate-600';
   const iconClass = tone === 'dark' ? 'text-white/80' : 'text-slate-600';
 
   return (

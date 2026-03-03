@@ -84,3 +84,12 @@
     background-size: 26px 26px;
   }
 }
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(120%);
+  }
+}

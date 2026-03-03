@@ -62,6 +62,14 @@ import { hasValidABN } from '@/lib/abn-utils';
 import { isUUID, parseTradeSuburbSlug } from '@/lib/slug-utils';
 import TradeSuburbTenders from '@/components/trade-suburb-tenders';
 
+type StoredAttachment = {
+  name: string;
+  path: string;
+  size: number;
+  type: string;
+  bucket: string;
+};
+
 type TenderDoc = {
   id: string;
   fileName: string;
@@ -108,6 +116,7 @@ type TenderDetail = {
   tradeRequirements: TenderTradeReq[];
   documents: TenderDoc[];
   quotes: any[];
+  sharedAttachments?: StoredAttachment[];
 };
 
 const safeDate = (v: any) => {
@@ -138,6 +147,15 @@ export default function TenderDetailRoutePage() {
   return <TenderDetailUuidPage id={raw} />;
 }
 
+async function getSignedUrlForBucket(supabaseClient: ReturnType<typeof getBrowserSupabase>, bucket: string, path: string) {
+  const { data, error } = await supabaseClient.storage
+    .from(bucket)
+    .createSignedUrl(path, 60 * 30); // 30 minutes
+
+  if (error) throw error;
+  return data.signedUrl;
+}
+
 function TenderDetailUuidPage({ id }: { id: string }) {
   const { currentUser, isLoading } = useAuth();
   const supabase = getBrowserSupabase();
@@ -157,6 +175,7 @@ function TenderDetailUuidPage({ id }: { id: string }) {
   const [tender, setTender] = useState<TenderDetail | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
   const [loadingTender, setLoadingTender] = useState(true);
+  const [sharedUrls, setSharedUrls] = useState<Record<string, string>>({});
 
   const isAdminUser = isAdmin(currentUser);
   // Role used for UI/copy only, not permissions
@@ -210,7 +229,8 @@ function TenderDetailUuidPage({ id }: { id: string }) {
           .select(
             `
             *,
-            tradeRequirements:tender_trade_requirements(*)
+            tradeRequirements:tender_trade_requirements(*),
+            shared_attachments
           `
           )
           .eq('id', id)
@@ -224,27 +244,29 @@ function TenderDetailUuidPage({ id }: { id: string }) {
           return;
         }
 
+        const dataAny = data as any;
+
         const mapped: TenderDetail = {
-          id: data.id,
-          builderId: data.builder_id,
-          projectName: data.project_name,
-          projectDescription: data.project_description || '',
-          status: data.status,
-          tier: data.tier,
-          suburb: data.suburb || '',
-          postcode: data.postcode || '',
-          isNameHidden: !!data.is_name_hidden,
+          id: dataAny.id,
+          builderId: dataAny.builder_id,
+          projectName: dataAny.project_name,
+          projectDescription: dataAny.project_description || '',
+          status: dataAny.status,
+          tier: dataAny.tier,
+          suburb: dataAny.suburb || '',
+          postcode: dataAny.postcode || '',
+          isNameHidden: !!dataAny.is_name_hidden,
 
-          desiredStartDate: data.desired_start_date,
-          desiredEndDate: data.desired_end_date,
-          closesAt: data.closes_at,
-          createdAt: data.created_at ?? '',
+          desiredStartDate: dataAny.desired_start_date,
+          desiredEndDate: dataAny.desired_end_date,
+          closesAt: dataAny.closes_at,
+          createdAt: dataAny.created_at ?? '',
 
-          budgetMinCents: data.budget_min_cents ?? null,
-          budgetMaxCents: data.budget_max_cents ?? null,
+          budgetMinCents: dataAny.budget_min_cents ?? null,
+          budgetMaxCents: dataAny.budget_max_cents ?? null,
 
-          quoteCapTotal: data.quote_cap_total ?? null,
-          quoteCountTotal: data.quote_count_total ?? 0,
+          quoteCapTotal: dataAny.quote_cap_total ?? null,
+          quoteCountTotal: dataAny.quote_count_total ?? 0,
 
           builder: {
             name: null,
@@ -254,7 +276,7 @@ function TenderDetailUuidPage({ id }: { id: string }) {
           },
 
           tradeRequirements:
-            data.tradeRequirements?.map((tr: any) => ({
+            dataAny.tradeRequirements?.map((tr: any) => ({
               id: tr.id,
               trade: tr.trade,
               subDescription: tr.sub_description || '',
@@ -262,6 +284,7 @@ function TenderDetailUuidPage({ id }: { id: string }) {
 
           documents: [],
           quotes: [],
+          sharedAttachments: (dataAny.shared_attachments ?? []) as StoredAttachment[],
         };
 
         setTender(mapped);
@@ -275,6 +298,26 @@ function TenderDetailUuidPage({ id }: { id: string }) {
 
     run();
   }, [id, supabase]);
+
+  useEffect(() => {
+    const run = async () => {
+      const att: StoredAttachment[] = (tender?.sharedAttachments ?? []) as StoredAttachment[];
+      const map: Record<string, string> = {};
+
+      for (const a of att) {
+        try {
+          map[a.path] = await getSignedUrlForBucket(supabase, a.bucket, a.path);
+        } catch (err) {
+          console.error('[tenders] signed url failed', a?.path, err);
+        }
+      }
+
+      setSharedUrls(map);
+    };
+
+    if (tender?.id) run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tender?.id]);
 
   if (isLoading || loadingTender) {
     return (
@@ -592,6 +635,34 @@ function TenderDetailUuidPage({ id }: { id: string }) {
                         <h3 className="mb-2 font-semibold text-gray-900">Project Description</h3>
                         <p className="text-gray-600">{tender.projectDescription}</p>
                       </div>
+
+                      {(tender.sharedAttachments?.length ?? 0) > 0 && (
+                        <div className="rounded-xl border bg-white p-4">
+                          <div className="font-semibold">Project files</div>
+                          <div className="mt-2 grid gap-2">
+                            {(tender.sharedAttachments ?? []).map((a) => {
+                              const url = sharedUrls[a.path];
+                              const isPdf = String(a.type || '').toLowerCase().includes('pdf');
+
+                              return (
+                                <a
+                                  key={a.path}
+                                  href={url || '#'}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="flex items-center justify-between rounded-lg border p-3 hover:bg-slate-50"
+                                >
+                                  <div className="min-w-0">
+                                    <div className="truncate font-medium">{a.name}</div>
+                                    <div className="text-xs text-slate-500">{isPdf ? 'PDF' : a.type}</div>
+                                  </div>
+                                  <div className="text-sm font-semibold text-blue-600">View</div>
+                                </a>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
 
                       {!isContractor && viewerTradeRequirement && (
                         <div className="border-t border-gray-200 pt-4">

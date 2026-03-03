@@ -187,7 +187,15 @@ export function BottomNav() {
   return <MobileBottomNav />;
 }
 
-export function AppLayout({ children }: { children: React.ReactNode }) {
+type AppLayoutProps = {
+  children: React.ReactNode;
+  transparentBackground?: boolean;
+};
+
+export function AppLayout({
+  children,
+  transparentBackground = false,
+}: AppLayoutProps) {
   const { currentUser } = useAuth();
 
   if (!currentUser) {
@@ -200,7 +208,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex flex-col md:flex-row h-screen bg-gray-50 overflow-hidden">
+    <div className={`flex flex-col md:flex-row min-h-screen overflow-hidden ${transparentBackground ? 'bg-transparent' : 'bg-slate-50'}`}>
       <SideNav />
       <div className="flex-1 flex flex-col min-h-0">
         <TopBar />

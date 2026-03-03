@@ -10,11 +10,12 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Briefcase, Plus, ShieldCheck, ArrowRight, Crown, Trash2 } from 'lucide-react';
+import { Briefcase, Plus, ShieldCheck, ArrowRight, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { AppLayout } from '@/components/app-nav';
 import { JobCard } from '@/components/job-card';
+import { PremiumUpsellBar } from '@/components/premium-upsell-bar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -541,30 +542,10 @@ export default function JobsPage() {
                   ) : (
                     <div className="space-y-4">
                       {!isPremium && (
-                        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
-                          <div className="flex items-start gap-3">
-                            <Crown className="mt-0.5 h-5 w-5 text-amber-700" />
-                            <div className="flex-1">
-                              <p className="text-sm font-semibold text-amber-900">
-                                No jobs within your {allowedRadiusKm}km radius.
-                              </p>
-                              <p className="mt-1 text-sm text-amber-800">
-                                Premium expands your radius to 100km and unlocks search-from location — so you can find work anywhere you&apos;re building.
-                              </p>
-                              <div className="mt-3">
-                                <Link href="/pricing">
-                                  <Button
-                                    className="group relative gap-2 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500 px-5 py-2.5 font-semibold text-black shadow-lg shadow-amber-500/40 transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.03] hover:shadow-xl hover:shadow-amber-500/60 active:scale-[0.98]"
-                                  >
-                                    <span className="pointer-events-none absolute inset-0 rounded-xl bg-white/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
-                                    <Crown className="h-4 w-4" />
-                                    <span>See Premium</span>
-                                  </Button>
-                                </Link>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+                        <PremiumUpsellBar
+                          title={`No jobs within your ${allowedRadiusKm}km radius.`}
+                          description="Premium expands your radius to 100km and unlocks search-from location — so you can find work anywhere you're building."
+                        />
                       )}
 
                       <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
