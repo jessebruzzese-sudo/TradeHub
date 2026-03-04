@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -36,22 +37,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
-import { AlertCircle, ClipboardList, Crown, Info, MapPin, ShieldCheck, Upload, X } from 'lucide-react';
+import { AlertCircle, ClipboardList, Crown, Info, MapPin, ShieldCheck, Sparkles, Upload, X } from 'lucide-react';
 
 import { TenderWizardStep } from '@/components/tenders/TenderWizardStep';
+import { GenerateFromPlansModal } from '@/components/tenders/GenerateFromPlansModal';
 import { RefinePillButton } from '@/components/ai/RefinePillButton';
+import { formatDateShortAU } from '@/lib/date';
 
 const MVP_FREE_MODE = process.env.NEXT_PUBLIC_MVP_FREE_MODE === 'true';
 
@@ -82,19 +77,6 @@ function toAussieDate(value?: string) {
   const [year, month, day] = value.split('-'); // expecting YYYY-MM-DD
   if (!year || !month || !day) return value;
   return `${day}/${month}/${year}`;
-}
-
-function formatAUDate(dateString?: string) {
-  if (!dateString) return null;
-
-  const d = new Date(dateString);
-  if (isNaN(d.getTime())) return null;
-
-  return d.toLocaleDateString('en-AU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
 }
 
 function cleanAiProjectTitle(input: string) {
@@ -141,10 +123,6 @@ export default function CreateTenderPage() {
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
 
   const currentStep = openStep === 0 ? 1 : openStep;
-  const progressPercent = useMemo(() => {
-    const clamped = Math.min(Math.max(currentStep, 1), TOTAL_STEPS);
-    return Math.round((clamped / TOTAL_STEPS) * 100);
-  }, [currentStep]);
 
   const markDone = (n: number) => {
     setCompletedSteps((prev) => {
@@ -159,9 +137,6 @@ export default function CreateTenderPage() {
   const completedCount = completedSteps.size;
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showFreePublishWarning, setShowFreePublishWarning] = useState(false);
-  const [checkingPublishLimit, setCheckingPublishLimit] = useState(false);
-
   const [builderFreeTrialUsed, setBuilderFreeTrialUsed] = useState(false);
   const [checkingPermissions, setCheckingPermissions] = useState(true);
 
@@ -177,9 +152,14 @@ export default function CreateTenderPage() {
   const [desiredStartDate, setDesiredStartDate] = useState('');
   const [desiredEndDate, setDesiredEndDate] = useState('');
 
+  // ✅ Progress is based on completed steps (user clicked "Done")
+  const completedStepsCount = completedSteps.size; // 0..3
+  const progressPercent = Math.round((completedStepsCount / TOTAL_STEPS) * 100);
+
   const [isNameHidden, setIsNameHidden] = useState(false);
 
   const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [showPlansModal, setShowPlansModal] = useState(false);
 
   const [aiError, setAiError] = useState<string | null>(null);
   const [isRefining, setIsRefining] = useState(false);
@@ -205,40 +185,26 @@ export default function CreateTenderPage() {
 
   async function onClickPublish() {
     if (loading) return;
-    if (isPremiumUser) {
-      markDone(3);
-      handleSubmitVerified();
-      return;
-    }
-
-    // Free users: check enforcement RPC
-    try {
-      setCheckingPublishLimit(true);
-      const supabase = getBrowserSupabase();
-      // @ts-expect-error - can_publish_tender is a custom RPC; add to Supabase types when created
-      const { data, error } = await supabase.rpc('can_publish_tender');
-      if (error) throw error;
-
-      if ((data as unknown) === true) {
-        markDone(3);
-        handleSubmitVerified();
-        return;
-      }
-
-      // Limit hit -> show modal
-      setShowFreePublishWarning(true);
-    } catch (e) {
-      console.error('[tenders] can_publish_tender failed', e);
-      toast.error('Could not verify publish limit. Please try again.');
-    } finally {
-      setCheckingPublishLimit(false);
-    }
+    markDone(3);
+    handleSubmitVerified();
   }
 
   const returnUrl = '/tenders/create';
   const verifyUrl = getVerifyBusinessUrl(returnUrl);
   const hasRedirectedAbn = useRef(false);
   const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
+  const projectFilesSectionRef = useRef<HTMLDivElement | null>(null);
+  const startDateRef = useRef<HTMLInputElement | null>(null);
+  const endDateRef = useRef<HTMLInputElement | null>(null);
+
+  function openDatePicker(ref: React.RefObject<HTMLInputElement | null>) {
+    const el = ref.current;
+    if (!el) return;
+    // Chrome / Edge
+    // @ts-ignore
+    if (typeof el.showPicker === 'function') el.showPicker();
+    else el.click();
+  }
 
   // ✅ Tier is removed from UI. Default to FREE_TRIAL for now.
   const DEFAULT_TIER: TenderTier = 'FREE_TRIAL';
@@ -700,42 +666,127 @@ export default function CreateTenderPage() {
     }
 
     const tierToUse: TenderTier = DEFAULT_TIER;
-    const statusToUse = mode === 'guest' ? ('PENDING_APPROVAL' as any) : ('PUBLISHED' as any);
+    const statusToUse = mode === 'guest' ? ('PENDING_APPROVAL' as any) : ('DRAFT' as any);
 
-    const tradeReqsForApi = tradeRequirements.map((req) => ({
-      trade: req.trade,
-      subDescription: req.subDescription,
-      budgetMin: req.budgetMin,
-      budgetMax: req.budgetMax,
-    }));
+    let tender: { id: string } | null = null;
 
-    const res = await fetch('/api/tenders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        projectName,
-        projectDescription,
-        suburb,
-        postcode,
-        isNameHidden,
-        status: statusToUse,
-        tier: tierToUse,
-        tradeRequirements: tradeReqsForApi,
-        projectFilesCount: projectFiles.length,
-      }),
-    });
-
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      if (res.status === 403 && data.error) {
-        toast.error(data.error);
-        setError(data.error);
+    if (mode === 'verified') {
+      // Verified flow: use create_tender RPC (requires ABN verification)
+      const pTrades = tradeRequirements.map((r) => r.trade).filter((t) => t?.trim());
+      if (pTrades.length === 0) {
+        toast.error('Please select at least 1 trade before publishing.');
+        setError('At least one trade is required.');
         return;
       }
-      throw new Error(data.error || 'Failed to create tender');
+
+      const budgetMinCents = tradeRequirements.reduce<number | null>((acc, r) => {
+        const v = r.budgetMin ? Math.round(Number(r.budgetMin) * 100) : null;
+        return v != null ? (acc == null ? v : Math.min(acc, v)) : acc;
+      }, null);
+      const budgetMaxCents = tradeRequirements.reduce<number | null>((acc, r) => {
+        const v = r.budgetMax ? Math.round(Number(r.budgetMax) * 100) : null;
+        return v != null ? (acc == null ? v : Math.max(acc, v)) : acc;
+      }, null);
+
+      const { data: rpcTender, error: rpcErr } = await supabase.rpc('create_tender', {
+        p_project_name: projectName?.trim() || 'Draft tender',
+        p_description: projectDescription?.trim() || '',
+        p_suburb: suburb?.trim() || '',
+        p_postcode: postcode?.trim() || '',
+        p_budget_min_cents: budgetMinCents ?? 0,
+        p_budget_max_cents: budgetMaxCents ?? 0,
+        p_trades: pTrades,
+        p_desired_start_date: desiredStartDate?.trim() || null,
+        p_desired_end_date: desiredEndDate?.trim() || null,
+        p_shared_attachments: [],
+      });
+
+      if (rpcErr) {
+        const msg = String((rpcErr as any)?.message || '');
+        if (msg.includes('abn_verification_required')) {
+          toast.error('Verify your ABN to create tenders.');
+          redirectToVerifyBusiness(router, returnUrl);
+          return;
+        }
+        if (msg.includes('project_name_required')) {
+          toast.error('Project name is required.');
+          setError('Project name is required.');
+          return;
+        }
+        if (msg.includes('location_required')) {
+          toast.error('Suburb and postcode are required.');
+          setError('Suburb and postcode are required.');
+          return;
+        }
+        if (msg.includes('trades_required')) {
+          toast.error('Please select at least 1 trade before publishing.');
+          setError('At least one trade is required.');
+          return;
+        }
+        if (msg.includes('not_authenticated')) {
+          setError('Authentication required. Please log in to create tenders.');
+          return;
+        }
+        if (msg.includes('user_not_found')) {
+          setError('User profile not found. Please log in with a valid contractor account.');
+          return;
+        }
+        throw new Error(msg || 'Failed to create tender');
+      }
+
+      tender = rpcTender as { id: string };
+
+      // RPC creates trade rows; update with sub_description and per-trade budget
+      for (const req of tradeRequirements) {
+        if (!req.trade?.trim()) continue;
+        await supabase
+          .from('tender_trade_requirements')
+          .update({
+            sub_description: req.subDescription || '',
+            min_budget_cents: req.budgetMin ? Math.round(Number(req.budgetMin) * 100) : null,
+            max_budget_cents: req.budgetMax ? Math.round(Number(req.budgetMax) * 100) : null,
+          })
+          .eq('tender_id', tender!.id)
+          .eq('trade', req.trade);
+      }
+    } else {
+      // Guest flow: use API
+      const tradeReqsForApi = tradeRequirements.map((req) => ({
+        trade: req.trade,
+        subDescription: req.subDescription,
+        budgetMin: req.budgetMin,
+        budgetMax: req.budgetMax,
+      }));
+
+      const res = await fetch('/api/tenders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectName,
+          projectDescription,
+          suburb,
+          postcode,
+          isNameHidden,
+          status: statusToUse,
+          tier: tierToUse,
+          tradeRequirements: tradeReqsForApi,
+          projectFilesCount: projectFiles.length,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 403 && data.error) {
+          toast.error(data.error);
+          setError(data.error);
+          return;
+        }
+        throw new Error(data.error || 'Failed to create tender');
+      }
+
+      tender = data.tender;
     }
 
-    const tender = data.tender;
     if (!tender?.id) throw new Error('Invalid response from server');
 
     // ---- Upload attachments (shared + per-trade) and persist ----
@@ -786,8 +837,37 @@ export default function CreateTenderPage() {
       await supabase.from('users').update({ builder_free_trial_tender_used: true }).eq('id', authUser.id);
     }
 
+    // Guest flow: created as PENDING_APPROVAL, done
+    if (mode === 'guest') {
+      trackEvent('tender_created', tender?.id != null ? { tenderId: tender.id } : {});
+      setShowApprovalModal(true);
+      return;
+    }
+
+    // Verified flow: call publish_tender (validates limit, readiness, etc.)
+    const { error: publishErr } = await supabase.rpc('publish_tender', {
+      p_tender_id: tender.id,
+    });
+
+    if (publishErr) {
+      const msg = String((publishErr as any)?.message || '');
+      if (msg.includes('free_tender_monthly_limit_reached')) {
+        toast.error('Free plan allows 1 tender per month. Upgrade to publish more.');
+      } else if (msg.includes('trades_required')) {
+        toast.error('Please select at least 1 trade before publishing.');
+      } else if (msg.includes('not_ready')) {
+        toast.error('Complete the required steps before publishing.');
+      } else if (msg.includes('not_owner')) {
+        toast.error('You can only publish your own tender.');
+      } else {
+        toast.error('Could not publish tender.');
+      }
+      return;
+    }
+
+    toast.success('Tender published');
     trackEvent('tender_created', tender?.id != null ? { tenderId: tender.id } : {});
-    setShowApprovalModal(true);
+    router.push(`/tenders/${tender.id}`);
   };
 
   const handleSubmitVerified = async () => {
@@ -936,6 +1016,51 @@ export default function CreateTenderPage() {
             description="Post a project tender and receive quotes from qualified contractors"
             tone="dark"
           />
+
+          {!isPremiumUser && !isAdminUser && (
+            <div className="mt-4">
+              <div className="rounded-2xl border border-amber-300 bg-gradient-to-r from-amber-50 via-amber-100 to-amber-50 px-5 py-4 shadow-sm">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl bg-amber-200/80">
+                      <Crown className="h-5 w-5 text-amber-800" />
+                    </div>
+
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-amber-900">
+                        Generate from plans (Premium)
+                      </div>
+
+                      <div className="mt-1 text-sm text-amber-900/90">
+                        Upload your drawings/PDFs and TradeHub AI will draft the tender description,
+                        identify relevant trades, and suggest scope — so you can post faster.
+                      </div>
+
+                      <div className="mt-2 text-xs text-amber-900/70">
+                        Best results with text-based PDFs. Scanned drawings may be limited until OCR is added.
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                    <Button
+                      type="button"
+                      onClick={() => router.push('/pricing')}
+                      className={[
+                        'relative inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold',
+                        'bg-amber-400 text-black hover:bg-amber-300',
+                        'ring-2 ring-amber-300/50 shadow-[0_0_0_6px_rgba(251,191,36,0.08)]',
+                        'transition-all duration-200',
+                      ].join(' ')}
+                    >
+                      <Crown className="h-4 w-4 text-amber-800" />
+                      Upgrade to Premium
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {!isAdminUser && !isAbnVerified && (
             <Alert className="mb-6">
@@ -1090,7 +1215,7 @@ export default function CreateTenderPage() {
                 </div>
 
                 {/* Project files (shared) */}
-                <div className="space-y-2">
+                <div ref={projectFilesSectionRef} className="space-y-2">
                   <Label className="text-base font-semibold text-slate-900">
                     Project files (shared)
                   </Label>
@@ -1207,6 +1332,37 @@ export default function CreateTenderPage() {
                             </button>
                           )}
                         </div>
+
+                        <div className="mt-3">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={!currentUser || !hasBuilderPremium(currentUser) || projectFiles.length === 0}
+                              onClick={() => setShowPlansModal(true)}
+                              className="gap-2"
+                            >
+                              <Sparkles className="h-4 w-4" />
+                              Generate from plans (Premium)
+                            </Button>
+                            {currentUser && !hasBuilderPremium(currentUser) && (
+                              <div className="mt-2 text-xs text-slate-500">
+                                <span className="font-medium text-slate-700">
+                                  Premium feature:
+                                </span>{' '}
+                                Generate a tender directly from your uploaded plans. TradeHub AI will
+                                identify relevant trades and draft the project scope automatically.
+                                {' '}
+                                <button
+                                  type="button"
+                                  className="font-semibold underline hover:text-slate-900"
+                                  onClick={() => router.push('/pricing')}
+                                >
+                                  Upgrade to Premium
+                                </button>
+                              </div>
+                            )}
+                          </div>
 
                         {/* Full file list with remove buttons */}
                         <div className="mt-2 flex flex-col gap-2">
@@ -1495,35 +1651,105 @@ export default function CreateTenderPage() {
                 />
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
+                  {/* Start Date */}
+                  <div className="space-y-1">
                     <Label>Desired start date (optional)</Label>
-                    <Input
-                      type="date"
-                      value={desiredStartDate || ''}
-                      onChange={(e) => setDesiredStartDate(e.target.value)}
-                    />
 
-                    {desiredStartDate && (
-                      <p className="text-xs text-muted-foreground">
-                        Selected: <span className="font-medium">{formatAUDate(desiredStartDate)}</span>
-                      </p>
-                    )}
+                    <div className="relative">
+                      {/* Visible "fake" field */}
+                      <div className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 pr-11 text-sm">
+                        {desiredStartDate ? (
+                          <span className="text-slate-900">{formatDateShortAU(desiredStartDate)}</span>
+                        ) : (
+                          <span className="text-muted-foreground">Select date</span>
+                        )}
+                      </div>
+
+                      {/* Real date input (kept tiny but focusable) */}
+                      <input
+                        ref={startDateRef}
+                        type="date"
+                        value={desiredStartDate}
+                        onChange={(e) => setDesiredStartDate(e.target.value)}
+                        className="absolute left-0 top-0 h-10 w-[1px] opacity-0"
+                        aria-label="Desired start date"
+                      />
+
+                      {/* Clickable square calendar button */}
+                      <button
+                        type="button"
+                        onClick={() => openDatePicker(startDateRef)}
+                        className="absolute right-1 top-1 z-10 flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 shadow-sm hover:bg-slate-50 active:scale-[0.98]"
+                        aria-label="Open start date picker"
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          className="h-4 w-4"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path d="M8 2v3M16 2v3M3 9h18M5 6h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z" />
+                        </svg>
+                      </button>
+
+                      {/* Also make the whole field clickable */}
+                      <button
+                        type="button"
+                        onClick={() => openDatePicker(startDateRef)}
+                        className="absolute inset-0 rounded-md"
+                        aria-label="Open start date picker"
+                      />
+                    </div>
                   </div>
 
-                  <div className="space-y-2">
+                  {/* End Date */}
+                  <div className="space-y-1">
                     <Label>Desired end date (optional)</Label>
-                    <Input
-                      type="date"
-                      value={desiredEndDate || ''}
-                      min={desiredStartDate || undefined}
-                      onChange={(e) => setDesiredEndDate(e.target.value)}
-                    />
 
-                    {desiredEndDate && (
-                      <p className="text-xs text-muted-foreground">
-                        Selected: <span className="font-medium">{formatAUDate(desiredEndDate)}</span>
-                      </p>
-                    )}
+                    <div className="relative">
+                      <div className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 pr-11 text-sm">
+                        {desiredEndDate ? (
+                          <span className="text-slate-900">{formatDateShortAU(desiredEndDate)}</span>
+                        ) : (
+                          <span className="text-muted-foreground">Select date</span>
+                        )}
+                      </div>
+
+                      <input
+                        ref={endDateRef}
+                        type="date"
+                        value={desiredEndDate}
+                        min={desiredStartDate || undefined}
+                        onChange={(e) => setDesiredEndDate(e.target.value)}
+                        className="absolute left-0 top-0 h-10 w-[1px] opacity-0"
+                        aria-label="Desired end date"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => openDatePicker(endDateRef)}
+                        className="absolute right-1 top-1 z-10 flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 shadow-sm hover:bg-slate-50 active:scale-[0.98]"
+                        aria-label="Open end date picker"
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          className="h-4 w-4"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path d="M8 2v3M16 2v3M3 9h18M5 6h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z" />
+                        </svg>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => openDatePicker(endDateRef)}
+                        className="absolute inset-0 rounded-md"
+                        aria-label="Open end date picker"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -1631,8 +1857,8 @@ export default function CreateTenderPage() {
                           Verify business to publish
                         </Button>
                       ) : (
-                        <Button onClick={onClickPublish} disabled={loading || checkingPublishLimit || !step3Valid}>
-                          {loading ? 'Publishing…' : checkingPublishLimit ? 'Checking…' : 'Publish tender'}
+                        <Button onClick={onClickPublish} disabled={loading || !step3Valid}>
+                          {loading ? 'Publishing…' : 'Publish tender'}
                         </Button>
                       )}
                     </div>
@@ -1662,43 +1888,6 @@ export default function CreateTenderPage() {
                   </div>
                 </div>
 
-                {/* Free publish warning modal */}
-                <AlertDialog open={showFreePublishWarning} onOpenChange={setShowFreePublishWarning}>
-                  <AlertDialogContent className="max-w-md">
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Free plan publishing limit</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        You've already published a tender within the last{' '}
-                        <span className="font-medium">30 days</span> on a Free account.
-                        Upgrade to Premium to publish unlimited tenders.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-
-                    <AlertDialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-                      <Button
-                        type="button"
-                        onClick={() => {
-                          setShowFreePublishWarning(false);
-                          router.push('/pricing');
-                        }}
-                        className={[
-                          'relative inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold',
-                          'bg-amber-400 text-black hover:bg-amber-300',
-                          'ring-2 ring-amber-300/50 shadow-[0_0_0_6px_rgba(251,191,36,0.08)]',
-                          'transition-all duration-200',
-                        ].join(' ')}
-                      >
-                        <Crown className="h-4 w-4 text-amber-800" />
-                        Upgrade to Premium
-                      </Button>
-
-                      <Button type="button" variant="secondary" onClick={() => setShowFreePublishWarning(false)}>
-                        Close
-                      </Button>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-
                 {!isAdminUser && !isAbnVerified && (
                   <div className="text-sm text-muted-foreground">
                     Guest tenders stay pending until reviewed and won’t appear in the public tenders list until approved.
@@ -1714,6 +1903,33 @@ export default function CreateTenderPage() {
         onOpenChange={setShowApprovalModal}
         type="tender"
         redirectPath="/tenders"
+      />
+
+      <GenerateFromPlansModal
+        open={showPlansModal}
+        onOpenChange={setShowPlansModal}
+        files={projectFiles}
+        onApply={(draft) => {
+          setProjectName(draft.project_name || projectName);
+          const desc = [
+            draft.summary ? draft.summary : null,
+            draft.inclusions?.length ? `Inclusions:\n• ${draft.inclusions.join('\n• ')}` : null,
+            draft.exclusions?.length ? `Exclusions:\n• ${draft.exclusions.join('\n• ')}` : null,
+            draft.timing_notes?.length ? `Timing:\n• ${draft.timing_notes.join('\n• ')}` : null,
+            draft.site_access_notes?.length ? `Site access:\n• ${draft.site_access_notes.join('\n• ')}` : null,
+            draft.questions_to_confirm?.length
+              ? `Questions to confirm:\n• ${draft.questions_to_confirm.join('\n• ')}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join('\n\n');
+          if (desc.trim()) setProjectDescription(desc);
+          if (draft.suggested_trades?.length) {
+            setTradeRequirements(
+              draft.suggested_trades.map((t) => ({ trade: t, subDescription: '' }))
+            );
+          }
+        }}
       />
     </AppLayout>
   );

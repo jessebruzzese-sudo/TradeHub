@@ -8,3 +8,9 @@ node_modules
 # Supabase local temp
 supabase/.temp/
 tsconfig.tsbuildinfo
+
+# Playwright
+playwright-report/
+playwright/.auth/
+pw-creds.json
+test-results/

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Check, Crown, TrendingUp, BadgeCheck } from 'lucide-react';
+import { Check, Crown, Sparkles, TrendingUp, BadgeCheck } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { toast } from 'sonner';
@@ -104,7 +104,7 @@ export default function PricingContent() {
 
         <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-5 md:gap-8">
           {/* Premium Plan - appears first on mobile, second on desktop */}
-          <div className="group relative rounded-2xl border border-amber-400/30 bg-gradient-to-br from-amber-500 via-amber-500 to-orange-500 p-4 md:p-8 flex flex-col text-white order-1 md:order-2 overflow-hidden ring-2 ring-amber-300/40 transition-all duration-200 hover:-translate-y-1 shadow-[0_25px_80px_rgba(0,0,0,0.25)] hover:shadow-[0_25px_80px_rgba(0,0,0,0.35)]">
+          <div className="group relative rounded-2xl border border-amber-400/40 bg-gradient-to-br from-amber-500 via-amber-500 to-orange-500 p-4 md:p-8 flex flex-col text-white order-1 md:order-2 overflow-hidden ring-2 ring-amber-300/50 transition-all duration-200 hover:-translate-y-1 hover:scale-[1.02] shadow-[0_25px_80px_rgba(0,0,0,0.25)] hover:shadow-[0_30px_100px_rgba(251,191,36,0.45)]">
             {/* Subtle amber glow */}
             <div className="pointer-events-none absolute -inset-24 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
               <div className="absolute inset-0 bg-[radial-gradient(closest-side,rgba(245,158,11,0.22),transparent_70%)]" />
@@ -133,10 +133,35 @@ export default function PricingContent() {
               <p className="text-[10px] md:text-xs text-amber-200">
                 Best value for active contractors
               </p>
+              <p className="text-xs text-amber-200 mt-1">
+                Typical lead platforms cost $200–$600+/month in leads
+              </p>
             </div>
 
             {/* Mobile: Feature chips (highlights) + expandable full list */}
             <div className="md:hidden mb-4 flex-1">
+              {/* Main Premium feature (always visible on mobile) */}
+              <div className="mb-3 rounded-xl bg-white/10 border border-white/10 px-3 py-2 overflow-hidden">
+                <div className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-amber-200 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-sm font-semibold text-white leading-snug">
+                        Generate project tenders instantly with your Personal AI Agent
+                      </div>
+                      <span className="flex items-center gap-1 text-[10px] font-semibold bg-white/20 px-2 py-1 rounded-full">
+                        <Sparkles className="w-3 h-3 text-purple-400 drop-shadow-[0_0_4px_rgba(168,85,247,0.8)]" />
+                        AI
+                      </span>
+                    </div>
+                    <div className="mt-1 text-xs text-white/80 leading-snug">
+                      — upload plans and TradeHub drafts scope and suggests relevant trades
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Existing highlight chips */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="bg-white/10 rounded-full px-3 py-1.5 text-xs text-white flex items-center gap-1.5">
                   <Check className="w-3 h-3 flex-shrink-0" />
@@ -169,6 +194,21 @@ export default function PricingContent() {
                   </summary>
 
                   <div className="mt-3 space-y-3 text-sm text-white/90">
+                    <div className="flex items-start gap-2 bg-white/10 rounded-lg px-3 py-2 border border-white/10">
+                      <Check className="w-4 h-4 text-amber-200 flex-shrink-0 mt-0.5" />
+                      <span>
+                        <span className="font-semibold flex items-center gap-2">
+                          Generate project tenders instantly with your Personal AI Agent
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-white/20 px-2 py-1 rounded-full">
+                            <Sparkles className="w-3 h-3 text-purple-400 drop-shadow-[0_0_4px_rgba(168,85,247,0.8)]" />
+                            AI
+                          </span>
+                        </span>
+                        <span className="text-white/80">
+                          {" "}— upload plans and TradeHub drafts scope and suggests relevant trades
+                        </span>
+                      </span>
+                    </div>
                     <div className="flex items-start gap-2">
                       <Check className="w-4 h-4 text-amber-200 flex-shrink-0 mt-0.5" />
                       <span>Unlimited project tenders — post and manage work without caps</span>
@@ -233,6 +273,26 @@ export default function PricingContent() {
 
             {/* Desktop: Full feature list */}
             <ul className="space-y-3 mb-6 flex-1 hidden md:block">
+              <li className="relative flex items-start gap-3 bg-white/10 rounded-lg px-3 py-2 border border-white/10 overflow-hidden group">
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition duration-700
+                                bg-gradient-to-r from-transparent via-white/20 to-transparent
+                                -translate-x-full group-hover:translate-x-full"></div>
+
+                <Check className="w-5 h-5 text-amber-200 flex-shrink-0 mt-0.5 relative z-10" />
+
+                <span className="text-sm md:text-base relative z-10">
+                  <span className="font-semibold flex items-center gap-2">
+                    Generate project tenders instantly with your Personal AI Agent
+                    <span className="flex items-center gap-1 text-[10px] font-semibold bg-white/20 px-2 py-1 rounded-full">
+                      <Sparkles className="w-3 h-3 text-purple-400 drop-shadow-[0_0_4px_rgba(168,85,247,0.8)]" />
+                      AI
+                    </span>
+                  </span>
+                  <span className="text-white/80">
+                    {" "}— upload plans and TradeHub drafts scope and suggests relevant trades
+                  </span>
+                </span>
+              </li>
               <li className="flex items-start gap-3">
                 <Check className="w-5 h-5 text-amber-200 flex-shrink-0 mt-0.5" />
                 <span className="text-sm md:text-base">Unlimited project tenders — post and manage work without caps</span>

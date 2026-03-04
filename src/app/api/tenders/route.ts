@@ -30,11 +30,15 @@ export async function POST(request: NextRequest) {
       tradeRequirements = [],
     } = body;
 
-    if (!projectName?.trim() || !suburb?.trim() || !postcode?.trim()) {
-      return NextResponse.json(
-        { error: 'projectName, suburb, and postcode are required' },
-        { status: 400 }
-      );
+    const isDraft = String(status || '').toUpperCase() === 'DRAFT';
+
+    if (!isDraft) {
+      if (!projectName?.trim() || !suburb?.trim() || !postcode?.trim()) {
+        return NextResponse.json(
+          { error: 'projectName, suburb, and postcode are required' },
+          { status: 400 }
+        );
+      }
     }
 
     const { data: dbUser, error: userErr } = await supabase
@@ -47,7 +51,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 500 });
     }
 
-    if (!isAdmin(dbUser)) {
+    // ✅ Draft scaffolds should NOT count toward monthly tender limits
+    if (!isDraft && !isAdmin(dbUser)) {
       const limitResult = await checkTenderCreationLimit(supabase, authUser.id, dbUser);
       if (!limitResult.allowed) {
         console.warn(
@@ -62,13 +67,21 @@ export async function POST(request: NextRequest) {
 
     const tenderInsert = {
       builder_id: authUser.id,
-      status,
+      status: isDraft ? 'DRAFT' : status,
       tier,
       is_name_hidden: !!isNameHidden,
-      project_name: String(projectName).trim(),
+
+      // ✅ Draft placeholders (so we can create a tenderId before user fills fields)
+      project_name: isDraft
+        ? String(projectName || 'Draft tender').trim()
+        : String(projectName).trim(),
+
       project_description: String(projectDescription || '').trim(),
-      suburb: String(suburb).trim(),
-      postcode: String(postcode).trim(),
+
+      suburb: isDraft ? String(suburb || '').trim() : String(suburb).trim(),
+      postcode: isDraft ? String(postcode || '').trim() : String(postcode).trim(),
+
+      // Keep as 0 for now; you can wire real geocode later
       lat: 0,
       lng: 0,
     };

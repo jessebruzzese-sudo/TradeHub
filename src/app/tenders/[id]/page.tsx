@@ -544,16 +544,21 @@ function TenderDetailUuidPage({ id }: { id: string }) {
       return;
     }
 
+    if (!tender.id || !currentUser.primaryTrade) {
+      toast.error('Missing tender details');
+      return;
+    }
+
     const n = Number(quotePrice);
     if (!quotePrice || Number.isNaN(n) || n <= 0) {
       toast.error('Please enter a valid quote amount');
       return;
     }
 
-    try {
-      setIsSubmitting(true);
-      setQuotePermissionError(null);
+    setIsSubmitting(true);
+    setQuotePermissionError(null);
 
+    try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         safeRouterPush(router, `/login?returnUrl=/tenders/${tender.id}`, '/login');
@@ -561,29 +566,24 @@ function TenderDetailUuidPage({ id }: { id: string }) {
       }
 
       const priceCents = Math.round(n * 100);
-      const res = await fetch(`/api/tenders/${tender.id}/quotes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ priceCents, notes: quoteNotes?.trim() || null }),
+      const { error } = await supabase.rpc('tender_submit_quote', {
+        p_tender_id: tender.id,
+        p_trade_key: currentUser.primaryTrade,
+        p_price_cents: priceCents,
+        p_notes: quoteNotes?.trim() || null,
       });
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        if (res.status === 403 && data.error) {
-          setQuotePermissionError(data.error);
-          toast.error(data.error);
-          return;
-        }
-        throw new Error(data.error || 'Failed to submit quote');
-      }
+      if (error) throw error;
 
-      toast.success('Quote submitted successfully!');
+      toast.success('Quote submitted successfully');
       setQuotePrice('');
       setQuoteNotes('');
-    } catch (e) {
-      console.error('Error submitting quote:', e);
-      setQuotePermissionError('An error occurred. Please try again.');
-      toast.error('An error occurred. Please try again.');
+      router.refresh();
+    } catch (err: any) {
+      console.error('[tender] quote submit failed', err);
+      const msg = err.message || 'Failed to submit quote';
+      setQuotePermissionError(msg);
+      toast.error(msg);
     } finally {
       setIsSubmitting(false);
     }
