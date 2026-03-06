@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
       suburb,
       postcode,
       isNameHidden = false,
+      isAnonymous = false,
       status = 'PUBLISHED',
       tier = 'FREE_TRIAL',
       tradeRequirements = [],
@@ -70,6 +71,7 @@ export async function POST(request: NextRequest) {
       status: isDraft ? 'DRAFT' : status,
       tier,
       is_name_hidden: !!isNameHidden,
+      is_anonymous: !!isAnonymous,
 
       // ✅ Draft placeholders (so we can create a tenderId before user fills fields)
       project_name: isDraft

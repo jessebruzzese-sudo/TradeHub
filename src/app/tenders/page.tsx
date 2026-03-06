@@ -20,6 +20,16 @@ import { isPremiumForDiscovery } from '@/lib/discovery';
 
 import { toast } from 'sonner';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Trash2,
   MapPin,
   Calendar,
@@ -31,6 +41,7 @@ import {
   BadgeCheck,
   FileText,
   Plus,
+  RotateCcw,
 } from 'lucide-react';
 
 type TenderStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'PUBLISHED' | 'LIVE' | 'CLOSED' | string;
@@ -40,6 +51,7 @@ type TenderRow = {
   builder_id: string;
   status: TenderStatus;
   tier: string | null;
+  is_anonymous: boolean | null;
   is_name_hidden: boolean | null;
   project_name: string;
   project_description: string | null;
@@ -50,6 +62,8 @@ type TenderRow = {
   desired_end_date?: string | null;
   poster?: any;
   distance_km?: number | null;
+  quotes_received?: number;
+  quote_request_status?: 'PENDING' | 'ACCEPTED' | 'DECLINED' | null;
 };
 
 type BuilderMap = Record<
@@ -98,7 +112,7 @@ function statusVariant(status: string) {
   if (s === 'PUBLISHED' || s === 'LIVE') return 'default';
   if (s === 'PENDING_APPROVAL') return 'secondary';
   if (s === 'DRAFT') return 'secondary';
-  if (s === 'CLOSED') return 'outline';
+  if (s === 'CLOSED' || s === 'CANCELLED') return 'outline';
   return 'outline';
 }
 
@@ -108,6 +122,7 @@ function prettyStatus(status: string) {
   if (s === 'PENDING_APPROVAL') return 'Pending approval';
   if (s === 'DRAFT') return 'Draft';
   if (s === 'CLOSED') return 'Closed';
+  if (s === 'CANCELLED') return 'Cancelled';
   return s || 'Unknown';
 }
 
@@ -229,6 +244,7 @@ export default function TendersPage() {
   const [view, setView] = useState<'find' | 'posts'>('find');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<'all' | 'DRAFT' | 'PENDING_APPROVAL' | 'LIVE' | 'CLOSED'>('all');
+  const [myTab, setMyTab] = useState<'LIVE' | 'DRAFT' | 'CLOSED' | 'PENDING_APPROVAL'>('LIVE');
   const [sortMode, setSortMode] = useState<'newest' | 'nearest'>('newest');
 
   const [findRows, setFindRows] = useState<TenderRow[]>([]);
@@ -236,10 +252,19 @@ export default function TendersPage() {
   const [builders, setBuilders] = useState<BuilderMap>({});
   const [budgetMap, setBudgetMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
-  const [closingId, setClosingId] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
+  const [closeConfirmTenderId, setCloseConfirmTenderId] = useState<string | null>(null);
+  const [isClosing, setIsClosing] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteConfirmTenderId, setDeleteConfirmTenderId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [reopeningId, setReopeningId] = useState<string | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [requestingTenderId, setRequestingTenderId] = useState<string | null>(null);
 
-  const selectColumns = `id,builder_id,status,tier,is_name_hidden,project_name,project_description,suburb,postcode,created_at,desired_start_date,desired_end_date`;
+  const isBusy = isClosing || isDeleting || isCancelling;
+
+  const selectColumns = `id,builder_id,status,tier,is_anonymous,is_name_hidden,project_name,project_description,suburb,postcode,created_at,desired_start_date,desired_end_date`;
 
   async function fetchBuilderNames(builderIds: string[]): Promise<BuilderMap> {
     const uniq = Array.from(new Set(builderIds.filter(Boolean)));
@@ -248,7 +273,7 @@ export default function TendersPage() {
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('id,name,business_name,avatar_url,rating,rating_count,abn_status,abn_verified_at,is_premium')
+        .select('id,name,business_name,avatar,rating,abn_status,abn_verified_at,is_premium')
         .in('id', uniq);
       if (error) throw error;
       const map: BuilderMap = {};
@@ -257,9 +282,9 @@ export default function TendersPage() {
           id: u.id,
           name: u.name ?? null,
           business_name: u.business_name ?? null,
-          avatar_url: u.avatar_url ?? null,
+          avatar_url: u.avatar ?? null,
           rating: u.rating != null ? Number(u.rating) : null,
-          rating_count: u.rating_count != null ? Number(u.rating_count) : null,
+          rating_count: null,
           abn_status: u.abn_status ?? null,
           abn_verified_at: u.abn_verified_at ?? null,
           is_premium: (u as any).is_premium ?? null,
@@ -328,7 +353,25 @@ export default function TendersPage() {
         const buildersMap = await fetchBuilderNames(list.map((t) => t.builder_id).filter(Boolean));
         await fetchTenderBudgets(list.map((t) => t.id));
 
-        const sorted = list.slice().sort((a: any, b: any) => {
+        let quoteRequestMap: Record<string, string> = {};
+        const anonymousTenderIds = list.filter((t: any) => t?.is_anonymous).map((t: any) => t.id);
+        if (myUserId && anonymousTenderIds.length > 0) {
+          const { data: reqData } = await supabase
+            .from('tender_quote_requests')
+            .select('tender_id, status')
+            .in('tender_id', anonymousTenderIds)
+            .eq('requester_id', myUserId);
+          for (const r of (reqData ?? []) as { tender_id: string; status: string }[]) {
+            quoteRequestMap[r.tender_id] = r.status;
+          }
+        }
+
+        const listWithRequests = list.map((t: any) => ({
+          ...t,
+          quote_request_status: quoteRequestMap[t.id] ?? null,
+        }));
+
+        const sorted = listWithRequests.slice().sort((a: any, b: any) => {
           const ap = isPremiumPoster(a, buildersMap);
           const bp = isPremiumPoster(b, buildersMap);
           if (bp !== ap) return Number(bp) - Number(ap);
@@ -338,7 +381,7 @@ export default function TendersPage() {
           return bt - at;
         });
 
-        setFindRows(sorted);
+        setFindRows(sorted as TenderRow[]);
         setMyRows([]);
       } else {
         // My Tenders: own tenders only
@@ -355,10 +398,6 @@ export default function TendersPage() {
           .is('deleted_at', null)
           .eq('builder_id', myUserId);
 
-        if (status !== 'all') {
-          if (status === 'LIVE') q = q.in('status', ['PUBLISHED', 'LIVE']);
-          else q = q.eq('status', status);
-        }
         if (search.trim()) {
           const s = `%${search.trim()}%`;
           q = q.or(`project_name.ilike.${s},suburb.ilike.${s}`);
@@ -368,7 +407,25 @@ export default function TendersPage() {
         const { data, error } = await q.order('created_at', { ascending: orderAscending });
         if (error) throw error;
         const list = (data ?? []) as TenderRow[];
-        setMyRows(list);
+
+        // Fetch quote counts from view and merge
+        const tenderIds = list.map((t) => t.id);
+        let quoteCountMap: Record<string, number> = {};
+        if (tenderIds.length > 0) {
+          const { data: countsData } = await supabase
+            .from('tender_quote_counts')
+            .select('tender_id, quotes_received')
+            .in('tender_id', tenderIds);
+          for (const row of (countsData ?? []) as { tender_id: string; quotes_received: number }[]) {
+            quoteCountMap[row.tender_id] = row.quotes_received ?? 0;
+          }
+        }
+
+        const mapped = list.map((t) => ({
+          ...t,
+          quotes_received: quoteCountMap[t.id] ?? 0,
+        }));
+        setMyRows(mapped);
         setFindRows([]);
         await Promise.all([
           fetchTenderBudgets(list.map((t) => t.id)),
@@ -398,98 +455,180 @@ export default function TendersPage() {
   }, [search]);
 
   async function handleCloseTender(tenderId: string) {
-    if (!myUserId) return;
+    if (!myUserId) return toast.error('You must be logged in.');
+    setIsClosing(true);
     try {
-      setClosingId(tenderId);
-      const { error } = await supabase
-        .from('tenders')
-        .update({ status: 'closed' })
-        .eq('id', tenderId)
-        .eq('builder_id', myUserId);
-      if (error) throw error;
+      const { error } = await supabase.rpc('close_tender', { p_tender_id: tenderId });
+      if (error) {
+        const msg = String((error as any)?.message || '');
+        if (msg.includes('already_closed')) toast.error('This tender is already closed.');
+        else if (msg.includes('not_owner')) toast.error('You can only close your own tender.');
+        else toast.error('Could not close tender.');
+        return;
+      }
       toast.success('Tender closed');
-      setMyRows((prev) => prev.map((r) => (r.id === tenderId ? { ...r, status: 'CLOSED' } : r)));
+      await fetchTenders();
     } catch (e: any) {
       console.error('[tenders] close failed', e);
       toast.error('Could not close tender.');
     } finally {
-      setClosingId(null);
+      setIsClosing(false);
+      setCloseConfirmOpen(false);
+      setCloseConfirmTenderId(null);
     }
   }
 
-  async function handleDeleteTender(tenderId: string) {
-    if (!myUserId) return;
-
-    const ok = window.confirm('Delete this tender? This cannot be undone.');
-    if (!ok) return;
-
+  async function handleCancelTender(tenderId: string) {
+    if (!myUserId) return toast.error('You must be logged in.');
+    setIsCancelling(true);
     try {
-      setDeletingId(tenderId);
-
-      // Try soft delete first (if deleted_at exists)
-      const soft = await supabase
-        .from('tenders')
-        .update({ deleted_at: new Date().toISOString() } as any)
-        .eq('id', tenderId)
-        .eq('builder_id', myUserId);
-
-      if (soft.error) {
-        const msg = String(soft.error.message || '').toLowerCase();
-
-        // If column doesn't exist, fallback to hard delete
-        if (msg.includes('deleted_at') && msg.includes('does not exist')) {
-          const hard = await supabase
-            .from('tenders')
-            .delete()
-            .eq('id', tenderId)
-            .eq('builder_id', myUserId)
-            .select('id');
-
-          if (hard.error) throw hard.error;
-        } else {
-          throw soft.error;
-        }
+      const { error } = await supabase.rpc('cancel_tender', { p_tender_id: tenderId });
+      if (error) {
+        const msg = String((error as any)?.message || '');
+        if (msg.includes('already_cancelled')) toast.error('This tender is already cancelled.');
+        else if (msg.includes('cannot_cancel_closed')) toast.error('Closed tenders can\'t be cancelled.');
+        else if (msg.includes('not_owner')) toast.error('You can only cancel your own tender.');
+        else toast.error('Could not cancel tender.');
+        return;
       }
+      toast.success('Tender cancelled');
+      await fetchTenders();
+    } catch (e) {
+      console.error('[tenders] cancel failed', e);
+      toast.error('Could not cancel tender.');
+    } finally {
+      setIsCancelling(false);
+    }
+  }
 
+  async function handleReopenTender(tenderId: string) {
+    if (!myUserId) return toast.error('You must be logged in.');
+    setReopeningId(tenderId);
+    try {
+      const { error } = await supabase.rpc('reopen_tender', { p_tender_id: tenderId });
+      if (error) {
+        const msg = String((error as any)?.message || '');
+        if (msg.includes('free_cannot_reopen_closed_tender')) toast.error('Free plan cannot reopen closed tenders. Upgrade to Premium.');
+        else if (msg.includes('not_owner')) toast.error('You can only reopen your own tender.');
+        else if (msg.includes('tender_not_closed')) toast.error('This tender is not closed.');
+        else toast.error('Could not reopen tender.');
+        return;
+      }
+      toast.success('Tender reopened');
+      await fetchTenders();
+    } catch (e: any) {
+      console.error('[tenders] reopen failed', e);
+      toast.error('Could not reopen tender.');
+    } finally {
+      setReopeningId(null);
+    }
+  }
+
+  async function handleRequestToQuote(tenderId: string) {
+    if (!myUserId) {
+      toast.error('You must be logged in to request to quote.');
+      return;
+    }
+    setRequestingTenderId(tenderId);
+    try {
+      const { error } = await supabase.rpc('request_to_quote', { p_tender_id: tenderId });
+      if (error) {
+        const msg = String((error as any)?.message || '');
+        if (msg.includes('not_authenticated')) toast.error('Please log in to request.');
+        else if (msg.includes('tender_not_found')) toast.error('Tender not found.');
+        else if (msg.includes('tender_not_anonymous')) toast.error('This tender is not anonymous.');
+        else toast.error('Could not send request.');
+        return;
+      }
+      toast.success('Quote request sent');
+      await fetchTenders();
+    } catch (e: any) {
+      console.error('[tenders] request to quote failed', e);
+      toast.error('Could not send request.');
+    } finally {
+      setRequestingTenderId(null);
+    }
+  }
+
+  async function deleteTender(tenderId: string) {
+    if (!myUserId) return toast.error('You must be logged in.');
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase.rpc('delete_tender', { p_tender_id: tenderId });
+      if (error) {
+        const msg = String((error as any)?.message || '');
+        if (msg.includes('not_owner')) toast.error("You don't have permission to delete this tender.");
+        else if (msg.includes('tender_not_found')) toast.error('Tender not found.');
+        else if (msg.includes('not_authenticated')) toast.error('Please log in to delete tenders.');
+        else toast.error('Could not delete tender.');
+        return;
+      }
       toast.success('Tender deleted');
-      setMyRows((prev) => prev.filter((r) => r.id !== tenderId));
-      setBudgetMap((prev) => {
-        const next = { ...prev };
-        delete next[tenderId];
-        return next;
-      });
+      await fetchTenders();
     } catch (e: any) {
       console.error('[tenders] delete failed', e);
-      if (isLikelyRlsRejection(e)) {
-        toast.error("You don't have permission to delete this tender.");
-      } else {
-        toast.error('Failed to delete tender');
-      }
+      toast.error('Could not delete tender.');
     } finally {
-      setDeletingId(null);
+      setIsDeleting(false);
+      setDeleteConfirmOpen(false);
+      setDeleteConfirmTenderId(null);
     }
   }
 
   const findTenders = view === 'find' ? findRows : [];
   const myTenders = view === 'posts' ? myRows : [];
 
+  const hasPending = (myTenders || []).some((t) => t.status === 'PENDING_APPROVAL');
+
+  // Reset myTab when Pending tab is hidden (no pending tenders)
+  useEffect(() => {
+    if (!hasPending && myTab === 'PENDING_APPROVAL') {
+      setMyTab('LIVE');
+    }
+  }, [hasPending, myTab]);
+
+  const visibleMyTenders = useMemo(() => {
+    const list = myTenders || [];
+    if (myTab === 'CLOSED') {
+      return list.filter((t) => t.status === 'CLOSED' || t.status === 'CANCELLED');
+    }
+    if (myTab === 'LIVE') {
+      return list.filter((t) => ['PUBLISHED', 'LIVE'].includes(String(t.status || '').toUpperCase()));
+    }
+    return list.filter((t) => String(t.status || '').toUpperCase() === myTab);
+  }, [myTenders, myTab]);
+
   function TenderRow({
     tender,
     showActions = false,
-    onDelete,
-    onClose,
+    onDeleteClick,
+    onCloseClick,
+    onReopenClick,
+    onCancelClick,
+    onRequestToQuote,
     budgetCents,
-    deletingId,
-    closingId,
+    quotesReceived,
+    isClosing,
+    isPremium,
+    reopeningId,
+    isBusy,
+    isRequesting,
     builders,
   }: {
     tender: TenderRow;
     showActions?: boolean;
-    onDelete?: (id: string) => void;
-    onClose?: (id: string) => void;
+    onDeleteClick?: (id: string) => void;
+    onCloseClick?: (id: string) => void;
+    onReopenClick?: (id: string) => void;
+    onCancelClick?: (id: string) => void;
+    onRequestToQuote?: (id: string) => void;
     budgetCents?: number | null;
-    deletingId?: string | null;
-    closingId?: string | null;
+    quotesReceived?: number;
+    isClosing?: boolean;
+    isPremium?: boolean;
+    reopeningId?: string | null;
+    isBusy?: boolean;
+    isRequesting?: boolean;
     builders?: BuilderMap;
   }) {
     const tierLabel = prettyTier(tender.tier);
@@ -500,7 +639,10 @@ export default function TendersPage() {
     const posterAvatar = getPosterAvatarFromBuilders(tender, buildersMap);
     const { rating, count } = getPosterRatingFromBuilders(tender, buildersMap);
     const isOpen = ['PUBLISHED', 'LIVE'].includes(String(tender.status || '').toUpperCase());
-    const isClosed = String(tender.status || '').toUpperCase() === 'CLOSED';
+    const isClosed = ['CLOSED', 'CANCELLED'].includes(String(tender.status || '').toUpperCase());
+    const isClosedOnly = String(tender.status || '').toUpperCase() === 'CLOSED'; // Reopen only for CLOSED, not CANCELLED
+    const isDraft = String(tender.status || '').toUpperCase() === 'DRAFT';
+    const isLive = isOpen;
 
     return (
       <Card className="border-white/15 bg-white/90 shadow-sm backdrop-blur hover:shadow-md transition-shadow">
@@ -516,7 +658,13 @@ export default function TendersPage() {
                   <div className="truncate text-base font-semibold text-slate-900">
                     {tender.project_name}
                   </div>
-                  <Badge variant={statusVariant(tender.status) as any}>{prettyStatus(tender.status)}</Badge>
+                  {String(tender.status || '').toUpperCase() === 'CANCELLED' ? (
+                    <Badge variant="outline" className="bg-red-100 text-red-800 border-red-200">
+                      {prettyStatus(tender.status)}
+                    </Badge>
+                  ) : (
+                    <Badge variant={statusVariant(tender.status) as any}>{prettyStatus(tender.status)}</Badge>
+                  )}
                   {tierLabel ? (
                     <Badge variant="secondary" className="gap-1">
                       <Tag className="h-3.5 w-3.5" />
@@ -529,41 +677,96 @@ export default function TendersPage() {
                       {priceLabel}
                     </Badge>
                   ) : null}
+                  {showActions && typeof quotesReceived === 'number' && isLive ? (
+                    <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
+                      {quotesReceived === 1 ? '1 quote' : `${quotesReceived} quotes`}
+                    </Badge>
+                  ) : null}
                 </div>
                 <div className="mt-2 flex items-center gap-2">
-                  <ProfileAvatar
-                    userId={tender.builder_id}
-                    currentAvatarUrl={posterAvatar}
-                    userName={posterName}
-                    onAvatarUpdate={() => {}}
-                    editable={false}
-                    size={32}
-                  />
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <div className="truncate text-xs font-medium text-slate-700">
-                        {posterName}
+                  {tender.is_anonymous ? (
+                    showActions ? (
+                      <div className="flex items-center justify-between w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                        <div className="text-sm font-medium text-slate-700">Posted anonymously</div>
                       </div>
-                      {isBuilderVerified(tender, buildersMap) ? (
-                        <Badge
-                          variant="secondary"
-                          className="h-5 px-1.5 text-[10px] font-semibold text-sky-700 bg-sky-50 border border-sky-100 gap-1"
-                        >
-                          <BadgeCheck className="h-3.5 w-3.5 text-sky-600" />
-                          Verified
-                        </Badge>
-                      ) : null}
+                    ) : tender.quote_request_status === 'ACCEPTED' ? (
+                    <div className="flex items-center justify-between w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                      <div className="text-sm font-medium text-slate-700">Request accepted</div>
+                      <Button
+                        asChild
+                        size="sm"
+                        className="h-8"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Link href={`/tenders/${tender.id}#quotes`}>Submit quote</Link>
+                      </Button>
                     </div>
-                    {rating != null ? (
-                      <div className="flex items-center gap-1 text-xs text-slate-500">
-                        <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
-                        <span className="font-medium text-slate-600">{rating.toFixed(1)}</span>
-                        {count != null ? <span className="text-slate-400">({count})</span> : null}
+                  ) : tender.quote_request_status ? (
+                    <div className="flex items-center justify-between w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                      <div className="text-sm font-medium text-slate-700">Request sent</div>
+                      <Button size="sm" variant="secondary" disabled className="h-8">
+                        Request sent
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                      <div className="text-sm font-medium text-slate-700">Request to quote</div>
+                      <Button
+                        size="sm"
+                        className="h-8"
+                        disabled={!!isRequesting}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onRequestToQuote?.(tender.id);
+                        }}
+                      >
+                        {isRequesting ? 'Sending...' : 'Request'}
+                      </Button>
+                    </div>
+                  )
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <ProfileAvatar
+                        userId={tender.builder_id}
+                        currentAvatarUrl={posterAvatar}
+                        userName={posterName}
+                        onAvatarUpdate={() => {}}
+                        editable={false}
+                        size={32}
+                      />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <div className="truncate text-sm font-medium text-slate-700">
+                            {posterName}
+                          </div>
+                          {isBuilderVerified(tender, buildersMap) ? (
+                            <Badge
+                              variant="secondary"
+                              className="h-5 px-1.5 text-[10px] font-semibold text-sky-700 bg-sky-50 border border-sky-100 gap-1"
+                            >
+                              <BadgeCheck className="h-3.5 w-3.5 text-sky-600" />
+                              Verified
+                            </Badge>
+                          ) : null}
+                        </div>
+                        {rating != null ? (
+                          <div className="flex items-center gap-1 text-xs text-slate-500">
+                            <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
+                            <span className="font-medium text-slate-600">{rating.toFixed(1)}</span>
+                            {count != null ? <span className="text-slate-400">({count})</span> : null}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-slate-500">New</div>
+                        )}
                       </div>
-                    ) : (
-                      <div className="text-xs text-slate-400">New</div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -597,11 +800,16 @@ export default function TendersPage() {
                 <div className="flex items-center gap-2">
                   {showActions ? (
                     <>
+                      {isLive && (quotesReceived ?? 0) >= 1 ? (
+                        <Button asChild variant="secondary" size="sm" className="h-9">
+                          <Link href={`/tenders/${tender.id}#quotes`}>View quotes</Link>
+                        </Button>
+                      ) : null}
                       {isOpen ? (
                         <button
                           type="button"
                           className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-amber-600"
-                          disabled={!!closingId}
+                          disabled={!!isBusy}
                           onMouseDown={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -609,7 +817,7 @@ export default function TendersPage() {
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            onClose?.(tender.id);
+                            onCloseClick?.(tender.id);
                           }}
                           title="Close tender"
                         >
@@ -617,11 +825,12 @@ export default function TendersPage() {
                           <span className="ml-1 hidden sm:inline">Close</span>
                         </button>
                       ) : null}
-                      {isClosed ? (
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-red-600"
-                          disabled={!!deletingId}
+                      {isOpen && onCancelClick ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-9 border-red-200 text-red-700 hover:bg-red-50"
+                          disabled={!!isBusy}
                           onMouseDown={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -629,13 +838,51 @@ export default function TendersPage() {
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            onDelete?.(tender.id);
+                            onCancelClick(tender.id);
                           }}
-                          title="Delete tender"
                         >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="ml-1 hidden sm:inline">Delete</span>
+                          Cancel
+                        </Button>
+                      ) : null}
+                      {isClosedOnly && isPremium && onReopenClick ? (
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-emerald-600"
+                          disabled={!!isBusy}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onReopenClick(tender.id);
+                          }}
+                          title="Reopen tender"
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                          <span className="ml-1 hidden sm:inline">Reopen</span>
                         </button>
+                      ) : null}
+                      {(isDraft || isOpen || isClosed) && onDeleteClick ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-9 border-rose-200 text-rose-700 hover:bg-rose-50"
+                          disabled={!!isBusy}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onDeleteClick(tender.id);
+                          }}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete
+                        </Button>
                       ) : null}
                     </>
                   ) : (
@@ -818,7 +1065,14 @@ export default function TendersPage() {
                       </Card>
                     ) : (
                       findTenders.map((t) => (
-                        <TenderRow key={t.id} tender={t} budgetCents={budgetMap[t.id]} builders={builders} />
+                        <TenderRow
+                          key={t.id}
+                          tender={t}
+                          budgetCents={budgetMap[t.id]}
+                          builders={builders}
+                          onRequestToQuote={handleRequestToQuote}
+                          isRequesting={requestingTenderId === t.id}
+                        />
                       ))
                     )}
                   </div>
@@ -832,48 +1086,67 @@ export default function TendersPage() {
                       placeholder="Search by project name or suburb..."
                       className="md:flex-1"
                     />
-                    <div className="flex flex-wrap gap-2">
-                      <Button variant={status === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setStatus('all')}>
-                        All
-                      </Button>
-                      <Button variant={status === 'DRAFT' ? 'default' : 'outline'} size="sm" onClick={() => setStatus('DRAFT')}>
-                        Draft
-                      </Button>
-                      <Button variant={status === 'PENDING_APPROVAL' ? 'default' : 'outline'} size="sm" onClick={() => setStatus('PENDING_APPROVAL')}>
-                        Pending
-                      </Button>
-                      <Button variant={status === 'LIVE' ? 'default' : 'outline'} size="sm" onClick={() => setStatus('LIVE')}>
-                        Live
-                      </Button>
-                      <Button variant={status === 'CLOSED' ? 'default' : 'outline'} size="sm" onClick={() => setStatus('CLOSED')}>
-                        Closed
-                      </Button>
-                    </div>
                   </div>
 
-                  <div className="space-y-3">
+                  <Tabs value={myTab} onValueChange={(v) => setMyTab(v as typeof myTab)} className="mt-3">
+                    <TabsList
+                      className={`grid w-full max-w-xl ${hasPending ? 'grid-cols-4' : 'grid-cols-3'}`}
+                    >
+                      <TabsTrigger value="LIVE">Live</TabsTrigger>
+                      <TabsTrigger value="DRAFT">Draft</TabsTrigger>
+                      {hasPending ? (
+                        <TabsTrigger value="PENDING_APPROVAL">Pending</TabsTrigger>
+                      ) : null}
+                      <TabsTrigger value="CLOSED">Closed</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+
+                  <div className="mt-4 space-y-3">
                   {loading ? (
                     <Card className="border-white/15 bg-white/90 shadow-sm backdrop-blur">
                       <CardContent className="p-6 text-sm text-muted-foreground">Loading tenders…</CardContent>
                     </Card>
-                  ) : myTenders.length === 0 ? (
+                  ) : visibleMyTenders.length === 0 ? (
                     <Card className="border-white/15 bg-white/90 shadow-sm backdrop-blur">
                         <CardContent className="p-6">
-                          <div className="text-base font-medium">You haven&apos;t created any tenders yet</div>
-                          <div className="mt-1 text-sm text-muted-foreground">Click &quot;Post Tender&quot; to create your first tender.</div>
+                          <div className="text-base font-medium">
+                            {myTenders.length === 0
+                              ? "You haven't created any tenders yet"
+                              : `No ${myTab === 'LIVE' ? 'live' : myTab === 'DRAFT' ? 'draft' : myTab === 'PENDING_APPROVAL' ? 'pending' : 'closed'} tenders`}
+                          </div>
+                          <div className="mt-1 text-sm text-muted-foreground">
+                            {myTenders.length === 0
+                              ? 'Click "Post Tender" to create your first tender.'
+                              : 'Try another tab.'}
+                          </div>
                         </CardContent>
                       </Card>
                     ) : (
-                      myTenders.map((t) => (
+                      visibleMyTenders.map((t) => (
                         <TenderRow
                           key={t.id}
                           tender={t}
                           showActions
                           budgetCents={budgetMap[t.id]}
-                          onDelete={handleDeleteTender}
-                          onClose={handleCloseTender}
-                          deletingId={deletingId}
-                          closingId={closingId}
+                          quotesReceived={t.quotes_received}
+                          onCancelClick={handleCancelTender}
+                          onDeleteClick={(id) => {
+                            setDeleteConfirmTenderId(id);
+                            setDeleteConfirmOpen(true);
+                          }}
+                          onCloseClick={(id) => {
+                            if (!isPremium) {
+                              setCloseConfirmTenderId(id);
+                              setCloseConfirmOpen(true);
+                            } else {
+                              handleCloseTender(id);
+                            }
+                          }}
+                          onReopenClick={handleReopenTender}
+                          isClosing={isClosing}
+                          isPremium={isPremium}
+                          reopeningId={reopeningId}
+                          isBusy={isBusy}
                           builders={builders}
                         />
                       ))
@@ -885,6 +1158,62 @@ export default function TendersPage() {
           </Tabs>
         </div>
       </div>
+
+      {/* Confirm Close (Free plan warning) */}
+      <AlertDialog open={closeConfirmOpen} onOpenChange={setCloseConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Close tender?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Free plan allows 1 tender per month.
+              <br />
+              If you close this tender, you won&apos;t be able to reopen it this month.
+              <br />
+              Upgrade to Premium to post more tenders.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isClosing}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isClosing || !closeConfirmTenderId}
+              onClick={(e) => {
+                e.preventDefault();
+                if (closeConfirmTenderId && !isClosing) handleCloseTender(closeConfirmTenderId);
+              }}
+            >
+              {isClosing ? 'Closing…' : 'Close permanently'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirm Delete */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete tender?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove the tender from your account.
+              <br />
+              <span className="mt-2 inline-block font-medium text-slate-900">
+                This action can&apos;t be undone.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeleting || !deleteConfirmTenderId}
+              onClick={(e) => {
+                e.preventDefault();
+                if (deleteConfirmTenderId && !isDeleting) deleteTender(deleteConfirmTenderId);
+              }}
+            >
+              {isDeleting ? 'Deleting…' : 'Yes, delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }

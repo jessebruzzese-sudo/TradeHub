@@ -125,6 +125,7 @@ export default function JobsPage() {
           viewer_id: currentUser.id,
           trade_filter: currentUser.primaryTrade ?? null,
           limit_count: 50,
+          offset_count: 0,
         });
 
         if (error) {
@@ -143,7 +144,8 @@ export default function JobsPage() {
             .select('id, name, business_name, avatar, rating')
             .in('id', contractorIds);
           if (Array.isArray(usersData)) {
-            posterMap = Object.fromEntries(usersData.map((u) => [u.id, u]));
+            const users = usersData as { id: string }[];
+            posterMap = Object.fromEntries(users.map((u) => [u.id, u]));
           }
         }
         const rowsWithPoster = rows.map((r: any) => ({

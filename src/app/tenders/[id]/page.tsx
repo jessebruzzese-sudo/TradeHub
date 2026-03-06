@@ -22,6 +22,7 @@ import { callTradeHubAI } from '@/lib/ai-client';
 import { getVerifyBusinessUrl } from '@/lib/verification-guard';
 
 import { AppLayout } from '@/components/app-nav';
+import { UserAvatar } from '@/components/user-avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -35,22 +36,30 @@ import {
   MapPin,
   Calendar,
   DollarSign,
-  FileText,
   Users,
   Clock,
   AlertCircle,
   Info,
   ArrowLeft,
+  ArrowRight,
   Send,
   Lock,
   Sparkles,
+  BadgeCheck,
+  Crown,
+  Star,
+  LayoutDashboard,
+  FileText,
+  Layers,
+  MessageSquare,
+  Settings,
+  XCircle,
+  Trash2,
 } from 'lucide-react';
 
 import {
   formatCurrency,
-  getTierBadgeColor,
   getTierDisplayName,
-  getStatusBadgeColor,
   getStatusDisplayName,
   canSubmitQuote,
   getPublicQuoteStatus,
@@ -60,6 +69,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ABNRequiredModal } from '@/components/abn-required-modal';
 import { hasValidABN } from '@/lib/abn-utils';
 import { isUUID, parseTradeSuburbSlug } from '@/lib/slug-utils';
+import { getTradeIcon } from '@/lib/trade-icons';
 import TradeSuburbTenders from '@/components/trade-suburb-tenders';
 
 type StoredAttachment = {
@@ -100,6 +110,8 @@ type TenderDetail = {
   suburb: string;
   postcode: string;
   isNameHidden: boolean;
+  isAnonymous: boolean;
+  quoteRequestStatus?: 'PENDING' | 'ACCEPTED' | 'DECLINED' | null;
 
   desiredStartDate: string | null;
   desiredEndDate: string | null;
@@ -147,15 +159,6 @@ export default function TenderDetailRoutePage() {
   return <TenderDetailUuidPage id={raw} />;
 }
 
-async function getSignedUrlForBucket(supabaseClient: ReturnType<typeof getBrowserSupabase>, bucket: string, path: string) {
-  const { data, error } = await supabaseClient.storage
-    .from(bucket)
-    .createSignedUrl(path, 60 * 30); // 30 minutes
-
-  if (error) throw error;
-  return data.signedUrl;
-}
-
 function TenderDetailUuidPage({ id }: { id: string }) {
   const { currentUser, isLoading } = useAuth();
   const supabase = getBrowserSupabase();
@@ -173,9 +176,9 @@ function TenderDetailUuidPage({ id }: { id: string }) {
   const [quoteAiError, setQuoteAiError] = useState<string | null>(null);
 
   const [tender, setTender] = useState<TenderDetail | null>(null);
+  const [posterUser, setPosterUser] = useState<any>(null);
   const [pageError, setPageError] = useState<string | null>(null);
   const [loadingTender, setLoadingTender] = useState(true);
-  const [sharedUrls, setSharedUrls] = useState<Record<string, string>>({});
 
   const isAdminUser = isAdmin(currentUser);
   // Role used for UI/copy only, not permissions
@@ -223,6 +226,7 @@ function TenderDetailUuidPage({ id }: { id: string }) {
       try {
         setLoadingTender(true);
         setPageError(null);
+        setPosterUser(null);
 
         const { data, error } = await supabase
           .from('tenders')
@@ -256,6 +260,7 @@ function TenderDetailUuidPage({ id }: { id: string }) {
           suburb: dataAny.suburb || '',
           postcode: dataAny.postcode || '',
           isNameHidden: !!dataAny.is_name_hidden,
+          isAnonymous: !!dataAny.is_anonymous,
 
           desiredStartDate: dataAny.desired_start_date,
           desiredEndDate: dataAny.desired_end_date,
@@ -288,6 +293,32 @@ function TenderDetailUuidPage({ id }: { id: string }) {
         };
 
         setTender(mapped);
+
+        if (!mapped.isAnonymous && mapped.builderId) {
+          const { data: userData } = await supabase
+            .from('users')
+            .select('id,name,business_name,avatar,rating,abn_status,abn_verified_at,is_premium,subscription_status')
+            .eq('id', mapped.builderId)
+            .maybeSingle();
+          if (userData) {
+            setPosterUser(userData);
+          }
+        }
+
+        if (mapped.isAnonymous) {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const { data: reqData } = await supabase
+              .from('tender_quote_requests')
+              .select('status')
+              .eq('tender_id', id)
+              .eq('requester_id', user.id)
+              .maybeSingle();
+            if (reqData) {
+              setTender((prev) => prev ? { ...prev, quoteRequestStatus: (reqData as any).status } : prev);
+            }
+          }
+        }
       } catch (e: any) {
         console.error(e);
         setPageError(e?.message || 'Failed to load tender');
@@ -299,25 +330,36 @@ function TenderDetailUuidPage({ id }: { id: string }) {
     run();
   }, [id, supabase]);
 
-  useEffect(() => {
-    const run = async () => {
-      const att: StoredAttachment[] = (tender?.sharedAttachments ?? []) as StoredAttachment[];
-      const map: Record<string, string> = {};
-
-      for (const a of att) {
-        try {
-          map[a.path] = await getSignedUrlForBucket(supabase, a.bucket, a.path);
-        } catch (err) {
-          console.error('[tenders] signed url failed', a?.path, err);
-        }
+  async function onViewAttachment(file: StoredAttachment | { path?: string; bucket?: string; url?: string; name?: string; type?: string }) {
+    try {
+      if (file?.url && typeof file.url === 'string') {
+        window.open(file.url, '_blank', 'noreferrer');
+        return;
       }
 
-      setSharedUrls(map);
-    };
+      const bucket = file?.bucket ?? 'tender-attachments';
+      const path = file?.path;
 
-    if (tender?.id) run();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tender?.id]);
+      if (!path) {
+        toast.error('Missing file path.');
+        return;
+      }
+
+      const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 30);
+      if (error) throw error;
+
+      const url = data?.signedUrl;
+      if (!url) {
+        toast.error('Could not open file.');
+        return;
+      }
+
+      window.open(url, '_blank', 'noreferrer');
+    } catch (e) {
+      console.error('[tenders] view attachment failed', e);
+      toast.error('Could not open file.');
+    }
+  }
 
   if (isLoading || loadingTender) {
     return (
@@ -466,7 +508,7 @@ function TenderDetailUuidPage({ id }: { id: string }) {
 
   const viewerTradeRequirement = tender.tradeRequirements?.find((req) => req.trade === currentUser.primaryTrade);
 
-  if (!isMyTender(tender) && !isAdminUser && !tradeMatchesTender(tender)) {
+  if (!isMyTender(tender) && !isAdminUser && !tender.isAnonymous && !tradeMatchesTender(tender)) {
     return (
       <AppLayout>
         <div className="min-h-screen bg-gray-50">
@@ -498,7 +540,10 @@ function TenderDetailUuidPage({ id }: { id: string }) {
   const blockedByLimitedQuotes = hasLimitedQuotes && isSubcontractor;
 
   const canQuote =
-    !isContractor && tender.status === 'LIVE' && canSubmitUnderCap && !blockedByLimitedQuotes;
+    tender.status === 'LIVE' &&
+    canSubmitUnderCap &&
+    !blockedByLimitedQuotes &&
+    ((tender.isAnonymous && tender.quoteRequestStatus === 'ACCEPTED') || !isContractor);
 
   const handleWriteQuoteWithAI = async () => {
     setQuoteAiError(null);
@@ -596,207 +641,272 @@ function TenderDetailUuidPage({ id }: { id: string }) {
   const endDate = safeDate(tender.desiredEndDate);
   const closesAt = safeDate(tender.closesAt);
 
+  const hasDocs = Array.isArray(tender.sharedAttachments) && tender.sharedAttachments.length > 0;
+  const ProjectFilesBlock = (
+    <div>
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">Project files</h3>
+
+      {hasDocs ? (
+        <div className="space-y-2">
+          {tender.sharedAttachments!.map((file: StoredAttachment, idx: number) => (
+            <div
+              key={file?.path ?? idx}
+              className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2"
+            >
+              <div className="min-w-0">
+                <div className="truncate text-sm font-medium text-slate-900">
+                  {file?.name ?? file?.path?.split('/')?.pop() ?? 'Attachment'}
+                </div>
+                <div className="text-xs text-slate-500">
+                  {file?.type ? String(file.type) : 'File'}
+                </div>
+              </div>
+
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onViewAttachment(file)}
+              >
+                View
+              </Button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="flex items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 py-12 text-sm text-slate-600">
+          No documents attached
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <AppLayout>
-      <div className="min-h-screen bg-gray-50">
-        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <Link href={dashboardHref} className="mb-4 inline-flex items-center text-sm text-gray-600 hover:text-gray-900">
-            <ArrowLeft className="mr-1 h-4 w-4" />
-            Back to Dashboard
-          </Link>
+      <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-blue-50 via-white to-blue-100">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-25"
+          style={{
+            backgroundImage: 'radial-gradient(rgba(0,0,0,0.12) 1px, transparent 1px)',
+            backgroundSize: '18px 18px',
+          }}
+        />
 
-          <div className="grid gap-6 lg:grid-cols-3">
-            {/* Main */}
-            <div className="space-y-6 lg:col-span-2">
-              <Card>
-                <CardHeader>
-                  <div className="mb-4 flex items-start justify-between">
-                    <div className="flex gap-2">
-                      <Badge className={getTierBadgeColor(tender.tier)}>{getTierDisplayName(tender.tier)}</Badge>
-                      <Badge className={getStatusBadgeColor(tender.status)}>{getStatusDisplayName(tender.status)}</Badge>
-                    </div>
-                  </div>
-                  <CardTitle className="text-2xl">{tender.projectName}</CardTitle>
-                </CardHeader>
-              </Card>
+        <div className="pointer-events-none absolute -right-[520px] -bottom-[520px] opacity-[0.06]">
+          <img src="/TradeHub-Mark-blackout.svg" alt="" className="h-[1600px] w-[1600px]" />
+        </div>
 
+        <div className="relative mx-auto w-full max-w-5xl px-4 pb-24 pt-5 sm:px-6 lg:px-8">
+          <div className="mx-auto">
+            <div className="mb-4">
+              <Link
+                href="/tenders"
+                className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4 mr-1" />
+                Tenders
+              </Link>
+            </div>
+
+            <div className="rounded-xl border border-slate-300 bg-white p-6">
+              {/* Header row inside the big card */}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">{tender.projectName}</h1>
+                  <p className="text-sm text-slate-600 mt-1">
+                    Tender • {getStatusDisplayName(tender.status)} • {tender.suburb} {tender.postcode ? `VIC ${tender.postcode}` : ''}
+                  </p>
+                </div>
+                <div className="shrink-0">
+                  <Link href="/dashboard">
+                    <Button variant="outline" size="sm">
+                      Back to Dashboard
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+
+              {/* Primary action strip */}
+              <div className="relative z-10 mt-5 flex flex-wrap items-center gap-3 rounded-xl border border-blue-200 bg-gradient-to-r from-blue-50/80 to-white px-5 py-3 shadow-sm">
+                {isMyTender(tender) ? (
+                  <>
+                    <Button size="sm" className="gap-1.5 bg-blue-600 text-white shadow-sm hover:bg-blue-700">
+                      <Settings className="h-3.5 w-3.5" />
+                      Manage tender
+                    </Button>
+                    <Button size="sm" variant="outline" className="gap-1.5 border-slate-300">
+                      <XCircle className="h-3.5 w-3.5" />
+                      Close
+                    </Button>
+                    <Button size="sm" variant="outline" className="gap-1.5 border-red-200 text-red-600 hover:bg-red-50">
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    {tender.isAnonymous && tender.quoteRequestStatus !== 'ACCEPTED' ? (
+                      <Button size="sm" variant="outline" asChild className="gap-1.5">
+                        <a href="#posted-by">Request to quote</a>
+                      </Button>
+                    ) : null}
+                    <Button
+                      size="sm"
+                      onClick={() => setActiveTab('quotes')}
+                      className="gap-1.5"
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                      Submit quote
+                    </Button>
+                  </>
+                )}
+              </div>
+
+              {/* Tabs */}
               <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid w-full grid-cols-4">
-                  <TabsTrigger value="overview">Overview</TabsTrigger>
-                  <TabsTrigger value="documents">Documents</TabsTrigger>
-                  <TabsTrigger value="scope">Scope</TabsTrigger>
-                  <TabsTrigger value="quotes">Quotes {isContractor && `(${tender.quotes?.length || 0})`}</TabsTrigger>
-                </TabsList>
+                <div className="mt-5">
+                  <TabsList className="grid w-full grid-cols-4 h-9 gap-0.5 rounded-lg bg-slate-100 p-1">
+                    <TabsTrigger
+                      value="overview"
+                      className="rounded-md text-slate-600 transition-colors hover:text-slate-900 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-slate-200"
+                    >
+                      <LayoutDashboard className="h-3.5 w-3.5 mr-1.5" />
+                      Overview
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="documents"
+                      className="rounded-md text-slate-600 transition-colors hover:text-slate-900 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-slate-200"
+                    >
+                      <FileText className="h-3.5 w-3.5 mr-1.5" />
+                      Documents
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="scope"
+                      className="rounded-md text-slate-600 transition-colors hover:text-slate-900 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-slate-200"
+                    >
+                      <Layers className="h-3.5 w-3.5 mr-1.5" />
+                      Scope
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="quotes"
+                      className="rounded-md text-slate-600 transition-colors hover:text-slate-900 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-slate-200"
+                    >
+                      <MessageSquare className="h-3.5 w-3.5 mr-1.5" />
+                      Quotes {isContractor && `(${tender.quotes?.length || 0})`}
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
 
-                <TabsContent value="overview" className="mt-6">
-                  <Card>
-                    <CardContent className="space-y-4 pt-6">
-                      <div>
-                        <h3 className="mb-2 font-semibold text-gray-900">Project Description</h3>
-                        <p className="text-gray-600">{tender.projectDescription}</p>
-                      </div>
+                {/* Main layout inside the single card */}
+                <div className="mt-5 grid grid-cols-1 gap-6 lg:grid-cols-3">
+                  {/* Left: tab content */}
+                  <div className="lg:col-span-2">
+                    <div className="rounded-xl border border-blue-200 bg-gradient-to-b from-blue-50/70 to-white p-6">
+                      <TabsContent value="overview" className="mt-0">
+                        <div className="space-y-6">
+                          <section>
+                            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Project Description</h3>
+                            <p className="text-sm text-slate-700 leading-7">{tender.projectDescription}</p>
+                          </section>
 
-                      {(tender.sharedAttachments?.length ?? 0) > 0 && (
-                        <div className="rounded-xl border bg-white p-4">
-                          <div className="font-semibold">Project files</div>
-                          <div className="mt-2 grid gap-2">
-                            {(tender.sharedAttachments ?? []).map((a) => {
-                              const url = sharedUrls[a.path];
-                              const isPdf = String(a.type || '').toLowerCase().includes('pdf');
-
-                              return (
-                                <a
-                                  key={a.path}
-                                  href={url || '#'}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="flex items-center justify-between rounded-lg border p-3 hover:bg-slate-50"
-                                >
-                                  <div className="min-w-0">
-                                    <div className="truncate font-medium">{a.name}</div>
-                                    <div className="text-xs text-slate-500">{isPdf ? 'PDF' : a.type}</div>
-                                  </div>
-                                  <div className="text-sm font-semibold text-blue-600">View</div>
-                                </a>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                      {!isContractor && viewerTradeRequirement && (
-                        <div className="border-t border-gray-200 pt-4">
-                          <h3 className="mb-2 font-semibold text-gray-900">
-                            Your trade details ({viewerTradeRequirement.trade})
-                          </h3>
-                          <p className="text-gray-600">{viewerTradeRequirement.subDescription}</p>
-                        </div>
-                      )}
-
-                      {tender.tradeRequirements?.length > 0 && (
-                        <div className="border-t border-gray-200 pt-4">
-                          <h3 className="mb-3 font-semibold text-gray-900">Required Trades</h3>
-                          <div className="flex flex-wrap gap-2">
-                            {tender.tradeRequirements.map((req) => (
-                              <Badge key={req.id} variant="outline">
-                                {req.trade}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="border-t border-gray-200 pt-4">
-                        <h3 className="mb-3 font-semibold text-gray-900">Timeline</h3>
-                        <div className="space-y-2">
-                          {startDate && (
-                            <div className="flex items-center text-sm text-gray-600">
-                              <Calendar className="mr-2 h-4 w-4" />
-                              <span>Starts: {startDate.toLocaleDateString('en-AU')}</span>
-                            </div>
+                          {!isContractor && viewerTradeRequirement && (
+                            <section className="border-t border-slate-200 pt-5">
+                              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                                Your trade details ({viewerTradeRequirement.trade})
+                              </h3>
+                              <p className="text-sm text-slate-700 leading-relaxed">{viewerTradeRequirement.subDescription}</p>
+                            </section>
                           )}
-                          {endDate && (
-                            <div className="flex items-center text-sm text-gray-600">
-                              <Calendar className="mr-2 h-4 w-4" />
-                              <span>Ends: {endDate.toLocaleDateString('en-AU')}</span>
-                            </div>
-                          )}
-                          {closesAt && (
-                            <div className="flex items-center text-sm text-gray-600">
-                              <Clock className="mr-2 h-4 w-4" />
-                              <span>Closes: {closesAt.toLocaleDateString('en-AU')}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
 
-                <TabsContent value="documents" className="mt-6">
-                  <Card>
-                    <CardContent className="pt-6">
-                      {tender.documents.length === 0 ? (
-                        <div className="py-8 text-center">
-                          <FileText className="mx-auto mb-3 h-12 w-12 text-gray-400" />
-                          <p className="text-gray-600">No documents attached</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          {tender.documents.map((doc) => (
-                            <div
-                              key={doc.id}
-                              className="flex items-center justify-between rounded-lg border border-gray-200 p-4 hover:bg-gray-50"
-                            >
-                              <div className="flex items-center">
-                                <FileText className="mr-3 h-5 w-5 text-gray-400" />
-                                <div>
-                                  <div className="font-medium text-gray-900">{doc.fileName}</div>
-                                  <div className="text-sm text-gray-500">
-                                    {(doc.sizeBytes / 1024 / 1024).toFixed(2)} MB
-                                  </div>
+                          {tender.tradeRequirements?.length > 0 && (
+                            <section className="border-t border-slate-200 pt-5">
+                              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">Required Trades</h3>
+                              <div className="space-y-1.5">
+                                {tender.tradeRequirements.map((req) => {
+                                  const Icon = getTradeIcon(req.trade);
+                                  return (
+                                    <div
+                                      key={req.id}
+                                      className="flex items-center gap-2 text-sm text-slate-700"
+                                    >
+                                      {Icon && <Icon className="h-4 w-4 text-slate-500" />}
+                                      <span>{req.trade}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </section>
+                          )}
+
+                          <section className="border-t border-slate-200 pt-5">
+                            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">Timeline</h3>
+                            <div className="space-y-2 text-sm text-slate-700 leading-relaxed">
+                              {startDate && (
+                                <div className="flex items-center gap-2">
+                                  <Calendar className="h-4 w-4 text-slate-500" />
+                                  <span>Starts: {startDate.toLocaleDateString('en-AU')}</span>
                                 </div>
-                              </div>
-                              <Button variant="outline" size="sm" asChild>
-                                <a href={doc.fileUrl} download>
-                                  Download
-                                </a>
-                              </Button>
+                              )}
+                              {endDate && (
+                                <div className="flex items-center gap-2">
+                                  <Calendar className="h-4 w-4 text-slate-500" />
+                                  <span>Ends: {endDate.toLocaleDateString('en-AU')}</span>
+                                </div>
+                              )}
+                              {closesAt && (
+                                <div className="flex items-center gap-2">
+                                  <Clock className="h-4 w-4 text-slate-500" />
+                                  <span>Closes: {closesAt.toLocaleDateString('en-AU')}</span>
+                                </div>
+                              )}
                             </div>
-                          ))}
+                          </section>
                         </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </TabsContent>
+                      </TabsContent>
 
-                <TabsContent value="scope" className="mt-6">
-                  <Card>
-                    <CardContent className="space-y-4 pt-6">
-                      <div>
-                        <h3 className="mb-2 font-semibold text-gray-900">Project Description</h3>
-                        <p className="text-gray-600">{tender.projectDescription}</p>
-                      </div>
+                      <TabsContent value="documents" className="mt-0">
+                        {ProjectFilesBlock}
+                      </TabsContent>
 
-                      {!isContractor && viewerTradeRequirement && (
-                        <div className="border-t border-gray-200 pt-4">
-                          <h3 className="mb-2 font-semibold text-gray-900">
-                            Your trade details ({viewerTradeRequirement.trade})
-                          </h3>
-                          <p className="text-gray-600">{viewerTradeRequirement.subDescription}</p>
-                        </div>
-                      )}
+                      <TabsContent value="scope" className="mt-0">
+                        <div className="space-y-6">
+                          <section>
+                            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Project Description</h3>
+                            <p className="text-sm text-slate-700 leading-7">{tender.projectDescription}</p>
+                          </section>
 
-                      {tender.tradeRequirements?.length > 0 && (
-                        <div className="border-t border-gray-200 pt-4">
-                          <h3 className="mb-3 font-semibold text-gray-900">All Trade Requirements</h3>
-                          <div className="space-y-4">
-                            {tender.tradeRequirements.map((req) => (
-                              <div key={req.id} className="border-l-4 border-blue-500 pl-4">
-                                <h4 className="mb-1 font-medium text-gray-900">{req.trade}</h4>
-                                <p className="text-sm text-gray-600">{req.subDescription}</p>
+                          {!isContractor && viewerTradeRequirement && (
+                            <section className="border-t border-slate-200 pt-5">
+                              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                                Your trade details ({viewerTradeRequirement.trade})
+                              </h3>
+                              <p className="text-sm text-slate-700 leading-relaxed">{viewerTradeRequirement.subDescription}</p>
+                            </section>
+                          )}
+
+                          {tender.tradeRequirements?.length > 0 && (
+                            <section className="border-t border-slate-200 pt-5">
+                              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">All Trade Requirements</h3>
+                              <div className="space-y-4">
+                                {tender.tradeRequirements.map((req) => (
+                                  <div key={req.id} className="border-l-4 border-blue-500 pl-4">
+                                    <h4 className="mb-1 text-sm font-medium text-slate-900">{req.trade}</h4>
+                                    <p className="text-sm text-slate-700 leading-relaxed">{req.subDescription}</p>
+                                  </div>
+                                ))}
                               </div>
-                            ))}
-                          </div>
+                            </section>
+                          )}
                         </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </TabsContent>
+                      </TabsContent>
 
-                <TabsContent value="quotes" className="mt-6">
-                  {isContractor ? (
-                    <Card>
-                      <CardContent className="py-12">
-                        <div className="text-center">
-                          <Users className="mx-auto mb-3 h-12 w-12 text-gray-400" />
-                          <p className="text-gray-600">Quotes view will appear here once quotes are wired.</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    <Card>
-                      <CardContent className="pt-6">
+                      <TabsContent value="quotes" className="mt-0">
+                        {isContractor ? (
+                          <div className="py-12 text-center">
+                            <Users className="mx-auto mb-3 h-12 w-12 text-gray-400" />
+                            <p className="text-gray-600">Quotes view will appear here once quotes are wired.</p>
+                          </div>
+                        ) : (
+                          <div>
                         {!canQuote ? (
                           <Alert variant="destructive">
                             <AlertCircle className="h-4 w-4" />
@@ -877,94 +987,136 @@ function TenderDetailUuidPage({ id }: { id: string }) {
                             </div>
                           </div>
                         )}
-                      </CardContent>
-                    </Card>
-                  )}
-                </TabsContent>
-              </Tabs>
-            </div>
-
-            {/* Sidebar */}
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Location</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-start">
-                    <MapPin className="mr-2 mt-0.5 h-5 w-5 flex-shrink-0 text-gray-400" />
-                    <div>
-                      <div className="font-medium text-gray-900">{tender.suburb}</div>
-                      <div className="text-sm text-gray-600">{tender.postcode}</div>
+                          </div>
+                        )}
+                      </TabsContent>
                     </div>
                   </div>
-                  <Alert className="mt-4 border-blue-200 bg-blue-50">
-                    <Info className="h-4 w-4 text-blue-600" />
-                    <AlertDescription className="text-xs text-blue-900">
-                      Exact address will be shared after quote acceptance
-                    </AlertDescription>
-                  </Alert>
-                </CardContent>
-              </Card>
 
-              {(tender.budgetMinCents || tender.budgetMaxCents) && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Budget</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-start">
-                      <DollarSign className="mr-2 mt-0.5 h-5 w-5 flex-shrink-0 text-gray-400" />
+                  {/* Right: Tender Summary sidebar */}
+                  <div className="rounded-xl border border-slate-200 bg-white p-5">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-4">Tender Summary</h3>
+
+                    <div className="space-y-4">
                       <div>
-                        <div className="font-medium text-gray-900">
-                          {tender.budgetMinCents ? formatCurrency(tender.budgetMinCents) : '—'}{' '}
-                          {tender.budgetMaxCents ? `- ${formatCurrency(tender.budgetMaxCents)}` : ''}
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Location</div>
+                        <div className="flex items-start gap-2 text-sm text-slate-700">
+                          <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-500" />
+                          <span>{tender.suburb}{tender.postcode ? ` VIC ${tender.postcode}` : ''}</span>
                         </div>
-                        <div className="text-sm text-gray-600">Indicative range</div>
+                        <Alert className="mt-2 border-blue-200 bg-blue-50">
+                          <Info className="h-4 w-4 text-blue-600" />
+                          <AlertDescription className="text-xs text-blue-900">
+                            Exact address shared after quote acceptance
+                          </AlertDescription>
+                        </Alert>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Posted By</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div>
-                    <div className="font-medium text-gray-900">
-                      {tender.isNameHidden ? 'Business name hidden' : tender.builder.businessName || tender.builder.name || 'Builder'}
-                    </div>
-                    {tender.isNameHidden && (
-                      <p className="text-xs text-gray-500 mt-1">
-                        Business name will be visible once you engage (message or apply).
-                      </p>
-                    )}
-                    {!tender.isNameHidden && tender.builder.rating && tender.builder.completedJobs ? (
-                      <div className="mt-1 text-sm text-gray-600">
-                        ⭐ {tender.builder.rating} · {tender.builder.completedJobs} projects completed
+                      {startDate && (
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Starts</div>
+                          <div className="flex items-center gap-2 text-sm text-slate-700">
+                            <Calendar className="h-4 w-4 text-slate-500" />
+                            {startDate.toLocaleDateString('en-AU')}
+                          </div>
+                        </div>
+                      )}
+
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Required trades</div>
+                        <div className="text-sm font-medium text-slate-700">{tender.tradeRequirements?.length ?? 0}</div>
                       </div>
-                    ) : null}
+
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Documents</div>
+                        <div className="text-sm font-medium text-slate-700">{tender.sharedAttachments?.length ?? 0}</div>
+                      </div>
+
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Quotes</div>
+                        <div className="text-sm font-medium text-slate-700">{tender.quoteCountTotal ?? 0}{tender.quoteCapTotal ? ` / ${tender.quoteCapTotal}` : ''}</div>
+                      </div>
+
+                      {(tender.budgetMinCents || tender.budgetMaxCents) && (
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Budget</div>
+                          <div className="flex items-center gap-2 text-sm text-slate-700">
+                            <DollarSign className="h-4 w-4 text-slate-500" />
+                            {tender.budgetMinCents ? formatCurrency(tender.budgetMinCents) : '—'}{' '}
+                            {tender.budgetMaxCents ? `– ${formatCurrency(tender.budgetMaxCents)}` : ''}
+                          </div>
+                        </div>
+                      )}
+
+                      <div id="posted-by" className="border-t border-slate-200 pt-4">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">Posted by</div>
+                        {tender.isAnonymous ? (
+                  isMyTender(tender) ? (
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                      <div className="font-semibold text-slate-900">Posted anonymously</div>
+                      <div className="text-xs text-slate-500 mt-0.5">
+                        Other users won&apos;t see your profile until you accept a quote request.
+                      </div>
+                    </div>
+                  ) : (
+                    <AnonymousRequestToQuote
+                      tenderId={tender.id}
+                      quoteRequestStatus={tender.quoteRequestStatus}
+                      onRequestSent={() => setTender((prev) => prev ? { ...prev, quoteRequestStatus: 'PENDING' as const } : prev)}
+                    />
+                  )
+                ) : posterUser ? (
+                  <Link href={`/users/${posterUser.id}`} className="block group">
+                    <div
+                      className={[
+                        'relative flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 transition-all duration-200',
+                        'hover:bg-slate-100 hover:border-slate-300',
+                        (posterUser as any)?.is_premium || (posterUser as any)?.subscription_status === 'active'
+                          ? 'ring-1 ring-amber-300/50'
+                          : '',
+                      ].join(' ')}
+                    >
+                      {((posterUser as any)?.is_premium || (posterUser as any)?.subscription_status === 'active') && (
+                        <div className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
+                          <Crown className="h-3 w-3 text-amber-700" />
+                        </div>
+                      )}
+
+                      <UserAvatar
+                        avatarUrl={(posterUser as any)?.avatar ?? (posterUser as any)?.avatar_url}
+                        userName={(posterUser as any)?.name || 'TradeHub user'}
+                        size="md"
+                      />
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <p className="truncate text-sm font-semibold text-slate-900">
+                            {(posterUser as any)?.name || 'TradeHub user'}
+                          </p>
+                          {String((posterUser as any)?.abn_status ?? '').toUpperCase() === 'VERIFIED' && (
+                            <BadgeCheck className="h-3.5 w-3.5 flex-shrink-0 text-blue-600" />
+                          )}
+                        </div>
+                        {(posterUser as any)?.business_name && (
+                          <p className="truncate text-xs text-slate-600">{(posterUser as any)?.business_name}</p>
+                        )}
+                        <div className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-blue-600 group-hover:text-blue-700">
+                          View profile
+                          <ArrowRight className="h-3 w-3" />
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                ) : (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                    {tender.isNameHidden ? 'Business name hidden' : tender.builder.businessName || tender.builder.name || 'Builder'}
                   </div>
-                </CardContent>
-              </Card>
-
-              {tender.quoteCapTotal ? (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Quote Status</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-center">
-                      <div className="text-3xl font-bold text-gray-900">
-                        {tender.quoteCountTotal} / {tender.quoteCapTotal}
+                )}
                       </div>
-                      <div className="mt-1 text-sm text-gray-600">Quotes received</div>
                     </div>
-                  </CardContent>
-                </Card>
-              ) : null}
+                  </div>
+                </div>
+              </Tabs>
             </div>
           </div>
         </div>
@@ -972,5 +1124,68 @@ function TenderDetailUuidPage({ id }: { id: string }) {
 
       <ABNRequiredModal open={showABNModal} onOpenChange={setShowABNModal} returnUrl={`/tenders/${id}`} />
     </AppLayout>
+  );
+}
+
+function AnonymousRequestToQuote({
+  tenderId,
+  quoteRequestStatus,
+  onRequestSent,
+}: {
+  tenderId: string;
+  quoteRequestStatus?: 'PENDING' | 'ACCEPTED' | 'DECLINED' | null;
+  onRequestSent?: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  async function request() {
+    setLoading(true);
+    try {
+      const supabase = getBrowserSupabase();
+      const { error } = await supabase.rpc('request_to_quote', { p_tender_id: tenderId });
+
+      if (error) {
+        const msg = String((error as any)?.message || '');
+        if (msg.includes('tender_not_anonymous')) toast.error('This tender is not anonymous.');
+        else toast.error('Could not send request.');
+        return;
+      }
+
+      setSent(true);
+      onRequestSent?.();
+      toast.success('Request sent');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const isAccepted = quoteRequestStatus === 'ACCEPTED';
+  const isPending = sent || quoteRequestStatus === 'PENDING';
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <div className="text-sm font-semibold text-slate-900">Request to quote</div>
+      <div className="mt-0.5 text-xs text-slate-500">
+        The poster is anonymous. Request access to quote — they can accept or decline.
+      </div>
+
+      <div className="mt-2">
+        {isAccepted ? (
+          <Button asChild size="sm" className="h-8">
+            <Link href="#quotes">Submit quote</Link>
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            onClick={request}
+            disabled={loading || isPending}
+            className="h-8"
+          >
+            {isPending ? 'Request sent' : loading ? 'Sending…' : 'Request'}
+          </Button>
+        )}
+      </div>
+    </div>
   );
 }

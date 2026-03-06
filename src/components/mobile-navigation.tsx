@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { isAdmin } from '@/lib/is-admin';
-import { Chrome as Home, Search, Briefcase, MessageSquare, Bell, Menu, X, User, FileText, Calendar, CirclePlus as PlusCircle, Lock, Settings, CircleHelp as HelpCircle, Shield, Eye, LogOut, CircleCheck as CheckCircle, CircleAlert as AlertCircle, CreditCard, CheckCircle2, Crown } from 'lucide-react';
+import { Chrome as Home, Users, Search, Briefcase, MessageSquare, Bell, Menu, X, User, FileText, Calendar, CirclePlus as PlusCircle, Lock, Settings, CircleHelp as HelpCircle, Shield, Eye, LogOut, CircleCheck as CheckCircle, CircleAlert as AlertCircle, CreditCard, CheckCircle2, Crown } from 'lucide-react';
 import { getStore } from '@/lib/store';
 import { MVP_FREE_MODE } from '@/lib/feature-flags';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from '@/components/ui/sheet';
@@ -221,6 +221,12 @@ export function MobileDrawer() {
                     label="Dashboard"
                     onClick={() => handleNavigation('/dashboard')}
                     active={pathname.startsWith('/dashboard')}
+                  />
+                  <DrawerMenuItem
+                    icon={Users}
+                    label="Subcontractors"
+                    onClick={() => handleNavigation('/subcontractors')}
+                    active={pathname.startsWith('/subcontractors')}
                   />
                   <DrawerMenuItem
                     icon={Search}

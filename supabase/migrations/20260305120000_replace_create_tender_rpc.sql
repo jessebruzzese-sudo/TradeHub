@@ -189,3 +189,145 @@ end;
 $$;
 
 grant execute on function public.publish_tender(uuid) to authenticated;
+
+-- close_tender: validate and set status to CLOSED
+drop function if exists public.close_tender(uuid);
+create or replace function public.close_tender(p_tender_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_t public.tenders;
+begin
+  if v_uid is null then
+    raise exception 'not_authenticated';
+  end if;
+
+  select * into v_t from public.tenders where id = p_tender_id and deleted_at is null;
+  if v_t.id is null then
+    raise exception 'tender_not_found';
+  end if;
+
+  if v_t.builder_id <> v_uid then
+    raise exception 'not_owner';
+  end if;
+
+  if upper(v_t.status) = 'CLOSED' then
+    raise exception 'already_closed';
+  end if;
+
+  update public.tenders
+  set status = 'CLOSED', updated_at = now()
+  where id = p_tender_id;
+end;
+$$;
+
+grant execute on function public.close_tender(uuid) to authenticated;
+
+-- reopen_tender: only Premium (or admin) can reopen a closed tender
+drop function if exists public.reopen_tender(uuid);
+create or replace function public.reopen_tender(p_tender_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_t public.tenders;
+  v_user public.users;
+begin
+  if v_uid is null then
+    raise exception 'not_authenticated';
+  end if;
+
+  select * into v_t from public.tenders where id = p_tender_id and deleted_at is null;
+  if v_t.id is null then
+    raise exception 'tender_not_found';
+  end if;
+
+  if v_t.builder_id <> v_uid then
+    raise exception 'not_owner';
+  end if;
+
+  if upper(v_t.status) <> 'CLOSED' then
+    raise exception 'tender_not_closed';
+  end if;
+
+  select * into v_user from public.users where id = v_uid and deleted_at is null;
+  if v_user.id is null then
+    raise exception 'user_not_found';
+  end if;
+
+  -- Admin can always reopen
+  if v_user.role = 'admin' then
+    update public.tenders set status = 'LIVE', updated_at = now() where id = p_tender_id;
+    return;
+  end if;
+
+  -- Premium = is_premium or active paid plan
+  if coalesce(v_user.is_premium, false) = false
+     and not (
+       coalesce(v_user.subscription_status, '') = 'ACTIVE'
+       and (coalesce(v_user.active_plan, '') not in ('', 'NONE')
+            or coalesce(v_user.subcontractor_plan::text, '') = 'PRO_10')
+     ) then
+    raise exception 'free_cannot_reopen_closed_tender';
+  end if;
+
+  update public.tenders
+  set status = 'LIVE', updated_at = now()
+  where id = p_tender_id;
+end;
+$$;
+
+grant execute on function public.reopen_tender(uuid) to authenticated;
+
+-- Block direct status flip from CLOSED to LIVE/DRAFT/PUBLISHED for non-premium, non-admin
+create or replace function public.tenders_block_reopen_for_free()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user public.users;
+begin
+  -- Only care when status changes from CLOSED to something that reopens
+  if upper(OLD.status) <> 'CLOSED' then
+    return NEW;
+  end if;
+  if upper(NEW.status) not in ('LIVE', 'DRAFT', 'PUBLISHED') then
+    return NEW;
+  end if;
+
+  select * into v_user from public.users where id = auth.uid() and deleted_at is null;
+  if v_user.id is null then
+    raise exception 'user_not_found';
+  end if;
+
+  if v_user.role = 'admin' then
+    return NEW;
+  end if;
+
+  if coalesce(v_user.is_premium, false) = true then
+    return NEW;
+  end if;
+  if coalesce(v_user.subscription_status, '') = 'ACTIVE'
+     and (coalesce(v_user.active_plan, '') not in ('', 'NONE')
+          or coalesce(v_user.subcontractor_plan::text, '') = 'PRO_10') then
+    return NEW;
+  end if;
+
+  raise exception 'free_cannot_reopen_closed_tender';
+end;
+$$;
+
+drop trigger if exists tenders_block_reopen_for_free on public.tenders;
+create trigger tenders_block_reopen_for_free
+  before update of status on public.tenders
+  for each row
+  execute function public.tenders_block_reopen_for_free();

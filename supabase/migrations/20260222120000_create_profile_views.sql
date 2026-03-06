@@ -14,12 +14,14 @@ create index if not exists idx_profile_views_created_at
 -- RLS
 alter table public.profile_views enable row level security;
 
+drop policy if exists "Users can insert their own views" on public.profile_views;
 create policy "Users can insert their own views"
 on public.profile_views
 for insert
 to authenticated
 with check (auth.uid() = viewer_user_id);
 
+drop policy if exists "Users can read their own profile views" on public.profile_views;
 create policy "Users can read their own profile views"
 on public.profile_views
 for select

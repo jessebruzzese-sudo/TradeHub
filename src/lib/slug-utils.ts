@@ -27,6 +27,14 @@ export function parseTradeSuburbSlug(slug: string): { trade: string; suburb: str
   return null;
 }
 
+export function slugifyTrade(trade: string): string {
+  return String(trade || '')
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
 export function createTradeSuburbSlug(trade: string, suburb: string): string {
   const tradeSlug = trade
     .toLowerCase()

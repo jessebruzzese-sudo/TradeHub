@@ -9,6 +9,7 @@ import {
   ThumbsDown,
   Crown,
   ArrowLeft,
+  ArrowRight,
   TestTube,
   RotateCcw,
   User,
@@ -21,7 +22,13 @@ import {
   Linkedin,
   Youtube,
   Info,
+  CalendarDays,
+  Calendar,
+  Search,
+  Eye,
+  Target,
 } from 'lucide-react';
+import { format, isAfter, startOfDay } from 'date-fns';
 
 import { getTradeIcon } from '@/lib/trade-icons';
 import { AppLayout } from '@/components/app-nav';
@@ -33,8 +40,10 @@ import { PricingBlueWrapper } from '@/components/marketing/PricingBlueWrapper';
 import { VerifiedBadge } from '@/components/verified-badge';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth';
 import { isAdmin } from '@/lib/is-admin';
+import { isAbnVerified, abnLabel } from '@/lib/abn';
 import { isPremiumForDiscovery } from '@/lib/discovery';
 import { getStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -132,6 +141,84 @@ export function ProfileView({
     myRating === null &&
     !isSubmittingRating;
 
+  const [availDates, setAvailDates] = useState<string[]>([]);
+  const [availDesc, setAvailDesc] = useState<string>('');
+  const [availLoading, setAvailLoading] = useState(false);
+  const today = startOfDay(new Date());
+
+  useEffect(() => {
+    const id = (profile as any)?.id;
+    if (!id) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        setAvailLoading(true);
+        const supabase = getBrowserSupabase();
+        let descFromRows = '';
+
+        const { data: rows, error } = await supabase
+          .from('subcontractor_availability')
+          .select('date, description')
+          .eq('user_id', id)
+          .order('date', { ascending: true });
+
+        if (cancelled) return;
+        if (!error && rows) {
+          setAvailDates(rows.map((r: any) => r.date));
+          const firstWithDesc = rows.find((r: any) => r.description && String(r.description).trim() !== '');
+          if (firstWithDesc?.description) {
+            descFromRows = String(firstWithDesc.description);
+            setAvailDesc(descFromRows);
+          }
+        }
+
+        if (!cancelled) {
+          const { data: u } = await supabase
+            .from('users')
+            .select('availability_description')
+            .eq('id', id)
+            .maybeSingle();
+
+          if (u?.availability_description && !descFromRows.trim()) {
+            setAvailDesc(u.availability_description);
+          }
+        }
+      } catch (e) {
+        console.error('[profile] load availability failed', e);
+        if (!cancelled) setAvailDates([]);
+      } finally {
+        if (!cancelled) setAvailLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [(profile as any)?.id]);
+
+  const nextAvailable = useMemo(() => {
+    const future = availDates
+      .map((d) => new Date(d))
+      .filter((d) => !isAfter(today, d));
+    if (future.length === 0) return null;
+    future.sort((a, b) => a.getTime() - b.getTime());
+    return future[0];
+  }, [availDates, today]);
+
+  const upcomingCount = useMemo(() => {
+    const future = availDates
+      .map((d) => new Date(d))
+      .filter((d) => !isAfter(today, d));
+    return future.length;
+  }, [availDates, today]);
+
+  const nextAvailableLabel = useMemo(() => {
+    return nextAvailable ? format(nextAvailable, 'EEE d MMM') : null;
+  }, [nextAvailable]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -222,6 +309,14 @@ export function ProfileView({
     if (hasRealPremium) return 'Pro Plan';
     return 'Free Plan';
   })();
+  const planLabel = isPremiumForDiscoveryCheck ? 'Premium' : 'Free';
+  const freeRadiusKm = 20;
+  const discoveryLabel = isPremiumForDiscoveryCheck ? 'Premium radius' : `${freeRadiusKm}km radius`;
+  const abnVerified = isAbnVerified(profile);
+  const abnLabelText = abnLabel(profile);
+  const accountStatusLabel = String((profile as any)?.account_status ?? (profile as any)?.accountStatus ?? 'active');
+  const isPublicProfileRaw = (profile as any)?.is_public_profile ?? (profile as any)?.isPublicProfile;
+  const isPublicProfile = typeof isPublicProfileRaw === 'boolean' ? isPublicProfileRaw : true;
   const dashboardPath = isSelf && profile ? (isAdmin(profile) ? '/admin' : '/dashboard') : '/dashboard';
 
   const handleResetSimulation = () => {
@@ -318,6 +413,98 @@ export function ProfileView({
               </Link>
             )}
           </div>
+
+          {isSelf && (
+            <div className="mb-6 rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap gap-2">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/90 px-3 py-1 text-xs text-slate-700 shadow-sm">
+                    <Target className="h-3.5 w-3.5 text-slate-500" />
+                    <span className="text-slate-500">Account</span>
+                    <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 px-2.5 py-0.5 text-xs font-semibold">
+                      {accountStatusLabel}
+                    </span>
+                  </div>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/90 px-3 py-1 text-xs text-slate-700 shadow-sm">
+                    <Crown className="h-3.5 w-3.5 text-slate-500" />
+                    <span className="text-slate-500">Plan</span>
+                    <span
+                      className={
+                        planLabel === 'Free'
+                          ? 'rounded-full bg-slate-50 text-slate-700 border border-slate-200 px-2.5 py-0.5 text-xs font-semibold'
+                          : 'rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 px-2.5 py-0.5 text-xs font-semibold'
+                      }
+                    >
+                      {planLabel}
+                    </span>
+                  </div>
+                  {!isAdmin(profile) && (
+                    <div className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/90 px-3 py-1 text-xs text-slate-700 shadow-sm">
+                      <BadgeCheck className="h-3.5 w-3.5 text-slate-500" />
+                      <span className="text-slate-500">ABN</span>
+                      <span
+                        className={
+                          abnVerified
+                            ? 'rounded-full bg-blue-50 text-blue-700 border border-blue-100 px-2.5 py-0.5 text-xs font-semibold'
+                            : 'rounded-full bg-red-50 text-red-700 border border-red-100 px-2.5 py-0.5 text-xs font-semibold'
+                        }
+                      >
+                        {abnLabelText}
+                      </span>
+                    </div>
+                  )}
+                  <div className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/90 px-3 py-1 text-xs text-slate-700 shadow-sm">
+                    <Search className="h-3.5 w-3.5 text-slate-500" />
+                    <span className="text-slate-500">Discovery</span>
+                    <span className="rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 px-2.5 py-0.5 text-xs font-semibold">
+                      {discoveryLabel}
+                    </span>
+                  </div>
+                  <Link
+                    href="/profile/availability"
+                    className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/90 px-3 py-1 text-xs text-slate-700 shadow-sm transition hover:border-white/50 hover:bg-white hover:shadow-md"
+                  >
+                    <Calendar className="h-3.5 w-3.5 text-slate-500" />
+                    <span className="text-slate-500">Availability</span>
+                    <span
+                      className={
+                        nextAvailableLabel
+                          ? 'rounded-full bg-blue-50 text-blue-700 border border-blue-100 px-2.5 py-0.5 text-xs font-semibold'
+                          : 'rounded-full bg-slate-50 text-slate-700 border border-slate-200 px-2.5 py-0.5 text-xs font-semibold'
+                      }
+                    >
+                      {availLoading ? 'Loading…' : nextAvailableLabel ? nextAvailableLabel : 'Not listed'}
+                    </span>
+                  </Link>
+                  <div
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs shadow-sm
+                      ${isPublicProfile ? 'border-white/30 bg-white/90 text-slate-700' : 'border-red-200 bg-red-50/90 text-slate-700'}
+                    `}
+                  >
+                    <Eye className="h-3.5 w-3.5 text-slate-500" />
+                    <span className="text-slate-500">Profile</span>
+                    <span className={`text-xs font-medium ${isPublicProfile ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {isPublicProfile ? 'Public' : 'Private'}
+                    </span>
+                  </div>
+                </div>
+                <Link href="/profile/availability" className="shrink-0">
+                  <Button
+                    className="h-10 rounded-full gap-2 px-5 shadow-md hover:shadow-lg bg-white text-blue-700 hover:bg-slate-50 transition-all"
+                  >
+                    {!nextAvailableLabel && (
+                      <span className="relative flex h-2 w-2">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400/70 opacity-60" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-600" />
+                      </span>
+                    )}
+                    <Calendar className="h-4 w-4" />
+                    {nextAvailableLabel ? 'Update availability' : 'List availability'}
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          )}
 
           <div className="text-slate-900">
             <div className="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white">
@@ -603,6 +790,46 @@ export function ProfileView({
                 </div>
               </div>
             </div>
+
+            {isSelf && (
+              <Card className="mb-6 border-blue-200 bg-gradient-to-b from-blue-50/60 to-white">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <CalendarDays className="h-4 w-4 text-slate-600" />
+                    Availability
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {nextAvailable ? (
+                    <div className="text-sm">
+                      <div className="text-slate-600">Next available</div>
+                      <div className="font-semibold text-slate-900">{format(nextAvailable, 'EEE d MMM yyyy')}</div>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-slate-600">No dates listed yet.</div>
+                  )}
+
+                  <div className="text-sm text-slate-600">
+                    <span className="font-semibold text-slate-900">{upcomingCount}</span>{' '}
+                    {upcomingCount === 1 ? 'day' : 'days'} listed
+                  </div>
+
+                  {availDesc?.trim() ? (
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                      {availDesc.trim()}
+                    </div>
+                  ) : null}
+
+                  <div className="pt-1">
+                    <Link href="/profile/availability">
+                      <Button variant="outline" className="gap-2">
+                        Update availability <ArrowRight className="h-4 w-4" />
+                      </Button>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {showUpgradeNudge && (
               <div className="mb-6 relative overflow-hidden rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 via-amber-50 to-white p-5 shadow-sm">

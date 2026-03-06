@@ -25,7 +25,6 @@ select
   up_count,
   down_count,
   rating_count,
-  round(rating_avg_raw::numeric, 1) as rating_avg_raw,
   round(
     (
       (3.8::numeric * 10::numeric) +
@@ -33,5 +32,6 @@ select
     )
     /
     (10::numeric + rating_count::numeric)
-  , 1) as rating_avg
+  , 1) as rating_avg,
+  round(rating_avg_raw::numeric, 1) as rating_avg_raw
 from calc;

@@ -25,6 +25,7 @@ import { isPremiumForDiscovery } from '@/lib/discovery';
 import { getSafeReturnUrl, safeRouterReplace } from '@/lib/safe-nav';
 import { getBrowserSupabase } from '@/lib/supabase-client';
 
+import { startOfDay, isAfter, format } from 'date-fns';
 import {
   Calendar,
   Briefcase,
@@ -104,6 +105,8 @@ export default function DashboardPage() {
     (currentUser as any)?.account_status ?? (currentUser as any)?.accountStatus ?? 'active'
   );
   const [stats, setStats] = useState<Record<string, number>>({});
+  const [availDates, setAvailDates] = useState<string[]>([]);
+  const [availLoading, setAvailLoading] = useState(false);
   const profileViews7d = Number((stats as any)?.profileViews7d ?? 0);
   const searchAppearances7d = Number((stats as any)?.searchAppearances7d ?? 0);
   const unreadMessages = Number((stats as any)?.unreadMessages ?? 0);
@@ -189,7 +192,7 @@ export default function DashboardPage() {
 
       const { data, error } = await supabase
         .from('users')
-        .update({ is_public_profile: value })
+        .update({ is_public_profile: value } as never)
         .eq('id', uid)
         .select('id, is_public_profile')
         .maybeSingle();
@@ -200,7 +203,8 @@ export default function DashboardPage() {
         return;
       }
 
-      if (!data?.id) {
+      const result = data as { id?: string; is_public_profile?: boolean } | null;
+      if (!result?.id) {
         console.error('toggle public profile: no row returned (likely RLS or id mismatch)', { uid, data });
         toast.error('Could not update profile visibility (no row updated).');
         return;
@@ -229,6 +233,56 @@ export default function DashboardPage() {
       router.replace('/dashboard', { scroll: false });
     }
   }, [searchParams, router]);
+
+  useEffect(() => {
+    if (!currentUser?.id) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        setAvailLoading(true);
+        const supabase = getBrowserSupabase();
+
+        const { data, error } = await supabase
+          .from('subcontractor_availability')
+          .select('date')
+          .eq('user_id', currentUser.id)
+          .order('date', { ascending: true });
+
+        if (cancelled) return;
+        if (error) throw error;
+
+        setAvailDates((data || []).map((r: any) => r.date));
+      } catch (e) {
+        console.error('[dashboard] load availability failed', e);
+        if (!cancelled) setAvailDates([]);
+      } finally {
+        if (!cancelled) setAvailLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.id]);
+
+  const nextAvailable = useMemo(() => {
+    const today = startOfDay(new Date());
+
+    const future = availDates
+      .map((d) => new Date(d))
+      .filter((d) => !isAfter(today, d)); // d >= today
+
+    if (future.length === 0) return null;
+
+    future.sort((a, b) => a.getTime() - b.getTime());
+    return future[0];
+  }, [availDates]);
+
+  const nextAvailableLabel = useMemo(() => {
+    return nextAvailable ? format(nextAvailable, 'EEE d MMM') : null;
+  }, [nextAvailable]);
 
   if (isLoading) {
     return (
@@ -366,6 +420,23 @@ export default function DashboardPage() {
                     </span>
                   </div>
 
+                  <Link
+                    href="/profile/availability"
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-white hover:shadow-md"
+                  >
+                    <Calendar className="h-3.5 w-3.5 text-slate-500" />
+                    <span className="text-slate-500">Availability</span>
+                    <span
+                      className={
+                        nextAvailableLabel
+                          ? 'rounded-full bg-blue-50 text-blue-700 border border-blue-100 px-2.5 py-0.5 text-xs font-semibold'
+                          : 'rounded-full bg-slate-50 text-slate-700 border border-slate-200 px-2.5 py-0.5 text-xs font-semibold'
+                      }
+                    >
+                      {availLoading ? 'Loading…' : nextAvailableLabel ? nextAvailableLabel : 'Not listed'}
+                    </span>
+                  </Link>
+
                   <div
                     className={`inline-flex items-center gap-3 rounded-full border px-3 py-1.5 text-xs shadow-sm transition-colors
                       ${
@@ -428,12 +499,14 @@ export default function DashboardPage() {
                   className="h-10 rounded-full gap-2 px-5 shadow-md hover:shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700 transition-all"
                 >
                   <Link href="/profile/availability" className="flex items-center gap-2">
-                    <span className="relative flex h-2 w-2">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/70 opacity-60" />
-                      <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
-                    </span>
+                    {!nextAvailableLabel && (
+                      <span className="relative flex h-2 w-2">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/70 opacity-60" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
+                      </span>
+                    )}
                     <Calendar className="h-4 w-4" />
-                    List availability
+                    {nextAvailableLabel ? 'Update availability' : 'List availability'}
                   </Link>
                 </Button>
               </div>

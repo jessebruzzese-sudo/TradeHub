@@ -628,6 +628,7 @@ export type Database = {
         Row: {
           conversation_id: string | null
           created_at: string | null
+          data: Json | null
           description: string
           id: string
           job_id: string | null
@@ -640,6 +641,7 @@ export type Database = {
         Insert: {
           conversation_id?: string | null
           created_at?: string | null
+          data?: Json | null
           description: string
           id?: string
           job_id?: string | null
@@ -652,6 +654,7 @@ export type Database = {
         Update: {
           conversation_id?: string | null
           created_at?: string | null
+          data?: Json | null
           description?: string
           id?: string
           job_id?: string | null
@@ -1043,6 +1046,48 @@ export type Database = {
           },
         ]
       }
+      tender_quote_requests: {
+        Row: {
+          id: string
+          tender_id: string
+          requester_id: string
+          status: string
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          tender_id: string
+          requester_id: string
+          status?: string
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          tender_id?: string
+          requester_id?: string
+          status?: string
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_quote_requests_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_quote_requests_requester_id_fkey"
+            columns: ["requester_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tender_trade_requirements: {
         Row: {
           created_at: string | null
@@ -1134,6 +1179,7 @@ export type Database = {
           desired_end_date: string | null
           desired_start_date: string | null
           id: string
+          is_anonymous: boolean | null
           is_guest_tender: boolean | null
           is_name_hidden: boolean | null
           lat: number
@@ -1164,6 +1210,7 @@ export type Database = {
           desired_end_date?: string | null
           desired_start_date?: string | null
           id?: string
+          is_anonymous?: boolean | null
           is_guest_tender?: boolean | null
           is_name_hidden?: boolean | null
           lat: number
@@ -1194,6 +1241,7 @@ export type Database = {
           desired_end_date?: string | null
           desired_start_date?: string | null
           id?: string
+          is_anonymous?: boolean | null
           is_guest_tender?: boolean | null
           is_name_hidden?: boolean | null
           lat?: number
@@ -1214,6 +1262,32 @@ export type Database = {
           {
             foreignKeyName: "tenders_builder_id_fkey"
             columns: ["builder_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_trade_quote_credits: {
+        Row: {
+          user_id: string
+          trade_slug: string
+          used_count: number
+        }
+        Insert: {
+          user_id: string
+          trade_slug: string
+          used_count?: number
+        }
+        Update: {
+          user_id?: string
+          trade_slug?: string
+          used_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_trade_quote_credits_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -1545,7 +1619,12 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      tender_quote_counts: {
+        Row: {
+          tender_id: string
+          quotes_received: number
+        }
+      }
     }
     Functions: {
       check_email_exists: { Args: { check_email: string }; Returns: boolean }
@@ -1557,6 +1636,54 @@ export type Database = {
           limit_count: number
         }
         Returns: Record<string, unknown>[]
+      }
+      create_tender: {
+        Args: {
+          p_project_name: string
+          p_description: string
+          p_suburb: string
+          p_postcode: string
+          p_budget_min_cents: number
+          p_budget_max_cents: number
+          p_trades: string[]
+          p_desired_start_date: string | null
+          p_desired_end_date: string | null
+          p_shared_attachments: unknown
+          p_is_anonymous?: boolean
+        }
+        Returns: { id: string }
+      }
+      request_to_quote: {
+        Args: { p_tender_id: string }
+        Returns: void
+      }
+      accept_quote_request: {
+        Args: { p_request_id: string; p_trade_slug: string }
+        Returns: void
+      }
+      decline_quote_request: {
+        Args: { p_request_id: string }
+        Returns: void
+      }
+      publish_tender: {
+        Args: { p_tender_id: string }
+        Returns: void
+      }
+      close_tender: {
+        Args: { p_tender_id: string }
+        Returns: void
+      }
+      reopen_tender: {
+        Args: { p_tender_id: string }
+        Returns: void
+      }
+      cancel_tender: {
+        Args: { p_tender_id: string }
+        Returns: void
+      }
+      delete_tender: {
+        Args: { p_tender_id: string }
+        Returns: void
       }
     }
     Enums: {

@@ -7,7 +7,7 @@ import { isAdmin } from '@/lib/is-admin';
 import { MVP_FREE_MODE } from '@/lib/feature-flags';
 import {
   LayoutDashboard,
-  Search,
+  Users,
   Briefcase,
   FileText,
   MessageSquare,
@@ -24,18 +24,35 @@ import { getStore } from '@/lib/store';
 import Image from 'next/image';
 import { MobileBottomNav, MobileDrawer } from '@/components/mobile-navigation';
 
+type NavItem = { label: string; href: string; icon?: React.ComponentType<{ className?: string }> };
+
+const businessNavSections = [
+  {
+    title: 'DISCOVER',
+    items: [
+      { label: 'Subcontractors', href: '/subcontractors', icon: Users },
+      { label: 'Jobs', href: '/jobs', icon: Briefcase },
+      { label: 'Tenders', href: '/tenders', icon: FileText },
+    ] as NavItem[],
+  },
+  {
+    title: 'COMMUNICATION',
+    items: [
+      { label: 'Messages', href: '/messages', icon: MessageSquare },
+      { label: 'Notifications', href: '/notifications', icon: Bell },
+    ] as NavItem[],
+  },
+  {
+    title: 'ACCOUNT',
+    items: [
+      ...(MVP_FREE_MODE ? [] : ([{ label: 'Pricing', href: '/pricing', icon: CreditCard }] as NavItem[])),
+      { label: 'Profile', href: '/profile', icon: User },
+    ] as NavItem[],
+  },
+];
+
 const navConfig = {
-  business: [
-    { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { label: 'Search', href: '/search', icon: Search },
-    { label: 'Jobs', href: '/jobs', icon: Briefcase },
-    { label: 'Tenders', href: '/tenders', icon: FileText },
-    { label: 'Messages', href: '/messages', icon: MessageSquare },
-    { label: 'Notifications', href: '/notifications', icon: Bell },
-    // Hide Pricing nav item during MVP free launch
-    ...(MVP_FREE_MODE ? [] : [{ label: 'Pricing', href: '/pricing', icon: CreditCard }]),
-    { label: 'Profile', href: '/profile', icon: User },
-  ],
+  business: { dashboard: { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard }, sections: businessNavSections },
   admin: [
     { label: 'Home', href: '/admin' },
     { label: 'Verifications', href: '/admin/verifications' },
@@ -110,12 +127,38 @@ export function SideNav() {
 
   const onAdminRoute = pathname.startsWith('/admin');
   const navKey = onAdminRoute && isAdmin(currentUser) ? 'admin' : 'business';
-  const navItems = [...navConfig[navKey]];
-  if (navKey === 'business' && isAdmin(currentUser)) {
-    navItems.push({ label: 'Admin', href: '/admin' });
-  }
-  const nav = navItems;
   const unreadCount = store.getUnreadConversationCount(currentUser.id);
+
+  const navLinkClass = (href: string) =>
+    `flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors relative ${
+      pathname.startsWith(href) ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'
+    }`;
+
+  if (navKey === 'admin') {
+    const nav = navConfig.admin;
+    return (
+      <div className="hidden md:flex flex-col w-64 border-r border-gray-200 bg-white">
+        <div className="p-6 border-b border-gray-200">
+          <Link href="/">
+            <Image src="/tradehub-mark.svg" alt="TradeHub" width={48} height={48} className="w-12 h-12" />
+          </Link>
+        </div>
+        <nav className="flex-1 overflow-y-auto p-4">
+          {nav.map((item) => (
+            <Link key={item.href} href={item.href} className={navLinkClass(item.href)}>
+              <span>{item.label}</span>
+            </Link>
+          ))}
+        </nav>
+      </div>
+    );
+  }
+
+  const { dashboard, sections } = navConfig.business;
+  const accountItems = [...sections[2].items];
+  if (isAdmin(currentUser)) {
+    accountItems.push({ label: 'Admin', href: '/admin', icon: undefined });
+  }
 
   return (
     <div className="hidden md:flex flex-col w-64 border-r border-gray-200 bg-white">
@@ -124,29 +167,52 @@ export function SideNav() {
           <Image src="/tradehub-mark.svg" alt="TradeHub" width={48} height={48} className="w-12 h-12" />
         </Link>
       </div>
-      <nav className="flex-1 overflow-y-auto p-4">
-        {nav.map((item) => {
-          const Icon = 'icon' in item ? item.icon : null;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors relative ${
-                pathname.startsWith(item.href)
-                  ? 'bg-blue-50 text-blue-600'
-                  : 'text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              {Icon && <Icon className="h-4 w-4" />}
-              <span>{item.label}</span>
-              {item.label === 'Messages' && unreadCount > 0 && (
-                <span className="ml-2 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-yellow-800 bg-yellow-400 rounded-full">
-                  {unreadCount}
-                </span>
-              )}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 overflow-y-auto p-4 space-y-6">
+        <Link href={dashboard.href} className={navLinkClass(dashboard.href)}>
+          <LayoutDashboard className="h-4 w-4" />
+          <span>{dashboard.label}</span>
+        </Link>
+
+        {sections.slice(0, 2).map((section) => (
+          <div key={section.title}>
+            <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
+              {section.title}
+            </p>
+            <div className="space-y-0.5">
+              {section.items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link key={item.href} href={item.href} className={navLinkClass(item.href)}>
+                    {Icon && <Icon className="h-4 w-4" />}
+                    <span>{item.label}</span>
+                    {item.label === 'Messages' && unreadCount > 0 && (
+                      <span className="ml-2 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-yellow-800 bg-yellow-400 rounded-full">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+
+        <div>
+          <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
+            ACCOUNT
+          </p>
+          <div className="space-y-0.5">
+            {accountItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link key={item.href} href={item.href} className={navLinkClass(item.href)}>
+                  {Icon && <Icon className="h-4 w-4" />}
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
       </nav>
     </div>
   );

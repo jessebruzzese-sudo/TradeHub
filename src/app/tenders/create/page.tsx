@@ -157,6 +157,7 @@ export default function CreateTenderPage() {
   const progressPercent = Math.round((completedStepsCount / TOTAL_STEPS) * 100);
 
   const [isNameHidden, setIsNameHidden] = useState(false);
+  const [isAnonymous, setIsAnonymous] = useState(false);
 
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [showPlansModal, setShowPlansModal] = useState(false);
@@ -272,7 +273,8 @@ export default function CreateTenderPage() {
         .maybeSingle();
 
       if (!error && data) {
-        setBuilderFreeTrialUsed(!!data.builder_free_trial_tender_used);
+        const row = data as { builder_free_trial_tender_used?: boolean | null };
+        setBuilderFreeTrialUsed(!!row.builder_free_trial_tender_used);
       }
     } catch (err) {
       console.error('Error fetching builder trial status:', err);
@@ -639,8 +641,10 @@ export default function CreateTenderPage() {
       return;
     }
 
+    const profile = userProfile as { id: string; role: string };
+
     // ✅ Guardrail: limit pending guest tenders (single-account: applies to non-admins)
-    if (mode === 'guest' && !isAdmin(userProfile)) {
+    if (mode === 'guest' && !isAdmin(profile)) {
       const { count, error: pendingErr } = await supabase
         .from('tenders')
         .select('id', { count: 'exact', head: true })
@@ -659,7 +663,7 @@ export default function CreateTenderPage() {
     }
 
     // VERIFIED posting requires ABN (unless admin)
-    if (mode === 'verified' && userProfile.role !== 'admin' && needsAbn) {
+    if (mode === 'verified' && profile.role !== 'admin' && needsAbn) {
       toast.error('Verify your ABN to continue.');
       redirectToVerifyBusiness(router, returnUrl);
       return;
@@ -688,7 +692,7 @@ export default function CreateTenderPage() {
         return v != null ? (acc == null ? v : Math.max(acc, v)) : acc;
       }, null);
 
-      const { data: rpcTender, error: rpcErr } = await supabase.rpc('create_tender', {
+      const createArgs = {
         p_project_name: projectName?.trim() || 'Draft tender',
         p_description: projectDescription?.trim() || '',
         p_suburb: suburb?.trim() || '',
@@ -698,8 +702,11 @@ export default function CreateTenderPage() {
         p_trades: pTrades,
         p_desired_start_date: desiredStartDate?.trim() || null,
         p_desired_end_date: desiredEndDate?.trim() || null,
-        p_shared_attachments: [],
-      });
+        p_shared_attachments: [] as unknown,
+        p_is_anonymous: isAnonymous,
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase RPC type inference issue
+      const { data: rpcTender, error: rpcErr } = await supabase.rpc('create_tender', createArgs as any);
 
       if (rpcErr) {
         const msg = String((rpcErr as any)?.message || '');
@@ -734,19 +741,22 @@ export default function CreateTenderPage() {
         throw new Error(msg || 'Failed to create tender');
       }
 
+      if (!rpcTender) throw new Error('Failed to create tender');
       tender = rpcTender as { id: string };
 
       // RPC creates trade rows; update with sub_description and per-trade budget
+      const tenderId = tender.id;
       for (const req of tradeRequirements) {
         if (!req.trade?.trim()) continue;
+        const updatePayload = {
+          sub_description: req.subDescription || '',
+          min_budget_cents: req.budgetMin ? Math.round(Number(req.budgetMin) * 100) : null,
+          max_budget_cents: req.budgetMax ? Math.round(Number(req.budgetMax) * 100) : null,
+        };
         await supabase
           .from('tender_trade_requirements')
-          .update({
-            sub_description: req.subDescription || '',
-            min_budget_cents: req.budgetMin ? Math.round(Number(req.budgetMin) * 100) : null,
-            max_budget_cents: req.budgetMax ? Math.round(Number(req.budgetMax) * 100) : null,
-          })
-          .eq('tender_id', tender!.id)
+          .update(updatePayload as never)
+          .eq('tender_id', tenderId)
           .eq('trade', req.trade);
       }
     } else {
@@ -767,6 +777,7 @@ export default function CreateTenderPage() {
           suburb,
           postcode,
           isNameHidden,
+          isAnonymous,
           status: statusToUse,
           tier: tierToUse,
           tradeRequirements: tradeReqsForApi,
@@ -800,9 +811,10 @@ export default function CreateTenderPage() {
           files: projectFiles,
         });
 
+        const sharedPayload = { shared_attachments: sharedAttachments };
         const { error: sharedErr } = await supabase
           .from('tenders')
-          .update({ shared_attachments: sharedAttachments } as Record<string, unknown>)
+          .update(sharedPayload as never)
           .eq('id', tender.id);
 
         if (sharedErr) throw sharedErr;
@@ -820,9 +832,10 @@ export default function CreateTenderPage() {
           files,
         });
 
+        const tradePayload = { attachments: tradeAttachments };
         const { error: tradeErr } = await supabase
           .from('tender_trade_requirements')
-          .update({ attachments: tradeAttachments } as Record<string, unknown>)
+          .update(tradePayload as never)
           .eq('tender_id', tender.id)
           .eq('trade', req.trade);
 
@@ -834,7 +847,8 @@ export default function CreateTenderPage() {
     }
 
     if (tierToUse === 'FREE_TRIAL' && !builderFreeTrialUsed) {
-      await supabase.from('users').update({ builder_free_trial_tender_used: true }).eq('id', authUser.id);
+      const userUpdate = { builder_free_trial_tender_used: true };
+      await supabase.from('users').update(userUpdate as never).eq('id', authUser.id);
     }
 
     // Guest flow: created as PENDING_APPROVAL, done
@@ -845,9 +859,9 @@ export default function CreateTenderPage() {
     }
 
     // Verified flow: call publish_tender (validates limit, readiness, etc.)
-    const { error: publishErr } = await supabase.rpc('publish_tender', {
-      p_tender_id: tender.id,
-    });
+    const publishArgs = { p_tender_id: tender.id };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase RPC type inference issue
+    const { error: publishErr } = await supabase.rpc('publish_tender', publishArgs as any);
 
     if (publishErr) {
       const msg = String((publishErr as any)?.message || '');
@@ -1753,11 +1767,26 @@ export default function CreateTenderPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <Checkbox checked={isNameHidden} onCheckedChange={(v) => setIsNameHidden(Boolean(v))} />
-                  <div>
-                    <div className="text-sm font-medium">Hide business name until engagement</div>
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-3">
+                    <Checkbox checked={isNameHidden} onCheckedChange={(v) => setIsNameHidden(Boolean(v))} />
+                    <div>
+                      <div className="text-sm font-medium">Hide business name until engagement</div>
                     <div className="text-sm text-muted-foreground">Your profile will show as “Builder (hidden)”.</div>
+                  </div>
+                </div>
+                  <div className="flex items-center gap-3">
+                    <Checkbox
+                      checked={isAnonymous}
+                      onCheckedChange={(v) => setIsAnonymous(Boolean(v))}
+                      disabled={isNameHidden}
+                    />
+                    <div>
+                      <div className="text-sm font-medium">Post as anonymous</div>
+                      <div className="text-sm text-muted-foreground">
+                        No avatar or name shown. Viewers must request to quote; you approve each request.
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -1824,8 +1853,10 @@ export default function CreateTenderPage() {
                     )}
                   </div>
 
-                  <div className="mt-3 text-sm text-muted-foreground">Name visibility</div>
-                  <div className="font-medium">{isNameHidden ? 'Hidden' : 'Shown'}</div>
+                  <div className="mt-3 text-sm text-muted-foreground">Visibility</div>
+                  <div className="font-medium">
+                    {isAnonymous ? 'Anonymous (request to quote)' : isNameHidden ? 'Name hidden' : 'Shown'}
+                  </div>
 
                   <div className="mt-3 text-sm text-muted-foreground">Desired dates</div>
                   <div className="font-medium">
