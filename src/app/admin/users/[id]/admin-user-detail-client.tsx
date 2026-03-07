@@ -16,9 +16,9 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Shield, ShieldAlert, ShieldCheck, AlertCircle, CheckCircle, Flag, XCircle } from 'lucide-react';
+import { ArrowLeft, Shield, ShieldAlert, ShieldCheck, AlertCircle, CheckCircle, Flag, XCircle, MessageSquareOff, FileWarning, Ban } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createAuditLog } from '@/lib/admin-utils';
 import { AdminNote } from '@/lib/types';
 import { toast } from 'sonner';
@@ -34,6 +34,50 @@ interface AccountReview {
   flag_reason: string | null;
   notes: string | null;
   created_at: string;
+}
+
+interface ReportReceived {
+  id: string;
+  reporterId: string;
+  reporterName: string;
+  reportedId: string;
+  conversationId: string | null;
+  category: string;
+  notes: string | null;
+  status: string;
+  createdAt: string;
+}
+
+interface ReportSubmitted {
+  id: string;
+  reporterId: string;
+  reportedId: string;
+  reportedName: string;
+  conversationId: string | null;
+  category: string;
+  status: string;
+  createdAt: string;
+}
+
+interface BlockByUser {
+  id: string;
+  blockedId: string;
+  blockedName: string;
+  createdAt: string;
+}
+
+interface BlockOfUser {
+  id: string;
+  blockerId: string;
+  blockerName: string;
+  createdAt: string;
+}
+
+interface MessagingSafetyData {
+  reportsReceived: ReportReceived[];
+  reportsSubmitted: ReportSubmitted[];
+  blocksByUser: BlockByUser[];
+  blocksOfUser: BlockOfUser[];
 }
 
 interface AdminUserDetailClientProps {
@@ -73,6 +117,55 @@ export function AdminUserDetailClient({ user, accountReview: initialAccountRevie
     actionLabel: '',
     action: () => {},
   });
+
+  const [messagingSafety, setMessagingSafety] = useState<MessagingSafetyData | null>(null);
+  const [messagingSafetyLoading, setMessagingSafetyLoading] = useState(true);
+  const [updatingReportId, setUpdatingReportId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setMessagingSafetyLoading(true);
+      try {
+        const res = await fetch(`/api/admin/users/${userId}/messaging-safety`);
+        if (!res.ok) throw new Error('Failed to load messaging safety');
+        const data = await res.json();
+        if (!cancelled) setMessagingSafety(data);
+      } catch {
+        if (!cancelled) setMessagingSafety({ reportsReceived: [], reportsSubmitted: [], blocksByUser: [], blocksOfUser: [] });
+      } finally {
+        if (!cancelled) setMessagingSafetyLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  const handleReportStatusUpdate = async (reportId: string, status: 'reviewed' | 'resolved' | 'dismissed') => {
+    setUpdatingReportId(reportId);
+    try {
+      const res = await fetch(`/api/admin/user-reports/${reportId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error('Failed to update');
+      const updated = await res.json();
+      setMessagingSafety((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          reportsReceived: prev.reportsReceived.map((r) =>
+            r.id === reportId ? { ...r, status: updated.status } : r
+          ),
+        };
+      });
+      toast.success(`Report marked as ${status}`);
+    } catch {
+      toast.error('Failed to update report status');
+    } finally {
+      setUpdatingReportId(null);
+    }
+  };
 
   const handleSubmitAccountReview = async () => {
     if (!accountReview || !currentUser) return;
@@ -465,6 +558,169 @@ export function AdminUserDetailClient({ user, accountReview: initialAccountRevie
           title="User Activity Log"
           emptyMessage="No audit entries for this user"
         />
+
+        {/* Messaging Safety */}
+        <div className="space-y-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <MessageSquareOff className="w-5 h-5 text-gray-600" />
+            Messaging Safety
+          </h2>
+
+          {messagingSafetyLoading ? (
+            <div className="text-sm text-gray-500">Loading messaging safety data...</div>
+          ) : messagingSafety ? (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <FileWarning className="w-4 h-4 text-gray-600" />
+                    Reports Received
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {messagingSafety.reportsReceived.length === 0 ? (
+                    <p className="text-sm text-gray-500">No reports received against this user.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {messagingSafety.reportsReceived.map((r) => (
+                        <div
+                          key={r.id}
+                          className="border border-gray-200 rounded-lg p-4 space-y-2"
+                        >
+                          <div className="flex flex-wrap items-center gap-2 text-sm">
+                            <Link href={`/admin/users/${r.reporterId}`} className="font-medium text-blue-600 hover:underline">{r.reporterName}</Link>
+                            <span className="text-gray-500">•</span>
+                            <span>{format(new Date(r.createdAt), 'MMM d, yyyy h:mm a')}</span>
+                            <Badge variant="secondary" className="capitalize">{r.category.replace(/_/g, ' ')}</Badge>
+                            <Badge variant={r.status === 'open' ? 'destructive' : 'secondary'}>{r.status}</Badge>
+                          </div>
+                          {r.notes && <p className="text-sm text-gray-600">{r.notes}</p>}
+                          {r.conversationId && (
+                            <Link
+                              href={`/admin/messages/${r.conversationId}`}
+                              className="text-sm text-blue-600 hover:underline"
+                            >
+                              View conversation
+                            </Link>
+                          )}
+                          {r.status === 'open' && (
+                            <div className="flex gap-2 pt-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleReportStatusUpdate(r.id, 'reviewed')}
+                                disabled={!!updatingReportId}
+                              >
+                                Reviewed
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleReportStatusUpdate(r.id, 'resolved')}
+                                disabled={!!updatingReportId}
+                              >
+                                Resolved
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleReportStatusUpdate(r.id, 'dismissed')}
+                                disabled={!!updatingReportId}
+                              >
+                                Dismissed
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <FileWarning className="w-4 h-4 text-gray-600" />
+                    Reports Submitted
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {messagingSafety.reportsSubmitted.length === 0 ? (
+                    <p className="text-sm text-gray-500">This user has not submitted any reports.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {messagingSafety.reportsSubmitted.map((r) => (
+                        <div
+                          key={r.id}
+                          className="border border-gray-200 rounded-lg p-4 space-y-1"
+                        >
+                          <div className="flex flex-wrap items-center gap-2 text-sm">
+                            <span className="text-gray-600">Reported:</span>
+                            <Link href={`/admin/users/${r.reportedId}`} className="font-medium text-blue-600 hover:underline">{r.reportedName}</Link>
+                            <span className="text-gray-500">•</span>
+                            <span>{format(new Date(r.createdAt), 'MMM d, yyyy h:mm a')}</span>
+                            <Badge variant="secondary" className="capitalize">{r.category.replace(/_/g, ' ')}</Badge>
+                            <Badge variant={r.status === 'open' ? 'destructive' : 'secondary'}>{r.status}</Badge>
+                          </div>
+                          {r.conversationId && (
+                            <Link
+                              href={`/admin/messages/${r.conversationId}`}
+                              className="text-sm text-blue-600 hover:underline"
+                            >
+                              View conversation
+                            </Link>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Ban className="w-4 h-4 text-gray-600" />
+                    Blocks Involving User
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">Users blocked by this account</h4>
+                    {messagingSafety.blocksByUser.length === 0 ? (
+                      <p className="text-sm text-gray-500">None</p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {messagingSafety.blocksByUser.map((b) => (
+                          <li key={b.id} className="flex items-center justify-between border border-gray-200 rounded p-3 text-sm">
+                            <Link href={`/admin/users/${b.blockedId}`} className="font-medium text-blue-600 hover:underline">{b.blockedName}</Link>
+                            <span className="text-gray-500">{format(new Date(b.createdAt), 'MMM d, yyyy')}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">Users who blocked this account</h4>
+                    {messagingSafety.blocksOfUser.length === 0 ? (
+                      <p className="text-sm text-gray-500">None</p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {messagingSafety.blocksOfUser.map((b) => (
+                          <li key={b.id} className="flex items-center justify-between border border-gray-200 rounded p-3 text-sm">
+                            <Link href={`/admin/users/${b.blockerId}`} className="font-medium text-blue-600 hover:underline">{b.blockerName}</Link>
+                            <span className="text-gray-500">{format(new Date(b.createdAt), 'MMM d, yyyy')}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          ) : null}
+        </div>
 
         <AdminConfirmationDialog
           open={confirmDialog.open}

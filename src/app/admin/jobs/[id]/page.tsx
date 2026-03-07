@@ -56,7 +56,11 @@ export default function AdminJobDetailPage() {
 
   const contractor = store.getUserById(job.contractorId);
   const applications = store.getApplicationsByJob(jobId);
-  const conversation = store.conversations.find((c) => c.jobId === jobId);
+  const conversation = store.getConversationForJob(
+    jobId,
+    job.contractorId,
+    job.confirmedSubcontractor ?? job.selectedSubcontractor
+  );
   const messages = conversation ? store.getMessagesByConversation(conversation.id) : [];
   const timeline = buildJobTimeline(job, applications, messages, store.users);
   const auditLogs = store.getAuditLogsByJob(jobId);

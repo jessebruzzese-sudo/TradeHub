@@ -11,6 +11,7 @@ import { UserAvatar } from '@/components/user-avatar';
 import { MessageSquare, ShieldCheck } from 'lucide-react';
 import { getSafeReturnUrl, safeRouterReplace } from '@/lib/safe-nav';
 import { useAuth } from '@/lib/auth';
+import { getStore } from '@/lib/store';
 
 type ProfileCard = {
   id: string;
@@ -26,6 +27,7 @@ type ProfileCard = {
 export default function DiscoverTradePage() {
   const params = useParams();
   const router = useRouter();
+  const store = getStore();
   const { session, currentUser, isLoading } = useAuth();
   const tradeParam = typeof params.trade === 'string' ? params.trade : params.trade?.[0] ?? '';
   const [profiles, setProfiles] = useState<ProfileCard[]>([]);
@@ -141,13 +143,21 @@ export default function DiscoverTradePage() {
                   </div>
                 </div>
                 <div className="ml-auto">
-                  {/* TODO: Direct messaging to user - /messages/new?userId=... when available */}
-                  <Link href="/messages">
-                    <Button variant="outline" className="gap-2">
-                      <MessageSquare className="h-4 w-4" />
-                      Message
-                    </Button>
-                  </Link>
+                  <Button
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => {
+                      store.ensureUserInStore({
+                        id: p.id,
+                        name: p.display_name ?? undefined,
+                        avatar: p.avatar_url ?? undefined,
+                      });
+                      router.push(`/messages?userId=${p.id}`);
+                    }}
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    Message
+                  </Button>
                 </div>
               </div>
             ))}

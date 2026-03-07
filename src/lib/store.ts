@@ -1,4 +1,4 @@
-import { User, Job, Application, Conversation, Message, Review, AuditLog, AdminNote } from './types';
+import { User, Job, Application, Conversation, Message, Review, AuditLog, AdminNote, UserBlock } from './types';
 // mockData is environment-guarded: returns empty arrays in production, dev data only in development.
 import { mockData } from './mock-data';
 
@@ -9,6 +9,7 @@ export interface AppStore {
   applications: Application[];
   conversations: Conversation[];
   messages: Message[];
+  userBlocks: UserBlock[];
   reviews: Review[];
   auditLogs: AuditLog[];
   adminNotes: AdminNote[];
@@ -42,6 +43,22 @@ export interface AppStore {
   markConversationAsRead: (conversationId: string, userId: string) => void;
   getUnreadConversationCount: (userId: string) => number;
   findOrCreateConversation: (jobId: string, contractorId: string, subcontractorId: string) => Conversation;
+  /** Find or create the single direct thread for a user pair. jobId is optional metadata. */
+  findOrCreateConversationByUserPair: (userId1: string, userId2: string, jobId?: string | null) => Conversation;
+  /** Ensure a user exists in the store (for message entry from profile/search when user may not be loaded). */
+  ensureUserInStore: (partial: { id: string; name?: string; avatar?: string }) => void;
+  /** Find conversation for a job (by jobId or by contractor+subcontractor pair). */
+  getConversationForJob: (jobId: string, contractorId: string, subcontractorId?: string | null) => Conversation | undefined;
+  /** Blocking: true if blockerId has blocked blockedId (blocked user cannot message blocker). */
+  isBlocked: (blockerId: string, blockedId: string) => boolean;
+  /** Add a block. Returns the new block, or null if invalid (e.g. blocking self). */
+  blockUser: (blockerId: string, blockedId: string) => UserBlock | null;
+  /** Remove a block. */
+  unblockUser: (blockerId: string, blockedId: string) => void;
+  /** Replace blocks from API (Supabase-backed). */
+  setUserBlocks: (blocks: UserBlock[]) => void;
+  /** Sync conversation ID when API returns Supabase id (e.g. after first message). */
+  syncConversationId: (oldId: string, newId: string) => void;
 }
 
 let store: AppStore = {
@@ -51,6 +68,7 @@ let store: AppStore = {
   applications: [...mockData.applications],
   conversations: [...mockData.conversations],
   messages: [...mockData.messages],
+  userBlocks: [],
   reviews: mockData.reviews || [],
   auditLogs: [],
   adminNotes: [],
@@ -226,25 +244,111 @@ let store: AppStore = {
   },
 
   findOrCreateConversation(jobId, contractorId, subcontractorId) {
-    const existing = this.conversations.find(
-      (c) => c.jobId === jobId && c.contractorId === contractorId && c.subcontractorId === subcontractorId
-    );
+    return this.findOrCreateConversationByUserPair(contractorId, subcontractorId, jobId);
+  },
 
+  findOrCreateConversationByUserPair(userId1, userId2, jobId) {
+    const [p1, p2] = userId1 < userId2 ? [userId1, userId2] : [userId2, userId1];
+    const existing = this.conversations.find(
+      (c) =>
+        (c.contractorId === p1 && c.subcontractorId === p2) ||
+        (c.contractorId === p2 && c.subcontractorId === p1)
+    );
     if (existing) {
       return existing;
     }
-
     const newConversation: Conversation = {
       id: `conv-${Date.now()}`,
-      jobId,
-      contractorId,
-      subcontractorId,
+      jobId: jobId ?? undefined,
+      contractorId: p1,
+      subcontractorId: p2,
       updatedAt: new Date(),
       createdAt: new Date(),
     };
-
     this.conversations.push(newConversation);
     return newConversation;
+  },
+
+  ensureUserInStore(partial) {
+    const existing = this.users.find((u) => u.id === partial.id);
+    if (existing) {
+      if (partial.name != null) existing.name = partial.name;
+      if (partial.avatar != null) existing.avatar = partial.avatar;
+      return;
+    }
+    const now = new Date();
+    this.users.push({
+      id: partial.id,
+      name: partial.name ?? 'User',
+      email: '',
+      role: 'subcontractor',
+      trustStatus: 'approved',
+      rating: 0,
+      completedJobs: 0,
+      memberSince: now,
+      createdAt: now,
+      avatar: partial.avatar ?? null,
+    } as User);
+  },
+
+  getConversationForJob(jobId, contractorId, subcontractorId) {
+    const byJob = this.conversations.find((c) => c.jobId === jobId);
+    if (byJob) return byJob;
+    if (!subcontractorId) return undefined;
+    const [p1, p2] =
+      contractorId < subcontractorId ? [contractorId, subcontractorId] : [subcontractorId, contractorId];
+    return this.conversations.find(
+      (c) =>
+        (c.contractorId === p1 && c.subcontractorId === p2) ||
+        (c.contractorId === p2 && c.subcontractorId === p1)
+    );
+  },
+
+  isBlocked(blockerId, blockedId) {
+    return this.userBlocks.some(
+      (b) => b.blockerId === blockerId && b.blockedId === blockedId
+    );
+  },
+
+  blockUser(blockerId, blockedId) {
+    if (blockerId === blockedId) return null;
+    const existing = this.userBlocks.find(
+      (b) => b.blockerId === blockerId && b.blockedId === blockedId
+    );
+    if (existing) return existing;
+    const block: UserBlock = {
+      id: `block-${Date.now()}`,
+      blockerId,
+      blockedId,
+      createdAt: new Date(),
+    };
+    this.userBlocks.push(block);
+    return block;
+  },
+
+  unblockUser(blockerId, blockedId) {
+    const idx = this.userBlocks.findIndex(
+      (b) => b.blockerId === blockerId && b.blockedId === blockedId
+    );
+    if (idx >= 0) this.userBlocks.splice(idx, 1);
+  },
+
+  setUserBlocks(blocks) {
+    this.userBlocks = blocks.map((b) => ({
+      id: b.id,
+      blockerId: b.blockerId,
+      blockedId: b.blockedId,
+      createdAt: b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt),
+    }));
+  },
+
+  syncConversationId(oldId, newId) {
+    if (oldId === newId) return;
+    const conv = this.conversations.find((c) => c.id === oldId);
+    if (conv) conv.id = newId;
+    this.messages.forEach((m) => {
+      if (m.conversationId === oldId) (m as Message).conversationId = newId;
+    });
   },
 };
 
@@ -260,6 +364,7 @@ export function resetStore(): void {
     applications: [...mockData.applications],
     conversations: [...mockData.conversations],
     messages: [...mockData.messages],
+    userBlocks: [],
     reviews: [...mockData.reviews],
     auditLogs: [],
     adminNotes: [],
@@ -430,25 +535,111 @@ export function resetStore(): void {
     },
 
     findOrCreateConversation(jobId, contractorId, subcontractorId) {
-      const existing = this.conversations.find(
-        (c) => c.jobId === jobId && c.contractorId === contractorId && c.subcontractorId === subcontractorId
-      );
+      return this.findOrCreateConversationByUserPair(contractorId, subcontractorId, jobId);
+    },
 
+    findOrCreateConversationByUserPair(userId1, userId2, jobId) {
+      const [p1, p2] = userId1 < userId2 ? [userId1, userId2] : [userId2, userId1];
+      const existing = this.conversations.find(
+        (c) =>
+          (c.contractorId === p1 && c.subcontractorId === p2) ||
+          (c.contractorId === p2 && c.subcontractorId === p1)
+      );
       if (existing) {
         return existing;
       }
-
       const newConversation: Conversation = {
         id: `conv-${Date.now()}`,
-        jobId,
-        contractorId,
-        subcontractorId,
+        jobId: jobId ?? undefined,
+        contractorId: p1,
+        subcontractorId: p2,
         updatedAt: new Date(),
         createdAt: new Date(),
       };
-
       this.conversations.push(newConversation);
       return newConversation;
+    },
+
+    ensureUserInStore(partial) {
+      const existing = this.users.find((u) => u.id === partial.id);
+      if (existing) {
+        if (partial.name != null) existing.name = partial.name;
+        if (partial.avatar != null) existing.avatar = partial.avatar;
+        return;
+      }
+      const now = new Date();
+      this.users.push({
+        id: partial.id,
+        name: partial.name ?? 'User',
+        email: '',
+        role: 'subcontractor',
+        trustStatus: 'approved',
+        rating: 0,
+        completedJobs: 0,
+        memberSince: now,
+        createdAt: now,
+        avatar: partial.avatar ?? null,
+      } as User);
+    },
+
+    getConversationForJob(jobId, contractorId, subcontractorId) {
+      const byJob = this.conversations.find((c) => c.jobId === jobId);
+      if (byJob) return byJob;
+      if (!subcontractorId) return undefined;
+      const [p1, p2] =
+        contractorId < subcontractorId ? [contractorId, subcontractorId] : [subcontractorId, contractorId];
+      return this.conversations.find(
+        (c) =>
+          (c.contractorId === p1 && c.subcontractorId === p2) ||
+          (c.contractorId === p2 && c.subcontractorId === p1)
+      );
+    },
+
+    isBlocked(blockerId, blockedId) {
+      return this.userBlocks.some(
+        (b) => b.blockerId === blockerId && b.blockedId === blockedId
+      );
+    },
+
+    blockUser(blockerId, blockedId) {
+      if (blockerId === blockedId) return null;
+      const existing = this.userBlocks.find(
+        (b) => b.blockerId === blockerId && b.blockedId === blockedId
+      );
+      if (existing) return existing;
+      const block: UserBlock = {
+        id: `block-${Date.now()}`,
+        blockerId,
+        blockedId,
+        createdAt: new Date(),
+      };
+      this.userBlocks.push(block);
+      return block;
+    },
+
+    unblockUser(blockerId, blockedId) {
+      const idx = this.userBlocks.findIndex(
+        (b) => b.blockerId === blockerId && b.blockedId === blockedId
+      );
+      if (idx >= 0) this.userBlocks.splice(idx, 1);
+    },
+
+    setUserBlocks(blocks) {
+      this.userBlocks = blocks.map((b) => ({
+        id: b.id,
+        blockerId: b.blockerId,
+        blockedId: b.blockedId,
+        createdAt: b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt),
+      }));
+    },
+
+    syncConversationId(oldId, newId) {
+      if (oldId === newId) return;
+      const conv = this.conversations.find((c) => c.id === oldId);
+      if (conv) conv.id = newId;
+      this.messages.forEach((m) => {
+        if (m.conversationId === oldId) (m as Message).conversationId = newId;
+      });
     },
   };
 }

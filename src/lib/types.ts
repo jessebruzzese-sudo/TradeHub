@@ -90,6 +90,12 @@ export interface User {
 
   subcontractorAvailabilityBroadcastEnabled?: boolean;
 
+  /** Optional public pricing. Only shown when user enables visibility. */
+  pricingType?: 'hourly' | 'day' | 'from_hourly' | 'quote_on_request' | null;
+  pricingAmount?: number | null;
+  showPricingOnProfile?: boolean;
+  showPricingInListings?: boolean;
+
   smsOptInPromptShown?: boolean;
   smsOptInPromptDismissedAt?: Date;
 
@@ -173,9 +179,18 @@ export interface Message {
   createdAt: Date;
 }
 
+/** Block relationship: blocker_id has blocked blocked_id. Blocked user cannot message blocker. */
+export interface UserBlock {
+  id: string;
+  blockerId: string;
+  blockedId: string;
+  createdAt: Date;
+}
+
 export interface Conversation {
   id: string;
-  jobId: string;
+  /** Optional: job context when thread was started from a job. One thread per user pair. */
+  jobId?: string | null;
   contractorId: string;
   subcontractorId: string;
   lastMessage?: Message;

@@ -69,6 +69,11 @@ export default function EditProfilePage() {
   const [showPhoneOnProfile, setShowPhoneOnProfile] = useState<boolean>(false);
   const [showEmailOnProfile, setShowEmailOnProfile] = useState<boolean>(false);
 
+  const [pricingType, setPricingType] = useState<string>('');
+  const [pricingAmount, setPricingAmount] = useState<string>('');
+  const [showPricingOnProfile, setShowPricingOnProfile] = useState<boolean>(false);
+  const [showPricingInListings, setShowPricingInListings] = useState<boolean>(false);
+
   const [isSaving, setIsSaving] = useState(false);
   const [savedTick, setSavedTick] = useState(false);
 
@@ -100,6 +105,13 @@ export default function EditProfilePage() {
     setPhone((currentUser as any)?.phone ?? '');
     setShowPhoneOnProfile((currentUser as any)?.showPhoneOnProfile ?? (currentUser as any)?.show_phone_on_profile ?? false);
     setShowEmailOnProfile((currentUser as any)?.showEmailOnProfile ?? (currentUser as any)?.show_email_on_profile ?? false);
+
+    const pt = (currentUser as any)?.pricingType ?? (currentUser as any)?.pricing_type ?? '';
+    setPricingType(pt ? String(pt) : '');
+    const pa = (currentUser as any)?.pricingAmount ?? (currentUser as any)?.pricing_amount;
+    setPricingAmount(pa != null ? String(pa) : '');
+    setShowPricingOnProfile((currentUser as any)?.showPricingOnProfile ?? (currentUser as any)?.show_pricing_on_profile ?? false);
+    setShowPricingInListings((currentUser as any)?.showPricingInListings ?? (currentUser as any)?.show_pricing_in_listings ?? false);
   }, [currentUser]);
 
   // Auto-open Links section if user already has links saved
@@ -349,6 +361,13 @@ export default function EditProfilePage() {
         phone: phone.trim() ? phone.trim() : null,
         show_phone_on_profile: !!showPhoneOnProfile,
         show_email_on_profile: !!showEmailOnProfile,
+
+        pricingType: pricingType || null,
+        pricingAmount: pricingType && pricingType !== 'quote_on_request' && pricingAmount.trim()
+          ? Number(pricingAmount) || null
+          : null,
+        showPricingOnProfile: pricingType ? !!showPricingOnProfile : false,
+        showPricingInListings: pricingType ? !!showPricingInListings : false,
 
         location: undefined,
         postcode: undefined,
@@ -769,6 +788,71 @@ export default function EditProfilePage() {
               </div>
             </div>
           </div>
+
+          {!isAdmin(currentUser) && currentUser.role === 'subcontractor' && (
+          <div className={cardClass}>
+            <div className="mb-3">
+              <h2 className="text-sm font-semibold text-slate-900">Pricing</h2>
+              <p className="text-xs text-slate-600">Optional. Only shown publicly if you enable visibility below.</p>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <Label htmlFor="pricingType" className="text-sm font-medium text-slate-800">Pricing type</Label>
+                <Select value={pricingType || 'none'} onValueChange={(v) => setPricingType(v === 'none' ? '' : v)}>
+                  <SelectTrigger className={`mt-1 ${inputClass}`}>
+                    <SelectValue placeholder="Select pricing type (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No pricing</SelectItem>
+                    <SelectItem value="hourly">Typical rate: $/hr</SelectItem>
+                    <SelectItem value="from_hourly">From $/hr</SelectItem>
+                    <SelectItem value="day">Day rate available</SelectItem>
+                    <SelectItem value="quote_on_request">Quote on request</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {(pricingType === 'hourly' || pricingType === 'from_hourly') && (
+                <div>
+                  <Label htmlFor="pricingAmount" className="text-sm font-medium text-slate-800">Amount ($)</Label>
+                  <Input
+                    id="pricingAmount"
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={pricingAmount}
+                    onChange={(e) => setPricingAmount(e.target.value)}
+                    placeholder="e.g. 95"
+                    className={`mt-1 ${inputClass}`}
+                  />
+                </div>
+              )}
+              {pricingType && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="showPricingOnProfile"
+                      checked={showPricingOnProfile}
+                      onCheckedChange={setShowPricingOnProfile}
+                    />
+                    <Label htmlFor="showPricingOnProfile" className="text-sm font-medium text-slate-800">
+                      Show pricing on profile page
+                    </Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="showPricingInListings"
+                      checked={showPricingInListings}
+                      onCheckedChange={setShowPricingInListings}
+                    />
+                    <Label htmlFor="showPricingInListings" className="text-sm font-medium text-slate-800">
+                      Show pricing in discovery listings
+                    </Label>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+          )}
 
           {!isAdmin(currentUser) && (
           <div className={cardClass}>

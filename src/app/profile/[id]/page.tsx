@@ -64,7 +64,10 @@ export default async function PublicProfilePage({
        linkedin,
        tiktok,
        youtube,
-       abn`
+       abn,
+       pricing_type,
+       pricing_amount,
+       show_pricing_on_profile`
     )
     .eq('id', profileId)
     .maybeSingle();

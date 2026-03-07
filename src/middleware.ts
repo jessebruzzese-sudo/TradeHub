@@ -29,7 +29,32 @@ export async function middleware(req: NextRequest) {
     },
   });
 
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const url = req.nextUrl.clone();
+
+  // If user is logged in and visiting the homepage, redirect to dashboard
+  if (user && url.pathname === '/') {
+    url.pathname = '/dashboard';
+    return NextResponse.redirect(url);
+  }
+
+  // Redirect logged-in users away from login/signup pages
+  if (user && (url.pathname === '/login' || url.pathname === '/signup')) {
+    const returnUrl = url.searchParams.get('returnUrl');
+    const safePath =
+      returnUrl &&
+      returnUrl.startsWith('/') &&
+      !returnUrl.includes('://') &&
+      !returnUrl.includes('@')
+        ? returnUrl
+        : '/dashboard';
+    url.pathname = safePath;
+    url.searchParams.delete('returnUrl');
+    return NextResponse.redirect(url);
+  }
 
   return response;
 }

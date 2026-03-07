@@ -88,7 +88,7 @@ export function TopBar() {
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="hidden md:flex rounded-lg min-w-[44px] min-h-[44px]">
+              <Button variant="ghost" size="icon" className="hidden md:flex rounded-lg min-w-[44px] min-h-[44px]" aria-label="Account menu">
                 <MoreHorizontal className="w-5 h-5" />
               </Button>
             </DropdownMenuTrigger>
@@ -280,7 +280,7 @@ export function AppLayout({
         <TopBar />
         <main className="flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom,0px)] md:pb-0" style={{ paddingBottom: 'calc(56px + env(safe-area-inset-bottom, 0px))' }}>
           <div className="min-h-full flex flex-col">
-            <div className="flex-1">
+            <div className="flex min-h-0 flex-1 flex-col">
               {children}
             </div>
             <GlobalFooter />

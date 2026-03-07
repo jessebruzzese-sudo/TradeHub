@@ -9,9 +9,10 @@ export interface MessagingState {
 
 export function getMessagingState(
   job: Job | null,
-  currentUser: { trustStatus?: string | null } | null
+  currentUser: { trustStatus?: string | null } | null,
+  options?: { isBlockedByRecipient?: boolean }
 ): MessagingState {
-  if (!job || !currentUser) {
+  if (!currentUser) {
     return {
       canSendMessages: false,
       isReadOnly: true,
@@ -19,12 +20,17 @@ export function getMessagingState(
     };
   }
 
-  if (currentUser.trustStatus === 'pending') {
+  if (options?.isBlockedByRecipient) {
     return {
       canSendMessages: false,
       isReadOnly: true,
-      disabledReason: 'Your account is pending approval. Messaging will be enabled once approved.',
+      disabledReason: 'You cannot send messages in this conversation.',
     };
+  }
+
+  // Direct threads (no job): always allow messaging
+  if (!job) {
+    return { canSendMessages: true, isReadOnly: false };
   }
 
   if (job.status === 'cancelled') {

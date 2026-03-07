@@ -170,6 +170,10 @@ type DbUserRow = {
   phone?: string | null;
   show_phone_on_profile?: boolean | null;
   show_email_on_profile?: boolean | null;
+  pricing_type?: string | null;
+  pricing_amount?: number | null;
+  show_pricing_on_profile?: boolean | null;
+  show_pricing_in_listings?: boolean | null;
 };
 
 export type CurrentUser = {
@@ -248,6 +252,12 @@ export type CurrentUser = {
   linkedin?: string | null;
   tiktok?: string | null;
   youtube?: string | null;
+
+  /** Optional public pricing. Only shown when user enables visibility. */
+  pricingType?: string | null;
+  pricingAmount?: number | null;
+  showPricingOnProfile?: boolean;
+  showPricingInListings?: boolean;
 }
 
 type SignupExtras = {
@@ -405,6 +415,11 @@ function mapDbToUi(row: DbUserRow): CurrentUser {
     phone: (row as any).phone ?? null,
     showPhoneOnProfile: (row as any).show_phone_on_profile === true,
     showEmailOnProfile: (row as any).show_email_on_profile === true,
+
+    pricingType: (row as any).pricing_type ?? null,
+    pricingAmount: (row as any).pricing_amount != null ? Number((row as any).pricing_amount) : null,
+    showPricingOnProfile: (row as any).show_pricing_on_profile === true,
+    showPricingInListings: (row as any).show_pricing_in_listings === true,
   };
 }
 
@@ -466,50 +481,36 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
   const loadProfile = useCallback(
     async (userId: string): Promise<CurrentUser | null> => {
       try {
-        const fullSelect =
-          'id,email,name,role,is_admin,trust_status,avatar,cover_url,bio,mini_bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,abn_verified_at,show_abn_on_profile,show_business_name_on_profile,trades,additional_trades,website,instagram,facebook,linkedin,tiktok,youtube,phone,show_phone_on_profile,show_email_on_profile,' +
+        // Use safe select: only columns that exist in all migrations. Do NOT request:
+        // mini_bio, phone, show_phone_on_profile, show_email_on_profile, is_admin,
+        // show_abn_on_profile, show_business_name_on_profile, pricing_type, pricing_amount,
+        // show_pricing_on_profile, show_pricing_in_listings (may not exist in older DBs)
+        const safeSelect =
+          'id,email,name,role,trust_status,avatar,cover_url,bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,abn_verified_at,trades,additional_trades,website,instagram,facebook,linkedin,tiktok,youtube,' +
           'location,postcode,location_lat,location_lng,' +
           'is_premium,active_plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,' +
           'complimentary_premium_until,premium_until,additional_trades_unlocked,search_location,search_postcode,search_lat,search_lng,' +
           'is_public_profile,trades';
 
-        const legacySelect =
-          'id,email,name,role,is_admin,trust_status,avatar,cover_url,bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,abn_verified_at,trades,additional_trades,website,instagram,facebook,linkedin,tiktok,youtube,' +
-          'location,postcode,location_lat,location_lng,' +
-          'is_premium,active_plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,' +
-          'complimentary_premium_until,premium_until,additional_trades_unlocked,search_location,search_postcode,search_lat,search_lng,' +
-          'is_public_profile,trades';
-
-        // First try the full select (new columns)
-        let { data: profile, error } = await (supabase.from('users') as any)
-          .select(fullSelect)
+        const { data: profile, error } = await (supabase.from('users') as any)
+          .select(safeSelect)
           .eq('id', userId)
           .maybeSingle();
-
-        // If the DB hasn't been migrated yet, retry without new columns
-        if (error && (error as any).code === '42703') {
-          console.warn('loadProfile: missing new columns, retrying legacy select');
-          const retry = await (supabase.from('users') as any)
-            .select(legacySelect)
-            .eq('id', userId)
-            .maybeSingle();
-
-          profile = retry.data as any;
-          error = retry.error as any;
-
-          // Provide sane defaults so UI doesn't break
-          if (profile) {
-            (profile as any).show_abn_on_profile ??= false;
-            (profile as any).show_business_name_on_profile ??= true;
-            (profile as any).is_public_profile ??= true;
-          }
-        }
 
         if (error) {
           console.error('loadProfile error', error);
           return null;
         }
         if (!profile) return null;
+
+        // Provide defaults for columns not in safe select (may not exist in DB)
+        (profile as any).show_abn_on_profile ??= false;
+        (profile as any).show_business_name_on_profile ??= true;
+        (profile as any).is_public_profile ??= true;
+        (profile as any).pricing_type ??= null;
+        (profile as any).pricing_amount ??= null;
+        (profile as any).show_pricing_on_profile ??= false;
+        (profile as any).show_pricing_in_listings ??= false;
 
         return mapDbToUi(profile as DbUserRow);
       } catch (e) {

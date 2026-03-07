@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AppLayout } from '@/components/app-nav';
 import { TradeGate } from '@/components/trade-gate';
 import { PremiumUpsellBar } from '@/components/premium-upsell-bar';
@@ -12,10 +12,12 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Search, Lightbulb, Users, ArrowLeft, MapPin, Star, DollarSign, BadgeCheck, Crown, ArrowRight } from 'lucide-react';
+import { Search, Lightbulb, Users, ArrowLeft, MapPin, Star, BadgeCheck, Crown, ArrowRight, Calendar } from 'lucide-react';
 import { UserAvatar } from '@/components/user-avatar';
 import { UnauthorizedAccess } from '@/components/unauthorized-access';
 import { TRADE_CATEGORIES } from '@/lib/trades';
+import { getBrowserSupabase } from '@/lib/supabase-client';
+import { format } from 'date-fns';
 
 // TEMP MOCK DATA — replace with real subcontractor query later
 const mockSubcontractors = [
@@ -33,6 +35,9 @@ const mockSubcontractors = [
     distanceKm: 4.2,
     availabilityLabel: 'Available this week',
     description: 'Licensed plumbers for residential and commercial. Specialising in hot water, gas fitting, and emergency callouts.',
+    pricingType: 'hourly' as const,
+    pricingAmount: 95,
+    showPricingInListings: true,
   },
   {
     id: 'mock-2',
@@ -48,6 +53,9 @@ const mockSubcontractors = [
     distanceKm: 52,
     availabilityLabel: 'Available next Monday',
     description: 'Level 2 ASP. Commercial and domestic electrical. Switchboard upgrades, solar, and general repairs.',
+    pricingType: 'from_hourly' as const,
+    pricingAmount: 110,
+    showPricingInListings: true,
   },
   {
     id: 'mock-3',
@@ -63,6 +71,9 @@ const mockSubcontractors = [
     distanceKm: 8.5,
     availabilityLabel: 'Available this week',
     description: 'Framing, fit-out, and custom joinery. Experienced in residential renovations and new builds.',
+    pricingType: null,
+    pricingAmount: null,
+    showPricingInListings: false,
   },
   {
     id: 'mock-4',
@@ -78,6 +89,9 @@ const mockSubcontractors = [
     distanceKm: 112,
     availabilityLabel: 'Available in 2 weeks',
     description: 'Driveways, slabs, footpaths, and exposed aggregate. Quality work across regional Victoria.',
+    pricingType: 'day' as const,
+    pricingAmount: null,
+    showPricingInListings: true,
   },
   {
     id: 'mock-5',
@@ -93,6 +107,9 @@ const mockSubcontractors = [
     distanceKm: 12,
     availabilityLabel: 'Available next week',
     description: 'Interior and exterior painting. Residential and commercial. Free quotes.',
+    pricingType: 'quote_on_request' as const,
+    pricingAmount: null,
+    showPricingInListings: true,
   },
   {
     id: 'mock-6',
@@ -108,6 +125,9 @@ const mockSubcontractors = [
     distanceKm: 35,
     availabilityLabel: 'Available this week',
     description: 'Blocked drains, leak detection, and general plumbing. 24/7 emergency service available.',
+    pricingType: null,
+    pricingAmount: null,
+    showPricingInListings: false,
   },
 ] as const;
 
@@ -129,9 +149,22 @@ const FILTER_OPTIONS = [
   { value: 'abn-verified', label: 'ABN verified only' },
 ] as const;
 
+function formatPricingLabel(sub: MockSubcontractor): string | null {
+  if (!sub.showPricingInListings) return null;
+  const type = sub.pricingType;
+  const amount = sub.pricingAmount;
+  if (type === 'hourly' && amount != null && amount > 0) return `$${amount}/hr`;
+  if (type === 'from_hourly' && amount != null && amount > 0) return `From $${amount}/hr`;
+  if (type === 'day' && amount != null && amount > 0) return `$${amount}/day`;
+  if (type === 'day') return 'Day rate available';
+  if (type === 'quote_on_request') return 'Quote on request';
+  return null;
+}
+
 function SubcontractorCard({ sub }: { sub: MockSubcontractor }) {
   const TradeIcon = getTradeIcon(sub.trade);
   const avatarUrl = sub.avatar_url ?? null;
+  const pricingLabel = formatPricingLabel(sub);
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -176,12 +209,16 @@ function SubcontractorCard({ sub }: { sub: MockSubcontractor }) {
               <span className="font-medium text-slate-700">{sub.rating.toFixed(1)}</span>
               <span className="text-slate-400">({sub.reviewCount})</span>
             </span>
-            <span className="inline-flex items-center gap-1">
-              <DollarSign className="h-4 w-4 text-emerald-600" />
-              <span className="font-medium text-slate-700">${sub.hourlyRate}/hr</span>
-            </span>
           </div>
-          <p className="mt-2 text-xs text-slate-500">{sub.availabilityLabel}</p>
+          <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700">
+              <span className="h-2 w-2 shrink-0 rounded-full bg-green-500" />
+              {sub.availabilityLabel}
+            </span>
+          {pricingLabel && (
+            <span className="mt-2 block text-xs text-slate-600">
+              {pricingLabel}
+            </span>
+          )}
           </div>
         </div>
         <Link href={`/profile/${sub.id}`} className="shrink-0">
@@ -201,6 +238,13 @@ export default function SubcontractorsPage() {
   const [selectedTrade, setSelectedTrade] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('distance-closest');
   const [filterBy, setFilterBy] = useState<string>('all');
+  const [availLoading, setAvailLoading] = useState(false);
+  const [nextAvailable, setNextAvailable] = useState<Date | null>(null);
+
+  const nextAvailableLabel = useMemo(() => {
+    if (!nextAvailable) return null;
+    return format(nextAvailable, 'EEE d MMM');
+  }, [nextAvailable]);
 
   const userForDiscovery = useMemo(
     () =>
@@ -266,6 +310,49 @@ export default function SubcontractorsPage() {
     return list;
   }, [searchQuery, effectiveTrade, filterBy, sortBy]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAvailability() {
+      if (!currentUser?.id) {
+        setNextAvailable(null);
+        return;
+      }
+
+      setAvailLoading(true);
+
+      try {
+        const supabase = getBrowserSupabase();
+        const today = new Date();
+        const todayStr = today.toISOString().slice(0, 10);
+
+        const { data, error } = await supabase
+          .from('subcontractor_availability')
+          .select('date')
+          .eq('user_id', currentUser.id)
+          .gte('date', todayStr)
+          .order('date', { ascending: true });
+
+        if (error) throw error;
+        if (cancelled) return;
+
+        const first = data?.[0]?.date ? new Date(data[0].date) : null;
+        setNextAvailable(first);
+      } catch (err) {
+        console.error('[subcontractors] availability load failed', err);
+        if (!cancelled) setNextAvailable(null);
+      } finally {
+        if (!cancelled) setAvailLoading(false);
+      }
+    }
+
+    loadAvailability();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.id]);
+
   if (isLoading) {
     return (
       <AppLayout>
@@ -317,16 +404,44 @@ export default function SubcontractorsPage() {
                 <ArrowLeft className="w-4 h-4 mr-1" />
                 Back to Dashboard
               </Link>
-              <div>
-                <div className="flex items-center gap-2">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 shadow-sm ring-1 ring-white/15 backdrop-blur">
-                    <Users className="h-5 w-5 text-white" />
+              <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 shadow-sm ring-1 ring-white/15 backdrop-blur">
+                      <Users className="h-5 w-5 text-white" />
+                    </div>
+                    <h1 className="text-2xl font-semibold tracking-tight text-white">Find Subcontractors</h1>
                   </div>
-                  <h1 className="text-2xl font-semibold tracking-tight text-white">Find Subcontractors</h1>
+                  <p className="mt-1 text-sm text-white/80">
+                    Browse and connect with verified subcontractors
+                  </p>
                 </div>
-                <p className="mt-1 text-sm text-white/80">
-                  Browse and connect with verified subcontractors
-                </p>
+
+                <div className="flex flex-col items-stretch sm:items-end">
+                  {nextAvailableLabel && (
+                    <div className="mb-2 text-right">
+                      <div className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
+                        Available {nextAvailableLabel}
+                      </div>
+                    </div>
+                  )}
+
+                  <Button
+                    asChild
+                    className="h-10 rounded-full gap-2 px-5 shadow-md hover:shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700 transition-all"
+                  >
+                    <Link href="/profile/availability" className="flex items-center gap-2">
+                      {!nextAvailableLabel && !availLoading && (
+                        <span className="relative flex h-2 w-2">
+                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/70 opacity-60" />
+                          <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
+                        </span>
+                      )}
+                      <Calendar className="h-4 w-4" />
+                      {nextAvailableLabel ? 'Update availability' : 'List availability'}
+                    </Link>
+                  </Button>
+                </div>
               </div>
             </div>
 

@@ -378,7 +378,7 @@ export type Database = {
           contractor_id: string
           created_at: string | null
           id: string
-          job_id: string
+          job_id: string | null
           subcontractor_id: string
           updated_at: string | null
         }
@@ -386,7 +386,7 @@ export type Database = {
           contractor_id: string
           created_at?: string | null
           id?: string
-          job_id: string
+          job_id?: string | null
           subcontractor_id: string
           updated_at?: string | null
         }

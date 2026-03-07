@@ -12,5 +12,6 @@ tsconfig.tsbuildinfo
 # Playwright
 playwright-report/
 playwright/.auth/
+playwright/seed-ids.json
 pw-creds.json
 test-results/

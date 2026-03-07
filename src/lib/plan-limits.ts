@@ -32,6 +32,27 @@ function isFutureDate(d: unknown): boolean {
   return !Number.isNaN(dt.getTime()) && dt.getTime() > Date.now();
 }
 
+/** Normalise plan string for comparison. Returns empty string for null/undefined. */
+function normalisePlanString(plan?: string | null): string {
+  if (plan == null) return '';
+  return String(plan).trim().toLowerCase();
+}
+
+/**
+ * Returns true if the plan string indicates premium/pro entitlement.
+ * Handles: pro, premium, SUBCONTRACTOR_PRO_10, ALL_ACCESS_PRO_26, PRO_10, etc.
+ * Avoids false positives like "approve", "improve" (requires _pro, pro_, or exact match).
+ */
+export function isPremiumPlanValue(plan?: string | null): boolean {
+  const p = normalisePlanString(plan);
+  if (!p) return false;
+  // Exact premium names
+  if (p === 'pro' || p === 'premium') return true;
+  // Premium-like names: _pro, pro_, or premium anywhere (avoids approve/improve)
+  if (p.includes('_pro') || p.includes('pro_') || p.includes('premium')) return true;
+  return false;
+}
+
 export type PlanLimits = {
   /** Discovery/search radius cap (used for jobs + tenders discovery) */
   discoveryRadiusKm: number;
@@ -81,17 +102,16 @@ function isPremium(user: TierUser | null | undefined): boolean {
     return true;
   }
 
-  const tier = (user.subscription_tier ?? '').toString().toLowerCase();
-  if (tier === 'premium') return true;
+  if (isPremiumPlanValue(user.subscription_tier)) return true;
 
-  const status = (user.subscription_status ?? user.subscriptionStatus ?? '').toString().toLowerCase();
-  const plan = (user.active_plan ?? user.activePlan ?? '').toString().toLowerCase();
-  const subPlan = (user.subcontractor_plan ?? user.subcontractorPlan ?? '').toString().toLowerCase();
+  const status = (user.subscription_status ?? user.subscriptionStatus ?? '').toString().trim().toLowerCase();
+  const activePlan = user.active_plan ?? user.activePlan;
+  const subPlan = user.subcontractor_plan ?? user.subcontractorPlan;
 
-  // Strict: only treat as premium when ACTIVE and plan indicates premium/pro
+  // Treat as premium when ACTIVE and plan indicates premium/pro
   if (status === 'active') {
-    if (['pro', 'premium'].includes(plan)) return true;
-    if (['pro', 'premium'].includes(subPlan)) return true;
+    if (isPremiumPlanValue(activePlan)) return true;
+    if (isPremiumPlanValue(subPlan)) return true;
   }
 
   return false;

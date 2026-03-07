@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { AppLayout } from '@/components/app-nav';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent } from '@/components/ui/card';
@@ -9,8 +10,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { getBrowserSupabase } from '@/lib/supabase-client';
+import { getStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
-import { MapPin, Search as SearchIcon } from 'lucide-react';
+import { MapPin, Search as SearchIcon, MessageSquare } from 'lucide-react';
 
 type DirectoryUser = {
   id: string;
@@ -35,6 +37,10 @@ type DirectoryUser = {
 
   premium_now?: boolean | null;
   premium_expires_at?: string | null;
+
+  pricing_type?: string | null;
+  pricing_amount?: number | null;
+  show_pricing_in_listings?: boolean | null;
 };
 
 function norm(v?: string | null) {
@@ -83,6 +89,8 @@ function starsFromRating(r?: number | null) {
 
 export default function SearchDirectoryPage() {
   const supabase = useMemo(() => getBrowserSupabase(), []);
+  const router = useRouter();
+  const store = useMemo(() => getStore(), []);
 
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<DirectoryUser[]>([]);
@@ -122,7 +130,10 @@ export default function SearchDirectoryPage() {
    abn_status,
    abn_verified_at,
    premium_now,
-   premium_expires_at`
+   premium_expires_at,
+   pricing_type,
+   pricing_amount,
+   show_pricing_in_listings`
           )
           .eq('is_public_profile', true)
           .neq('role', 'admin')
@@ -332,9 +343,8 @@ export default function SearchDirectoryPage() {
                   const loc = u.location;
 
                   return (
-                    <Link
+                    <div
                       key={u.id}
-                      href={`/profile/${u.id}`}
                       className={cn(
                         "group block w-full h-full relative overflow-hidden rounded-2xl border bg-white",
                         "shadow-[0_1px_0_rgba(15,23,42,0.06),0_8px_24px_rgba(15,23,42,0.08)]",
@@ -376,9 +386,11 @@ export default function SearchDirectoryPage() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
-                              <div className="text-[15px] font-semibold text-slate-900 leading-tight truncate">
-                                {u.business_name || u.name || 'Business'}
-                              </div>
+                              <Link href={`/profile/${u.id}`} className="block">
+                                <div className="text-[15px] font-semibold text-slate-900 leading-tight truncate hover:text-blue-600">
+                                  {u.business_name || u.name || 'Business'}
+                                </div>
+                              </Link>
                             </div>
                           </div>
 
@@ -433,19 +445,57 @@ export default function SearchDirectoryPage() {
                                 Verified
                               </span>
                             )}
+                            {(() => {
+                              if (!(u as any).show_pricing_in_listings) return null;
+                              const pt = (u as any).pricing_type;
+                              const pa = (u as any).pricing_amount != null ? Number((u as any).pricing_amount) : null;
+                              let label: string | null = null;
+                              if (pt === 'hourly' && pa != null && pa > 0) label = `$${pa}/hr`;
+                              else if (pt === 'from_hourly' && pa != null && pa > 0) label = `From $${pa}/hr`;
+                              else if (pt === 'day' && pa != null && pa > 0) label = `$${pa}/day`;
+                              else if (pt === 'day') label = 'Day rate';
+                              else if (pt === 'quote_on_request') label = 'Quote on request';
+                              if (!label) return null;
+                              return (
+                                <span className="text-xs text-slate-600">
+                                  {label}
+                                </span>
+                              );
+                            })()}
                           </div>
                         </div>
 
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 rounded-full opacity-0 group-hover:opacity-100 transition"
-                        >
-                          View
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Link href={`/profile/${u.id}`}>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 rounded-full opacity-0 group-hover:opacity-100 transition"
+                            >
+                              View
+                            </Button>
+                          </Link>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 rounded-full opacity-0 group-hover:opacity-100 transition gap-1.5"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              store.ensureUserInStore({
+                                id: u.id,
+                                name: (u.business_name || u.name || 'User') ?? undefined,
+                                avatar: u.avatar ?? undefined,
+                              });
+                              router.push(`/messages?userId=${u.id}`);
+                            }}
+                          >
+                            <MessageSquare className="h-3.5 w-3.5" />
+                            Message
+                          </Button>
+                        </div>
                         </div>
                       </div>
-                    </Link>
+                    </div>
                   );
                 })}
               </div>

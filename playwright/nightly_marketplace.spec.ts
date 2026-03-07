@@ -1,34 +1,62 @@
 import { test, expect } from '@playwright/test';
 
+/**
+ * Marketplace tender creation smoke test.
+ * Requires: authenticated user with ABN verified (or test may redirect to verify-business).
+ */
 test('marketplace flow: create tender -> upload plans -> submit quote (smoke)', async ({ page }) => {
-  // Go to tenders
   await page.goto('/tenders');
 
-  // Create tender (adjust route/buttons to your app)
+  // Navigate to create tender
   await page.getByRole('link', { name: /post tender/i }).click();
 
-  // Fill minimal fields
-  await page.getByLabel(/project name/i).fill('Playwright Test Tender');
-  await page.getByLabel(/project description/i).fill('Automated test tender');
+  // May redirect to verify-business if user lacks ABN
+  if (page.url().includes('/verify-business')) {
+    test.skip(true, 'Test user needs ABN verification to create tenders');
+  }
 
-  // Add at least one required trade (Step 1)
-  await page.getByRole('button', { name: /select required trades/i }).click();
-  await page.getByText('Electrician').first().click();
-  await page.keyboard.press('Escape'); // close popover
-  await page.getByPlaceholder(/e\.g\., switchboard upgrade/i).fill('Test trade scope for E2E');
+  // Wait for Step 1 form to load (wizard may be collapsed initially)
+  const projectNameInput = page.getByPlaceholder(/e\.g\. single storey|single storey house/i);
+  await expect(projectNameInput).toBeVisible({ timeout: 15_000 });
+
+  // Fill project name (prefer placeholder; label "Project name" may not be associated)
+  await projectNameInput.fill('Playwright Test Tender');
+
+  // Fill project description
+  const projectDescInput = page.getByPlaceholder(/give an overview|overview.*included/i);
+  await expect(projectDescInput).toBeVisible();
+  await projectDescInput.fill('Automated test tender');
+
+  // Add required trade: open selector, pick Electrician (label wraps checkbox)
+  const tradeButton = page.getByRole('button', { name: /select required trades|trades selected/i });
+  await tradeButton.click();
+  await page.locator('label').filter({ hasText: 'Electrician' }).click();
+  await page.keyboard.press('Escape');
+
+  // Fill trade scope (appears after adding trade)
+  const tradeScopeInput = page.getByPlaceholder(/switchboard|e\.g\., describe what this trade/i);
+  await expect(tradeScopeInput).toBeVisible({ timeout: 5000 });
+  await tradeScopeInput.fill('Test trade scope for E2E');
 
   // Complete Step 1
   await page.getByRole('button', { name: /^done$/i }).first().click();
 
-  // Fill location (Step 2) - suburb and postcode (manual entry if no Places API)
-  await page.getByLabel(/location|suburb/i).fill('Sydney');
-  await page.getByLabel(/postcode/i).fill('2000');
+  // Step 2: Location - suburb and postcode (getByLabel works via htmlFor)
+  const suburbInput = page.getByLabel(/location|suburb/i).or(page.getByPlaceholder(/start typing suburb/i));
+  await expect(suburbInput.first()).toBeVisible({ timeout: 5000 });
+  await suburbInput.first().fill('Sydney');
+
+  const postcodeInput = page.getByLabel(/postcode/i).or(page.getByPlaceholder(/e\.g\. 3105/i));
+  await expect(postcodeInput.first()).toBeVisible();
+  await postcodeInput.first().fill('2000');
 
   // Complete Step 2
   await page.getByRole('button', { name: /^done$/i }).last().click();
 
-  // Publish or save (Step 3)
-  await page.getByRole('button', { name: /publish tender|verify business/i }).click();
+  // Step 3: Publish (or Verify business if ABN gate)
+  const publishButton = page.getByRole('button', { name: /publish tender|verify business/i });
+  await expect(publishButton).toBeVisible({ timeout: 5000 });
+  await publishButton.click();
 
   // Assert tender created or approval modal
   await expect(

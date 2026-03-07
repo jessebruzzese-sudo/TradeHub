@@ -87,21 +87,28 @@ test.describe('Profile availability', () => {
     await expect(page).toHaveURL(/\/profile\/availability/);
   });
 
+  // Skipped when no second user exists: requires seeded multi-user data (another profile in discovery).
   test('6. Non-self profile: hero strip does not appear', async ({ page }) => {
     await page.goto('/subcontractors');
     if (page.url().includes('/login')) {
-      test.skip();
+      test.skip(true, 'Not authenticated');
     }
 
-    // Find a profile link to another user (exclude /profile which is self)
+    // Find a profile link to another user (exclude /profile which is self, exclude Edit links)
     const profileLinks = page.locator('a[href^="/profile/"]').filter({
       hasNot: page.locator('text=Edit'),
     });
-    const profileHref = await profileLinks.first().getAttribute('href');
-    if (!profileHref || profileHref === '/profile') {
-      test.skip();
+    // Short timeout: if no other profiles exist, skip instead of failing
+    const firstLink = profileLinks.first();
+    const isVisible = await firstLink.isVisible().catch(() => false);
+    if (!isVisible) {
+      test.skip(true, 'No other user profiles in discovery — seed multi-user data to run this test');
     }
-    await profileLinks.first().click();
+    const profileHref = await firstLink.getAttribute('href');
+    if (!profileHref || profileHref === '/profile') {
+      test.skip(true, 'No other user profiles in discovery — seed multi-user data to run this test');
+    }
+    await firstLink.click();
 
     await expect(page).toHaveURL(/\/profile\/[a-f0-9-]+/);
 

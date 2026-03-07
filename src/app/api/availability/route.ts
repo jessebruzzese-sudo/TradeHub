@@ -21,10 +21,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const dates: string[] = Array.isArray(body.dates) ? body.dates : [];
     const description: string = typeof body.description === 'string' ? body.description.trim() : '';
+    const pricingType = body.pricingType ?? body.pricing_type ?? null;
+    const pricingAmount = body.pricingAmount ?? body.pricing_amount;
+    const showPricingOnProfile = body.showPricingOnProfile ?? body.show_pricing_on_profile ?? false;
+    const showPricingInListings = body.showPricingInListings ?? body.show_pricing_in_listings ?? false;
 
     const { data: dbUser, error: userErr } = await supabase
       .from('users')
-      .select('id, role, is_premium, subscription_status, active_plan, subcontractor_plan, subcontractor_sub_status')
+      .select('id, role, is_premium, subscription_status, active_plan, subcontractor_plan, subcontractor_sub_status, complimentary_premium_until, premium_until')
       .eq('id', authUser.id)
       .maybeSingle();
 
@@ -74,9 +78,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const userUpdate: Record<string, unknown> = { availability_description: description };
+    if (pricingType !== undefined) {
+      userUpdate.pricing_type = pricingType || null;
+      userUpdate.pricing_amount =
+        pricingType && pricingType !== 'quote_on_request' && pricingAmount != null && Number(pricingAmount) > 0
+          ? Number(pricingAmount)
+          : null;
+      userUpdate.show_pricing_on_profile = !!showPricingOnProfile;
+      userUpdate.show_pricing_in_listings = !!showPricingInListings;
+    }
+
     const { error: updateErr } = await supabase
       .from('users')
-      .update({ availability_description: description })
+      .update(userUpdate)
       .eq('id', authUser.id);
 
     if (updateErr) {

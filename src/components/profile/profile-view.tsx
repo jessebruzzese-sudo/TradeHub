@@ -27,6 +27,7 @@ import {
   Search,
   Eye,
   Target,
+  MessageSquare,
 } from 'lucide-react';
 import { format, isAfter, startOfDay } from 'date-fns';
 
@@ -53,6 +54,7 @@ import { BILLING_SIM_ALLOWED, getSimulatedPremium, clearSimulatedPremium } from 
 import { useSimulatedPremium } from '@/lib/use-simulated-premium';
 import { MVP_FREE_MODE } from '@/lib/feature-flags';
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 type ProfileViewMode = 'self' | 'public';
 
@@ -82,6 +84,9 @@ export type PublicProfileData = {
   youtube?: string | null;
   abn?: string | null;
   business_name_display?: string | null;
+  pricing_type?: string | null;
+  pricing_amount?: number | null;
+  show_pricing_on_profile?: boolean | null;
 };
 
 function toUrl(platform: string, raw: string) {
@@ -123,6 +128,7 @@ export function ProfileView({
 }) {
   const isSelf = mode === 'self' || !!isMeProp;
   const { currentUser, updateUser } = useAuth();
+  const router = useRouter();
   const store = useMemo(() => getStore(), []);
   const supabase = useMemo(() => getBrowserSupabase(), []);
   const sb: any = supabase;
@@ -333,6 +339,21 @@ export function ProfileView({
 
   const p = profile as any;
   const abnStatusNorm = String(p?.abn_status ?? p?.abnStatus ?? '').toUpperCase();
+
+  // Pricing: use profile from API, or currentUser when viewing own profile (auth has full data)
+  const pricingSource = isSelf ? (currentUser as any) : p;
+  const showPricing = pricingSource?.show_pricing_on_profile === true || pricingSource?.showPricingOnProfile === true;
+  const pricingType = pricingSource?.pricing_type ?? pricingSource?.pricingType ?? null;
+  const pricingAmount = pricingSource?.pricing_amount != null ? Number(pricingSource.pricing_amount) : (pricingSource?.pricingAmount != null ? Number(pricingSource.pricingAmount) : null);
+  const pricingLabel = (() => {
+    if (!showPricing || !pricingType) return null;
+    if (pricingType === 'hourly' && pricingAmount != null && pricingAmount > 0) return `$${pricingAmount}/hr`;
+    if (pricingType === 'from_hourly' && pricingAmount != null && pricingAmount > 0) return `From $${pricingAmount}/hr`;
+    if (pricingType === 'day' && pricingAmount != null && pricingAmount > 0) return `$${pricingAmount}/day`;
+    if (pricingType === 'day') return 'Day rate available';
+    if (pricingType === 'quote_on_request') return 'Quote on request';
+    return null;
+  })();
   const isVerified = abnStatusNorm === 'VERIFIED' || !!(p?.abn_verified_at ?? p?.abnVerifiedAt);
   const displayName =
     (p?.name ?? p?.full_name ?? '').trim() ||
@@ -405,12 +426,32 @@ export function ProfileView({
                 </Button>
               </Link>
             ) : (
-              <Link href="/search">
-                <Button variant="ghost" size="sm">
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Back to Search
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => {
+                    if (profileUserId) {
+                      store.ensureUserInStore({
+                        id: profileUserId,
+                        name: displayName || undefined,
+                        avatar: p?.avatar ?? undefined,
+                      });
+                      router.push(`/messages?userId=${profileUserId}`);
+                    }
+                  }}
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  Message
                 </Button>
-              </Link>
+                <Link href="/search">
+                  <Button variant="ghost" size="sm">
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Back to Search
+                  </Button>
+                </Link>
+              </div>
             )}
           </div>
 
@@ -692,6 +733,18 @@ export function ProfileView({
                       <div>
                         <div className="text-2xl font-bold text-gray-900">{reliabilityRating}</div>
                         <div className="text-sm text-gray-600">Reliability</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {pricingLabel && (
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100">
+                        <span className="text-sm font-semibold text-slate-600">$</span>
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium text-slate-800">{pricingLabel}</div>
+                        <div className="text-xs text-slate-500">Pricing</div>
                       </div>
                     </div>
                   )}

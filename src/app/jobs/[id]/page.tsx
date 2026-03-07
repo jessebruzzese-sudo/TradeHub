@@ -303,6 +303,7 @@ export default function JobDetailPage() {
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [isLoadingJob, setIsLoadingJob] = useState(false);
+  const [actionSubmitting, setActionSubmitting] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number>(0);
   type LightboxItem = {
@@ -731,7 +732,18 @@ export default function JobDetailPage() {
     setApplicationMessage('');
   };
 
-  const handleSelectApplication = (applicationId: string) => {
+  const callJobAction = async (action: string, applicationId?: string) => {
+    const res = await fetch(`/api/jobs/${job.id}/action`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, applicationId }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? 'Action failed');
+    return data;
+  };
+
+  const handleSelectApplication = async (applicationId: string) => {
     if (needsAbnForActions) {
       toast.error('Verify your ABN to continue.');
       redirectToVerifyBusiness(router, returnUrl);
@@ -739,25 +751,26 @@ export default function JobDetailPage() {
     }
     const application = store.getApplicationById(applicationId);
     if (!application) return;
-
-    const transition = canTransitionToStatus('open', 'accepted', {
-      hasSelectedSubcontractor: true,
-    });
-
+    const transition = canTransitionToStatus('open', 'accepted', { hasSelectedSubcontractor: true });
     if (!transition.allowed) {
       alert(transition.reason);
       return;
     }
-
-    store.updateJob(job.id, {
-      status: 'accepted',
-      selectedSubcontractor: application.subcontractorId,
-    });
-    store.updateApplication(applicationId, { status: 'selected' });
-    router.refresh();
+    setActionSubmitting(true);
+    try {
+      await callJobAction('select', applicationId);
+      store.updateJob(job.id, { status: 'accepted', selectedSubcontractor: application.subcontractorId });
+      store.updateApplication(applicationId, { status: 'selected' });
+      toast.success('Subcontractor selected');
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to select');
+    } finally {
+      setActionSubmitting(false);
+    }
   };
 
-  const handleAccept = () => {
+  const handleAccept = async () => {
     if (needsAbnForActions) {
       toast.error('Verify your ABN to continue.');
       redirectToVerifyBusiness(router, returnUrl);
@@ -768,29 +781,41 @@ export default function JobDetailPage() {
       alert(transition.reason);
       return;
     }
-
-    store.updateJob(job.id, { status: 'confirmed' });
-    if (myApplication) {
-      store.updateApplication(myApplication.id, { status: 'accepted', respondedAt: new Date() });
+    setActionSubmitting(true);
+    try {
+      await callJobAction('accept');
+      store.updateJob(job.id, { status: 'confirmed' });
+      if (myApplication) store.updateApplication(myApplication.id, { status: 'accepted', respondedAt: new Date() });
+      toast.success('Job accepted!');
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to accept');
+    } finally {
+      setActionSubmitting(false);
     }
-    router.refresh();
   };
 
-  const handleDecline = () => {
+  const handleDecline = async () => {
     const transition = canTransitionToStatus('accepted', 'open');
     if (!transition.allowed) {
       alert(transition.reason);
       return;
     }
-
-    store.updateJob(job.id, { status: 'open', selectedSubcontractor: undefined });
-    if (myApplication) {
-      store.updateApplication(myApplication.id, { status: 'declined', respondedAt: new Date() });
+    setActionSubmitting(true);
+    try {
+      await callJobAction('decline');
+      store.updateJob(job.id, { status: 'open', selectedSubcontractor: undefined });
+      if (myApplication) store.updateApplication(myApplication.id, { status: 'declined', respondedAt: new Date() });
+      toast.success('Job declined');
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to decline');
+    } finally {
+      setActionSubmitting(false);
     }
-    router.refresh();
   };
 
-  const handleConfirmHire = () => {
+  const handleConfirmHire = async () => {
     if (needsAbnForActions) {
       toast.error('Verify your ABN to continue.');
       redirectToVerifyBusiness(router, returnUrl);
@@ -800,22 +825,26 @@ export default function JobDetailPage() {
       alert('Cannot confirm hire at this time');
       return;
     }
-
     const transition = canTransitionToStatus('accepted', 'confirmed', {
       hasSelectedSubcontractor: !!job.selectedSubcontractor,
     });
-
     if (!transition.allowed) {
       alert(transition.reason);
       return;
     }
-
-    store.updateJob(job.id, { status: 'confirmed', confirmedSubcontractor: job.selectedSubcontractor });
-    const selectedApp = applications.find((a) => a.subcontractorId === job.selectedSubcontractor);
-    if (selectedApp) {
-      store.updateApplication(selectedApp.id, { status: 'confirmed' });
+    setActionSubmitting(true);
+    try {
+      await callJobAction('confirm');
+      store.updateJob(job.id, { status: 'confirmed', confirmedSubcontractor: job.selectedSubcontractor });
+      const selectedApp = applications.find((a) => a.subcontractorId === job.selectedSubcontractor);
+      if (selectedApp) store.updateApplication(selectedApp.id, { status: 'confirmed' });
+      toast.success('Hire confirmed!');
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to confirm');
+    } finally {
+      setActionSubmitting(false);
     }
-    router.refresh();
   };
 
   const handleWithdrawApplication = () => {
@@ -878,10 +907,10 @@ export default function JobDetailPage() {
       store.updateApplication(confirmedApp.id, { status: 'completed' });
     }
 
-    const conversation = store.conversations.find(
-      (c) =>
-        c.jobId === job.id &&
-        (c.contractorId === currentUser.id || c.subcontractorId === currentUser.id)
+    const conversation = store.getConversationForJob(
+      job.id,
+      job.contractorId,
+      job.confirmedSubcontractor ?? job.selectedSubcontractor
     );
 
     if (conversation) {
@@ -906,10 +935,10 @@ export default function JobDetailPage() {
       wasAcceptedOrConfirmedBeforeCancellation: wasAccepted,
     });
 
-    const conversation = store.conversations.find(
-      (c) =>
-        c.jobId === job.id &&
-        (c.contractorId === currentUser.id || c.subcontractorId === currentUser.id)
+    const conversation = store.getConversationForJob(
+      job.id,
+      job.contractorId,
+      job.confirmedSubcontractor ?? job.selectedSubcontractor
     );
 
     if (conversation) {
@@ -1335,13 +1364,13 @@ export default function JobDetailPage() {
             {!isMyJob && job.status === 'accepted' && job.selectedSubcontractor === currentUser.id && (
               <div className="space-y-2">
                 <div className="flex gap-3">
-                  <Button onClick={handleAccept} className="flex-1" disabled={needsAbnForActions}>
+                  <Button onClick={handleAccept} className="flex-1" disabled={needsAbnForActions || actionSubmitting}>
                     <CheckCircle className="w-4 h-4 mr-2" />
-                    Accept
+                    {actionSubmitting ? 'Accepting...' : 'Accept'}
                   </Button>
-                  <Button onClick={handleDecline} variant="outline" className="flex-1">
+                  <Button onClick={handleDecline} variant="outline" className="flex-1" disabled={actionSubmitting}>
                     <XCircle className="w-4 h-4 mr-2" />
-                    Decline
+                    {actionSubmitting ? 'Declining...' : 'Decline'}
                   </Button>
                 </div>
                 {needsAbnForActions && (
@@ -1361,10 +1390,10 @@ export default function JobDetailPage() {
                   <Button
                     onClick={handleConfirmHire}
                     className="flex-1"
-                    disabled={!lifecycleState?.canConfirmHire || needsAbnForActions}
+                    disabled={!lifecycleState?.canConfirmHire || needsAbnForActions || actionSubmitting}
                   >
                     <CheckCircle className="w-4 h-4 mr-2" />
-                    Confirm Hire
+                    {actionSubmitting ? 'Confirming...' : 'Confirm Hire'}
                   </Button>
                   {canCancelJob && (
                     <Button onClick={() => setShowCancelDialog(true)} variant="outline" className="flex-1">
@@ -1478,7 +1507,7 @@ export default function JobDetailPage() {
                             <Button
                               size="sm"
                               onClick={() => handleSelectApplication(app.id)}
-                              disabled={lifecycleState?.isExpired || needsAbnForActions}
+                              disabled={lifecycleState?.isExpired || needsAbnForActions || actionSubmitting}
                             >
                               Select
                             </Button>
