@@ -11,6 +11,7 @@ const ABS_MAX_PREMIUM_RADIUS_KM = 100;
 
 export type DbUserRow = {
   id: string;
+  plan?: string | null;
   role?: string | null;
   is_premium?: boolean | null;
   subscription_status?: string | null;

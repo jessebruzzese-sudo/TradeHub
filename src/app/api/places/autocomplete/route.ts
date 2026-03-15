@@ -20,13 +20,24 @@ export async function GET(req: Request) {
   const res = await fetch(url.toString());
   const data = await res.json().catch(() => ({}));
 
+  const predictions = (data.predictions || []).map((p: any) => ({
+    description: p.description,
+    place_id: p.place_id,
+    structured_formatting: p.structured_formatting,
+  }));
+
+  const hasPostcode = (desc: string) => /\b\d{4}\b/.test(desc || '');
+  predictions.sort((a: any, b: any) => {
+    const aHas = hasPostcode(a.description);
+    const bHas = hasPostcode(b.description);
+    if (aHas && !bHas) return -1;
+    if (!aHas && bHas) return 1;
+    return 0;
+  });
+
   return NextResponse.json({
     ok: true,
     status: data.status,
-    predictions: (data.predictions || []).map((p: any) => ({
-      description: p.description,
-      place_id: p.place_id,
-      structured_formatting: p.structured_formatting,
-    })),
+    predictions,
   });
 }

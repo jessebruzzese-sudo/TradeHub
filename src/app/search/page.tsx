@@ -9,10 +9,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { useAuth } from '@/lib/auth';
+import { isPremiumForDiscovery } from '@/lib/discovery';
 import { getBrowserSupabase } from '@/lib/supabase-client';
 import { getStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
-import { MapPin, Search as SearchIcon, MessageSquare } from 'lucide-react';
+import { hasValidABN } from '@/lib/abn-utils';
+import { MapPin, Search as SearchIcon, MessageSquare, Crown } from 'lucide-react';
 
 type DirectoryUser = {
   id: string;
@@ -58,12 +61,16 @@ function normTrade(v?: string | null) {
 }
 
 function isVerified(u: DirectoryUser) {
-  const s = String((u as any).abn_status || '').toUpperCase();
-  return s === 'VERIFIED' || !!(u as any).abn_verified_at;
+  return hasValidABN(u as any);
 }
 
 function isPremium(u: DirectoryUser) {
   return !!(u as any).premium_now;
+}
+
+/** Premium-first sort weight: 1 for premium, 0 for free. Sort desc for premium first. */
+function getPremiumSortWeight(u: DirectoryUser): number {
+  return isPremium(u) ? 1 : 0;
 }
 
 function getDistanceKm(u: any): number | null {
@@ -91,9 +98,32 @@ export default function SearchDirectoryPage() {
   const supabase = useMemo(() => getBrowserSupabase(), []);
   const router = useRouter();
   const store = useMemo(() => getStore(), []);
+  const { currentUser } = useAuth();
+
+  const userForDiscovery = useMemo(
+    () =>
+      currentUser
+        ? {
+            plan: (currentUser as any).plan ?? null,
+            is_premium: (currentUser as any).isPremium ?? (currentUser as any).is_premium ?? undefined,
+            subscription_status: (currentUser as any).subscriptionStatus ?? (currentUser as any).subscription_status ?? null,
+            active_plan: (currentUser as any).activePlan ?? (currentUser as any).active_plan ?? null,
+            subcontractor_plan: undefined,
+            subcontractor_sub_status: undefined,
+          }
+        : null,
+    [currentUser]
+  );
+  const isViewerPremium = isPremiumForDiscovery(userForDiscovery);
+  const useRadiusApi = !!currentUser && !isViewerPremium;
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
   const [users, setUsers] = useState<DirectoryUser[]>([]);
+  const [outsideRadiusCount, setOutsideRadiusCount] = useState(0);
+  const [allowedRadiusKm, setAllowedRadiusKm] = useState(20);
+  const [missingLocation, setMissingLocation] = useState(false);
   const [q, setQ] = useState('');
   const [trade, setTrade] = useState<string>('all');
   const [sort, setSort] = useState<
@@ -107,45 +137,68 @@ export default function SearchDirectoryPage() {
     async function load() {
       try {
         setLoading(true);
+        setLoadError(null);
+        setOutsideRadiusCount(0);
+        setMissingLocation(false);
 
-        let query = (supabase as any)
-          .from('public_profile_directory_with_ratings')
-          .select(
-  `id,
-   name,
-   role,
-   avatar,
-   cover_url,
-   business_name,
-   trades,
-   location,
-   postcode,
-   mini_bio,
-   rating,
-   rating_avg,
-   rating_count,
-   up_count,
-   down_count,
-   reliability_rating,
-   abn_status,
-   abn_verified_at,
-   premium_now,
-   premium_expires_at,
-   pricing_type,
-   pricing_amount,
-   show_pricing_in_listings`
-          )
-          .eq('is_public_profile', true)
-          .neq('role', 'admin')
-          .order('business_name', { ascending: true });
+        if (useRadiusApi) {
+          const params = new URLSearchParams();
+          if (q) params.set('q', q);
+          if (trade !== 'all') params.set('trade', trade);
+          if (verifiedOnly) params.set('verifiedOnly', 'true');
+          const res = await fetch(`/api/discovery/search?${params}`);
+          if (!res.ok) {
+            if (res.status === 401) throw new Error('Sign in to search');
+            throw new Error('Failed to load');
+          }
+          const data = await res.json();
+          if (cancelled) return;
+          setUsers((data.profiles ?? []) as DirectoryUser[]);
+          setOutsideRadiusCount(data.outsideRadiusCount ?? 0);
+          setAllowedRadiusKm(data.allowedRadiusKm ?? 20);
+          setMissingLocation(data.missingLocation ?? false);
+        } else {
+          const query = (supabase as any)
+            .from('public_profile_directory_with_ratings')
+            .select(
+              `id,
+               name,
+               role,
+               avatar,
+               cover_url,
+               business_name,
+               trades,
+               location,
+               postcode,
+               mini_bio,
+               rating,
+               rating_avg,
+               rating_count,
+               up_count,
+               down_count,
+               reliability_rating,
+               abn_status,
+               abn_verified_at,
+               premium_now,
+               premium_expires_at`
+            )
+            .eq('is_public_profile', true)
+            .neq('role', 'admin')
+            .order('business_name', { ascending: true });
 
-        const { data, error } = await query;
+          const { data, error } = await query;
 
-        if (error) throw error;
-        if (!cancelled) setUsers(((data as unknown) as DirectoryUser[]) || []);
+          if (error) throw error;
+          if (!cancelled) setUsers(((data as unknown) as DirectoryUser[]) || []);
+        }
       } catch (e) {
         console.error('Search directory load failed', e);
-        if (!cancelled) setUsers([]);
+        if (!cancelled) {
+          setUsers([]);
+          setLoadError(
+            e instanceof Error ? e.message : 'Unable to load profiles. Please try again.'
+          );
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -155,7 +208,7 @@ export default function SearchDirectoryPage() {
     return () => {
       cancelled = true;
     };
-  }, [supabase]);
+  }, [supabase, retryKey, useRadiusApi, q, trade, verifiedOnly]);
 
   const allTrades = useMemo(() => {
     const set = new Set<string>();
@@ -196,12 +249,19 @@ export default function SearchDirectoryPage() {
   const ranked = useMemo(() => {
     const list = [...filtered];
 
+    /** Premium users always rank above Free within the eligible result set. */
+    const premiumFirst = (a: DirectoryUser, b: DirectoryUser) => {
+      const pa = getPremiumSortWeight(a);
+      const pb = getPremiumSortWeight(b);
+      if (pb !== pa) return pb - pa;
+      return 0;
+    };
+
     if (sort === 'premium') {
       // Premium first, then verified, then rating, then name
       list.sort((a, b) => {
-        const pa = isPremium(a) ? 1 : 0;
-        const pb = isPremium(b) ? 1 : 0;
-        if (pb !== pa) return pb - pa;
+        const pf = premiumFirst(a, b);
+        if (pf !== 0) return pf;
 
         const va = isVerified(a) ? 1 : 0;
         const vb = isVerified(b) ? 1 : 0;
@@ -219,8 +279,10 @@ export default function SearchDirectoryPage() {
     }
 
     if (sort === 'nearest') {
-      // Works later when you add distance_km to the view
       list.sort((a, b) => {
+        const pf = premiumFirst(a, b);
+        if (pf !== 0) return pf;
+
         const da = getDistanceKm(a);
         const db = getDistanceKm(b);
 
@@ -235,21 +297,31 @@ export default function SearchDirectoryPage() {
     }
 
     if (sort === 'rating') {
-      list.sort((a, b) => Number((b as any).rating_avg ?? b.rating ?? 0) - Number((a as any).rating_avg ?? a.rating ?? 0));
+      list.sort((a, b) => {
+        const pf = premiumFirst(a, b);
+        if (pf !== 0) return pf;
+        return Number((b as any).rating_avg ?? b.rating ?? 0) - Number((a as any).rating_avg ?? a.rating ?? 0);
+      });
       return list;
     }
 
     if (sort === 'name') {
-      list.sort((a, b) =>
-        String(a.business_name || a.name || '').localeCompare(
+      list.sort((a, b) => {
+        const pf = premiumFirst(a, b);
+        if (pf !== 0) return pf;
+        return String(a.business_name || a.name || '').localeCompare(
           String(b.business_name || b.name || '')
-        )
-      );
+        );
+      });
       return list;
     }
 
-    // recommended
-    list.sort((a, b) => scoreUser(b) - scoreUser(a));
+    // recommended: premium first, then existing recommended score
+    list.sort((a, b) => {
+      const pf = premiumFirst(a, b);
+      if (pf !== 0) return pf;
+      return scoreUser(b) - scoreUser(a);
+    });
     return list;
   }, [filtered, sort]);
 
@@ -326,6 +398,36 @@ export default function SearchDirectoryPage() {
           <div className="mt-6">
             {loading ? (
               <div className="text-sm text-slate-600">Loading directory…</div>
+            ) : loadError ? (
+              <Card className="rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200 shadow-md">
+                <CardContent className="p-6">
+                  <p className="text-sm font-medium text-slate-900">
+                    Failed to load profiles
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">{loadError}</p>
+                  <button
+                    type="button"
+                    onClick={() => setRetryKey((k) => k + 1)}
+                    className="mt-3 text-sm font-medium text-primary hover:underline"
+                  >
+                    Try again
+                  </button>
+                </CardContent>
+              </Card>
+            ) : missingLocation ? (
+              <Card className="rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200 shadow-md">
+                <CardContent className="p-6">
+                  <p className="text-sm font-medium text-slate-900">
+                    Add your location to discover profiles near you
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Free accounts can see profiles within {allowedRadiusKm}km. Add your location in profile settings to get started.
+                  </p>
+                  <Link href="/profile/edit#location">
+                    <Button className="mt-4">Add location</Button>
+                  </Link>
+                </CardContent>
+              </Card>
             ) : ranked.length === 0 ? (
               <Card className="rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200 shadow-md">
                 <CardContent className="p-6">
@@ -333,38 +435,61 @@ export default function SearchDirectoryPage() {
                     No profiles found
                   </p>
                   <p className="mt-1 text-sm text-slate-600">
-                    Try a different trade or broaden your search.
+                    {outsideRadiusCount > 0
+                      ? `No profiles within your ${allowedRadiusKm}km radius match your filters. ${outsideRadiusCount} matching profile${outsideRadiusCount === 1 ? '' : 's'} ${outsideRadiusCount === 1 ? 'is' : 'are'} outside your radius.`
+                      : 'Try a different trade or broaden your search.'}
                   </p>
                 </CardContent>
               </Card>
             ) : (
+              <>
+                {useRadiusApi && outsideRadiusCount > 0 && (
+                  <p className="mb-3 text-sm text-slate-600">
+                    {outsideRadiusCount} matching profile{outsideRadiusCount === 1 ? '' : 's'} {outsideRadiusCount === 1 ? 'is' : 'are'} outside your {allowedRadiusKm}km radius.
+                  </p>
+                )}
               <div className="px-4 pb-24 pt-3 grid grid-cols-1 gap-3 lg:grid-cols-3">
                 {ranked.map((u) => {
                   const loc = u.location;
+                  const premium = isPremium(u);
 
                   return (
                     <div
                       key={u.id}
                       className={cn(
-                        "group block w-full h-full relative overflow-hidden rounded-2xl border bg-white",
-                        "shadow-[0_1px_0_rgba(15,23,42,0.06),0_8px_24px_rgba(15,23,42,0.08)]",
-                        "transition-all duration-200",
-                        "hover:-translate-y-[1px] hover:shadow-[0_1px_0_rgba(15,23,42,0.06),0_12px_30px_rgba(15,23,42,0.12)]",
-                        "active:translate-y-0 active:shadow-[0_1px_0_rgba(15,23,42,0.06),0_6px_16px_rgba(15,23,42,0.10)]"
+                        "group block w-full h-full relative overflow-hidden rounded-2xl border",
+                        "transition-all duration-200 active:translate-y-0",
+                        premium
+                          ? "bg-gradient-to-br from-white via-amber-50/40 to-orange-50/30 border-amber-200/70 shadow-[0_0_0_1px_rgba(251,191,36,0.10),0_10px_30px_rgba(245,158,11,0.10)] hover:-translate-y-[2px] hover:shadow-[0_0_0_1px_rgba(251,191,36,0.14),0_16px_40px_rgba(245,158,11,0.14)] active:shadow-[0_0_0_1px_rgba(251,191,36,0.10),0_10px_30px_rgba(245,158,11,0.10)]"
+                          : "bg-white border-slate-200 shadow-[0_1px_0_rgba(15,23,42,0.06),0_8px_24px_rgba(15,23,42,0.08)] hover:-translate-y-[1px] hover:shadow-[0_1px_0_rgba(15,23,42,0.06),0_12px_30px_rgba(15,23,42,0.12)] active:shadow-[0_1px_0_rgba(15,23,42,0.06),0_6px_16px_rgba(15,23,42,0.10)]"
                       )}
                     >
+                      {premium && (
+                        <div className="pointer-events-none absolute -top-8 -right-8 h-24 w-24 rounded-full bg-amber-200/20 blur-2xl" aria-hidden />
+                      )}
                       <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-blue-50/70 to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
                       <div
                         className={cn(
-                          "pointer-events-none absolute left-0 top-0 h-full w-1",
-                          isPremium(u)
-                            ? "bg-gradient-to-b from-amber-300 to-amber-500"
+                          "pointer-events-none absolute left-0 top-0 h-full rounded-l-2xl",
+                          premium
+                            ? "w-[5px] bg-gradient-to-b from-amber-400 via-orange-400 to-amber-500"
                             : isVerified(u)
-                            ? "bg-gradient-to-b from-blue-400 to-blue-600"
-                            : "bg-slate-200"
+                            ? "w-1 bg-gradient-to-b from-blue-400 to-blue-600"
+                            : "w-1 bg-slate-200"
                         )}
                       />
-                      <div className="relative p-4">
+                      {premium && (
+                        <span
+                          className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
+                          aria-hidden
+                        >
+                          <span
+                            className="premium-shimmer-band absolute top-0 left-[-30%] h-full w-[35%] bg-gradient-to-r from-transparent via-white/30 to-transparent"
+                            style={{ transform: 'translateX(-140%) skewX(-18deg)' }}
+                          />
+                        </span>
+                      )}
+                      <div className="relative z-10 p-4">
                         <div className="flex items-start gap-3">
                         <div className="shrink-0">
                           {u.avatar ? (
@@ -385,14 +510,30 @@ export default function SearchDirectoryPage() {
 
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex flex-wrap items-center gap-2">
                               <Link href={`/profile/${u.id}`} className="block">
-                                <div className="text-[15px] font-semibold text-slate-900 leading-tight truncate hover:text-blue-600">
+                                <div
+                                  className={cn(
+                                    "text-[15px] leading-tight truncate hover:text-blue-600",
+                                    premium ? "font-bold text-slate-950" : "font-semibold text-slate-900"
+                                  )}
+                                >
                                   {u.business_name || u.name || 'Business'}
                                 </div>
                               </Link>
+                              {premium && (
+                                <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 px-2.5 py-[3px] text-xs font-medium text-amber-700">
+                                  <Crown className="h-3 w-3 shrink-0" />
+                                  Premium
+                                </span>
+                              )}
                             </div>
                           </div>
+                          {premium && (
+                            <p className="mt-0.5 text-[11px] text-amber-600/80 hidden sm:block">
+                              Priority profile
+                            </p>
+                          )}
 
                           {loc && (
                             <div className="mt-1 flex items-center gap-1 text-sm text-slate-600">
@@ -470,7 +611,10 @@ export default function SearchDirectoryPage() {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="h-8 rounded-full opacity-0 group-hover:opacity-100 transition"
+                              className={cn(
+                                "h-8 rounded-full opacity-0 group-hover:opacity-100 transition",
+                                premium && "shadow-sm hover:shadow border-slate-200"
+                              )}
                             >
                               View
                             </Button>
@@ -478,7 +622,10 @@ export default function SearchDirectoryPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            className="h-8 rounded-full opacity-0 group-hover:opacity-100 transition gap-1.5"
+                            className={cn(
+                              "h-8 rounded-full opacity-0 group-hover:opacity-100 transition gap-1.5",
+                              premium && "shadow-sm hover:shadow border-slate-200"
+                            )}
                             onClick={(e) => {
                               e.preventDefault();
                               store.ensureUserInStore({
@@ -499,6 +646,7 @@ export default function SearchDirectoryPage() {
                   );
                 })}
               </div>
+              </>
             )}
           </div>
         </div>

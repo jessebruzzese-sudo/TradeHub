@@ -4,7 +4,11 @@ import { AppLayout } from '@/components/app-nav';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import type { Database } from '@/lib/database.types';
 import type { User } from '@/lib/types';
+
+type UsersRow = Database['public']['Tables']['users']['Row'];
+type AdminAccountReviewRow = Database['public']['Tables']['admin_account_reviews']['Row'];
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -35,10 +39,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
     console.log('ADMIN USERS DETAIL auth user:', userData?.user?.id ?? null);
     console.log('ADMIN USERS DETAIL params.id:', userId);
 
-    const [
-      { data: accountReview, error: accountReviewError },
-      { data: userRow, error: userError },
-    ] = await Promise.all([
+    const [accountReviewResult, userResult] = await Promise.all([
       supabase
         .from('admin_account_reviews')
         .select('*')
@@ -50,6 +51,10 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
         .eq('id', userId)
         .maybeSingle(),
     ]);
+    const accountReview = accountReviewResult.data as AdminAccountReviewRow | null;
+    const accountReviewError = accountReviewResult.error;
+    const userRow = userResult.data as UsersRow | null;
+    const userError = userResult.error;
 
     if (userError || !userRow) {
       return notFoundContent;

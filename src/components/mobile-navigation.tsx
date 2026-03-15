@@ -5,33 +5,36 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { isAdmin } from '@/lib/is-admin';
-import { Chrome as Home, Users, Search, Briefcase, MessageSquare, Bell, Menu, X, User, FileText, Calendar, CirclePlus as PlusCircle, Lock, Settings, CircleHelp as HelpCircle, Shield, Eye, LogOut, CircleCheck as CheckCircle, CircleAlert as AlertCircle, CreditCard, CheckCircle2, Crown } from 'lucide-react';
+import { Menu, Lock, LogOut, CircleCheck as CheckCircle, CircleAlert as AlertCircle, CheckCircle2, Crown } from 'lucide-react';
 import { getStore } from '@/lib/store';
-import { MVP_FREE_MODE } from '@/lib/feature-flags';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from '@/components/ui/sheet';
+import { useDevUnread } from '@/lib/dev-unread-context';
+import { useNotificationsUnread } from '@/lib/notifications-unread-context';
+import { Sheet, SheetContent, SheetTitle, SheetDescription, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { ProfileAvatar } from '@/components/profile-avatar';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-
-const BOTTOM_NAV_ITEMS = [
-  { label: 'Dashboard', href: '/dashboard', icon: Home },
-  { label: 'Jobs', href: '/jobs', icon: Briefcase },
-  { label: 'Messages', href: '/messages', icon: MessageSquare },
-  { label: 'Notifications', href: '/notifications', icon: Bell },
-];
+import { hasValidABN } from '@/lib/abn-utils';
+import {
+  BUSINESS_NAV_SECTIONS,
+  BOTTOM_NAV_ITEMS,
+  getAccountItems,
+  SUPPORT_MAILTO,
+  type NavItemConfig,
+} from '@/lib/nav-config';
 
 export function MobileBottomNav() {
   const { currentUser } = useAuth();
   const pathname = usePathname();
   const store = getStore();
+  const { override: devUnreadOverride } = useDevUnread();
 
   if (!currentUser || isAdmin(currentUser)) {
     return null;
   }
 
-  const unreadCount = store.getUnreadConversationCount(currentUser.id);
+  const unreadCount =
+    devUnreadOverride != null ? devUnreadOverride : store.getUnreadConversationCount(currentUser.id);
 
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 border-t border-gray-200 bg-white z-50 safe-area-inset-bottom">
@@ -76,24 +79,22 @@ export function MobileDrawer() {
   const { currentUser, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
+  const store = getStore();
+  const { override: devUnreadOverride } = useDevUnread();
+  const { hasUnread: notificationsHasUnread } = useNotificationsUnread();
+
+  const unreadMessageCount =
+    devUnreadOverride != null ? devUnreadOverride : (currentUser ? store.getUnreadConversationCount(currentUser.id) : 0);
 
   if (!currentUser || isAdmin(currentUser)) {
     return null;
   }
 
-  const abnStatus = String(
-    (currentUser as any)?.abn_status ??
-    (currentUser as any)?.abnStatus ??
-    ''
-  ).toUpperCase();
-
-  const isVerified =
-    abnStatus === 'VERIFIED' ||
-    Boolean((currentUser as any)?.abn_verified_at) ||
-    Boolean((currentUser as any)?.abnVerifiedAt) ||
-    Boolean((currentUser as any)?.abn_verified);
+  const isVerified = hasValidABN(currentUser);
 
   const isPremium =
+    String((currentUser as any)?.plan || '').toLowerCase() === 'premium' ||
+    Boolean((currentUser as any)?.isPremium) ||
     Boolean((currentUser as any)?.is_premium) ||
     (typeof (currentUser as any)?.premium_until === 'string' &&
       new Date((currentUser as any).premium_until).getTime() > Date.now()) ||
@@ -211,121 +212,37 @@ export function MobileDrawer() {
             </div>
 
             <div className="flex-1 py-4">
-              <div className="px-4 mb-4">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                  Main Actions
-                </p>
-                <nav className="space-y-1">
-                  <DrawerMenuItem
-                    icon={Home}
-                    label="Dashboard"
-                    onClick={() => handleNavigation('/dashboard')}
-                    active={pathname.startsWith('/dashboard')}
-                  />
-                  <DrawerMenuItem
-                    icon={Users}
-                    label="Subcontractors"
-                    onClick={() => handleNavigation('/subcontractors')}
-                    active={pathname.startsWith('/subcontractors')}
-                  />
-                  <DrawerMenuItem
-                    icon={Search}
-                    label="Search"
-                    onClick={() => handleNavigation('/search')}
-                    active={pathname.startsWith('/search')}
-                  />
-                  <DrawerMenuItem
-                    icon={Briefcase}
-                    label="Browse Jobs"
-                    onClick={() => handleNavigation('/jobs')}
-                    active={pathname.startsWith('/jobs')}
-                  />
-                  <DrawerMenuItem
-                    icon={Calendar}
-                    label="List Availability"
-                    onClick={() => handleNavigation('/profile/availability')}
-                    active={pathname.startsWith('/profile/availability')}
-                  />
-                  <DrawerMenuItem
-                    icon={PlusCircle}
-                    label="Post a Job"
-                    onClick={() => handleNavigation('/jobs/create', true)}
-                    active={pathname === '/jobs/create'}
-                    locked={!isVerified}
-                    helperText={!isVerified ? 'Verify ABN to unlock' : undefined}
-                  />
-                  <DrawerMenuItem
-                    icon={FileText}
-                    label="Tenders"
-                    onClick={() => handleNavigation('/tenders', true)}
-                    active={pathname.startsWith('/tenders')}
-                    locked={!isVerified}
-                    helperText={!isVerified ? 'Verify ABN to unlock' : undefined}
-                  />
-                </nav>
-              </div>
-
-              <Separator className="my-4" />
-
-              <div className="px-4 mb-4">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                  Account & Settings
-                </p>
-                <nav className="space-y-1">
-                  <DrawerMenuItem
-                    icon={User}
-                    label="Profile"
-                    onClick={() => handleNavigation('/profile')}
-                    active={pathname.startsWith('/profile') && pathname !== '/profile/availability'}
-                  />
-                  <DrawerMenuItem
-                    icon={Shield}
-                    label={isVerified ? 'Business Verified' : 'Verify Business (ABN)'}
-                    onClick={() => handleNavigation('/verify-business')}
-                    active={pathname === '/verify-business'}
-                    badge={isVerified ? 'Verified' : undefined}
-                  />
-                  {!MVP_FREE_MODE && (
-                    <DrawerMenuItem
-                      icon={CreditCard}
-                      label="Pricing / Upgrade"
-                      onClick={() => handleNavigation('/pricing')}
-                      active={pathname === '/pricing'}
-                    />
-                  )}
-                  <DrawerMenuItem
-                    icon={Settings}
-                    label="Settings"
-                    onClick={() => handleNavigation('/profile/edit')}
-                    active={pathname === '/profile/edit'}
-                  />
-                </nav>
-              </div>
-
-              <Separator className="my-4" />
-
-              <div className="px-4">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                  Support & Legal
-                </p>
-                <nav className="space-y-1">
-                  <DrawerMenuItem
-                    icon={HelpCircle}
-                    label="Help / Support"
-                    onClick={() => handleNavigation('/messages?support=true')}
-                  />
-                  <DrawerMenuItem
-                    icon={FileText}
-                    label="Terms of Service"
-                    onClick={() => handleNavigation('/terms')}
-                  />
-                  <DrawerMenuItem
-                    icon={Eye}
-                    label="Privacy Policy"
-                    onClick={() => handleNavigation('/privacy')}
-                  />
-                </nav>
-              </div>
+              {BUSINESS_NAV_SECTIONS.map((section, idx) => {
+                const items =
+                  section.title === 'Account & Settings' ? getAccountItems() : section.items;
+                return (
+                  <div key={section.title}>
+                    {idx > 0 && <Separator className="my-4" />}
+                    <div className="px-4 mb-4">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                        {section.title}
+                      </p>
+                      <nav className="space-y-1">
+                        {items.map((item) => (
+                          <DrawerNavItem
+                            key={item.href}
+                            item={item}
+                            pathname={pathname}
+                            isVerified={isVerified}
+                            onNavigate={(href, requiresABN) => {
+                              handleNavigation(href, requiresABN);
+                            }}
+                            onExternal={() => setOpen(false)}
+                            verifyBadge={item.href === '/verify-business' && isVerified ? 'Verified' : undefined}
+                            unreadMessageCount={item.href === '/messages' ? unreadMessageCount : undefined}
+                            notificationsHasUnread={item.href === '/notifications' ? (notificationsHasUnread ?? false) : undefined}
+                          />
+                        ))}
+                      </nav>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             <div className="p-4 border-t border-gray-200">
@@ -345,6 +262,71 @@ export function MobileDrawer() {
   );
 }
 
+interface DrawerNavItemProps {
+  item: NavItemConfig;
+  pathname: string;
+  isVerified: boolean;
+  onNavigate: (href: string, requiresABN?: boolean) => void;
+  onExternal: () => void;
+  verifyBadge?: string;
+  unreadMessageCount?: number;
+  notificationsHasUnread?: boolean;
+}
+
+function DrawerNavItem({
+  item,
+  pathname,
+  isVerified,
+  onNavigate,
+  onExternal,
+  verifyBadge,
+  unreadMessageCount,
+  notificationsHasUnread,
+}: DrawerNavItemProps) {
+  const Icon = item.icon;
+  const locked = item.requiresABN && !isVerified;
+  const isProfile = item.href === '/profile';
+  const isPricing = item.href === '/pricing';
+  const isSettings = item.href === '/profile/edit';
+  const isVerify = item.href === '/verify-business';
+  const active =
+    !locked &&
+    (pathname.startsWith(item.href)
+      ? isProfile
+        ? pathname !== '/profile/availability'
+        : isPricing
+        ? pathname === '/pricing'
+        : isSettings
+        ? pathname === '/profile/edit'
+        : isVerify
+        ? pathname === '/verify-business'
+        : true
+      : false);
+
+  const handleClick = () => {
+    if (item.isExternal) {
+      window.location.href = item.href;
+      onExternal();
+      return;
+    }
+    onNavigate(item.href, item.requiresABN);
+  };
+
+  return (
+    <DrawerMenuItem
+      icon={Icon}
+      label={item.label}
+      onClick={handleClick}
+      active={active}
+      locked={locked}
+      helperText={locked ? 'Verify ABN to unlock' : undefined}
+      badge={verifyBadge}
+      unreadMessageCount={unreadMessageCount}
+      notificationsHasUnread={notificationsHasUnread}
+    />
+  );
+}
+
 interface DrawerMenuItemProps {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
@@ -353,6 +335,8 @@ interface DrawerMenuItemProps {
   locked?: boolean;
   helperText?: string;
   badge?: string;
+  unreadMessageCount?: number;
+  notificationsHasUnread?: boolean;
 }
 
 function DrawerMenuItem({
@@ -363,7 +347,12 @@ function DrawerMenuItem({
   locked = false,
   helperText,
   badge,
+  unreadMessageCount = 0,
+  notificationsHasUnread = false,
 }: DrawerMenuItemProps) {
+  const showMessageBadge = unreadMessageCount > 0;
+  const badgeLabel = unreadMessageCount > 99 ? '99+' : String(unreadMessageCount);
+
   return (
     <button
       onClick={onClick}
@@ -380,6 +369,12 @@ function DrawerMenuItem({
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium truncate">{label}</span>
           {locked && <Lock className="w-3.5 h-3.5 flex-shrink-0" />}
+          {notificationsHasUnread && (
+            <span
+              className="w-2 h-2 bg-red-500 rounded-full flex-shrink-0"
+              aria-hidden
+            />
+          )}
           {badge && (
             <span
               className="
@@ -392,6 +387,11 @@ function DrawerMenuItem({
             >
               <CheckCircle2 className="w-3 h-3" />
               {badge}
+            </span>
+          )}
+          {showMessageBadge && (
+            <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[11px] font-bold text-white bg-red-500 rounded-full flex-shrink-0">
+              {badgeLabel}
             </span>
           )}
         </div>

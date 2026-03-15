@@ -10,18 +10,45 @@ import { ArrowLeft } from 'lucide-react';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
+  const [submittedEmail, setSubmittedEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    setError('');
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setError(payload?.error || 'Unable to send reset link. Please try again.');
+        return;
+      }
+
+      setSubmittedEmail(email.trim());
+      setSubmitted(true);
+    } catch (err) {
+      console.error('Forgot password request failed:', err);
+      setError('Unable to send reset link. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <Link href="/" className="flex justify-center mb-6">
-          <Image src="/TradeHub -Horizontal-Main.svg" alt="TradeHub" width={180} height={40} className="h-10 w-auto" />
+          <Image src="/TradeHub -Horizontal-Main.svg" alt="TradeHub" width={180} height={40} priority className="h-10 w-auto" />
         </Link>
         <h2 className="text-center text-3xl font-bold text-gray-900">Reset your password</h2>
         <p className="mt-2 text-center text-sm text-gray-600">
@@ -34,7 +61,7 @@ export default function ForgotPasswordPage() {
           {submitted ? (
             <div>
               <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm mb-6">
-                Check your email for a password reset link
+                Reset link sent to <span className="font-medium">{submittedEmail}</span>. Check your inbox for the password reset email.
               </div>
               <Link href="/login">
                 <Button variant="outline" className="w-full">
@@ -45,6 +72,12 @@ export default function ForgotPasswordPage() {
             </div>
           ) : (
             <form className="space-y-6" onSubmit={handleSubmit}>
+              {error ? (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                  {error}
+                </div>
+              ) : null}
+
               <div>
                 <Label htmlFor="email">Email address</Label>
                 <Input
@@ -60,8 +93,8 @@ export default function ForgotPasswordPage() {
               </div>
 
               <div>
-                <Button type="submit" className="w-full">
-                  Send reset link
+                <Button type="submit" className="w-full" disabled={isSubmitting}>
+                  {isSubmitting ? 'Sending...' : 'Send reset link'}
                 </Button>
               </div>
 

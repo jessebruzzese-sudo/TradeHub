@@ -30,7 +30,9 @@ test('marketplace flow: create tender -> upload plans -> submit quote (smoke)', 
   // Add required trade: open selector, pick Electrician (label wraps checkbox)
   const tradeButton = page.getByRole('button', { name: /select required trades|trades selected/i });
   await tradeButton.click();
-  await page.locator('label').filter({ hasText: 'Electrician' }).click();
+  const electricalLabel = page.locator('label').filter({ hasText: /^Electrical$/ });
+  await expect(electricalLabel).toBeVisible({ timeout: 5000 });
+  await electricalLabel.click();
   await page.keyboard.press('Escape');
 
   // Fill trade scope (appears after adding trade)
@@ -41,14 +43,21 @@ test('marketplace flow: create tender -> upload plans -> submit quote (smoke)', 
   // Complete Step 1
   await page.getByRole('button', { name: /^done$/i }).first().click();
 
-  // Step 2: Location - suburb and postcode (getByLabel works via htmlFor)
+  // Step 2: Location - suburb and postcode; select from autocomplete to get valid lat/lng
   const suburbInput = page.getByLabel(/location|suburb/i).or(page.getByPlaceholder(/start typing suburb/i));
   await expect(suburbInput.first()).toBeVisible({ timeout: 5000 });
   await suburbInput.first().fill('Sydney');
+  await page.waitForTimeout(800);
+  const prediction = page.getByRole('button').filter({ hasText: /Sydney/i }).first();
+  if (await prediction.isVisible({ timeout: 4000 }).catch(() => false)) {
+    await prediction.click();
+  }
 
   const postcodeInput = page.getByLabel(/postcode/i).or(page.getByPlaceholder(/e\.g\. 3105/i));
   await expect(postcodeInput.first()).toBeVisible();
-  await postcodeInput.first().fill('2000');
+  if (!(await postcodeInput.first().getAttribute('readonly'))) {
+    await postcodeInput.first().fill('2000');
+  }
 
   // Complete Step 2
   await page.getByRole('button', { name: /^done$/i }).last().click();

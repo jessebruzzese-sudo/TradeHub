@@ -1,6 +1,16 @@
 import { cookies } from 'next/headers';
+import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import type { Database } from '@/lib/database.types';
+
+/** Typed Supabase client with service role (bypasses RLS). Use for admin/backend operations. */
+export function createServiceSupabase() {
+  return createClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false } }
+  );
+}
 
 export function createServerSupabase() {
   const cookieStore = cookies();

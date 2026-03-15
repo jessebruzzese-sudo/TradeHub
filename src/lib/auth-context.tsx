@@ -15,6 +15,7 @@ import {
   hasSubcontractorPremium,
   hasBuilderPremium,
   hasContractorPremium,
+  canChangePrimaryTrade,
 } from '@/lib/capability-utils';
 
 export async function ensureProfileRow(supabase: any, user: any) {
@@ -32,13 +33,29 @@ export async function ensureProfileRow(supabase: any, user: any) {
   }
 
   const meta = user.user_metadata ?? {};
+  const emailFallback = user.email ?? `${String(user.id)}@unknown.local`;
+  const nameFallback = String(meta.full_name ?? meta.name ?? emailFallback).trim() || emailFallback;
+  const roleRaw = String(meta.role ?? '').trim().toLowerCase();
+  const roleFallback =
+    roleRaw === 'admin' || roleRaw === 'subcontractor' || roleRaw === 'contractor'
+      ? roleRaw
+      : 'contractor';
+  const trustStatusRaw = String(meta.trust_status ?? meta.trustStatus ?? '').trim().toLowerCase();
+  const trustStatusFallback =
+    trustStatusRaw === 'approved' || trustStatusRaw === 'verified' || trustStatusRaw === 'pending'
+      ? trustStatusRaw
+      : 'pending';
 
   // Create row only if missing
   if (!existing?.id) {
     const { error: insertError } = await supabase.from('users').insert({
       id: user.id,
-      email: user.email ?? null,
-      name: meta.full_name ?? meta.name ?? null,
+      email: emailFallback,
+      name: nameFallback,
+      role: roleFallback,
+      trust_status: trustStatusFallback,
+      rating: 0,
+      completed_jobs: 0,
       primary_trade: meta.primaryTrade ?? meta.primary_trade ?? null,
       trades: Array.isArray(meta.trade_categories)
         ? [meta.trade_categories[0]].filter(Boolean)
@@ -123,6 +140,7 @@ type DbUserRow = {
   id: string;
   email: string | null;
   name: string | null;
+  plan?: string | null;
   role: string | null;
   is_admin?: boolean | null;
   trust_status: string | null;
@@ -180,6 +198,7 @@ export type CurrentUser = {
   id: string;
   email?: string | null;
   name?: string | null;
+  plan?: 'free' | 'premium' | null;
   /** Role is NOT used for permissions; admin only via isAdmin(). Kept for UI/copy. */
   role?: string | null;
   is_admin?: boolean | null;
@@ -258,6 +277,9 @@ export type CurrentUser = {
   pricingAmount?: number | null;
   showPricingOnProfile?: boolean;
   showPricingInListings?: boolean;
+
+  /** Premium: receive alerts when new jobs/tenders matching trade are listed */
+  receiveTradeAlerts?: boolean;
 }
 
 type SignupExtras = {
@@ -307,6 +329,7 @@ type UpdateUserInput = Partial<
     | 'linkedin'
     | 'tiktok'
     | 'youtube'
+    | 'receiveTradeAlerts'
   >
 >;
 
@@ -349,6 +372,8 @@ function normalizeActivePlan(s?: string | null): string | null {
 }
 
 function mapDbToUi(row: DbUserRow): CurrentUser {
+  const plan = String((row as any).plan || '').trim().toLowerCase();
+  const isPlanPremium = plan === 'premium';
   return {
     id: row.id,
     email: row.email ?? null,
@@ -388,7 +413,8 @@ function mapDbToUi(row: DbUserRow): CurrentUser {
 
     additionalTradesUnlocked: row.additional_trades_unlocked === true,
 
-    isPremium: row.is_premium === true,
+    plan: plan === 'premium' || plan === 'free' ? (plan as 'free' | 'premium') : null,
+    isPremium: isPlanPremium || row.is_premium === true,
     activePlan: normalizeActivePlan(row.active_plan) ?? null,
     subscriptionStatus: normalizeSubscriptionStatus(row.subscription_status) ?? null,
     subscriptionRenewsAt: row.subscription_renews_at ?? null,
@@ -420,6 +446,56 @@ function mapDbToUi(row: DbUserRow): CurrentUser {
     pricingAmount: (row as any).pricing_amount != null ? Number((row as any).pricing_amount) : null,
     showPricingOnProfile: (row as any).show_pricing_on_profile === true,
     showPricingInListings: (row as any).show_pricing_in_listings === true,
+
+    receiveTradeAlerts: (row as any).subcontractor_work_alerts_enabled === true,
+  };
+}
+
+function buildFallbackCurrentUser(user: Pick<User, 'id' | 'email' | 'user_metadata'>): CurrentUser {
+  const meta = (user.user_metadata as Record<string, unknown> | null) ?? {};
+  const roleRaw = String(meta.role ?? '').trim().toLowerCase();
+  const role =
+    roleRaw === 'admin' || roleRaw === 'subcontractor' || roleRaw === 'contractor'
+      ? roleRaw
+      : 'contractor';
+  const trustRaw = String(meta.trust_status ?? meta.trustStatus ?? '').trim().toLowerCase();
+  const trustStatus =
+    trustRaw === 'approved' || trustRaw === 'verified' || trustRaw === 'pending'
+      ? trustRaw
+      : 'pending';
+  const primaryTradeFromMeta =
+    (meta.primaryTrade as string | undefined) ??
+    (meta.primary_trade as string | undefined) ??
+    null;
+  const trades = Array.isArray(meta.trade_categories)
+    ? (meta.trade_categories as unknown[]).map(String).filter(Boolean)
+    : Array.isArray(meta.trades)
+      ? (meta.trades as unknown[]).map(String).filter(Boolean)
+      : primaryTradeFromMeta
+        ? [primaryTradeFromMeta]
+        : [];
+  const primaryTrade = primaryTradeFromMeta ?? trades[0] ?? null;
+
+  return {
+    id: user.id,
+    email: user.email ?? null,
+    name: String(meta.full_name ?? meta.name ?? user.email ?? '').trim() || null,
+    role,
+    trustStatus,
+    primaryTrade,
+    trades,
+    additionalTrades: [],
+    additionalTradesUnlocked: false,
+    abn: typeof meta.abn === 'string' ? normalizeAbn(meta.abn) : null,
+    businessName:
+      (meta.businessName as string | undefined) ??
+      (meta.business_name as string | undefined) ??
+      null,
+    isPublicProfile: true,
+    is_public_profile: true,
+    plan: null,
+    isPremium: false,
+    receiveTradeAlerts: false,
   };
 }
 
@@ -464,6 +540,8 @@ function mapUiPatchToDb(patch: UpdateUserInput): Partial<DbUserRow> {
   if (showPhone !== undefined) out.show_phone_on_profile = !!showPhone;
   const showEmail = (patch as any).showEmailOnProfile ?? (patch as any).show_email_on_profile;
   if (showEmail !== undefined) out.show_email_on_profile = !!showEmail;
+  if ((patch as any).receiveTradeAlerts !== undefined)
+    (out as any).subcontractor_work_alerts_enabled = !!(patch as any).receiveTradeAlerts;
   // Do NOT persist abn_verified / abn_verified_at — DB trigger sets them when abn updates
   return out;
 }
@@ -477,6 +555,7 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
 
   // used to ignore stale async completions
   const seqRef = useRef(0);
+  const welcomeEmailTriggeredRef = useRef<string | null>(null);
 
   const loadProfile = useCallback(
     async (userId: string): Promise<CurrentUser | null> => {
@@ -485,23 +564,63 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
         // mini_bio, phone, show_phone_on_profile, show_email_on_profile, is_admin,
         // show_abn_on_profile, show_business_name_on_profile, pricing_type, pricing_amount,
         // show_pricing_on_profile, show_pricing_in_listings (may not exist in older DBs)
-        const safeSelect =
+        const baseSelect =
           'id,email,name,role,trust_status,avatar,cover_url,bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,abn_verified_at,trades,additional_trades,website,instagram,facebook,linkedin,tiktok,youtube,' +
           'location,postcode,location_lat,location_lng,' +
           'is_premium,active_plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,' +
           'complimentary_premium_until,premium_until,additional_trades_unlocked,search_location,search_postcode,search_lat,search_lng,' +
-          'is_public_profile,trades';
+          'is_public_profile,subcontractor_work_alerts_enabled';
+        const legacyCoordsSelect = baseSelect.replace('location_lat,location_lng,', 'lat,lng,');
+        const loadWithSelect = (selectClause: string) =>
+          (supabase.from('users') as any).select(selectClause).eq('id', userId).maybeSingle();
 
-        const { data: profile, error } = await (supabase.from('users') as any)
-          .select(safeSelect)
-          .eq('id', userId)
-          .maybeSingle();
+        const minimalSelect = 'id,email,name,role,trust_status,primary_trade,trades,is_public_profile';
+        let { data: profile, error } = await loadWithSelect(baseSelect);
+        if (error && (error as any)?.code === '42703') {
+          // Backward compatibility: handle schema drift across environments.
+          const msg = String((error as any)?.message || '').toLowerCase();
+          if (msg.includes('location_lat') || msg.includes('location_lng')) {
+            const legacyRes = await loadWithSelect(legacyCoordsSelect);
+            profile = legacyRes.data;
+            error = legacyRes.error;
+          }
+          if (error) {
+            const minimalRes = await loadWithSelect(minimalSelect);
+            profile = minimalRes.data;
+            error = minimalRes.error;
+          }
+        }
 
         if (error) {
           console.error('loadProfile error', error);
           return null;
         }
         if (!profile) return null;
+
+        // Fetch user_trades if available (Premium multi-trade) — non-blocking with timeout
+        try {
+          const timeout = 3000;
+          const userTradesPromise = (supabase.from('user_trades') as any)
+            .select('trade, is_primary')
+            .eq('user_id', userId)
+            .order('is_primary', { ascending: false })
+            .order('created_at', { ascending: true });
+          const userTradesRes = await Promise.race([
+            userTradesPromise,
+            new Promise<{ data: null }>((_, reject) =>
+              setTimeout(() => reject(new Error('user_trades timeout')), timeout)
+            ),
+          ]) as { data?: { trade: string; is_primary: boolean }[] };
+          const userTrades = userTradesRes?.data;
+
+          if (userTrades && userTrades.length > 0) {
+            (profile as any).primary_trade = userTrades.find((r: any) => r.is_primary)?.trade ?? userTrades[0]?.trade ?? null;
+            (profile as any).trades = userTrades.map((r: any) => r.trade).filter(Boolean);
+            (profile as any).additional_trades = null;
+          }
+        } catch {
+          // user_trades table may not exist, or timeout — continue with legacy profile
+        }
 
         // Provide defaults for columns not in safe select (may not exist in DB)
         (profile as any).show_abn_on_profile ??= false;
@@ -526,9 +645,15 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
       try {
         await ensureProfileRow(supabase, user);
         const profile = await loadProfile(user.id);
-        if (profile) setCurrentUser(profile);
+        if (profile) {
+          setCurrentUser(profile);
+          return;
+        }
+        // Keep app usable when DB profile fetch fails.
+        setCurrentUser((prev) => prev ?? buildFallbackCurrentUser(user));
       } catch (e) {
         console.error('ensureProfileRow unexpected error', e);
+        setCurrentUser((prev) => prev ?? buildFallbackCurrentUser(user));
       }
     },
     [loadProfile, supabase]
@@ -550,6 +675,7 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
         setCurrentUser(null);
         return;
       }
+      setCurrentUser((prev) => (prev?.id === user.id ? prev : buildFallbackCurrentUser(user)));
 
       // background profile ensure/load (ignore stale completions)
       (async () => {
@@ -564,15 +690,21 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
   );
 
   const refreshUser = useCallback(async () => {
-    const userId = session?.user?.id;
-    if (!userId) {
+    const authUser = session?.user;
+    if (!authUser?.id) {
       setCurrentUser(null);
       return;
     }
+    const userId = authUser.id;
     const seq = ++seqRef.current;
     const profile = await loadProfile(userId);
     if (seq !== seqRef.current) return;
-    setCurrentUser(profile);
+    if (profile) {
+      setCurrentUser(profile);
+      return;
+    }
+    // Degrade gracefully: avoid blocking the app on profile bootstrap failures.
+    setCurrentUser((prev) => prev ?? buildFallbackCurrentUser(authUser));
   }, [loadProfile, session?.user?.id]);
 
   useEffect(() => {
@@ -610,6 +742,19 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
       sub?.subscription?.unsubscribe?.();
     };
   }, [applySession, supabase]);
+
+  useEffect(() => {
+    if (!session?.user?.id || !currentUser?.id) return;
+    if (welcomeEmailTriggeredRef.current === currentUser.id) return;
+    welcomeEmailTriggeredRef.current = currentUser.id;
+
+    fetch('/api/email/welcome', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    }).catch((e) => {
+      console.warn('[auth] welcome email trigger on session failed (non-blocking)', e);
+    });
+  }, [session?.user?.id, currentUser?.id]);
 
   const login: AuthCtx['login'] = useCallback(
     async (email, password) => {
@@ -673,10 +818,44 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
                 ? [primaryTrade]
                 : [];
 
+          const lat = typeof (extras as any).locationLat === 'number' ? (extras as any).locationLat : null;
+          const lng = typeof (extras as any).locationLng === 'number' ? (extras as any).locationLng : null;
+          const coordsUpdate: Record<string, unknown> = { trades: normalizedTrades };
+          if (lat != null && lng != null && Number.isFinite(lat) && Number.isFinite(lng)) {
+            coordsUpdate.location_lat = lat;
+            coordsUpdate.location_lng = lng;
+            coordsUpdate.base_lat = lat;
+            coordsUpdate.base_lng = lng;
+          }
+
           await supabase
             .from('users')
-            .update({ trades: normalizedTrades })
+            .update(coordsUpdate)
             .eq('id', data.user.id);
+        }
+
+        // Trigger server-side welcome email pipeline (idempotent).
+        // If email confirmation is enabled, session may be null; this best-effort call
+        // is still safe because server checks auth and dedupes welcome events.
+        try {
+          if (data?.user?.id && data?.user?.email) {
+            await fetch('/api/email/account-verification', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId: data.user.id,
+                email: data.user.email,
+                name,
+              }),
+            });
+          }
+
+          await fetch('/api/email/welcome', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+          });
+        } catch (e) {
+          console.warn('[auth] welcome email trigger failed (non-blocking)', e);
         }
 
         // Merge extras into in-memory currentUser so UI doesn't break
@@ -725,6 +904,9 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
         if (patch.additionalTrades !== undefined && !canMultiTrade) {
           throw new Error('Additional trades require Premium');
         }
+        if ((patch as any).receiveTradeAlerts === true && !hasSubcontractorPremium(prev)) {
+          throw new Error('Premium required to enable email alerts');
+        }
         const hasSearchPatch =
           patch.searchLocation !== undefined ||
           patch.searchPostcode !== undefined ||
@@ -736,7 +918,15 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
         return prev;
       });
 
-      const dbPatch = mapUiPatchToDb(patch);
+      let dbPatch = mapUiPatchToDb(patch);
+      // Free users: block changing primary_trade after it's set. Allow initial set (onboarding).
+      const canChange = currentUser ? canChangePrimaryTrade(currentUser) : false;
+      const hasExistingTrade = !!(currentUser?.primaryTrade ?? (currentUser as any)?.primary_trade ?? (currentUser as any)?.trades?.[0]);
+      if (!canChange && hasExistingTrade) {
+        if ('primary_trade' in dbPatch) delete (dbPatch as any).primary_trade;
+        if ('trades' in dbPatch) delete (dbPatch as any).trades;
+        if ('additional_trades' in dbPatch) delete (dbPatch as any).additional_trades;
+      }
       if (Object.keys(dbPatch).length > 0) {
         const { error } = await (supabase.from('users') as any).update(dbPatch).eq('id', userId);
         if (error) throw error;

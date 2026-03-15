@@ -10,17 +10,24 @@ export function TradeGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [hasChecked, setHasChecked] = useState(false);
+  const hasPrimaryTrade =
+    !!(
+      user?.primaryTrade ||
+      (user as any)?.primary_trade ||
+      (Array.isArray((user as any)?.trades) ? (user as any).trades[0] : null) ||
+      (Array.isArray((user as any)?.trade_categories) ? (user as any).trade_categories[0] : null)
+    );
 
   useEffect(() => {
     if (isLoading || hasChecked) return;
 
-    if (user && !isAdmin(user) && !user.primaryTrade && pathname !== '/onboarding/trade') {
+    if (user && !isAdmin(user) && !hasPrimaryTrade && pathname !== '/onboarding/trade') {
       setHasChecked(true);
       router.push('/onboarding/trade');
     } else if (user) {
       setHasChecked(true);
     }
-  }, [user, isLoading, router, pathname, hasChecked]);
+  }, [user, isLoading, router, pathname, hasChecked, hasPrimaryTrade]);
 
   if (isLoading) {
     return (
@@ -34,7 +41,7 @@ export function TradeGate({ children }: { children: React.ReactNode }) {
     return null;
   }
 
-  if (!isAdmin(user) && !user.primaryTrade && pathname !== '/onboarding/trade') {
+  if (!isAdmin(user) && !hasPrimaryTrade && pathname !== '/onboarding/trade') {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>

@@ -9,7 +9,7 @@ import { join } from 'node:path';
 export interface SeedIds {
   users: Record<string, string>;
   jobs: { ownedOpen?: string; nonOwnedOpen?: string; withAttachment?: string };
-  tenders: { ownedDraft?: string; ownedLive?: string; nonOwned?: string };
+  tenders: { ownedDraft?: string; ownedLive?: string; nonOwned?: string; anonymous?: string };
 }
 
 let _cached: SeedIds | null | undefined = undefined;
@@ -44,5 +44,6 @@ export const SEED_TITLES = {
     ownedDraft: '[QA] Owned Draft Tender',
     ownedLive: '[QA] Owned Live Tender',
     nonOwned: '[QA] Non-Owned Tender',
+    anonymous: '[QA] Anonymous Tender',
   },
 } as const;

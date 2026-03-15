@@ -93,3 +93,24 @@
     transform: translateX(120%);
   }
 }
+
+/* Premium card shimmer: hover-only, desktop-only, soft sheen sweep */
+@keyframes premiumShimmerSweep {
+  0% {
+    transform: translateX(-140%) skewX(-18deg);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.22;
+  }
+  100% {
+    transform: translateX(340%) skewX(-18deg);
+    opacity: 0;
+  }
+}
+
+@media (min-width: 768px) {
+  .group:hover .premium-shimmer-band {
+    animation: premiumShimmerSweep 900ms ease-out;
+  }
+}

@@ -1,5 +1,8 @@
+// @ts-nocheck - Supabase client type inference
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase-server';
+import { createEmailEvent } from '@/lib/email/create-email-event';
+import { shouldSendEmailNow } from '@/lib/email/rollout';
 
 export const dynamic = 'force-dynamic';
 
@@ -136,6 +139,34 @@ export async function POST(request: NextRequest) {
         createdAt: message.created_at,
       },
     };
+
+    // Core message state is committed. Email is best-effort side effect only.
+    try {
+      const { data: recipient } = await supabase
+        .from('users')
+        .select('id, email, name')
+        .eq('id', recipientId)
+        .maybeSingle();
+
+      if (recipient?.email) {
+        await createEmailEvent({
+          userId: recipient.id,
+          toEmail: recipient.email,
+          emailType: 'new_message',
+          payload: {
+            firstName: recipient.name?.split?.(/\s+/)?.[0] || undefined,
+            messagesUrl: `${process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://tradehub.com.au'}/messages`,
+          },
+          idempotencyKey: `new_message:${message.id}`,
+          triggerSendImmediately: shouldSendEmailNow({
+            emailType: 'new_message',
+            toEmail: recipient.email,
+          }),
+        });
+      }
+    } catch (emailErr) {
+      console.error('[messages/send] new_message email side effect failed', emailErr);
+    }
 
     return NextResponse.json(response);
   } catch (err) {

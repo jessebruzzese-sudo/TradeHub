@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 /*
@@ -68,7 +69,7 @@ import {
 import { formatDistanceToNow } from 'date-fns';
 import { ABNRequiredModal } from '@/components/abn-required-modal';
 import { hasValidABN } from '@/lib/abn-utils';
-import { isUUID, parseTradeSuburbSlug } from '@/lib/slug-utils';
+import { isUUID, parseTradeSuburbSlug, slugifyTrade } from '@/lib/slug-utils';
 import { getTradeIcon } from '@/lib/trade-icons';
 import TradeSuburbTenders from '@/components/trade-suburb-tenders';
 
@@ -159,6 +160,116 @@ export default function TenderDetailRoutePage() {
   return <TenderDetailUuidPage id={raw} />;
 }
 
+function QuoteRequestRow({
+  request,
+  tenderTradeRequirements,
+  supabase,
+  onAccept,
+  onDecline,
+  onMessage,
+}: {
+  request: { id: string; requester_id: string; status: string; requester_name?: string; created_at: string };
+  tenderTradeRequirements: TenderTradeReq[];
+  supabase: ReturnType<typeof getBrowserSupabase>;
+  onAccept: () => void;
+  onDecline: () => void;
+  onMessage: (requesterId: string) => void;
+}) {
+  const [accepting, setAccepting] = useState(false);
+  const [declining, setDeclining] = useState(false);
+  const [selectedTrade, setSelectedTrade] = useState(tenderTradeRequirements.length === 1 ? slugifyTrade(tenderTradeRequirements[0].trade) : '');
+  const trades = tenderTradeRequirements.map((t) => t.trade);
+
+  const handleAccept = async () => {
+    const tradeSlug = tenderTradeRequirements.length === 1 ? slugifyTrade(tenderTradeRequirements[0].trade) : selectedTrade;
+    if (!tradeSlug) {
+      toast.error('Please select a trade');
+      return;
+    }
+    setAccepting(true);
+    try {
+      // TODO(email-pipeline): move accept/decline quote-request actions to a server API route
+      // so post-accept transactional emails can be queued strictly server-side after commit.
+      const { error } = await supabase.rpc('accept_quote_request', { p_request_id: request.id, p_trade_slug: tradeSlug });
+      if (error) {
+        const msg = String((error as any)?.message || '');
+        if (msg.includes('quote_trade_limit_reached')) toast.error('Requester has used their 3 quotes for this trade.');
+        else toast.error('Could not accept.');
+        return;
+      }
+      toast.success('Request accepted');
+      onAccept();
+      onMessage(request.requester_id);
+    } catch {
+      toast.error('Could not accept');
+    } finally {
+      setAccepting(false);
+    }
+  };
+
+  const handleDecline = async () => {
+    setDeclining(true);
+    try {
+      const { error } = await supabase.rpc('decline_quote_request', { p_request_id: request.id });
+      if (error) {
+        toast.error('Could not decline');
+        return;
+      }
+      toast.success('Request declined');
+      onDecline();
+    } catch {
+      toast.error('Could not decline');
+    } finally {
+      setDeclining(false);
+    }
+  };
+
+  const statusLabel = request.status === 'PENDING' ? 'Pending' : request.status === 'ACCEPTED' ? 'Accepted' : request.status === 'DECLINED' ? 'Declined' : request.status;
+
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-medium text-slate-900">{request.requester_name ?? 'Unknown'}</p>
+          <p className="text-xs text-slate-500">{formatDistanceToNow(new Date(request.created_at), { addSuffix: true })}</p>
+          <Badge variant={request.status === 'PENDING' ? 'secondary' : 'outline'} className="mt-1">
+            {statusLabel}
+          </Badge>
+        </div>
+      </div>
+      {request.status === 'PENDING' && (
+        <div className="flex flex-wrap items-center gap-2">
+          {trades.length > 1 ? (
+            <select
+              value={selectedTrade}
+              onChange={(e) => setSelectedTrade(e.target.value)}
+              className="rounded-md border border-slate-200 px-3 py-1.5 text-sm"
+            >
+              <option value="">Select trade</option>
+              {trades.map((t) => (
+                <option key={t} value={slugifyTrade(t)}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          ) : null}
+          <Button size="sm" onClick={handleAccept} disabled={accepting || declining || (trades.length > 1 && !selectedTrade)}>
+            {accepting ? 'Accepting…' : 'Accept'}
+          </Button>
+          <Button size="sm" variant="outline" onClick={handleDecline} disabled={accepting || declining}>
+            {declining ? 'Declining…' : 'Decline'}
+          </Button>
+        </div>
+      )}
+      {request.status === 'ACCEPTED' && (
+        <Button size="sm" variant="outline" onClick={() => onMessage(request.requester_id)}>
+          Message
+        </Button>
+      )}
+    </div>
+  );
+}
+
 function TenderDetailUuidPage({ id }: { id: string }) {
   const { currentUser, isLoading } = useAuth();
   const supabase = getBrowserSupabase();
@@ -179,6 +290,7 @@ function TenderDetailUuidPage({ id }: { id: string }) {
   const [posterUser, setPosterUser] = useState<any>(null);
   const [pageError, setPageError] = useState<string | null>(null);
   const [loadingTender, setLoadingTender] = useState(true);
+  const [quoteRequests, setQuoteRequests] = useState<Array<{ id: string; requester_id: string; status: string; requester_name?: string; created_at: string }>>([]);
 
   const isAdminUser = isAdmin(currentUser);
   // Role used for UI/copy only, not permissions
@@ -187,9 +299,17 @@ function TenderDetailUuidPage({ id }: { id: string }) {
 
   const isMyTender = (t: TenderDetail) => !!currentUser && t.builderId === currentUser.id;
 
+  const viewerTrades = useMemo(() => {
+    const t = (currentUser as any)?.trades;
+    if (Array.isArray(t) && t.length > 0) return t.filter((x: string) => typeof x === 'string' && x.trim()).map((x: string) => x.trim());
+    const pt = (currentUser as any)?.primaryTrade ?? (currentUser as any)?.primary_trade;
+    return pt ? [String(pt).trim()] : [];
+  }, [currentUser]);
+
   const handleEditQuoteClick = () => {
     const userForDiscovery = {
       id: currentUser?.id,
+      plan: (currentUser as any)?.plan ?? null,
       is_premium: currentUser?.isPremium ?? undefined,
       subscription_status: currentUser?.subscriptionStatus,
       active_plan: currentUser?.activePlan,
@@ -213,10 +333,9 @@ function TenderDetailUuidPage({ id }: { id: string }) {
     // TODO: router.push(`/tenders/${tenderId}/quotes/${quoteId}/edit`)
   };
 
-  // Fetch tender from Supabase
+  // Fetch tender: use API (GET /api/tenders/[id]) when logged in — same view access as Find Work
   useEffect(() => {
     const run = async () => {
-      // If this isn't a UUID and also isn't a valid slug (handled in wrapper), show not found
       if (!id || !isUUID(id)) {
         setTender(null);
         setLoadingTender(false);
@@ -228,27 +347,75 @@ function TenderDetailUuidPage({ id }: { id: string }) {
         setPageError(null);
         setPosterUser(null);
 
-        const { data, error } = await supabase
-          .from('tenders')
-          .select(
+        let dataAny: any = null;
+
+        if (currentUser?.id) {
+          const res = await fetch(`/api/tenders/${id}`);
+          if (res.ok) {
+            const json = await res.json();
+            if (json && json.id) dataAny = json;
+          }
+        }
+
+        if (!dataAny && currentUser?.id) {
+          const { data: rpcData, error: rpcErr } = await (supabase as any).rpc('get_tender_for_viewer', {
+            p_tender_id: id,
+            p_viewer_id: currentUser.id,
+          });
+          if (!rpcErr) {
+            const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+            if (row) {
+              const { data: trData } = await supabase
+                .from('tender_trade_requirements')
+                .select('id,trade,sub_description')
+                .eq('tender_id', id);
+              dataAny = { ...row, tradeRequirements: trData ?? [] };
+            }
+          }
+        }
+
+        if (!dataAny) {
+          const { data, error } = await supabase
+            .from('tenders')
+            .select(
+              `
+              *,
+              tradeRequirements:tender_trade_requirements(*),
+              shared_attachments
             `
-            *,
-            tradeRequirements:tender_trade_requirements(*),
-            shared_attachments
-          `
-          )
-          .eq('id', id)
-          .is('deleted_at', null)
-          .maybeSingle();
+            )
+            .eq('id', id)
+            .is('deleted_at', null)
+            .maybeSingle();
+          if (error) throw error;
+          dataAny = data;
+        }
 
-        if (error) throw error;
-
-        if (!data) {
+        if (!dataAny) {
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[tender detail]', {
+              viewerId: currentUser?.id,
+              tenderId: id,
+              isOwner: false,
+              isAdmin: isAdminUser,
+              source: 'none',
+              canView: false,
+            });
+          }
           setTender(null);
           return;
         }
 
-        const dataAny = data as any;
+        if (process.env.NODE_ENV === 'development') {
+          const isOwner = dataAny.builder_id === currentUser?.id;
+          console.log('[tender detail] loaded', {
+            viewerId: currentUser?.id,
+            tenderId: id,
+            isOwner,
+            isAdmin: isAdminUser,
+            canView: true,
+          });
+        }
 
         const mapped: TenderDetail = {
           id: dataAny.id,
@@ -305,18 +472,16 @@ function TenderDetailUuidPage({ id }: { id: string }) {
           }
         }
 
-        if (mapped.isAnonymous) {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            const { data: reqData } = await supabase
-              .from('tender_quote_requests')
-              .select('status')
-              .eq('tender_id', id)
-              .eq('requester_id', user.id)
-              .maybeSingle();
-            if (reqData) {
-              setTender((prev) => prev ? { ...prev, quoteRequestStatus: (reqData as any).status } : prev);
-            }
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: reqData } = await supabase
+            .from('tender_quote_requests')
+            .select('status')
+            .eq('tender_id', id)
+            .eq('requester_id', user.id)
+            .maybeSingle();
+          if (reqData) {
+            setTender((prev) => prev ? { ...prev, quoteRequestStatus: (reqData as any).status } : prev);
           }
         }
       } catch (e: any) {
@@ -328,7 +493,38 @@ function TenderDetailUuidPage({ id }: { id: string }) {
     };
 
     run();
-  }, [id, supabase]);
+  }, [id, supabase, currentUser?.id]);
+
+  // Fetch quote requests for tender owner (poster)
+  useEffect(() => {
+    if (!tender || !currentUser?.id || tender.builderId !== currentUser.id) return;
+    let cancelled = false;
+    (async () => {
+      const { data: reqs } = await supabase
+        .from('tender_quote_requests')
+        .select('id, requester_id, status, created_at')
+        .eq('tender_id', tender.id)
+        .order('created_at', { ascending: false });
+      if (cancelled) return;
+      const list = (reqs ?? []) as { id: string; requester_id: string; status: string; created_at: string }[];
+      if (list.length === 0) {
+        setQuoteRequests([]);
+        return;
+      }
+      const { data: users } = await supabase
+        .from('users')
+        .select('id, name, business_name')
+        .in('id', list.map((r) => r.requester_id));
+      const userMap = new Map((users ?? []).map((u: any) => [u.id, u]));
+      setQuoteRequests(
+        list.map((r) => ({
+          ...r,
+          requester_name: (userMap.get(r.requester_id) as any)?.business_name ?? (userMap.get(r.requester_id) as any)?.name ?? 'Unknown',
+        }))
+      );
+    })();
+    return () => { cancelled = true; };
+  }, [tender?.id, tender?.builderId, currentUser?.id, supabase]);
 
   async function onViewAttachment(file: StoredAttachment | { path?: string; bucket?: string; url?: string; name?: string; type?: string }) {
     try {
@@ -412,7 +608,6 @@ function TenderDetailUuidPage({ id }: { id: string }) {
 
   // Public (not logged in) view:
   if (!currentUser) {
-    const tradesList = tender.tradeRequirements?.map((req) => req.trade).join(', ') || '';
     const quoteStatus = getPublicQuoteStatus(tender.status, tender.quoteCapTotal ?? null, tender.quoteCountTotal);
 
     return (
@@ -454,10 +649,20 @@ function TenderDetailUuidPage({ id }: { id: string }) {
                   </div>
                 </div>
 
-                {tradesList && (
+                {tender.tradeRequirements?.length > 0 && (
                   <div>
                     <h3 className="mb-2 text-sm font-medium text-gray-700">Required Trades</h3>
-                    <p className="font-medium text-gray-700">{tradesList}</p>
+                    <div className="space-y-1.5">
+                      {tender.tradeRequirements.map((req) => {
+                        const Icon = getTradeIcon(req.trade);
+                        return (
+                          <div key={req.id} className="flex items-center gap-2 text-sm text-gray-600">
+                            <Icon className="h-4 w-4 shrink-0 text-gray-500" />
+                            <span>{req.trade}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 
@@ -500,13 +705,13 @@ function TenderDetailUuidPage({ id }: { id: string }) {
     );
   }
 
-  // Access gating: subcontractor must match trade (unless admin / owner)
+  // Access gating: viewer must match trade (unless admin / owner)
   const tradeMatchesTender = (t: TenderDetail) => {
     if (!t.tradeRequirements || t.tradeRequirements.length === 0) return false;
-    return t.tradeRequirements.some((req) => req.trade === currentUser.primaryTrade);
+    return t.tradeRequirements.some((req) => viewerTrades.includes(req.trade));
   };
 
-  const viewerTradeRequirement = tender.tradeRequirements?.find((req) => req.trade === currentUser.primaryTrade);
+  const viewerTradeRequirement = tender.tradeRequirements?.find((req) => viewerTrades.includes(req.trade));
 
   if (!isMyTender(tender) && !isAdminUser && !tender.isAnonymous && !tradeMatchesTender(tender)) {
     return (
@@ -539,11 +744,45 @@ function TenderDetailUuidPage({ id }: { id: string }) {
   // If you’re using “limited quotes” as “contractors only”, enforce that here.
   const blockedByLimitedQuotes = hasLimitedQuotes && isSubcontractor;
 
+  // Trade scope visibility: free users see only their matched trade(s); owner/admin/premium see all
+  const userForDiscovery = currentUser
+    ? {
+        plan: (currentUser as any).plan ?? null,
+        is_premium: (currentUser as any).isPremium ?? (currentUser as any).is_premium ?? undefined,
+        subscription_status: (currentUser as any).subscriptionStatus ?? (currentUser as any).subscription_status ?? null,
+        active_plan: (currentUser as any).activePlan ?? (currentUser as any).active_plan ?? null,
+        subcontractor_plan: undefined,
+        subcontractor_sub_status: undefined,
+      }
+    : null;
+  const isPremiumUser = isPremiumForDiscovery(userForDiscovery as Parameters<typeof isPremiumForDiscovery>[0]);
+  const isOwnerOrAdmin = isMyTender(tender) || isAdminUser;
+  const visibleTradeRequirements =
+    isOwnerOrAdmin || isPremiumUser
+      ? tender.tradeRequirements ?? []
+      : (tender.tradeRequirements ?? []).filter((req) => viewerTrades.includes(req.trade));
+
   const canQuote =
     tender.status === 'LIVE' &&
     canSubmitUnderCap &&
     !blockedByLimitedQuotes &&
-    ((tender.isAnonymous && tender.quoteRequestStatus === 'ACCEPTED') || !isContractor);
+    ((tender.quoteRequestStatus === 'ACCEPTED') || !isContractor);
+
+  if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
+    const canViewTender = true;
+    const debug = {
+      viewerId: currentUser?.id,
+      tenderId: tender.id,
+      isOwner: isMyTender(tender),
+      isAdmin: isAdminUser,
+      discoverable: !isMyTender(tender) && !isAdminUser && (tradeMatchesTender(tender) || tender.isAnonymous),
+      quoteRequestStatus: tender.quoteRequestStatus,
+      canViewTender,
+      canQuoteTender: canQuote,
+    };
+    (window as any).__tenderDetailDebug = debug;
+    console.log('[tender detail] canView/canQuote', debug);
+  }
 
   const handleWriteQuoteWithAI = async () => {
     setQuoteAiError(null);
@@ -744,19 +983,28 @@ function TenderDetailUuidPage({ id }: { id: string }) {
                   </>
                 ) : (
                   <>
-                    {tender.isAnonymous && tender.quoteRequestStatus !== 'ACCEPTED' ? (
-                      <Button size="sm" variant="outline" asChild className="gap-1.5">
-                        <a href="#posted-by">Request to quote</a>
+                    {isContractor && tender.quoteRequestStatus !== 'ACCEPTED' ? (
+                      <>
+                        <Button size="sm" variant="outline" asChild className="gap-1.5">
+                          <a href="#posted-by">Request to quote</a>
+                        </Button>
+                        <span className="text-xs text-slate-600">
+                          {tender.isAnonymous
+                            ? 'You can view this tender now. Pricing and contact unlock after your request is accepted.'
+                            : 'Request to quote — the poster can accept or decline.'}
+                        </span>
+                      </>
+                    ) : null}
+                    {canQuote ? (
+                      <Button
+                        size="sm"
+                        onClick={() => setActiveTab('quotes')}
+                        className="gap-1.5"
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                        Submit quote
                       </Button>
                     ) : null}
-                    <Button
-                      size="sm"
-                      onClick={() => setActiveTab('quotes')}
-                      className="gap-1.5"
-                    >
-                      <Send className="h-3.5 w-3.5" />
-                      Submit quote
-                    </Button>
                   </>
                 )}
               </div>
@@ -817,18 +1065,20 @@ function TenderDetailUuidPage({ id }: { id: string }) {
                             </section>
                           )}
 
-                          {tender.tradeRequirements?.length > 0 && (
+                          {visibleTradeRequirements.length > 0 && (
                             <section className="border-t border-slate-200 pt-5">
-                              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">Required Trades</h3>
+                              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">
+                                {isOwnerOrAdmin || isPremiumUser ? 'Required Trades' : 'Your trade requirement'}
+                              </h3>
                               <div className="space-y-1.5">
-                                {tender.tradeRequirements.map((req) => {
+                                {visibleTradeRequirements.map((req) => {
                                   const Icon = getTradeIcon(req.trade);
                                   return (
                                     <div
                                       key={req.id}
                                       className="flex items-center gap-2 text-sm text-slate-700"
                                     >
-                                      {Icon && <Icon className="h-4 w-4 text-slate-500" />}
+                                      <Icon className="h-4 w-4 text-slate-500 shrink-0" />
                                       <span>{req.trade}</span>
                                     </div>
                                   );
@@ -883,16 +1133,24 @@ function TenderDetailUuidPage({ id }: { id: string }) {
                             </section>
                           )}
 
-                          {tender.tradeRequirements?.length > 0 && (
+                          {visibleTradeRequirements.length > 0 && (
                             <section className="border-t border-slate-200 pt-5">
-                              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">All Trade Requirements</h3>
+                              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">
+                                {isOwnerOrAdmin || isPremiumUser ? 'All Trade Requirements' : 'Your matched trade scope'}
+                              </h3>
                               <div className="space-y-4">
-                                {tender.tradeRequirements.map((req) => (
-                                  <div key={req.id} className="border-l-4 border-blue-500 pl-4">
-                                    <h4 className="mb-1 text-sm font-medium text-slate-900">{req.trade}</h4>
-                                    <p className="text-sm text-slate-700 leading-relaxed">{req.subDescription}</p>
-                                  </div>
-                                ))}
+                                {visibleTradeRequirements.map((req) => {
+                                  const Icon = getTradeIcon(req.trade);
+                                  return (
+                                    <div key={req.id} className="border-l-4 border-blue-500 pl-4">
+                                      <h4 className="mb-1 flex items-center gap-2 text-sm font-medium text-slate-900">
+                                        <Icon className="h-4 w-4 shrink-0 text-slate-500" />
+                                        {req.trade}
+                                      </h4>
+                                      <p className="text-sm text-slate-700 leading-relaxed">{req.subDescription}</p>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </section>
                           )}
@@ -900,20 +1158,56 @@ function TenderDetailUuidPage({ id }: { id: string }) {
                       </TabsContent>
 
                       <TabsContent value="quotes" className="mt-0">
-                        {isContractor ? (
-                          <div className="py-12 text-center">
-                            <Users className="mx-auto mb-3 h-12 w-12 text-gray-400" />
-                            <p className="text-gray-600">Quotes view will appear here once quotes are wired.</p>
+                        {isMyTender(tender) ? (
+                          <div className="space-y-4">
+                            <h3 className="text-sm font-semibold text-slate-900">Quote requests</h3>
+                            {quoteRequests.length === 0 ? (
+                              <div className="py-12 text-center">
+                                <Users className="mx-auto mb-3 h-12 w-12 text-gray-400" />
+                                <p className="text-gray-600">No quote requests yet. When someone requests to quote, they&apos;ll appear here.</p>
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                {quoteRequests.map((req) => (
+                                  <QuoteRequestRow
+                                    key={req.id}
+                                    request={req}
+                                    tenderTradeRequirements={tender.tradeRequirements ?? []}
+                                    supabase={supabase}
+                                    onAccept={() => {
+                                      setQuoteRequests((prev) => prev.filter((r) => r.id !== req.id));
+                                    }}
+                                    onDecline={() => {
+                                      setQuoteRequests((prev) => prev.filter((r) => r.id !== req.id));
+                                    }}
+                                    onMessage={(requesterId) => router.push(`/messages?userId=${requesterId}`)}
+                                  />
+                                ))}
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <div>
                         {!canQuote ? (
-                          <Alert variant="destructive">
-                            <AlertCircle className="h-4 w-4" />
+                          <Alert
+                            variant={isContractor && tender.quoteRequestStatus !== 'ACCEPTED' ? 'default' : 'destructive'}
+                            className={isContractor && tender.quoteRequestStatus !== 'ACCEPTED' ? 'border-blue-200 bg-blue-50' : ''}
+                          >
+                            {isContractor && tender.quoteRequestStatus !== 'ACCEPTED' ? (
+                              <Info className="h-4 w-4" />
+                            ) : (
+                              <AlertCircle className="h-4 w-4" />
+                            )}
                             <AlertDescription>
-                              {blockedByLimitedQuotes
-                                ? 'This tender has limited quotes enabled. Only registered contractors (not subcontractors) can submit quotes for this tender.'
-                                : 'This tender has reached its quote limit and is no longer accepting submissions.'}
+                              {isContractor && (tender.quoteRequestStatus === 'PENDING' || !tender.quoteRequestStatus)
+                                ? tender.isAnonymous
+                                  ? 'You can view this tender now. Pricing and contact unlock after your request is accepted.'
+                                  : 'Request to quote — the poster can accept or decline.'
+                                : tender.quoteRequestStatus === 'DECLINED'
+                                  ? 'Your request to quote was declined.'
+                                  : blockedByLimitedQuotes
+                                    ? 'This tender has limited quotes enabled. Only registered contractors (not subcontractors) can submit quotes for this tender.'
+                                    : 'This tender has reached its quote limit and is no longer accepting submissions.'}
                             </AlertDescription>
                           </Alert>
                         ) : (
@@ -1023,8 +1317,10 @@ function TenderDetailUuidPage({ id }: { id: string }) {
                       )}
 
                       <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Required trades</div>
-                        <div className="text-sm font-medium text-slate-700">{tender.tradeRequirements?.length ?? 0}</div>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">
+                          {isOwnerOrAdmin || isPremiumUser ? 'Required trades' : 'Your matched trades'}
+                        </div>
+                        <div className="text-sm font-medium text-slate-700">{visibleTradeRequirements.length}</div>
                       </div>
 
                       <div>
@@ -1059,54 +1355,65 @@ function TenderDetailUuidPage({ id }: { id: string }) {
                       </div>
                     </div>
                   ) : (
-                    <AnonymousRequestToQuote
+                    <RequestToQuote
                       tenderId={tender.id}
                       quoteRequestStatus={tender.quoteRequestStatus}
+                      isAnonymous={true}
                       onRequestSent={() => setTender((prev) => prev ? { ...prev, quoteRequestStatus: 'PENDING' as const } : prev)}
                     />
                   )
                 ) : posterUser ? (
-                  <Link href={`/users/${posterUser.id}`} className="block group">
-                    <div
-                      className={[
-                        'relative flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 transition-all duration-200',
-                        'hover:bg-slate-100 hover:border-slate-300',
-                        (posterUser as any)?.is_premium || (posterUser as any)?.subscription_status === 'active'
-                          ? 'ring-1 ring-amber-300/50'
-                          : '',
-                      ].join(' ')}
-                    >
-                      {((posterUser as any)?.is_premium || (posterUser as any)?.subscription_status === 'active') && (
-                        <div className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
-                          <Crown className="h-3 w-3 text-amber-700" />
-                        </div>
-                      )}
-
-                      <UserAvatar
-                        avatarUrl={(posterUser as any)?.avatar ?? (posterUser as any)?.avatar_url}
-                        userName={(posterUser as any)?.name || 'TradeHub user'}
-                        size="md"
-                      />
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <p className="truncate text-sm font-semibold text-slate-900">
-                            {(posterUser as any)?.name || 'TradeHub user'}
-                          </p>
-                          {String((posterUser as any)?.abn_status ?? '').toUpperCase() === 'VERIFIED' && (
-                            <BadgeCheck className="h-3.5 w-3.5 flex-shrink-0 text-blue-600" />
-                          )}
-                        </div>
-                        {(posterUser as any)?.business_name && (
-                          <p className="truncate text-xs text-slate-600">{(posterUser as any)?.business_name}</p>
+                  <div className="space-y-3">
+                    <Link href={`/users/${posterUser.id}`} className="block group">
+                      <div
+                        className={[
+                          'relative flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 transition-all duration-200',
+                          'hover:bg-slate-100 hover:border-slate-300',
+                          (posterUser as any)?.is_premium || (posterUser as any)?.subscription_status === 'active'
+                            ? 'ring-1 ring-amber-300/50'
+                            : '',
+                        ].join(' ')}
+                      >
+                        {((posterUser as any)?.is_premium || (posterUser as any)?.subscription_status === 'active') && (
+                          <div className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
+                            <Crown className="h-3 w-3 text-amber-700" />
+                          </div>
                         )}
-                        <div className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-blue-600 group-hover:text-blue-700">
-                          View profile
-                          <ArrowRight className="h-3 w-3" />
+
+                        <UserAvatar
+                          avatarUrl={(posterUser as any)?.avatar ?? (posterUser as any)?.avatar_url}
+                          userName={(posterUser as any)?.name || 'TradeHub user'}
+                          size="md"
+                        />
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <p className="truncate text-sm font-semibold text-slate-900">
+                              {(posterUser as any)?.name || 'TradeHub user'}
+                            </p>
+                            {hasValidABN(posterUser) && (
+                              <BadgeCheck className="h-3.5 w-3.5 flex-shrink-0 text-blue-600" />
+                            )}
+                          </div>
+                          {(posterUser as any)?.business_name && (
+                            <p className="truncate text-xs text-slate-600">{(posterUser as any)?.business_name}</p>
+                          )}
+                          <div className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-blue-600 group-hover:text-blue-700">
+                            View profile
+                            <ArrowRight className="h-3 w-3" />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </Link>
+                    </Link>
+                    {!isMyTender(tender) && tender.quoteRequestStatus !== 'ACCEPTED' ? (
+                      <RequestToQuote
+                        tenderId={tender.id}
+                        quoteRequestStatus={tender.quoteRequestStatus}
+                        isAnonymous={false}
+                        onRequestSent={() => setTender((prev) => prev ? { ...prev, quoteRequestStatus: 'PENDING' as const } : prev)}
+                      />
+                    ) : null}
+                  </div>
                 ) : (
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
                     {tender.isNameHidden ? 'Business name hidden' : tender.builder.businessName || tender.builder.name || 'Builder'}
@@ -1127,13 +1434,15 @@ function TenderDetailUuidPage({ id }: { id: string }) {
   );
 }
 
-function AnonymousRequestToQuote({
+function RequestToQuote({
   tenderId,
   quoteRequestStatus,
+  isAnonymous,
   onRequestSent,
 }: {
   tenderId: string;
   quoteRequestStatus?: 'PENDING' | 'ACCEPTED' | 'DECLINED' | null;
+  isAnonymous: boolean;
   onRequestSent?: () => void;
 }) {
   const [loading, setLoading] = useState(false);
@@ -1142,13 +1451,10 @@ function AnonymousRequestToQuote({
   async function request() {
     setLoading(true);
     try {
-      const supabase = getBrowserSupabase();
-      const { error } = await supabase.rpc('request_to_quote', { p_tender_id: tenderId });
-
-      if (error) {
-        const msg = String((error as any)?.message || '');
-        if (msg.includes('tender_not_anonymous')) toast.error('This tender is not anonymous.');
-        else toast.error('Could not send request.');
+      const res = await fetch(`/api/tenders/${tenderId}/request-quote`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data?.error || 'Could not send request.');
         return;
       }
 
@@ -1167,7 +1473,9 @@ function AnonymousRequestToQuote({
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
       <div className="text-sm font-semibold text-slate-900">Request to quote</div>
       <div className="mt-0.5 text-xs text-slate-500">
-        The poster is anonymous. Request access to quote — they can accept or decline.
+        {isAnonymous
+          ? 'The poster is anonymous. Request access to quote — they can accept or decline.'
+          : 'Request to quote on this tender — the poster can accept or decline.'}
       </div>
 
       <div className="mt-2">

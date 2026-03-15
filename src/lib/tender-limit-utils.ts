@@ -19,7 +19,7 @@ export type TenderLimitResult = {
 export async function checkTenderCreationLimit(
   supabase: { from: (table: string) => any },
   userId: string,
-  dbUser: { id: string; role?: string; is_premium?: boolean | null; subscription_status?: string | null; active_plan?: string | null; subcontractor_plan?: string | null; subcontractor_sub_status?: string | null }
+  dbUser: { id: string; plan?: string | null; role?: string; is_premium?: boolean | null; subscription_status?: string | null; active_plan?: string | null; subcontractor_plan?: string | null; subcontractor_sub_status?: string | null }
 ): Promise<TenderLimitResult> {
   const tier = getTier(dbUser);
   const limits = getLimits(tier);

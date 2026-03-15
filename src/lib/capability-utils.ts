@@ -13,9 +13,11 @@ import { MVP_FREE_MODE, MVP_RADIUS_KM, MVP_AVAILABILITY_HORIZON_DAYS, MVP_HIDE_B
  * No index signature — keeps structural assignability simple.
  */
 export type CapabilityUser = {
+  plan?: string | null;
   /* identity */
   id?: string | null;
   role?: string | null;
+  is_admin?: boolean | null;
 
   /* subscription / premium — camelCase */
   activePlan?: string | null;
@@ -49,6 +51,10 @@ function isSimulatingPremium(): boolean {
   return BILLING_SIM_ALLOWED && getSimulatedPremium();
 }
 
+function hasPersistedPremiumPlan(user: CapabilityUser): boolean {
+  return String(user?.plan || '').trim().toLowerCase() === 'premium';
+}
+
 /** Complimentary premium from DB: if date is in the future, user has full premium. */
 function hasComplimentaryPremiumActive(user: CapabilityUser): boolean {
   if (!user?.complimentaryPremiumUntil) return false;
@@ -61,6 +67,9 @@ function hasComplimentaryPremiumActive(user: CapabilityUser): boolean {
  * Billing sim remains a dev override only.
  */
 export function getUserCapabilities(user: CapabilityUser): Capability[] {
+  if (hasPersistedPremiumPlan(user)) {
+    return ['BUILDER', 'CONTRACTOR', 'SUBCONTRACTOR'];
+  }
   if (isSimulatingPremium()) {
     return ['BUILDER', 'CONTRACTOR', 'SUBCONTRACTOR'];
   }
@@ -89,16 +98,19 @@ export function hasCapability(user: CapabilityUser, capability: Capability): boo
 
 export function hasBuilderPremium(user: CapabilityUser): boolean {
   if (MVP_FREE_MODE && user) return true;
+  if (hasPersistedPremiumPlan(user)) return true;
   return hasCapability(user, 'BUILDER') || isSimulatingPremium();
 }
 
 export function hasContractorPremium(user: CapabilityUser): boolean {
   if (MVP_FREE_MODE && user) return true;
+  if (hasPersistedPremiumPlan(user)) return true;
   return hasCapability(user, 'CONTRACTOR') || isSimulatingPremium();
 }
 
 export function hasSubcontractorPremium(user: CapabilityUser): boolean {
   if (MVP_FREE_MODE && user) return true;
+  if (hasPersistedPremiumPlan(user)) return true;
   return hasCapability(user, 'SUBCONTRACTOR') || isSimulatingPremium();
 }
 
@@ -127,6 +139,26 @@ export function canCustomSearchLocation(user: CapabilityUser): boolean {
     hasContractorPremium(user) ||
     hasSubcontractorPremium(user)
   );
+}
+
+/** Premium: multiple trades on profile (Free = 1 trade only). */
+export function canMultiTrade(user: CapabilityUser): boolean {
+  if (hasPersistedPremiumPlan(user)) return true;
+  if (user?.is_premium === true || user?.isPremium === true) return true;
+  return (
+    hasBuilderPremium(user) ||
+    hasContractorPremium(user) ||
+    hasSubcontractorPremium(user)
+  );
+}
+
+/**
+ * Free users: primary trade is locked after signup. Premium users can change.
+ * Admins can change any user's trades via RPC (bypasses this check).
+ */
+export function canChangePrimaryTrade(user: CapabilityUser): boolean {
+  if (user?.is_admin === true) return true;
+  return canMultiTrade(user);
 }
 
 export function canHideBusinessName(user: CapabilityUser): boolean {

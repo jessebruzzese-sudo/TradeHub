@@ -37,7 +37,7 @@ export async function PATCH(
     }
 
     const supabase = serviceClient();
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('user_reports')
       .update({ status, updated_at: new Date().toISOString() })
       .eq('id', reportId)

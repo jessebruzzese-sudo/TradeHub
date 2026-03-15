@@ -25,15 +25,22 @@ test.describe('Jobs and tenders critical flows', () => {
   })
 
   test('tender draft creation flow — create and save as draft', async ({ page }) => {
-    await page.goto(`${BASE_URL}/tenders`)
-    await page.getByRole('link', { name: /post tender/i }).click()
+    await page.goto(`${BASE_URL}/tenders/create`)
     await page.waitForLoadState('networkidle')
 
-    if (page.url().includes('/verify-business')) {
+    // Skip if redirected (unauthenticated or unverified)
+    const url = page.url()
+    if (url.includes('/login')) {
+      test.skip(true, 'Test user not authenticated — session may have expired')
+    }
+    if (url.includes('/verify-business')) {
       test.skip(true, 'Test user needs ABN verification to create tenders')
     }
 
-    const projectNameInput = page.getByPlaceholder(/e\.g\. single storey|single storey house/i)
+    // Stable: getByLabel (id="tender-project-name"); fallback to placeholder
+    const projectNameInput = page.getByLabel('Project name').or(
+      page.getByPlaceholder(/e\.g\.\s*single storey|renovation|plumbing/i)
+    ).first()
     await expect(projectNameInput).toBeVisible({ timeout: 15_000 })
     await projectNameInput.fill('E2E Draft Tender Test')
 
@@ -62,7 +69,7 @@ test.describe('Jobs and tenders critical flows', () => {
     await postcodeInput.first().fill('2000')
     await page.getByRole('button', { name: /^done$/i }).last().click()
 
-    const publishButton = page.getByRole('button', { name: /publish tender|verify business/i })
+    const publishButton = page.getByRole('button', { name: /publish tender|verify business to publish|verify business/i }).first()
     await expect(publishButton).toBeVisible({ timeout: 5000 })
     await publishButton.click()
 

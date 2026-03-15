@@ -4,7 +4,7 @@ import * as React from 'react';
 import { Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-type ButtonVariant = 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link';
+type ButtonVariant = 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link' | 'amber';
 type ButtonSize = 'default' | 'sm' | 'lg' | 'icon';
 
 export function RefinePillButton({
@@ -29,6 +29,7 @@ export function RefinePillButton({
   className?: string;
 }) {
   const useGradientPill = variant === 'outline' || variant === 'secondary';
+  const useAmberPill = variant === 'amber';
 
   const pillSizeClasses =
     size === 'sm'
@@ -61,17 +62,40 @@ export function RefinePillButton({
     disabled:cursor-not-allowed
   `;
 
+  const amberPillClasses = `
+    group
+    relative
+    rounded-full
+    font-semibold
+    text-black
+    transition-all
+    overflow-hidden
+    text-sm
+    bg-amber-400
+    hover:bg-amber-300
+    ring-2 ring-amber-300/50
+    shadow-[0_0_0_6px_rgba(251,191,36,0.08)]
+    hover:scale-[1.03]
+    active:scale-[0.97]
+    disabled:opacity-70
+    disabled:cursor-not-allowed
+  `;
+
   const baseClasses = `inline-flex items-center gap-2`;
+
+  const effectiveVariant = useAmberPill ? 'ghost' : useGradientPill ? 'ghost' : variant;
 
   return (
     <Button
       type="button"
-      variant={useGradientPill ? 'ghost' : variant}
+      variant={effectiveVariant}
       size={size}
       disabled={disabled || loading}
       onClick={onClick}
       className={`
-        ${useGradientPill ? `${pillSizeClasses} ${pillClasses}` : baseClasses}
+        ${useGradientPill ? `${pillSizeClasses} ${pillClasses}` : ''}
+        ${useAmberPill ? `${pillSizeClasses} ${amberPillClasses}` : ''}
+        ${!useGradientPill && !useAmberPill ? baseClasses : ''}
         ${className}
       `}
       title={title}

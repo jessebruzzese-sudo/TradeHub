@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 
 import { AppLayout } from '@/components/app-nav';
@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-import { ProfileAvatar } from '@/components/profile-avatar';
+import { TenderRowCard } from '@/components/tenders/TenderRowCard';
 import { PremiumUpsellBar } from '@/components/premium-upsell-bar';
 import { useAuth } from '@/lib/auth';
 import { isAdmin } from '@/lib/is-admin';
@@ -29,20 +29,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-  Trash2,
-  MapPin,
-  Calendar,
-  DollarSign,
-  ArrowRight,
-  Tag,
-  Star,
-  XCircle,
-  BadgeCheck,
-  FileText,
-  Plus,
-  RotateCcw,
-} from 'lucide-react';
+import { FileText, Plus } from 'lucide-react';
 
 type TenderStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'PUBLISHED' | 'LIVE' | 'CLOSED' | string;
 
@@ -66,6 +53,9 @@ type TenderRow = {
   quote_request_status?: 'PENDING' | 'ACCEPTED' | 'DECLINED' | null;
 };
 
+/** Alias to avoid parser confusion with inner component */
+type TenderRowData = TenderRow;
+
 type BuilderMap = Record<
   string,
   {
@@ -80,86 +70,6 @@ type BuilderMap = Record<
     is_premium: boolean | null;
   }
 >;
-
-function getPosterName(p: any): string {
-  return (
-    p?.business_name ??
-    p?.businessName ??
-    p?.full_name ??
-    p?.fullName ??
-    p?.name ??
-    'Poster'
-  );
-}
-
-function getPosterAvatar(p: any): string | undefined {
-  return p?.avatar_url ?? p?.avatarUrl ?? p?.avatar ?? undefined;
-}
-
-function getPosterRating(p: any): { rating: number | null; count: number | null } {
-  const r = p?.rating;
-  const c = p?.rating_count ?? p?.review_count ?? p?.reviews_count ?? null;
-  const rating = typeof r === 'number' ? r : r != null ? Number(r) : null;
-  const count = typeof c === 'number' ? c : c != null ? Number(c) : null;
-  return {
-    rating: Number.isFinite(rating as number) ? (rating as number) : null,
-    count: Number.isFinite(count as number) ? (count as number) : null,
-  };
-}
-
-function statusVariant(status: string) {
-  const s = String(status || '').toUpperCase();
-  if (s === 'PUBLISHED' || s === 'LIVE') return 'default';
-  if (s === 'PENDING_APPROVAL') return 'secondary';
-  if (s === 'DRAFT') return 'secondary';
-  if (s === 'CLOSED' || s === 'CANCELLED') return 'outline';
-  return 'outline';
-}
-
-function prettyStatus(status: string) {
-  const s = String(status || '').toUpperCase();
-  if (s === 'PUBLISHED' || s === 'LIVE') return 'Live';
-  if (s === 'PENDING_APPROVAL') return 'Pending approval';
-  if (s === 'DRAFT') return 'Draft';
-  if (s === 'CLOSED') return 'Closed';
-  if (s === 'CANCELLED') return 'Cancelled';
-  return s || 'Unknown';
-}
-
-function prettyTier(tier?: string | null) {
-  const t = String(tier || '').toUpperCase();
-  if (!t) return null;
-  if (t === 'FREE_TRIAL') return 'Free Trial';
-  return t.replaceAll('_', ' ');
-}
-
-function formatMoney(n: number) {
-  return n.toLocaleString('en-AU', { maximumFractionDigits: 0 });
-}
-
-function priceBandLabelFromCents(maxCents?: number | null) {
-  if (!maxCents || maxCents <= 0) return null;
-  const dollars = Math.ceil(maxCents / 100);
-  const bands = [5000, 10000, 25000, 50000, 100000];
-  for (const b of bands) {
-    if (dollars <= b) return `Up to $${formatMoney(b)}`;
-  }
-  return '$100,000+';
-}
-
-function formatDateRange(start?: string | null, end?: string | null) {
-  if (!start && !end) return null;
-  try {
-    if (start && !end) return new Date(start).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' });
-    if (start && end) {
-      const s = new Date(start).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' });
-      const e = new Date(end).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' });
-      return `${s} – ${e}`;
-    }
-    if (end) return new Date(end).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' });
-  } catch (_) {}
-  return null;
-}
 
 function isLikelyRlsRejection(err: any): boolean {
   const code = String(err?.code ?? '').trim();
@@ -179,47 +89,6 @@ function isPremiumPoster(t: any, builders: BuilderMap): boolean {
   return !!(b?.is_premium);
 }
 
-function getTenderDistanceKm(t: any): number | null {
-  const raw = t?.distance_km ?? t?.distanceKm ?? null;
-  const n = typeof raw === 'number' ? raw : raw != null ? Number(raw) : null;
-  return Number.isFinite(n as number) ? (n as number) : null;
-}
-
-function isBuilderVerified(t: any, builders: BuilderMap): boolean {
-  if (t?.is_name_hidden) return false;
-  const b = builders?.[t?.builder_id];
-  const status = String(b?.abn_status ?? '').toUpperCase();
-  const hasVerifiedAt = !!b?.abn_verified_at;
-  return status === 'VERIFIED' && hasVerifiedAt;
-}
-
-function getPosterNameFromRow(t: any, builders: BuilderMap): string {
-  if (t?.is_name_hidden) return 'Builder (hidden)';
-  const b = builders?.[t?.builder_id];
-  return (
-    b?.business_name ??
-    b?.name ??
-    'Builder'
-  );
-}
-
-function getPosterAvatarFromBuilders(t: any, builders: BuilderMap): string | undefined {
-  if (t?.is_name_hidden) return undefined;
-  const b = builders?.[t?.builder_id];
-  return b?.avatar_url ?? undefined;
-}
-
-function getPosterRatingFromBuilders(t: any, builders: BuilderMap): { rating: number | null; count: number | null } {
-  if (t?.is_name_hidden) return { rating: null, count: null };
-  const b = builders?.[t?.builder_id];
-  const rating = b?.rating != null ? Number(b.rating) : null;
-  const count = b?.rating_count != null ? Number(b.rating_count) : null;
-  return {
-    rating: Number.isFinite(rating as any) ? rating : null,
-    count: Number.isFinite(count as any) ? count : null,
-  };
-}
-
 export default function TendersPage() {
   const supabase = useMemo(() => getBrowserSupabase(), []);
   const { currentUser } = useAuth();
@@ -228,6 +97,7 @@ export default function TendersPage() {
 
   const userForDiscovery = currentUser
     ? {
+        plan: (currentUser as any).plan ?? null,
         is_premium: (currentUser as any).isPremium ?? (currentUser as any).is_premium ?? undefined,
         subscription_status:
           (currentUser as any).subscriptionStatus ?? (currentUser as any).subscription_status ?? null,
@@ -259,10 +129,21 @@ export default function TendersPage() {
   const [deleteConfirmTenderId, setDeleteConfirmTenderId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [reopeningId, setReopeningId] = useState<string | null>(null);
-  const [isCancelling, setIsCancelling] = useState(false);
   const [requestingTenderId, setRequestingTenderId] = useState<string | null>(null);
+  const geocodeAttemptedRef = useRef(false);
 
-  const isBusy = isClosing || isDeleting || isCancelling;
+  const isBusy = isClosing || isDeleting;
+
+  const viewerTrades = useMemo(() => {
+    const t = (currentUser as any)?.trades;
+    if (Array.isArray(t) && t.length > 0) {
+      return t.filter((x: string) => typeof x === 'string' && x.trim()).map((x: string) => x.trim());
+    }
+    const pt = (currentUser as any)?.primaryTrade ?? (currentUser as any)?.primary_trade;
+    return pt ? [String(pt).trim()] : [];
+  }, [currentUser]);
+
+  const tradeFilterForRpc = viewerTrades.length > 0 ? viewerTrades.join('|') : null;
 
   const selectColumns = `id,builder_id,status,tier,is_anonymous,is_name_hidden,project_name,project_description,suburb,postcode,created_at,desired_start_date,desired_end_date`;
 
@@ -324,42 +205,74 @@ export default function TendersPage() {
   async function fetchTenders() {
     setLoading(true);
     try {
-      // Find Work: live tenders, exclude own
+      // Find Work: use RPC for trade + radius filtering (same as jobs). AI-generated and manual tenders use same tender_trade_requirements.
       if (view === 'find') {
-        let q = supabase
-          .from('tenders')
-          .select(selectColumns)
-          .is('deleted_at', null);
+        let list: TenderRow[] = [];
 
-        if (!isAdminUser) q = q.in('status', ['PUBLISHED', 'LIVE']);
-        if (myUserId) q = q.neq('builder_id', myUserId);
-        if (status !== 'all') {
-          if (status === 'LIVE') q = q.in('status', ['PUBLISHED', 'LIVE']);
-          else q = q.eq('status', status);
+        if (myUserId) {
+          const { data: rpcData, error: rpcErr } = await (supabase as any).rpc('get_tenders_visible_to_viewer', {
+            viewer_id: myUserId,
+            trade_filter: tradeFilterForRpc,
+            limit_count: 100,
+            offset_count: 0,
+          });
+
+          if (rpcErr) {
+            console.error('[tenders] RPC error', rpcErr);
+            throw rpcErr;
+          }
+
+          const rows = (Array.isArray(rpcData) ? rpcData : []) as any[];
+          list = rows.map((r: any) => ({
+            id: r.id,
+            builder_id: r.builder_id,
+            status: r.status,
+            tier: r.tier,
+            is_anonymous: r.is_anonymous,
+            is_name_hidden: r.is_name_hidden,
+            project_name: r.project_name,
+            project_description: r.project_description,
+            suburb: r.suburb,
+            postcode: r.postcode,
+            created_at: r.created_at,
+            desired_start_date: r.desired_start_date,
+            desired_end_date: r.desired_end_date,
+            distance_km: r.distance_km,
+          }));
+
+          if (process.env.NODE_ENV === 'development') {
+            const hasCoords = (currentUser as any)?.lat != null && (currentUser as any)?.lng != null;
+            if (list.length > 0) {
+              console.log('[tenders] discovery matched', list.length, 'tenders for viewer trades', viewerTrades, 'tradeFilterForRpc', tradeFilterForRpc, 'radius_km', rows[0]?.viewer_radius_km);
+            } else if (myUserId) {
+              console.log('[tenders] discovery: 0 tenders. viewerTrades=', viewerTrades, 'tradeFilterForRpc=', tradeFilterForRpc, 'viewerHasCoords=', hasCoords, 'location=', (currentUser as any)?.location, 'postcode=', (currentUser as any)?.postcode);
+            }
+          }
         }
+
         if (search.trim()) {
-          const s = `%${search.trim()}%`;
-          q = q.or(`project_name.ilike.${s},suburb.ilike.${s}`);
+          const s = search.trim().toLowerCase();
+          list = list.filter(
+            (t: any) =>
+              (t.project_name ?? '').toLowerCase().includes(s) || (t.suburb ?? '').toLowerCase().includes(s)
+          );
         }
 
-        const orderAscending = false;
-        // NOTE: We don't have distance for tenders yet (like jobs RPC).
-        // Keep "Nearest" UI for now but fallback to newest ordering.
-        // Later: implement a tenders RPC that returns distance_km.
-        const { data, error } = await q.order('created_at', { ascending: orderAscending });
-        if (error) throw error;
-        const list = (data ?? []) as TenderRow[];
+        if (status !== 'all') {
+          if (status === 'LIVE') list = list.filter((t: any) => ['PUBLISHED', 'LIVE'].includes(String(t.status || '')));
+          else list = list.filter((t: any) => String(t.status || '') === status);
+        }
 
         const buildersMap = await fetchBuilderNames(list.map((t) => t.builder_id).filter(Boolean));
         await fetchTenderBudgets(list.map((t) => t.id));
 
         let quoteRequestMap: Record<string, string> = {};
-        const anonymousTenderIds = list.filter((t: any) => t?.is_anonymous).map((t: any) => t.id);
-        if (myUserId && anonymousTenderIds.length > 0) {
+        const tenderIdsForRequests = list.map((t: any) => t.id);
+        if (myUserId && tenderIdsForRequests.length > 0) {
           const { data: reqData } = await supabase
             .from('tender_quote_requests')
             .select('tender_id, status')
-            .in('tender_id', anonymousTenderIds)
+            .in('tender_id', tenderIdsForRequests)
             .eq('requester_id', myUserId);
           for (const r of (reqData ?? []) as { tender_id: string; status: string }[]) {
             quoteRequestMap[r.tender_id] = r.status;
@@ -443,10 +356,29 @@ export default function TendersPage() {
     }
   }
 
+  // Backfill coords for users who signed up before we captured lat/lng (enables radius filtering)
+  useEffect(() => {
+    if (!myUserId || view !== 'find' || geocodeAttemptedRef.current) return;
+    const loc = (currentUser as any)?.location;
+    const hasCoords = (currentUser as any)?.lat != null && (currentUser as any)?.lng != null;
+    if (!hasCoords && typeof loc === 'string' && loc.trim()) {
+      geocodeAttemptedRef.current = true;
+      fetch('/api/profile/geocode-location', { method: 'POST' })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data?.ok && data?.skipped !== 'already_has_coords') {
+            fetchTenders();
+          }
+        })
+        .catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myUserId, view, currentUser?.id, (currentUser as any)?.location, (currentUser as any)?.lat]);
+
   useEffect(() => {
     fetchTenders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, status, myUserId]);
+  }, [view, status, myUserId, tradeFilterForRpc]);
 
   useEffect(() => {
     const t = setTimeout(() => fetchTenders(), 250);
@@ -475,29 +407,6 @@ export default function TendersPage() {
       setIsClosing(false);
       setCloseConfirmOpen(false);
       setCloseConfirmTenderId(null);
-    }
-  }
-
-  async function handleCancelTender(tenderId: string) {
-    if (!myUserId) return toast.error('You must be logged in.');
-    setIsCancelling(true);
-    try {
-      const { error } = await supabase.rpc('cancel_tender', { p_tender_id: tenderId });
-      if (error) {
-        const msg = String((error as any)?.message || '');
-        if (msg.includes('already_cancelled')) toast.error('This tender is already cancelled.');
-        else if (msg.includes('cannot_cancel_closed')) toast.error('Closed tenders can\'t be cancelled.');
-        else if (msg.includes('not_owner')) toast.error('You can only cancel your own tender.');
-        else toast.error('Could not cancel tender.');
-        return;
-      }
-      toast.success('Tender cancelled');
-      await fetchTenders();
-    } catch (e) {
-      console.error('[tenders] cancel failed', e);
-      toast.error('Could not cancel tender.');
-    } finally {
-      setIsCancelling(false);
     }
   }
 
@@ -531,13 +440,10 @@ export default function TendersPage() {
     }
     setRequestingTenderId(tenderId);
     try {
-      const { error } = await supabase.rpc('request_to_quote', { p_tender_id: tenderId });
-      if (error) {
-        const msg = String((error as any)?.message || '');
-        if (msg.includes('not_authenticated')) toast.error('Please log in to request.');
-        else if (msg.includes('tender_not_found')) toast.error('Tender not found.');
-        else if (msg.includes('tender_not_anonymous')) toast.error('This tender is not anonymous.');
-        else toast.error('Could not send request.');
+      const res = await fetch(`/api/tenders/${tenderId}/request-quote`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data?.error || 'Could not send request.');
         return;
       }
       toast.success('Quote request sent');
@@ -554,18 +460,18 @@ export default function TendersPage() {
     if (!myUserId) return toast.error('You must be logged in.');
     setIsDeleting(true);
     try {
-      const { error } = await supabase.rpc('delete_tender', { p_tender_id: tenderId });
-      if (error) {
-        const msg = String((error as any)?.message || '');
-        if (msg.includes('not_owner')) toast.error("You don't have permission to delete this tender.");
-        else if (msg.includes('tender_not_found')) toast.error('Tender not found.');
-        else if (msg.includes('not_authenticated')) toast.error('Please log in to delete tenders.');
-        else toast.error('Could not delete tender.');
+      const res = await fetch(`/api/tenders/${tenderId}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 403) toast.error("You don't have permission to delete this tender.");
+        else if (res.status === 404) toast.error('Tender not found.');
+        else if (res.status === 401) toast.error('Please log in to delete tenders.');
+        else toast.error(data?.error || 'Could not delete tender.');
         return;
       }
       toast.success('Tender deleted');
       await fetchTenders();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('[tenders] delete failed', e);
       toast.error('Could not delete tender.');
     } finally {
@@ -597,308 +503,6 @@ export default function TendersPage() {
     }
     return list.filter((t) => String(t.status || '').toUpperCase() === myTab);
   }, [myTenders, myTab]);
-
-  function TenderRow({
-    tender,
-    showActions = false,
-    onDeleteClick,
-    onCloseClick,
-    onReopenClick,
-    onCancelClick,
-    onRequestToQuote,
-    budgetCents,
-    quotesReceived,
-    isClosing,
-    isPremium,
-    reopeningId,
-    isBusy,
-    isRequesting,
-    builders,
-  }: {
-    tender: TenderRow;
-    showActions?: boolean;
-    onDeleteClick?: (id: string) => void;
-    onCloseClick?: (id: string) => void;
-    onReopenClick?: (id: string) => void;
-    onCancelClick?: (id: string) => void;
-    onRequestToQuote?: (id: string) => void;
-    budgetCents?: number | null;
-    quotesReceived?: number;
-    isClosing?: boolean;
-    isPremium?: boolean;
-    reopeningId?: string | null;
-    isBusy?: boolean;
-    isRequesting?: boolean;
-    builders?: BuilderMap;
-  }) {
-    const tierLabel = prettyTier(tender.tier);
-    const priceLabel = priceBandLabelFromCents(budgetCents ?? null);
-    const dateLabel = formatDateRange(tender.desired_start_date, tender.desired_end_date);
-    const buildersMap = builders ?? {};
-    const posterName = getPosterNameFromRow(tender, buildersMap);
-    const posterAvatar = getPosterAvatarFromBuilders(tender, buildersMap);
-    const { rating, count } = getPosterRatingFromBuilders(tender, buildersMap);
-    const isOpen = ['PUBLISHED', 'LIVE'].includes(String(tender.status || '').toUpperCase());
-    const isClosed = ['CLOSED', 'CANCELLED'].includes(String(tender.status || '').toUpperCase());
-    const isClosedOnly = String(tender.status || '').toUpperCase() === 'CLOSED'; // Reopen only for CLOSED, not CANCELLED
-    const isDraft = String(tender.status || '').toUpperCase() === 'DRAFT';
-    const isLive = isOpen;
-
-    return (
-      <Card className="border-white/15 bg-white/90 shadow-sm backdrop-blur hover:shadow-md transition-shadow">
-        <CardContent className="p-0">
-          <Link
-            href={`/tenders/${tender.id}`}
-            className="block rounded-lg px-4 py-4 hover:bg-white/60"
-          >
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              {/* LEFT: title + trade/tier + poster */}
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="truncate text-base font-semibold text-slate-900">
-                    {tender.project_name}
-                  </div>
-                  {String(tender.status || '').toUpperCase() === 'CANCELLED' ? (
-                    <Badge variant="outline" className="bg-red-100 text-red-800 border-red-200">
-                      {prettyStatus(tender.status)}
-                    </Badge>
-                  ) : (
-                    <Badge variant={statusVariant(tender.status) as any}>{prettyStatus(tender.status)}</Badge>
-                  )}
-                  {tierLabel ? (
-                    <Badge variant="secondary" className="gap-1">
-                      <Tag className="h-3.5 w-3.5" />
-                      {tierLabel}
-                    </Badge>
-                  ) : null}
-                  {priceLabel ? (
-                    <Badge variant="secondary" className="gap-1">
-                      <DollarSign className="h-3.5 w-3.5 text-emerald-600" />
-                      {priceLabel}
-                    </Badge>
-                  ) : null}
-                  {showActions && typeof quotesReceived === 'number' && isLive ? (
-                    <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
-                      {quotesReceived === 1 ? '1 quote' : `${quotesReceived} quotes`}
-                    </Badge>
-                  ) : null}
-                </div>
-                <div className="mt-2 flex items-center gap-2">
-                  {tender.is_anonymous ? (
-                    showActions ? (
-                      <div className="flex items-center justify-between w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-                        <div className="text-sm font-medium text-slate-700">Posted anonymously</div>
-                      </div>
-                    ) : tender.quote_request_status === 'ACCEPTED' ? (
-                    <div className="flex items-center justify-between w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-                      <div className="text-sm font-medium text-slate-700">Request accepted</div>
-                      <Button
-                        asChild
-                        size="sm"
-                        className="h-8"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Link href={`/tenders/${tender.id}#quotes`}>Submit quote</Link>
-                      </Button>
-                    </div>
-                  ) : tender.quote_request_status ? (
-                    <div className="flex items-center justify-between w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-                      <div className="text-sm font-medium text-slate-700">Request sent</div>
-                      <Button size="sm" variant="secondary" disabled className="h-8">
-                        Request sent
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-                      <div className="text-sm font-medium text-slate-700">Request to quote</div>
-                      <Button
-                        size="sm"
-                        className="h-8"
-                        disabled={!!isRequesting}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                        }}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          onRequestToQuote?.(tender.id);
-                        }}
-                      >
-                        {isRequesting ? 'Sending...' : 'Request'}
-                      </Button>
-                    </div>
-                  )
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <ProfileAvatar
-                        userId={tender.builder_id}
-                        currentAvatarUrl={posterAvatar}
-                        userName={posterName}
-                        onAvatarUpdate={() => {}}
-                        editable={false}
-                        size={32}
-                      />
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <div className="truncate text-sm font-medium text-slate-700">
-                            {posterName}
-                          </div>
-                          {isBuilderVerified(tender, buildersMap) ? (
-                            <Badge
-                              variant="secondary"
-                              className="h-5 px-1.5 text-[10px] font-semibold text-sky-700 bg-sky-50 border border-sky-100 gap-1"
-                            >
-                              <BadgeCheck className="h-3.5 w-3.5 text-sky-600" />
-                              Verified
-                            </Badge>
-                          ) : null}
-                        </div>
-                        {rating != null ? (
-                          <div className="flex items-center gap-1 text-xs text-slate-500">
-                            <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
-                            <span className="font-medium text-slate-600">{rating.toFixed(1)}</span>
-                            {count != null ? <span className="text-slate-400">({count})</span> : null}
-                          </div>
-                        ) : (
-                          <div className="text-xs text-slate-500">New</div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* MIDDLE: description */}
-              <div className="min-w-0 sm:flex-1">
-                {tender.project_description ? (
-                  <div className="truncate text-sm text-slate-600">
-                    {tender.project_description}
-                  </div>
-                ) : (
-                  <div className="text-sm text-slate-400">No description</div>
-                )}
-              </div>
-
-              {/* RIGHT: meta icons (Jobs style) + actions */}
-              <div className="flex flex-wrap items-center justify-between gap-3 sm:flex-nowrap sm:justify-end">
-                <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600">
-                  {(tender.suburb || tender.postcode) ? (
-                    <div className="flex items-center gap-1">
-                      <MapPin className="h-4 w-4 text-sky-600" />
-                      <span>{[tender.suburb, tender.postcode].filter(Boolean).join(', ')}</span>
-                    </div>
-                  ) : null}
-                  {dateLabel ? (
-                    <div className="flex items-center gap-1">
-                      <Calendar className="h-4 w-4 text-indigo-600" />
-                      <span>{dateLabel}</span>
-                    </div>
-                  ) : null}
-                </div>
-                <div className="flex items-center gap-2">
-                  {showActions ? (
-                    <>
-                      {isLive && (quotesReceived ?? 0) >= 1 ? (
-                        <Button asChild variant="secondary" size="sm" className="h-9">
-                          <Link href={`/tenders/${tender.id}#quotes`}>View quotes</Link>
-                        </Button>
-                      ) : null}
-                      {isOpen ? (
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-amber-600"
-                          disabled={!!isBusy}
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                          }}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            onCloseClick?.(tender.id);
-                          }}
-                          title="Close tender"
-                        >
-                          <XCircle className="h-4 w-4" />
-                          <span className="ml-1 hidden sm:inline">Close</span>
-                        </button>
-                      ) : null}
-                      {isOpen && onCancelClick ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-9 border-red-200 text-red-700 hover:bg-red-50"
-                          disabled={!!isBusy}
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                          }}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            onCancelClick(tender.id);
-                          }}
-                        >
-                          Cancel
-                        </Button>
-                      ) : null}
-                      {isClosedOnly && isPremium && onReopenClick ? (
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-emerald-600"
-                          disabled={!!isBusy}
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                          }}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            onReopenClick(tender.id);
-                          }}
-                          title="Reopen tender"
-                        >
-                          <RotateCcw className="h-4 w-4" />
-                          <span className="ml-1 hidden sm:inline">Reopen</span>
-                        </button>
-                      ) : null}
-                      {(isDraft || isOpen || isClosed) && onDeleteClick ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-9 border-rose-200 text-rose-700 hover:bg-rose-50"
-                          disabled={!!isBusy}
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                          }}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            onDeleteClick(tender.id);
-                          }}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </Button>
-                      ) : null}
-                    </>
-                  ) : (
-                    <span className="inline-flex items-center gap-2 text-xs text-slate-500">
-                      <ArrowRight className="h-4 w-4" />
-                      <span className="hidden sm:inline">View</span>
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          </Link>
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <AppLayout transparentBackground>
@@ -1065,7 +669,7 @@ export default function TendersPage() {
                       </Card>
                     ) : (
                       findTenders.map((t) => (
-                        <TenderRow
+                        <TenderRowCard
                           key={t.id}
                           tender={t}
                           budgetCents={budgetMap[t.id]}
@@ -1123,13 +727,12 @@ export default function TendersPage() {
                       </Card>
                     ) : (
                       visibleMyTenders.map((t) => (
-                        <TenderRow
+                        <TenderRowCard
                           key={t.id}
                           tender={t}
                           showActions
                           budgetCents={budgetMap[t.id]}
                           quotesReceived={t.quotes_received}
-                          onCancelClick={handleCancelTender}
                           onDeleteClick={(id) => {
                             setDeleteConfirmTenderId(id);
                             setDeleteConfirmOpen(true);
@@ -1193,11 +796,7 @@ export default function TendersPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete tender?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently remove the tender from your account.
-              <br />
-              <span className="mt-2 inline-block font-medium text-slate-900">
-                This action can&apos;t be undone.
-              </span>
+              This will permanently delete this tender and its related files/data. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1209,7 +808,7 @@ export default function TendersPage() {
                 if (deleteConfirmTenderId && !isDeleting) deleteTender(deleteConfirmTenderId);
               }}
             >
-              {isDeleting ? 'Deleting…' : 'Yes, delete'}
+              {isDeleting ? 'Deleting…' : 'Delete tender'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -2,7 +2,7 @@
 -- Reports are separate from blocking; optional "report and block" is supported in the UI.
 
 CREATE TABLE IF NOT EXISTS user_reports (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   reporter_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   reported_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   conversation_id uuid REFERENCES conversations(id) ON DELETE SET NULL,

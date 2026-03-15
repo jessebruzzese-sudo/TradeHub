@@ -26,6 +26,8 @@ import { AppLayout } from '@/components/app-nav';
 import { callTradeHubAI } from '@/lib/ai-client';
 import { EmptyState } from '@/components/empty-state';
 import { needsBusinessVerification, redirectToVerifyBusiness, getVerifyBusinessUrl } from '@/lib/verification-guard';
+import { safeRouterPush } from '@/lib/safe-nav';
+import { buildLoginUrl } from '@/lib/url-utils';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,20 +62,10 @@ import {
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
-// DEV ONLY: remove once messaging UX polish is complete
-import {
-  MOCK_JOB_ID,
-  createMockConversation,
-  createMockMessages,
-  createMockJob,
-  isMockConversation,
-} from '@/lib/mock-messages-dev';
-
-const DEV_MOCK_ENABLED = process.env.NODE_ENV === 'development';
-
 export default function MessagesPage() {
-  const { currentUser } = useAuth();
+  const { currentUser, isLoading } = useAuth();
   const router = useRouter();
+  const hasRedirected = useRef(false);
   const searchParams = useSearchParams();
   const store = getStore();
 
@@ -98,6 +90,7 @@ export default function MessagesPage() {
     jobTitle: string | null;
     jobStatus: string | null;
     updatedAt: string;
+    unreadCount?: number;
   }>>([]);
   const [messagesFromApi, setMessagesFromApi] = useState<Array<{
     id: string;
@@ -146,6 +139,16 @@ export default function MessagesPage() {
       setSelectedConversation(conversationId);
     }
   }, [conversationId]);
+
+  // Redirect unauthenticated users to login
+  useEffect(() => {
+    if (isLoading) return;
+    if (hasRedirected.current) return;
+    if (!currentUser) {
+      hasRedirected.current = true;
+      safeRouterPush(router, buildLoginUrl('/messages'), buildLoginUrl('/messages'));
+    }
+  }, [isLoading, currentUser, router]);
 
   // Load conversations from Supabase when user is present
   useEffect(() => {
@@ -215,12 +218,6 @@ export default function MessagesPage() {
       setJobFromApi(null);
       return;
     }
-    // DEV ONLY: use mock job when mock conversation is selected (no API call)
-    if (DEV_MOCK_ENABLED && convJobId === MOCK_JOB_ID && currentUser) {
-      setJobFromApi(createMockJob(currentUser.id));
-      setLoadingJob(false);
-      return;
-    }
     setLoadingJob(true);
     fetch(`/api/jobs/${convJobId}/messaging-context`)
       .then((res) => (res.ok ? res.json() : null))
@@ -249,22 +246,6 @@ export default function MessagesPage() {
     if (!selectedConversation || !currentUser) {
       setMessagesFromApi([]);
       setConversationFromMessagesApi(null);
-      return;
-    }
-    // DEV ONLY: use mock messages when mock conversation is selected (no API call)
-    if (DEV_MOCK_ENABLED && isMockConversation(selectedConversation)) {
-      const mockConv = createMockConversation(currentUser.id);
-      setMessagesFromApi(createMockMessages(selectedConversation, currentUser.id));
-      setConversationFromMessagesApi({
-        id: mockConv.id,
-        contractorId: mockConv.contractorId,
-        subcontractorId: mockConv.subcontractorId,
-        jobId: mockConv.jobId,
-        otherUserId: mockConv.otherUserId,
-        otherUserName: mockConv.otherUserName,
-        otherUserAvatar: mockConv.otherUserAvatar,
-      });
-      setLoadingMessages(false);
       return;
     }
     setLoadingMessages(true);
@@ -305,13 +286,7 @@ export default function MessagesPage() {
       .catch(() => {});
   }, [currentUser?.id, store]);
 
-  // Derived: conversations from API (source of truth). DEV ONLY: inject mock when empty in development.
-  const conversations =
-    conversationsFromApi.length > 0
-      ? conversationsFromApi
-      : DEV_MOCK_ENABLED && currentUser
-        ? [createMockConversation(currentUser.id)]
-        : [];
+  const conversations = conversationsFromApi;
 
   const currentConversation = selectedConversation
     ? (conversationsFromApi.find((c) => c.id === selectedConversation) ??
@@ -329,7 +304,8 @@ export default function MessagesPage() {
               jobStatus: null,
               updatedAt: '',
             }
-          : null))
+          : conversations.find((c) => c.id === selectedConversation)) ??
+        null)
     : null;
 
   const currentJob = jobFromApi ?? (currentConversation?.jobId ? store.getJobById(currentConversation.jobId) : null);
@@ -353,7 +329,11 @@ export default function MessagesPage() {
   }, [messages.length]);
 
   if (!currentUser) {
-    return null;
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center text-sm text-gray-600">
+        Redirecting to login…
+      </div>
+    );
   }
 
   const needsAbnForActions = needsBusinessVerification(currentUser);
@@ -393,11 +373,6 @@ export default function MessagesPage() {
     try {
       if (!currentUser?.id || !currentConversation) {
         setSuggestError('Please select a conversation');
-        setSuggestLoading(false);
-        return;
-      }
-      if (DEV_MOCK_ENABLED && isMockConversation(currentConversation.id)) {
-        setSuggestError('AI suggestions are disabled for demo conversations');
         setSuggestLoading(false);
         return;
       }
@@ -498,11 +473,6 @@ export default function MessagesPage() {
 
   const handleSendMessage = async () => {
     if (!messageText.trim() || !currentConversation || !currentUser) return;
-    // DEV ONLY: block send for mock conversation (no persistence)
-    if (DEV_MOCK_ENABLED && isMockConversation(currentConversation.id)) {
-      toast.info('This is a demo conversation. Send is disabled.');
-      return;
-    }
     if (otherUserId && store.isBlocked(otherUserId, currentUser.id)) {
       setSendError('You cannot send messages in this conversation.');
       return;
@@ -585,7 +555,7 @@ export default function MessagesPage() {
       const systemMsg = createSystemMessage(
         currentConversation.id,
         newStatus as any,
-        currentJob?.cancellationReason
+        currentJob?.cancellationReason ?? undefined
       );
       store.addMessage(systemMsg);
       setMessagesFromApi((prev) => [
@@ -604,7 +574,6 @@ export default function MessagesPage() {
 
   const refreshJobFromApi = () => {
     if (!convJobId) return;
-    if (DEV_MOCK_ENABLED && convJobId === MOCK_JOB_ID) return;
     fetch(`/api/jobs/${convJobId}/messaging-context`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
@@ -728,8 +697,8 @@ export default function MessagesPage() {
       addSystemMessageIfNeeded(currentJob.id, 'confirmed');
       refreshJobFromApi();
       if (store.getJobById(currentJob.id)) {
-        store.updateJob(currentJob.id, { status: 'confirmed', confirmedSubcontractor: currentJob.selectedSubcontractor });
-        const selectedApp = store.getApplicationsByJob(currentJob.id).find((a) => a.subcontractorId === currentJob.selectedSubcontractor);
+        store.updateJob(currentJob.id, { status: 'confirmed', confirmedSubcontractor: currentJob.selectedSubcontractor ?? undefined });
+        const selectedApp = store.getApplicationsByJob(currentJob.id).find((a) => a.subcontractorId === (currentJob.selectedSubcontractor ?? undefined));
         if (selectedApp) store.updateApplication(selectedApp.id, { status: 'confirmed' });
       }
       toast.success('Hire confirmed!');
@@ -778,24 +747,40 @@ export default function MessagesPage() {
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {conversations.map((conv) => (
-                        <button
-                          key={conv.id}
-                          onClick={() => {
-                            setSelectedConversation(conv.id);
-                            router.replace(`/messages?conversation=${conv.id}`, { scroll: false });
-                          }}
-                          className="w-full rounded-xl p-4 text-left transition-colors border border-transparent hover:bg-slate-50 active:bg-slate-100 touch-manipulation"
-                        >
-                          <div className="flex items-center gap-3">
-                            <UserAvatar avatarUrl={conv.otherUserAvatar ?? undefined} userName={conv.otherUserName} size="md" />
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-gray-900 truncate">{conv.otherUserName}</p>
-                              <p className="text-xs text-slate-600 truncate">{conv.jobTitle ?? 'Direct message'}</p>
+                      {conversations.map((conv) => {
+                        const unread = (conv as { unreadCount?: number }).unreadCount ?? 0;
+                        return (
+                          <button
+                            key={conv.id}
+                            onClick={() => {
+                              setSelectedConversation(conv.id);
+                              router.replace(`/messages?conversation=${conv.id}`, { scroll: false });
+                            }}
+                            className={`w-full rounded-xl p-4 text-left transition-colors border touch-manipulation ${
+                              unread > 0
+                                ? 'border-blue-100 bg-blue-50/50 hover:bg-blue-50'
+                                : 'border-transparent hover:bg-slate-50 active:bg-slate-100'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <UserAvatar avatarUrl={conv.otherUserAvatar ?? undefined} userName={conv.otherUserName} size="md" />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="font-medium text-gray-900 truncate">{conv.otherUserName}</p>
+                                  {unread > 0 && (
+                                    <span className="shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold text-white bg-blue-600 rounded-full">
+                                      {unread > 99 ? '99+' : unread}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-slate-600 truncate">
+                                  {conv.lastMessage?.text ?? conv.jobTitle ?? 'Direct message'}
+                                </p>
+                              </div>
                             </div>
-                          </div>
-                        </button>
-                      ))}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -1048,25 +1033,42 @@ export default function MessagesPage() {
                   onCtaClick={() => router.push('/tenders')}
                 />
               ) : null}
-              {conversations.map((conv) => (
-                <button
-                  key={conv.id}
-                  onClick={() => setSelectedConversation(conv.id)}
-                  className={`w-full rounded-xl p-3 text-left transition-colors ${
-                    selectedConversation === conv.id
-                      ? 'border border-blue-100 bg-blue-50'
-                      : 'border border-transparent hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <UserAvatar avatarUrl={conv.otherUserAvatar ?? undefined} userName={conv.otherUserName} size="md" />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 truncate">{conv.otherUserName}</p>
-                      <p className="text-xs text-slate-600 truncate">{conv.jobTitle ?? 'Direct message'}</p>
+              {conversations.map((conv) => {
+                const unread = (conv as { unreadCount?: number }).unreadCount ?? 0;
+                return (
+                  <button
+                    key={conv.id}
+                    onClick={() => {
+                      setSelectedConversation(conv.id);
+                      router.replace(`/messages?conversation=${conv.id}`, { scroll: false });
+                    }}
+                    className={`w-full rounded-xl p-3 text-left transition-colors ${
+                      selectedConversation === conv.id
+                        ? 'border border-blue-100 bg-blue-50'
+                        : unread > 0
+                          ? 'border border-blue-100 bg-blue-50/50 hover:bg-blue-50'
+                          : 'border border-transparent hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <UserAvatar avatarUrl={conv.otherUserAvatar ?? undefined} userName={conv.otherUserName} size="md" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-medium text-gray-900 truncate">{conv.otherUserName}</p>
+                          {unread > 0 && (
+                            <span className="shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold text-white bg-blue-600 rounded-full">
+                              {unread > 99 ? '99+' : unread}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-600 truncate">
+                          {conv.lastMessage?.text ?? conv.jobTitle ?? 'Direct message'}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           </aside>
 

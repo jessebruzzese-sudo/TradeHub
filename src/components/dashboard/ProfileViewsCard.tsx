@@ -2,12 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { Eye } from 'lucide-react';
+import { useAuth } from '@/lib/auth';
 
 export function ProfileViewsCard() {
+  const { session } = useAuth();
   const [viewsLast7Days, setViewsLast7Days] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!session?.user) return;
     fetch('/api/profile/views-count')
       .then((res) => {
         if (!res.ok) {
@@ -20,7 +23,7 @@ export function ProfileViewsCard() {
         setViewsLast7Days(typeof data?.viewsLast7Days === 'number' ? data.viewsLast7Days : 0);
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'));
-  }, []);
+  }, [session?.user]);
 
   if (error) {
     return (

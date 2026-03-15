@@ -7,8 +7,8 @@ import { createChunks, stringToBase64URL } from '@supabase/ssr'
 config({ path: path.resolve(process.cwd(), '.env') })
 config({ path: path.resolve(process.cwd(), '.env.local') })
 
-const email = process.env.PW_EMAIL || 'jesse1@gmail.com'
-const password = process.env.PW_PASSWORD || 'password'
+const email = process.env.PW_EMAIL || 'pw-free@tradehub.test'
+const password = process.env.PW_PASSWORD || 'password1'
 const BASE64_PREFIX = 'base64-'
 
 // Must match supabase-js default: sb-${projectRef}-auth-token

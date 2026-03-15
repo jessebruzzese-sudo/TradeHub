@@ -1,16 +1,14 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import type { Database } from '@/lib/database.types';
+import { createServiceSupabase } from '@/lib/supabase-server';
 import { requireAdmin } from '@/lib/admin/require-admin';
 
-export const dynamic = 'force-dynamic';
+type ConversationRow = Pick<Database['public']['Tables']['conversations']['Row'], 'id' | 'contractor_id' | 'subcontractor_id' | 'job_id' | 'created_at'>;
+type MessageRow = Pick<Database['public']['Tables']['messages']['Row'], 'id' | 'sender_id' | 'text' | 'is_system_message' | 'created_at' | 'attachments'>;
+type UserReportRow = { id: string; reporter_id: string; reported_id: string; category: string; notes: string | null; status: string; created_at: string };
+type UserRow = Pick<Database['public']['Tables']['users']['Row'], 'id' | 'name'>;
 
-function serviceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  );
-}
+export const dynamic = 'force-dynamic';
 
 export async function GET(
   _request: Request,
@@ -24,23 +22,26 @@ export async function GET(
       return NextResponse.json({ error: 'Conversation ID required' }, { status: 400 });
     }
 
-    const supabase = serviceClient();
+    const supabase = createServiceSupabase();
 
-    const { data: conv, error: convError } = await supabase
+    const convResult = await supabase
       .from('conversations')
       .select('id, contractor_id, subcontractor_id, job_id, created_at')
       .eq('id', conversationId)
       .single();
+    const conv = convResult.data as ConversationRow | null;
+    const convError = convResult.error;
 
     if (convError || !conv) {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
     }
 
-    const { data: messages } = await supabase
+    const messagesResult = await supabase
       .from('messages')
       .select('id, sender_id, text, is_system_message, created_at, attachments')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: true });
+    const messages = messagesResult.data as MessageRow[] | null;
 
     const userIds = new Set<string>();
     userIds.add(conv.contractor_id);
@@ -49,11 +50,12 @@ export async function GET(
       userIds.add(m.sender_id);
     }
 
-    const { data: reports } = await supabase
+    const reportsResult = await (supabase as any)
       .from('user_reports')
       .select('id, reporter_id, reported_id, category, notes, status, created_at')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: false });
+    const reports = reportsResult.data as UserReportRow[] | null;
 
     const reportUserIds = new Set<string>();
     for (const r of reports ?? []) {
@@ -62,10 +64,11 @@ export async function GET(
     }
     for (const id of reportUserIds) userIds.add(id);
 
-    const { data: users } = await supabase
+    const usersResult = await supabase
       .from('users')
       .select('id, name')
       .in('id', Array.from(userIds));
+    const users = usersResult.data as UserRow[] | null;
 
     const names: Record<string, string> = {};
     for (const u of users ?? []) {

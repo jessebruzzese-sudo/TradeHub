@@ -1,22 +1,11 @@
-export function isAbnVerified(u: any): boolean {
-  if (!u) return false;
+import { isAbnVerified as isAbnVerifiedFromUtils } from '@/lib/abn-utils';
 
-  const status = String(u.abnStatus ?? u.abn_status ?? '')
-    .trim()
-    .toUpperCase();
+/**
+ * @deprecated Use isAbnVerified from '@/lib/abn-utils' instead.
+ * Re-exported for backward compatibility.
+ */
+export const isAbnVerified = isAbnVerifiedFromUtils;
 
-  // Verified if status says VERIFIED
-  if (status === 'VERIFIED') return true;
-
-  // Verified if we have a verified timestamp (either camelCase or snake_case)
-  if (u.abnVerifiedAt ?? u.abn_verified_at) return true;
-
-  // Verified if a boolean flag exists
-  if (u.abnVerified === true || u.abn_verified === true) return true;
-
-  return false;
-}
-
-export function abnLabel(u: any): 'verified' | 'unverified' {
-  return isAbnVerified(u) ? 'verified' : 'unverified';
+export function abnLabel(u: Parameters<typeof isAbnVerifiedFromUtils>[0]): 'verified' | 'unverified' {
+  return isAbnVerifiedFromUtils(u) ? 'verified' : 'unverified';
 }

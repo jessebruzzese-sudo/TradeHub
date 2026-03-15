@@ -7,9 +7,12 @@ import {
   haversineKm,
   isPremiumCandidate,
 } from '@/lib/discovery';
+import { getTier } from '@/lib/plan-limits';
+import { hasValidABN } from '@/lib/abn-utils';
 
 type UserRow = {
   id: string;
+  plan?: string | null;
   location_lat?: number | null;
   location_lng?: number | null;
   base_lat?: number | null;
@@ -47,7 +50,11 @@ function getCandidateCoords(row: UserRow): { lat: number; lng: number } | null {
   return null;
 }
 
-function getTradesFromRow(row: UserRow): string[] {
+function getTradesFromRow(row: UserRow, userTradesMap?: Map<string, string[]>): string[] {
+  const fromUserTrades = userTradesMap?.get(row.id);
+  if (fromUserTrades && fromUserTrades.length > 0) {
+    return fromUserTrades;
+  }
   const primary = row.primary_trade ? [row.primary_trade] : [];
   let additional: string[] = [];
   const at = row.additional_trades as string[] | string | null | undefined;
@@ -70,15 +77,16 @@ function getTradesFromRow(row: UserRow): string[] {
   return Array.from(set).filter(Boolean);
 }
 
-function matchesTrade(row: UserRow, tradeParam: string): boolean {
-  const trades = getTradesFromRow(row);
+function matchesTrade(row: UserRow, tradeParam: string, userTradesMap?: Map<string, string[]>): boolean {
+  const trades = getTradesFromRow(row, userTradesMap);
   const target = normalizeTrade(tradeParam);
   return trades.some((t) => normalizeTrade(t) === target);
 }
 
 function mapToCard(
   row: UserRow,
-  isPremium: boolean
+  isPremium: boolean,
+  userTradesMap?: Map<string, string[]>
 ): {
   id: string;
   display_name: string;
@@ -105,12 +113,9 @@ function mapToCard(
     row.location ??
     null;
 
-  const verified =
-    (row as Record<string, unknown>).is_verified === true ||
-    (row as Record<string, unknown>).abn_verified === true ||
-    (row.abn_status && String(row.abn_status).toUpperCase() === 'VERIFIED');
+  const verified = hasValidABN(row);
 
-  const tradeCategories = getTradesFromRow(row);
+  const tradeCategories = getTradesFromRow(row, userTradesMap);
 
   let avatarUrl: string | null = row.avatar ?? null;
   if (avatarUrl && !avatarUrl.startsWith('http')) {
@@ -154,10 +159,10 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: me, error: meErr } = await supabase
+    const { data: me, error: meErr } = await (supabase as any)
       .from('users')
       .select(
-        'id,location_lat,location_lng,base_lat,base_lng,search_lat,search_lng,is_premium,active_plan,subscription_status,subcontractor_plan,subcontractor_sub_status'
+        'id,plan,location_lat,location_lng,base_lat,base_lng,search_lat,search_lng,is_premium,active_plan,subscription_status,subcontractor_plan,subcontractor_sub_status'
       )
       .eq('id', user.id)
       .maybeSingle();
@@ -173,21 +178,25 @@ export async function GET(
     if (!center) {
       return NextResponse.json({
         profiles: [],
+        outsideRadiusCount: 0,
+        allowedRadiusKm: 20,
         message: 'Add your location to discover trades near you.',
       });
     }
 
     const radiusKm = getDiscoveryRadiusKm(me as UserRow);
-    const bbox = bboxForRadiusKm(center.lat, center.lng, radiusKm);
+    const isViewerPremium = getTier(me) === 'premium';
+    const fetchRadiusKm = isViewerPremium ? radiusKm : Math.max(300, radiusKm * 3);
+    const bbox = bboxForRadiusKm(center.lat, center.lng, fetchRadiusKm);
 
     const orClause =
       `and(location_lat.gte.${bbox.minLat},location_lat.lte.${bbox.maxLat},location_lng.gte.${bbox.minLng},location_lng.lte.${bbox.maxLng}),` +
       `and(base_lat.gte.${bbox.minLat},base_lat.lte.${bbox.maxLat},base_lng.gte.${bbox.minLng},base_lng.lte.${bbox.maxLng})`;
 
-    let query = supabase
+    let query = (supabase as any)
       .from('users')
       .select(
-        'id,location_lat,location_lng,base_lat,base_lng,primary_trade,additional_trades,trades,business_name,name,base_suburb,location,postcode,abn_status,avatar,is_premium,active_plan,subscription_status,subcontractor_plan,subcontractor_sub_status'
+        'id,plan,location_lat,location_lng,base_lat,base_lng,primary_trade,additional_trades,trades,business_name,name,base_suburb,location,postcode,abn_status,avatar,is_premium,active_plan,subscription_status,subcontractor_plan,subcontractor_sub_status'
       )
       .eq('is_public_profile', true)
       .neq('id', user.id)
@@ -197,7 +206,7 @@ export async function GET(
 
     if (candErr) {
       if (candErr.message?.includes('is_public_profile') || candErr.code === '42P01') {
-        return NextResponse.json({ profiles: [] });
+        return NextResponse.json({ profiles: [], outsideRadiusCount: 0, allowedRadiusKm: radiusKm });
       }
       console.error('Discovery trade route error:', candErr);
       return NextResponse.json(
@@ -207,14 +216,41 @@ export async function GET(
     }
 
     const rows = (candidates ?? []) as UserRow[];
-    const candidatesWithMeta: {
-      row: UserRow;
-      distanceKm: number;
-      isPremium: boolean;
-    }[] = [];
+    const ids = rows.map((r) => r.id).filter(Boolean);
+
+    let userTradesMap = new Map<string, string[]>();
+    if (ids.length > 0) {
+      try {
+        const { data: utRows } = await (supabase as any)
+          .from('user_trades')
+          .select('user_id, trade, is_primary')
+          .in('user_id', ids)
+          .order('is_primary', { ascending: false })
+          .order('created_at', { ascending: true });
+        if (utRows && utRows.length > 0) {
+          const map = new Map<string, string[]>();
+          for (const r of utRows) {
+            const uid = (r as { user_id: string }).user_id;
+            const arr = map.get(uid) ?? [];
+            if (!arr.includes((r as { trade: string }).trade)) {
+              arr.push((r as { trade: string }).trade);
+            }
+            map.set(uid, arr);
+          }
+          userTradesMap = map;
+        }
+      } catch {
+        // user_trades may not exist
+      }
+    }
+
+    const tradeParamNorm = tradeParam.trim().toLowerCase();
+    const matchAllTrades = tradeParamNorm === 'all';
+
+    const allMatchingWithDistance: { row: UserRow; distanceKm: number; isPremium: boolean }[] = [];
 
     for (const row of rows) {
-      if (!matchesTrade(row, tradeParam)) continue;
+      if (!matchAllTrades && !matchesTrade(row, tradeParam, userTradesMap)) continue;
       const coords = getCandidateCoords(row);
       if (!coords) continue;
       const distanceKm = haversineKm(
@@ -223,25 +259,31 @@ export async function GET(
         coords.lat,
         coords.lng
       );
-      if (distanceKm > radiusKm) continue;
-      candidatesWithMeta.push({
+      allMatchingWithDistance.push({
         row,
         distanceKm,
         isPremium: isPremiumCandidate(row),
       });
     }
 
-    candidatesWithMeta.sort(
+    const withinRadius = allMatchingWithDistance.filter((c) => c.distanceKm <= radiusKm);
+    const outsideRadiusCount = isViewerPremium ? 0 : allMatchingWithDistance.filter((c) => c.distanceKm > radiusKm).length;
+
+    withinRadius.sort(
       (a, b) =>
         Number(b.isPremium) - Number(a.isPremium) ||
         a.distanceKm - b.distanceKm
     );
 
-    const cards = candidatesWithMeta.map((c) =>
-      mapToCard(c.row, c.isPremium)
+    const cards = withinRadius.map((c) =>
+      mapToCard(c.row, c.isPremium, userTradesMap)
     );
 
-    return NextResponse.json({ profiles: cards });
+    return NextResponse.json({
+      profiles: cards,
+      outsideRadiusCount,
+      allowedRadiusKm: radiusKm,
+    });
   } catch (err: unknown) {
     console.error('discovery trade/[trade] error:', err);
     return NextResponse.json(

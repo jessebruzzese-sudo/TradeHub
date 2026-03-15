@@ -41,6 +41,7 @@ export default defineConfig({
         storageState: 'playwright/.auth/user.json',
       },
       dependencies: ['setup'],
+      testIgnore: [/auth-unverified\.setup\.ts/, /abn-gating-unverified\.spec\.ts/],
     },
     ...(hasUnverifiedCreds
       ? [

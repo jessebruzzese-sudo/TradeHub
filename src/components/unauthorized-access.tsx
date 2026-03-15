@@ -15,18 +15,17 @@ export function UnauthorizedAccess({ redirectTo, message = 'You do not have perm
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          router.push(redirectTo);
-          return 0;
-        }
-        return prev - 1;
-      });
+      setCountdown((prev) => (prev <= 1 ? 0 : prev - 1));
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [router, redirectTo]);
+  }, []);
+
+  useEffect(() => {
+    if (countdown === 0) {
+      router.push(redirectTo);
+    }
+  }, [countdown, redirectTo, router]);
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">

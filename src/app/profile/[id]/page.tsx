@@ -74,8 +74,30 @@ export default async function PublicProfilePage({
 
   if (error || !data) return notFound();
 
+  // Fetch user_trades for multi-trade display (when available)
+  let profileData = { ...data };
+  try {
+    const { data: utRows } = await (supabase as any)
+      .from('user_trades')
+      .select('trade, is_primary')
+      .eq('user_id', profileId)
+      .order('is_primary', { ascending: false })
+      .order('created_at', { ascending: true });
+    if (utRows && utRows.length > 0) {
+      const trades = utRows.map((r: { trade: string }) => r.trade).filter(Boolean);
+      const primary = utRows.find((r: { is_primary: boolean }) => r.is_primary)?.trade ?? utRows[0]?.trade;
+      profileData = {
+        ...data,
+        trades,
+        primary_trade: primary ?? (data as any).primary_trade,
+      } as typeof profileData;
+    }
+  } catch {
+    // user_trades may not exist
+  }
+
   const { data: { user: authUser } } = await supabase.auth.getUser();
   const isMe = !!authUser?.id && profileId === authUser.id;
 
-  return <ProfileView mode="public" profile={data} isMe={isMe} />;
+  return <ProfileView mode="public" profile={profileData as any} isMe={isMe} />;
 }

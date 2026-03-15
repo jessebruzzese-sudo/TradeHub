@@ -153,7 +153,12 @@ export function SuburbAutocomplete({
       const res = await fetch(`/api/places/details?place_id=${encodeURIComponent(p.place_id)}`);
       const data = await res.json().catch(() => ({}));
       if (res.ok && data?.ok) {
-        if (data?.postcode) onPostcodeChange(String(data.postcode));
+        let postcode = data?.postcode ? String(data.postcode).trim() : '';
+        if (!postcode && fullLabel) {
+          const match = fullLabel.match(/\b(\d{4})\b/);
+          if (match) postcode = match[1];
+        }
+        if (postcode) onPostcodeChange(postcode);
         onLatLngChange?.(typeof data?.lat === 'number' ? data.lat : null, typeof data?.lng === 'number' ? data.lng : null);
       }
     } catch {

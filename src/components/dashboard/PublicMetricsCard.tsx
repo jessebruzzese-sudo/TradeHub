@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Users } from 'lucide-react';
+import { useAuth } from '@/lib/auth';
 
 type TradesNearYouData = {
   totalAccountsRounded: string;
@@ -11,10 +12,12 @@ type TradesNearYouData = {
 };
 
 export function PublicMetricsCard() {
+  const { session } = useAuth();
   const [data, setData] = useState<TradesNearYouData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!session?.user) return;
     fetch('/api/discovery/trades-near-you')
       .then((res) => {
         if (!res.ok) {
@@ -25,7 +28,7 @@ export function PublicMetricsCard() {
       })
       .then(setData)
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'));
-  }, []);
+  }, [session?.user]);
 
   if (error) {
     return (

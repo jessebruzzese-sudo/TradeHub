@@ -89,7 +89,42 @@ export type Database = {
             foreignKeyName: "admin_account_reviews_reviewed_by_fkey"
             columns: ["reviewed_by"]
             isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_account_reviews_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_account_reviews_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_account_reviews_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_account_reviews_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_account_reviews_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
             referencedColumns: ["id"]
           },
           {
@@ -97,6 +132,13 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_account_reviews_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
             referencedColumns: ["id"]
           },
         ]
@@ -131,7 +173,42 @@ export type Database = {
             foreignKeyName: "admin_notes_admin_id_fkey"
             columns: ["admin_id"]
             isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_notes_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_notes_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_notes_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_notes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_notes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
             referencedColumns: ["id"]
           },
           {
@@ -139,6 +216,13 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_notes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
             referencedColumns: ["id"]
           },
         ]
@@ -194,7 +278,42 @@ export type Database = {
             foreignKeyName: "admin_review_cases_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_review_cases_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_review_cases_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_review_cases_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_review_cases_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_review_cases_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
             referencedColumns: ["id"]
           },
           {
@@ -205,10 +324,38 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "admin_review_cases_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_review_cases_subcontractor_id_fkey"
+            columns: ["subcontractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_review_cases_subcontractor_id_fkey"
+            columns: ["subcontractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "admin_review_cases_subcontractor_id_fkey"
             columns: ["subcontractor_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_review_cases_subcontractor_id_fkey"
+            columns: ["subcontractor_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
             referencedColumns: ["id"]
           },
         ]
@@ -246,7 +393,28 @@ export type Database = {
             foreignKeyName: "admin_settings_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
             referencedColumns: ["id"]
           },
         ]
@@ -303,7 +471,28 @@ export type Database = {
             foreignKeyName: "applications_subcontractor_id_fkey"
             columns: ["subcontractor_id"]
             isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applications_subcontractor_id_fkey"
+            columns: ["subcontractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applications_subcontractor_id_fkey"
+            columns: ["subcontractor_id"]
+            isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applications_subcontractor_id_fkey"
+            columns: ["subcontractor_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
             referencedColumns: ["id"]
           },
         ]
@@ -347,7 +536,28 @@ export type Database = {
             foreignKeyName: "audit_logs_admin_id_fkey"
             columns: ["admin_id"]
             isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_logs_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_logs_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_logs_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
             referencedColumns: ["id"]
           },
           {
@@ -368,7 +578,28 @@ export type Database = {
             foreignKeyName: "audit_logs_target_user_id_fkey"
             columns: ["target_user_id"]
             isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_logs_target_user_id_fkey"
+            columns: ["target_user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_logs_target_user_id_fkey"
+            columns: ["target_user_id"]
+            isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_logs_target_user_id_fkey"
+            columns: ["target_user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
             referencedColumns: ["id"]
           },
         ]
@@ -394,7 +625,7 @@ export type Database = {
           contractor_id?: string
           created_at?: string | null
           id?: string
-          job_id?: string
+          job_id?: string | null
           subcontractor_id?: string
           updated_at?: string | null
         }
@@ -403,7 +634,28 @@ export type Database = {
             foreignKeyName: "conversations_contractor_id_fkey"
             columns: ["contractor_id"]
             isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
             referencedColumns: ["id"]
           },
           {
@@ -417,7 +669,28 @@ export type Database = {
             foreignKeyName: "conversations_subcontractor_id_fkey"
             columns: ["subcontractor_id"]
             isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_subcontractor_id_fkey"
+            columns: ["subcontractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_subcontractor_id_fkey"
+            columns: ["subcontractor_id"]
+            isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_subcontractor_id_fkey"
+            columns: ["subcontractor_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
             referencedColumns: ["id"]
           },
         ]
@@ -436,8 +709,11 @@ export type Database = {
           contractor_id: string
           created_at: string | null
           dates: Json
+          deleted_at: string | null
           description: string
           duration: number | null
+          file_name: string | null
+          file_url: string | null
           fulfilled: boolean | null
           fulfillment_marked_at: string | null
           fulfillment_marked_by: string | null
@@ -448,7 +724,7 @@ export type Database = {
           location_place_id: string | null
           pay_type: string
           postcode: string
-          rate: number
+          rate: number | null
           reminder_48h_sent: boolean | null
           selected_subcontractor: string | null
           start_date: string | null
@@ -473,8 +749,11 @@ export type Database = {
           contractor_id: string
           created_at?: string | null
           dates?: Json
+          deleted_at?: string | null
           description: string
           duration?: number | null
+          file_name?: string | null
+          file_url?: string | null
           fulfilled?: boolean | null
           fulfillment_marked_at?: string | null
           fulfillment_marked_by?: string | null
@@ -485,7 +764,7 @@ export type Database = {
           location_place_id?: string | null
           pay_type: string
           postcode: string
-          rate: number
+          rate?: number | null
           reminder_48h_sent?: boolean | null
           selected_subcontractor?: string | null
           start_date?: string | null
@@ -510,8 +789,11 @@ export type Database = {
           contractor_id?: string
           created_at?: string | null
           dates?: Json
+          deleted_at?: string | null
           description?: string
           duration?: number | null
+          file_name?: string | null
+          file_url?: string | null
           fulfilled?: boolean | null
           fulfillment_marked_at?: string | null
           fulfillment_marked_by?: string | null
@@ -522,7 +804,7 @@ export type Database = {
           location_place_id?: string | null
           pay_type?: string
           postcode?: string
-          rate?: number
+          rate?: number | null
           reminder_48h_sent?: boolean | null
           selected_subcontractor?: string | null
           start_date?: string | null
@@ -539,7 +821,42 @@ export type Database = {
             foreignKeyName: "jobs_approved_by_fkey"
             columns: ["approved_by"]
             isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
             referencedColumns: ["id"]
           },
           {
@@ -550,10 +867,52 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "jobs_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_confirmed_subcontractor_fkey"
+            columns: ["confirmed_subcontractor"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_confirmed_subcontractor_fkey"
+            columns: ["confirmed_subcontractor"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "jobs_confirmed_subcontractor_fkey"
             columns: ["confirmed_subcontractor"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_confirmed_subcontractor_fkey"
+            columns: ["confirmed_subcontractor"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
             referencedColumns: ["id"]
           },
           {
@@ -564,10 +923,52 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "jobs_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_fulfillment_marked_by_fkey"
+            columns: ["fulfillment_marked_by"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_fulfillment_marked_by_fkey"
+            columns: ["fulfillment_marked_by"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "jobs_fulfillment_marked_by_fkey"
             columns: ["fulfillment_marked_by"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_fulfillment_marked_by_fkey"
+            columns: ["fulfillment_marked_by"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_selected_subcontractor_fkey"
+            columns: ["selected_subcontractor"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_selected_subcontractor_fkey"
+            columns: ["selected_subcontractor"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
             referencedColumns: ["id"]
           },
           {
@@ -577,7 +978,53 @@ export type Database = {
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "jobs_selected_subcontractor_fkey"
+            columns: ["selected_subcontractor"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      listing_alert_sends: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          listing_id: string
+          listing_type: string
+          provider_message_id: string | null
+          recipient_email: string
+          recipient_user_id: string
+          status: string
+          trade_label: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          listing_id: string
+          listing_type: string
+          provider_message_id?: string | null
+          recipient_email: string
+          recipient_user_id: string
+          status?: string
+          trade_label?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          listing_id?: string
+          listing_type?: string
+          provider_message_id?: string | null
+          recipient_email?: string
+          recipient_user_id?: string
+          status?: string
+          trade_label?: string | null
+        }
+        Relationships: []
       }
       messages: {
         Row: {
@@ -619,7 +1066,28 @@ export type Database = {
             foreignKeyName: "messages_sender_id_fkey"
             columns: ["sender_id"]
             isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
             referencedColumns: ["id"]
           },
         ]
@@ -683,31 +1151,66 @@ export type Database = {
             foreignKeyName: "notifications_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
             referencedColumns: ["id"]
           },
         ]
       }
       profile_views: {
         Row: {
+          created_at: string | null
           id: string
           viewed_user_id: string
           viewer_user_id: string
-          created_at: string | null
         }
         Insert: {
+          created_at?: string | null
           id?: string
           viewed_user_id: string
           viewer_user_id: string
-          created_at?: string | null
         }
         Update: {
+          created_at?: string | null
           id?: string
           viewed_user_id?: string
           viewer_user_id?: string
-          created_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "profile_views_viewed_user_id_fkey"
+            columns: ["viewed_user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profile_views_viewed_user_id_fkey"
+            columns: ["viewed_user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profile_views_viewed_user_id_fkey"
             columns: ["viewed_user_id"]
@@ -716,10 +1219,38 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "profile_views_viewed_user_id_fkey"
+            columns: ["viewed_user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profile_views_viewer_user_id_fkey"
+            columns: ["viewer_user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profile_views_viewer_user_id_fkey"
+            columns: ["viewer_user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "profile_views_viewer_user_id_fkey"
             columns: ["viewer_user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profile_views_viewer_user_id_fkey"
+            columns: ["viewer_user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
             referencedColumns: ["id"]
           },
         ]
@@ -778,7 +1309,42 @@ export type Database = {
             foreignKeyName: "reliability_events_admin_reviewed_by_fkey"
             columns: ["admin_reviewed_by"]
             isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reliability_events_admin_reviewed_by_fkey"
+            columns: ["admin_reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reliability_events_admin_reviewed_by_fkey"
+            columns: ["admin_reviewed_by"]
+            isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reliability_events_admin_reviewed_by_fkey"
+            columns: ["admin_reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reliability_events_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reliability_events_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
             referencedColumns: ["id"]
           },
           {
@@ -786,6 +1352,13 @@ export type Database = {
             columns: ["contractor_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reliability_events_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
             referencedColumns: ["id"]
           },
           {
@@ -799,7 +1372,28 @@ export type Database = {
             foreignKeyName: "reliability_events_subcontractor_id_fkey"
             columns: ["subcontractor_id"]
             isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reliability_events_subcontractor_id_fkey"
+            columns: ["subcontractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reliability_events_subcontractor_id_fkey"
+            columns: ["subcontractor_id"]
+            isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reliability_events_subcontractor_id_fkey"
+            columns: ["subcontractor_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
             referencedColumns: ["id"]
           },
         ]
@@ -855,7 +1449,28 @@ export type Database = {
             foreignKeyName: "reviews_author_id_fkey"
             columns: ["author_id"]
             isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
             referencedColumns: ["id"]
           },
           {
@@ -869,7 +1484,28 @@ export type Database = {
             foreignKeyName: "reviews_recipient_id_fkey"
             columns: ["recipient_id"]
             isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
             referencedColumns: ["id"]
           },
         ]
@@ -946,7 +1582,28 @@ export type Database = {
             foreignKeyName: "subscription_history_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_history_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_history_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_history_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
             referencedColumns: ["id"]
           },
         ]
@@ -987,6 +1644,83 @@ export type Database = {
             foreignKeyName: "tender_documents_tender_id_fkey"
             columns: ["tender_id"]
             isOneToOne: false
+            referencedRelation: "tender_quote_counts"
+            referencedColumns: ["tender_id"]
+          },
+          {
+            foreignKeyName: "tender_documents_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tender_quote_requests: {
+        Row: {
+          created_at: string
+          id: string
+          requester_id: string
+          status: string
+          tender_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          requester_id: string
+          status?: string
+          tender_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          requester_id?: string
+          status?: string
+          tender_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_quote_requests_requester_id_fkey"
+            columns: ["requester_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_quote_requests_requester_id_fkey"
+            columns: ["requester_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_quote_requests_requester_id_fkey"
+            columns: ["requester_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_quote_requests_requester_id_fkey"
+            columns: ["requester_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_quote_requests_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tender_quote_counts"
+            referencedColumns: ["tender_id"]
+          },
+          {
+            foreignKeyName: "tender_quote_requests_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
             referencedRelation: "tenders"
             referencedColumns: ["id"]
           },
@@ -998,38 +1732,58 @@ export type Database = {
           billing_month_key: string
           contractor_id: string
           created_at: string | null
+          deleted_at: string | null
           id: string
           notes: string | null
           price_cents: number
           status: string
           submitted_at: string | null
           tender_id: string
+          trade_key: string
         }
         Insert: {
           billing_mode: string
           billing_month_key: string
           contractor_id: string
           created_at?: string | null
+          deleted_at?: string | null
           id?: string
           notes?: string | null
           price_cents: number
           status?: string
           submitted_at?: string | null
           tender_id: string
+          trade_key: string
         }
         Update: {
           billing_mode?: string
           billing_month_key?: string
           contractor_id?: string
           created_at?: string | null
+          deleted_at?: string | null
           id?: string
           notes?: string | null
           price_cents?: number
           status?: string
           submitted_at?: string | null
           tender_id?: string
+          trade_key?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "tender_quotes_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_quotes_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "tender_quotes_contractor_id_fkey"
             columns: ["contractor_id"]
@@ -1038,52 +1792,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "tender_quotes_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_quotes_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tender_quote_counts"
+            referencedColumns: ["tender_id"]
+          },
+          {
             foreignKeyName: "tender_quotes_tender_id_fkey"
             columns: ["tender_id"]
             isOneToOne: false
             referencedRelation: "tenders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      tender_quote_requests: {
-        Row: {
-          id: string
-          tender_id: string
-          requester_id: string
-          status: string
-          created_at: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          id?: string
-          tender_id: string
-          requester_id: string
-          status?: string
-          created_at?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          id?: string
-          tender_id?: string
-          requester_id?: string
-          status?: string
-          created_at?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tender_quote_requests_tender_id_fkey"
-            columns: ["tender_id"]
-            isOneToOne: false
-            referencedRelation: "tenders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tender_quote_requests_requester_id_fkey"
-            columns: ["requester_id"]
-            isOneToOne: false
-            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -1130,6 +1856,13 @@ export type Database = {
             foreignKeyName: "tender_trade_requirements_tender_id_fkey"
             columns: ["tender_id"]
             isOneToOne: false
+            referencedRelation: "tender_quote_counts"
+            referencedColumns: ["tender_id"]
+          },
+          {
+            foreignKeyName: "tender_trade_requirements_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
             referencedRelation: "tenders"
             referencedColumns: ["id"]
           },
@@ -1159,6 +1892,13 @@ export type Database = {
             foreignKeyName: "tender_trades_tender_id_fkey"
             columns: ["tender_id"]
             isOneToOne: false
+            referencedRelation: "tender_quote_counts"
+            referencedColumns: ["tender_id"]
+          },
+          {
+            foreignKeyName: "tender_trades_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
             referencedRelation: "tenders"
             referencedColumns: ["id"]
           },
@@ -1167,6 +1907,7 @@ export type Database = {
       tenders: {
         Row: {
           admin_notes: string | null
+          ai_draft: Json | null
           approval_reason: string | null
           approval_status: string
           approved_at: string | null
@@ -1176,10 +1917,11 @@ export type Database = {
           builder_id: string
           closes_at: string | null
           created_at: string | null
+          deleted_at: string | null
           desired_end_date: string | null
           desired_start_date: string | null
           id: string
-          is_anonymous: boolean | null
+          is_anonymous: boolean
           is_guest_tender: boolean | null
           is_name_hidden: boolean | null
           lat: number
@@ -1191,6 +1933,7 @@ export type Database = {
           quote_cap_total: number | null
           quote_count_total: number | null
           rejection_reason: string | null
+          shared_attachments: Json
           status: string
           suburb: string
           tier: string
@@ -1198,6 +1941,7 @@ export type Database = {
         }
         Insert: {
           admin_notes?: string | null
+          ai_draft?: Json | null
           approval_reason?: string | null
           approval_status?: string
           approved_at?: string | null
@@ -1207,10 +1951,11 @@ export type Database = {
           builder_id: string
           closes_at?: string | null
           created_at?: string | null
+          deleted_at?: string | null
           desired_end_date?: string | null
           desired_start_date?: string | null
           id?: string
-          is_anonymous?: boolean | null
+          is_anonymous?: boolean
           is_guest_tender?: boolean | null
           is_name_hidden?: boolean | null
           lat: number
@@ -1222,6 +1967,7 @@ export type Database = {
           quote_cap_total?: number | null
           quote_count_total?: number | null
           rejection_reason?: string | null
+          shared_attachments?: Json
           status?: string
           suburb: string
           tier: string
@@ -1229,6 +1975,7 @@ export type Database = {
         }
         Update: {
           admin_notes?: string | null
+          ai_draft?: Json | null
           approval_reason?: string | null
           approval_status?: string
           approved_at?: string | null
@@ -1238,10 +1985,11 @@ export type Database = {
           builder_id?: string
           closes_at?: string | null
           created_at?: string | null
+          deleted_at?: string | null
           desired_end_date?: string | null
           desired_start_date?: string | null
           id?: string
-          is_anonymous?: boolean | null
+          is_anonymous?: boolean
           is_guest_tender?: boolean | null
           is_name_hidden?: boolean | null
           lat?: number
@@ -1253,6 +2001,7 @@ export type Database = {
           quote_cap_total?: number | null
           quote_count_total?: number | null
           rejection_reason?: string | null
+          shared_attachments?: Json
           status?: string
           suburb?: string
           tier?: string
@@ -1263,33 +2012,28 @@ export type Database = {
             foreignKeyName: "tenders_builder_id_fkey"
             columns: ["builder_id"]
             isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenders_builder_id_fkey"
+            columns: ["builder_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenders_builder_id_fkey"
+            columns: ["builder_id"]
+            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
-        ]
-      }
-      user_trade_quote_credits: {
-        Row: {
-          user_id: string
-          trade_slug: string
-          used_count: number
-        }
-        Insert: {
-          user_id: string
-          trade_slug: string
-          used_count?: number
-        }
-        Update: {
-          user_id?: string
-          trade_slug?: string
-          used_count?: number
-        }
-        Relationships: [
           {
-            foreignKeyName: "user_trade_quote_credits_user_id_fkey"
-            columns: ["user_id"]
+            foreignKeyName: "tenders_builder_id_fkey"
+            columns: ["builder_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "users_with_ratings"
             referencedColumns: ["id"]
           },
         ]
@@ -1324,7 +2068,373 @@ export type Database = {
             foreignKeyName: "usage_metrics_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "usage_metrics_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "usage_metrics_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "usage_metrics_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_blocks: {
+        Row: {
+          blocked_id: string
+          blocker_id: string
+          created_at: string | null
+          id: string
+        }
+        Insert: {
+          blocked_id: string
+          blocker_id: string
+          created_at?: string | null
+          id?: string
+        }
+        Update: {
+          blocked_id?: string
+          blocker_id?: string
+          created_at?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
+      user_locations: {
+        Row: {
+          created_at: string
+          id: string
+          is_primary: boolean
+          label: string | null
+          lat: number | null
+          lng: number | null
+          location: string
+          postcode: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          label?: string | null
+          lat?: number | null
+          lng?: number | null
+          location: string
+          postcode?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          label?: string | null
+          lat?: number | null
+          lng?: number | null
+          location?: string
+          postcode?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_locations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_locations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_locations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_locations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_ratings: {
+        Row: {
+          created_at: string
+          id: number
+          rater_user_id: string
+          target_user_id: string
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          rater_user_id: string
+          target_user_id: string
+          value: number
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          rater_user_id?: string
+          target_user_id?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_ratings_target_user_id_fkey"
+            columns: ["target_user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_ratings_target_user_id_fkey"
+            columns: ["target_user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_ratings_target_user_id_fkey"
+            columns: ["target_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_ratings_target_user_id_fkey"
+            columns: ["target_user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_reports: {
+        Row: {
+          category: string
+          conversation_id: string | null
+          created_at: string | null
+          id: string
+          notes: string | null
+          reported_id: string
+          reporter_id: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          category: string
+          conversation_id?: string | null
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          reported_id: string
+          reporter_id: string
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string
+          conversation_id?: string | null
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          reported_id?: string
+          reporter_id?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_reports_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_reports_reported_id_fkey"
+            columns: ["reported_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_reports_reported_id_fkey"
+            columns: ["reported_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_reports_reported_id_fkey"
+            columns: ["reported_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_reports_reported_id_fkey"
+            columns: ["reported_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_reports_reporter_id_fkey"
+            columns: ["reporter_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_reports_reporter_id_fkey"
+            columns: ["reporter_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_reports_reporter_id_fkey"
+            columns: ["reporter_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_reports_reporter_id_fkey"
+            columns: ["reporter_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_trade_quote_credits: {
+        Row: {
+          trade_slug: string
+          used_count: number
+          user_id: string
+        }
+        Insert: {
+          trade_slug: string
+          used_count?: number
+          user_id: string
+        }
+        Update: {
+          trade_slug?: string
+          used_count?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_trade_quote_credits_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_trade_quote_credits_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_trade_quote_credits_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_trade_quote_credits_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_trades: {
+        Row: {
+          created_at: string
+          id: string
+          is_primary: boolean
+          trade: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          trade: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          trade?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_trades_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_trades_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_trades_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_trades_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
             referencedColumns: ["id"]
           },
         ]
@@ -1332,12 +2442,585 @@ export type Database = {
       users: {
         Row: {
           abn: string | null
+          abn_last_checked_at: string | null
           abn_rejection_reason: string | null
           abn_status:
             | Database["public"]["Enums"]["abn_verification_status"]
             | null
           abn_submitted_at: string | null
           abn_updated_at: string
+          abn_verified: boolean
+          abn_verified_at: string | null
+          abn_verified_by: string | null
+          account_flagged_for_review: boolean | null
+          account_reviewed: boolean | null
+          account_suspended: boolean | null
+          active_plan: string | null
+          additional_locations: Json | null
+          additional_trades: string[] | null
+          additional_trades_payment_date: string | null
+          additional_trades_unlocked: boolean | null
+          alert_channel_email: boolean | null
+          alert_channel_sms: boolean | null
+          alerts_enabled: boolean | null
+          availability: Json | null
+          availability_description: string | null
+          avatar: string | null
+          base_lat: number | null
+          base_lng: number | null
+          base_postcode: string | null
+          base_suburb: string | null
+          bio: string | null
+          builder_free_trial_tender_used: boolean | null
+          builder_plan: string | null
+          builder_sub_renews_at: string | null
+          builder_sub_status: string | null
+          business_name: string | null
+          completed_jobs: number | null
+          complimentary_premium_until: string | null
+          complimentary_reason: string | null
+          contractor_plan: string | null
+          contractor_sub_renews_at: string | null
+          contractor_sub_status: string | null
+          cover_url: string | null
+          created_at: string | null
+          deleted_at: string | null
+          email: string
+          entity_type: string | null
+          facebook: string | null
+          free_quote_month_key: string | null
+          free_quote_used_count: number | null
+          id: string
+          instagram: string | null
+          is_admin: boolean
+          is_premium: boolean | null
+          is_public_profile: boolean
+          last_seen_at: string | null
+          lat: number | null
+          linkedin: string | null
+          lng: number | null
+          location: string | null
+          location_lat: number | null
+          location_lng: number | null
+          member_since: string | null
+          mini_bio: string | null
+          name: string | null
+          phone: string | null
+          postcode: string | null
+          preferred_radius_km: number | null
+          premium_until: string | null
+          pricing_amount: number | null
+          pricing_type: string | null
+          primary_trade: string | null
+          radius: number | null
+          rating: number | null
+          receive_trade_alerts: boolean | null
+          reliability_rating: number | null
+          role: string
+          search_lat: number | null
+          search_lng: number | null
+          search_location: string | null
+          search_postcode: string | null
+          show_abn_on_profile: boolean
+          show_business_name_on_profile: boolean
+          show_email_on_profile: boolean
+          show_phone_on_profile: boolean
+          show_pricing_in_listings: boolean
+          show_pricing_on_profile: boolean
+          sms_opt_in_prompt_dismissed_at: string | null
+          sms_opt_in_prompt_shown: boolean | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          subcontractor_alert_channel_email: boolean | null
+          subcontractor_alert_channel_in_app: boolean | null
+          subcontractor_alert_channel_sms: boolean | null
+          subcontractor_alerts_enabled: boolean | null
+          subcontractor_availability_broadcast_enabled: boolean | null
+          subcontractor_availability_horizon_days: number | null
+          subcontractor_plan:
+            | Database["public"]["Enums"]["subcontractor_plan_type"]
+            | null
+          subcontractor_preferred_radius_km: number | null
+          subcontractor_sub_renews_at: string | null
+          subcontractor_sub_status:
+            | Database["public"]["Enums"]["subcontractor_subscription_status"]
+            | null
+          subcontractor_work_alert_email: boolean | null
+          subcontractor_work_alert_in_app: boolean | null
+          subcontractor_work_alert_sms: boolean | null
+          subcontractor_work_alerts_enabled: boolean | null
+          subscription_canceled_at: string | null
+          subscription_renews_at: string | null
+          subscription_started_at: string | null
+          subscription_status: string | null
+          suspension_ends_at: string | null
+          tiktok: string | null
+          trades: Json | null
+          trust_status: string
+          updated_at: string | null
+          website: string | null
+          youtube: string | null
+        }
+        Insert: {
+          abn?: string | null
+          abn_last_checked_at?: string | null
+          abn_rejection_reason?: string | null
+          abn_status?:
+            | Database["public"]["Enums"]["abn_verification_status"]
+            | null
+          abn_submitted_at?: string | null
+          abn_updated_at?: string
+          abn_verified?: boolean
+          abn_verified_at?: string | null
+          abn_verified_by?: string | null
+          account_flagged_for_review?: boolean | null
+          account_reviewed?: boolean | null
+          account_suspended?: boolean | null
+          active_plan?: string | null
+          additional_locations?: Json | null
+          additional_trades?: string[] | null
+          additional_trades_payment_date?: string | null
+          additional_trades_unlocked?: boolean | null
+          alert_channel_email?: boolean | null
+          alert_channel_sms?: boolean | null
+          alerts_enabled?: boolean | null
+          availability?: Json | null
+          availability_description?: string | null
+          avatar?: string | null
+          base_lat?: number | null
+          base_lng?: number | null
+          base_postcode?: string | null
+          base_suburb?: string | null
+          bio?: string | null
+          builder_free_trial_tender_used?: boolean | null
+          builder_plan?: string | null
+          builder_sub_renews_at?: string | null
+          builder_sub_status?: string | null
+          business_name?: string | null
+          completed_jobs?: number | null
+          complimentary_premium_until?: string | null
+          complimentary_reason?: string | null
+          contractor_plan?: string | null
+          contractor_sub_renews_at?: string | null
+          contractor_sub_status?: string | null
+          cover_url?: string | null
+          created_at?: string | null
+          deleted_at?: string | null
+          email: string
+          entity_type?: string | null
+          facebook?: string | null
+          free_quote_month_key?: string | null
+          free_quote_used_count?: number | null
+          id?: string
+          instagram?: string | null
+          is_admin?: boolean
+          is_premium?: boolean | null
+          is_public_profile?: boolean
+          last_seen_at?: string | null
+          lat?: number | null
+          linkedin?: string | null
+          lng?: number | null
+          location?: string | null
+          location_lat?: number | null
+          location_lng?: number | null
+          member_since?: string | null
+          mini_bio?: string | null
+          name?: string | null
+          phone?: string | null
+          postcode?: string | null
+          preferred_radius_km?: number | null
+          premium_until?: string | null
+          pricing_amount?: number | null
+          pricing_type?: string | null
+          primary_trade?: string | null
+          radius?: number | null
+          rating?: number | null
+          receive_trade_alerts?: boolean | null
+          reliability_rating?: number | null
+          role?: string
+          search_lat?: number | null
+          search_lng?: number | null
+          search_location?: string | null
+          search_postcode?: string | null
+          show_abn_on_profile?: boolean
+          show_business_name_on_profile?: boolean
+          show_email_on_profile?: boolean
+          show_phone_on_profile?: boolean
+          show_pricing_in_listings?: boolean
+          show_pricing_on_profile?: boolean
+          sms_opt_in_prompt_dismissed_at?: string | null
+          sms_opt_in_prompt_shown?: boolean | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subcontractor_alert_channel_email?: boolean | null
+          subcontractor_alert_channel_in_app?: boolean | null
+          subcontractor_alert_channel_sms?: boolean | null
+          subcontractor_alerts_enabled?: boolean | null
+          subcontractor_availability_broadcast_enabled?: boolean | null
+          subcontractor_availability_horizon_days?: number | null
+          subcontractor_plan?:
+            | Database["public"]["Enums"]["subcontractor_plan_type"]
+            | null
+          subcontractor_preferred_radius_km?: number | null
+          subcontractor_sub_renews_at?: string | null
+          subcontractor_sub_status?:
+            | Database["public"]["Enums"]["subcontractor_subscription_status"]
+            | null
+          subcontractor_work_alert_email?: boolean | null
+          subcontractor_work_alert_in_app?: boolean | null
+          subcontractor_work_alert_sms?: boolean | null
+          subcontractor_work_alerts_enabled?: boolean | null
+          subscription_canceled_at?: string | null
+          subscription_renews_at?: string | null
+          subscription_started_at?: string | null
+          subscription_status?: string | null
+          suspension_ends_at?: string | null
+          tiktok?: string | null
+          trades?: Json | null
+          trust_status?: string
+          updated_at?: string | null
+          website?: string | null
+          youtube?: string | null
+        }
+        Update: {
+          abn?: string | null
+          abn_last_checked_at?: string | null
+          abn_rejection_reason?: string | null
+          abn_status?:
+            | Database["public"]["Enums"]["abn_verification_status"]
+            | null
+          abn_submitted_at?: string | null
+          abn_updated_at?: string
+          abn_verified?: boolean
+          abn_verified_at?: string | null
+          abn_verified_by?: string | null
+          account_flagged_for_review?: boolean | null
+          account_reviewed?: boolean | null
+          account_suspended?: boolean | null
+          active_plan?: string | null
+          additional_locations?: Json | null
+          additional_trades?: string[] | null
+          additional_trades_payment_date?: string | null
+          additional_trades_unlocked?: boolean | null
+          alert_channel_email?: boolean | null
+          alert_channel_sms?: boolean | null
+          alerts_enabled?: boolean | null
+          availability?: Json | null
+          availability_description?: string | null
+          avatar?: string | null
+          base_lat?: number | null
+          base_lng?: number | null
+          base_postcode?: string | null
+          base_suburb?: string | null
+          bio?: string | null
+          builder_free_trial_tender_used?: boolean | null
+          builder_plan?: string | null
+          builder_sub_renews_at?: string | null
+          builder_sub_status?: string | null
+          business_name?: string | null
+          completed_jobs?: number | null
+          complimentary_premium_until?: string | null
+          complimentary_reason?: string | null
+          contractor_plan?: string | null
+          contractor_sub_renews_at?: string | null
+          contractor_sub_status?: string | null
+          cover_url?: string | null
+          created_at?: string | null
+          deleted_at?: string | null
+          email?: string
+          entity_type?: string | null
+          facebook?: string | null
+          free_quote_month_key?: string | null
+          free_quote_used_count?: number | null
+          id?: string
+          instagram?: string | null
+          is_admin?: boolean
+          is_premium?: boolean | null
+          is_public_profile?: boolean
+          last_seen_at?: string | null
+          lat?: number | null
+          linkedin?: string | null
+          lng?: number | null
+          location?: string | null
+          location_lat?: number | null
+          location_lng?: number | null
+          member_since?: string | null
+          mini_bio?: string | null
+          name?: string | null
+          phone?: string | null
+          postcode?: string | null
+          preferred_radius_km?: number | null
+          premium_until?: string | null
+          pricing_amount?: number | null
+          pricing_type?: string | null
+          primary_trade?: string | null
+          radius?: number | null
+          rating?: number | null
+          receive_trade_alerts?: boolean | null
+          reliability_rating?: number | null
+          role?: string
+          search_lat?: number | null
+          search_lng?: number | null
+          search_location?: string | null
+          search_postcode?: string | null
+          show_abn_on_profile?: boolean
+          show_business_name_on_profile?: boolean
+          show_email_on_profile?: boolean
+          show_phone_on_profile?: boolean
+          show_pricing_in_listings?: boolean
+          show_pricing_on_profile?: boolean
+          sms_opt_in_prompt_dismissed_at?: string | null
+          sms_opt_in_prompt_shown?: boolean | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subcontractor_alert_channel_email?: boolean | null
+          subcontractor_alert_channel_in_app?: boolean | null
+          subcontractor_alert_channel_sms?: boolean | null
+          subcontractor_alerts_enabled?: boolean | null
+          subcontractor_availability_broadcast_enabled?: boolean | null
+          subcontractor_availability_horizon_days?: number | null
+          subcontractor_plan?:
+            | Database["public"]["Enums"]["subcontractor_plan_type"]
+            | null
+          subcontractor_preferred_radius_km?: number | null
+          subcontractor_sub_renews_at?: string | null
+          subcontractor_sub_status?:
+            | Database["public"]["Enums"]["subcontractor_subscription_status"]
+            | null
+          subcontractor_work_alert_email?: boolean | null
+          subcontractor_work_alert_in_app?: boolean | null
+          subcontractor_work_alert_sms?: boolean | null
+          subcontractor_work_alerts_enabled?: boolean | null
+          subscription_canceled_at?: string | null
+          subscription_renews_at?: string | null
+          subscription_started_at?: string | null
+          subscription_status?: string | null
+          suspension_ends_at?: string | null
+          tiktok?: string | null
+          trades?: Json | null
+          trust_status?: string
+          updated_at?: string | null
+          website?: string | null
+          youtube?: string | null
+        }
+        Relationships: []
+      }
+    }
+    Views: {
+      public_profile_directory: {
+        Row: {
+          abn: string | null
+          abn_status:
+            | Database["public"]["Enums"]["abn_verification_status"]
+            | null
+          abn_verified_at: string | null
+          avatar: string | null
+          bio: string | null
+          business_name: string | null
+          completed_jobs: number | null
+          complimentary_premium_until: string | null
+          cover_url: string | null
+          facebook: string | null
+          id: string | null
+          instagram: string | null
+          is_public_profile: boolean | null
+          linkedin: string | null
+          location: string | null
+          member_since: string | null
+          mini_bio: string | null
+          name: string | null
+          postcode: string | null
+          premium_expires_at: string | null
+          premium_now: boolean | null
+          premium_until: string | null
+          rating: number | null
+          reliability_rating: number | null
+          role: string | null
+          subcontractor_sub_status:
+            | Database["public"]["Enums"]["subcontractor_subscription_status"]
+            | null
+          subscription_status: string | null
+          tiktok: string | null
+          trades: Json | null
+          website: string | null
+          youtube: string | null
+        }
+        Insert: {
+          abn?: never
+          abn_status?:
+            | Database["public"]["Enums"]["abn_verification_status"]
+            | null
+          abn_verified_at?: string | null
+          avatar?: string | null
+          bio?: string | null
+          business_name?: never
+          completed_jobs?: number | null
+          complimentary_premium_until?: string | null
+          cover_url?: string | null
+          facebook?: string | null
+          id?: string | null
+          instagram?: string | null
+          is_public_profile?: boolean | null
+          linkedin?: string | null
+          location?: string | null
+          member_since?: string | null
+          mini_bio?: string | null
+          name?: string | null
+          postcode?: string | null
+          premium_expires_at?: never
+          premium_now?: never
+          premium_until?: string | null
+          rating?: number | null
+          reliability_rating?: number | null
+          role?: string | null
+          subcontractor_sub_status?:
+            | Database["public"]["Enums"]["subcontractor_subscription_status"]
+            | null
+          subscription_status?: string | null
+          tiktok?: string | null
+          trades?: Json | null
+          website?: string | null
+          youtube?: string | null
+        }
+        Update: {
+          abn?: never
+          abn_status?:
+            | Database["public"]["Enums"]["abn_verification_status"]
+            | null
+          abn_verified_at?: string | null
+          avatar?: string | null
+          bio?: string | null
+          business_name?: never
+          completed_jobs?: number | null
+          complimentary_premium_until?: string | null
+          cover_url?: string | null
+          facebook?: string | null
+          id?: string | null
+          instagram?: string | null
+          is_public_profile?: boolean | null
+          linkedin?: string | null
+          location?: string | null
+          member_since?: string | null
+          mini_bio?: string | null
+          name?: string | null
+          postcode?: string | null
+          premium_expires_at?: never
+          premium_now?: never
+          premium_until?: string | null
+          rating?: number | null
+          reliability_rating?: number | null
+          role?: string | null
+          subcontractor_sub_status?:
+            | Database["public"]["Enums"]["subcontractor_subscription_status"]
+            | null
+          subscription_status?: string | null
+          tiktok?: string | null
+          trades?: Json | null
+          website?: string | null
+          youtube?: string | null
+        }
+        Relationships: []
+      }
+      public_profile_directory_with_ratings: {
+        Row: {
+          abn: string | null
+          abn_status:
+            | Database["public"]["Enums"]["abn_verification_status"]
+            | null
+          abn_verified_at: string | null
+          avatar: string | null
+          bio: string | null
+          business_name: string | null
+          completed_jobs: number | null
+          complimentary_premium_until: string | null
+          cover_url: string | null
+          down_count: number | null
+          facebook: string | null
+          id: string | null
+          instagram: string | null
+          is_public_profile: boolean | null
+          linkedin: string | null
+          location: string | null
+          member_since: string | null
+          mini_bio: string | null
+          name: string | null
+          postcode: string | null
+          premium_expires_at: string | null
+          premium_now: boolean | null
+          premium_until: string | null
+          rating: number | null
+          rating_avg: number | null
+          rating_count: number | null
+          reliability_rating: number | null
+          role: string | null
+          subcontractor_sub_status:
+            | Database["public"]["Enums"]["subcontractor_subscription_status"]
+            | null
+          subscription_status: string | null
+          tiktok: string | null
+          trades: Json | null
+          up_count: number | null
+          website: string | null
+          youtube: string | null
+        }
+        Relationships: []
+      }
+      tender_quote_counts: {
+        Row: {
+          quotes_received: number | null
+          tender_id: string | null
+        }
+        Relationships: []
+      }
+      user_rating_aggregates: {
+        Row: {
+          down_count: number | null
+          rating_avg: number | null
+          rating_count: number | null
+          target_user_id: string | null
+          up_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_ratings_target_user_id_fkey"
+            columns: ["target_user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_ratings_target_user_id_fkey"
+            columns: ["target_user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_ratings_target_user_id_fkey"
+            columns: ["target_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_ratings_target_user_id_fkey"
+            columns: ["target_user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      users_with_ratings: {
+        Row: {
+          abn: string | null
+          abn_rejection_reason: string | null
+          abn_status:
+            | Database["public"]["Enums"]["abn_verification_status"]
+            | null
+          abn_submitted_at: string | null
+          abn_updated_at: string | null
+          abn_verified: boolean | null
           abn_verified_at: string | null
           abn_verified_by: string | null
           account_flagged_for_review: boolean | null
@@ -1369,31 +3052,48 @@ export type Database = {
           contractor_plan: string | null
           contractor_sub_renews_at: string | null
           contractor_sub_status: string | null
+          cover_url: string | null
           created_at: string | null
-          email: string
+          deleted_at: string | null
+          down_count: number | null
+          email: string | null
+          facebook: string | null
           free_quote_month_key: string | null
           free_quote_used_count: number | null
-          id: string
+          id: string | null
+          instagram: string | null
+          is_admin: boolean | null
           is_premium: boolean | null
-          is_public_profile: boolean
+          is_public_profile: boolean | null
           last_seen_at: string | null
+          lat: number | null
+          linkedin: string | null
+          lng: number | null
           location: string | null
           location_lat: number | null
           location_lng: number | null
           member_since: string | null
-          name: string
+          mini_bio: string | null
+          name: string | null
+          phone: string | null
           postcode: string | null
           preferred_radius_km: number | null
           premium_until: string | null
           primary_trade: string | null
           radius: number | null
           rating: number | null
+          rating_avg: number | null
+          rating_count: number | null
           reliability_rating: number | null
-          role: string
+          role: string | null
           search_lat: number | null
           search_lng: number | null
           search_location: string | null
           search_postcode: string | null
+          show_abn_on_profile: boolean | null
+          show_business_name_on_profile: boolean | null
+          show_email_on_profile: boolean | null
+          show_phone_on_profile: boolean | null
           sms_opt_in_prompt_dismissed_at: string | null
           sms_opt_in_prompt_shown: boolean | null
           stripe_customer_id: string | null
@@ -1421,269 +3121,245 @@ export type Database = {
           subscription_started_at: string | null
           subscription_status: string | null
           suspension_ends_at: string | null
+          tiktok: string | null
           trades: Json | null
-          trust_status: string
+          trust_status: string | null
+          up_count: number | null
           updated_at: string | null
-        }
-        Insert: {
-          abn?: string | null
-          abn_rejection_reason?: string | null
-          abn_status?:
-            | Database["public"]["Enums"]["abn_verification_status"]
-            | null
-          abn_submitted_at?: string | null
-          abn_updated_at?: string
-          abn_verified_at?: string | null
-          abn_verified_by?: string | null
-          account_flagged_for_review?: boolean | null
-          account_reviewed?: boolean | null
-          account_suspended?: boolean | null
-          active_plan?: string | null
-          additional_trades?: string[] | null
-          additional_trades_payment_date?: string | null
-          additional_trades_unlocked?: boolean | null
-          alert_channel_email?: boolean | null
-          alert_channel_sms?: boolean | null
-          alerts_enabled?: boolean | null
-          availability?: Json | null
-          availability_description?: string | null
-          avatar?: string | null
-          base_lat?: number | null
-          base_lng?: number | null
-          base_postcode?: string | null
-          base_suburb?: string | null
-          bio?: string | null
-          builder_free_trial_tender_used?: boolean | null
-          builder_plan?: string | null
-          builder_sub_renews_at?: string | null
-          builder_sub_status?: string | null
-          business_name?: string | null
-          completed_jobs?: number | null
-          complimentary_premium_until?: string | null
-          complimentary_reason?: string | null
-          contractor_plan?: string | null
-          contractor_sub_renews_at?: string | null
-          contractor_sub_status?: string | null
-          created_at?: string | null
-          email: string
-          free_quote_month_key?: string | null
-          free_quote_used_count?: number | null
-          id?: string
-          is_premium?: boolean | null
-          is_public_profile?: boolean
-          last_seen_at?: string | null
-          location?: string | null
-          location_lat?: number | null
-          location_lng?: number | null
-          member_since?: string | null
-          name: string
-          postcode?: string | null
-          preferred_radius_km?: number | null
-          premium_until?: string | null
-          primary_trade?: string | null
-          radius?: number | null
-          rating?: number | null
-          reliability_rating?: number | null
-          role: string
-          search_lat?: number | null
-          search_lng?: number | null
-          search_location?: string | null
-          search_postcode?: string | null
-          sms_opt_in_prompt_dismissed_at?: string | null
-          sms_opt_in_prompt_shown?: boolean | null
-          stripe_customer_id?: string | null
-          stripe_subscription_id?: string | null
-          subcontractor_alert_channel_email?: boolean | null
-          subcontractor_alert_channel_in_app?: boolean | null
-          subcontractor_alert_channel_sms?: boolean | null
-          subcontractor_alerts_enabled?: boolean | null
-          subcontractor_availability_broadcast_enabled?: boolean | null
-          subcontractor_availability_horizon_days?: number | null
-          subcontractor_plan?:
-            | Database["public"]["Enums"]["subcontractor_plan_type"]
-            | null
-          subcontractor_preferred_radius_km?: number | null
-          subcontractor_sub_renews_at?: string | null
-          subcontractor_sub_status?:
-            | Database["public"]["Enums"]["subcontractor_subscription_status"]
-            | null
-          subcontractor_work_alert_email?: boolean | null
-          subcontractor_work_alert_in_app?: boolean | null
-          subcontractor_work_alert_sms?: boolean | null
-          subcontractor_work_alerts_enabled?: boolean | null
-          subscription_canceled_at?: string | null
-          subscription_renews_at?: string | null
-          subscription_started_at?: string | null
-          subscription_status?: string | null
-          suspension_ends_at?: string | null
-          trades?: Json | null
-          trust_status?: string
-          updated_at?: string | null
-        }
-        Update: {
-          abn?: string | null
-          abn_rejection_reason?: string | null
-          abn_status?:
-            | Database["public"]["Enums"]["abn_verification_status"]
-            | null
-          abn_submitted_at?: string | null
-          abn_updated_at?: string
-          abn_verified_at?: string | null
-          abn_verified_by?: string | null
-          account_flagged_for_review?: boolean | null
-          account_reviewed?: boolean | null
-          account_suspended?: boolean | null
-          active_plan?: string | null
-          additional_trades?: string[] | null
-          additional_trades_payment_date?: string | null
-          additional_trades_unlocked?: boolean | null
-          alert_channel_email?: boolean | null
-          alert_channel_sms?: boolean | null
-          alerts_enabled?: boolean | null
-          availability?: Json | null
-          availability_description?: string | null
-          avatar?: string | null
-          base_lat?: number | null
-          base_lng?: number | null
-          base_postcode?: string | null
-          base_suburb?: string | null
-          bio?: string | null
-          builder_free_trial_tender_used?: boolean | null
-          builder_plan?: string | null
-          builder_sub_renews_at?: string | null
-          builder_sub_status?: string | null
-          business_name?: string | null
-          completed_jobs?: number | null
-          complimentary_premium_until?: string | null
-          complimentary_reason?: string | null
-          contractor_plan?: string | null
-          contractor_sub_renews_at?: string | null
-          contractor_sub_status?: string | null
-          created_at?: string | null
-          email?: string
-          free_quote_month_key?: string | null
-          free_quote_used_count?: number | null
-          id?: string
-          is_premium?: boolean | null
-          is_public_profile?: boolean
-          last_seen_at?: string | null
-          location?: string | null
-          location_lat?: number | null
-          location_lng?: number | null
-          member_since?: string | null
-          name?: string
-          postcode?: string | null
-          preferred_radius_km?: number | null
-          premium_until?: string | null
-          primary_trade?: string | null
-          radius?: number | null
-          rating?: number | null
-          reliability_rating?: number | null
-          role?: string
-          search_lat?: number | null
-          search_lng?: number | null
-          search_location?: string | null
-          search_postcode?: string | null
-          sms_opt_in_prompt_dismissed_at?: string | null
-          sms_opt_in_prompt_shown?: boolean | null
-          stripe_customer_id?: string | null
-          stripe_subscription_id?: string | null
-          subcontractor_alert_channel_email?: boolean | null
-          subcontractor_alert_channel_in_app?: boolean | null
-          subcontractor_alert_channel_sms?: boolean | null
-          subcontractor_alerts_enabled?: boolean | null
-          subcontractor_availability_broadcast_enabled?: boolean | null
-          subcontractor_availability_horizon_days?: number | null
-          subcontractor_plan?:
-            | Database["public"]["Enums"]["subcontractor_plan_type"]
-            | null
-          subcontractor_preferred_radius_km?: number | null
-          subcontractor_sub_renews_at?: string | null
-          subcontractor_sub_status?:
-            | Database["public"]["Enums"]["subcontractor_subscription_status"]
-            | null
-          subcontractor_work_alert_email?: boolean | null
-          subcontractor_work_alert_in_app?: boolean | null
-          subcontractor_work_alert_sms?: boolean | null
-          subcontractor_work_alerts_enabled?: boolean | null
-          subscription_canceled_at?: string | null
-          subscription_renews_at?: string | null
-          subscription_started_at?: string | null
-          subscription_status?: string | null
-          suspension_ends_at?: string | null
-          trades?: Json | null
-          trust_status?: string
-          updated_at?: string | null
+          website: string | null
+          youtube: string | null
         }
         Relationships: []
       }
     }
-    Views: {
-      tender_quote_counts: {
-        Row: {
-          tender_id: string
-          quotes_received: number
-        }
-      }
-    }
     Functions: {
-      check_email_exists: { Args: { check_email: string }; Returns: boolean }
-      is_premium_user: { Args: { uid: string }; Returns: boolean }
-      get_jobs_visible_to_viewer: {
-        Args: {
-          viewer_id: string
-          trade_filter: string | null
-          limit_count: number
-        }
-        Returns: Record<string, unknown>[]
-      }
-      create_tender: {
-        Args: {
-          p_project_name: string
-          p_description: string
-          p_suburb: string
-          p_postcode: string
-          p_budget_min_cents: number
-          p_budget_max_cents: number
-          p_trades: string[]
-          p_desired_start_date: string | null
-          p_desired_end_date: string | null
-          p_shared_attachments: unknown
-          p_is_anonymous?: boolean
-        }
-        Returns: { id: string }
-      }
-      request_to_quote: {
-        Args: { p_tender_id: string }
-        Returns: void
-      }
       accept_quote_request: {
         Args: { p_request_id: string; p_trade_slug: string }
-        Returns: void
+        Returns: undefined
+      }
+      can_publish_tender: { Args: { uid: string }; Returns: boolean }
+      cancel_tender: { Args: { p_tender_id: string }; Returns: undefined }
+      check_email_exists: { Args: { check_email: string }; Returns: boolean }
+      cleanup_expired_tenders: { Args: never; Returns: number }
+      close_tender: { Args: { p_tender_id: string }; Returns: undefined }
+      create_tender: {
+        Args: {
+          p_budget_max_cents: number
+          p_budget_min_cents: number
+          p_description: string
+          p_desired_end_date: string
+          p_desired_start_date: string
+          p_is_anonymous?: boolean
+          p_lat?: number
+          p_lng?: number
+          p_postcode: string
+          p_project_name: string
+          p_shared_attachments: Json
+          p_suburb: string
+          p_trades: string[]
+        }
+        Returns: {
+          admin_notes: string | null
+          ai_draft: Json | null
+          approval_reason: string | null
+          approval_status: string
+          approved_at: string | null
+          approved_by: string | null
+          budget_max_cents: number | null
+          budget_min_cents: number | null
+          builder_id: string
+          closes_at: string | null
+          created_at: string | null
+          deleted_at: string | null
+          desired_end_date: string | null
+          desired_start_date: string | null
+          id: string
+          is_anonymous: boolean
+          is_guest_tender: boolean | null
+          is_name_hidden: boolean | null
+          lat: number
+          limited_quotes_enabled: boolean | null
+          lng: number
+          postcode: string
+          project_description: string | null
+          project_name: string
+          quote_cap_total: number | null
+          quote_count_total: number | null
+          rejection_reason: string | null
+          shared_attachments: Json
+          status: string
+          suburb: string
+          tier: string
+          updated_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "tenders"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       decline_quote_request: {
         Args: { p_request_id: string }
-        Returns: void
+        Returns: undefined
       }
-      publish_tender: {
-        Args: { p_tender_id: string }
-        Returns: void
+      delete_tender: { Args: { p_tender_id: string }; Returns: undefined }
+      get_jobs_visible_to_viewer: {
+        Args: {
+          limit_count?: number
+          offset_count?: number
+          trade_filter?: string
+          viewer_id: string
+        }
+        Returns: {
+          attachments: Json
+          contractor_id: string
+          created_at: string
+          dates: Json
+          description: string
+          distance_km: number
+          duration: number
+          id: string
+          location: string
+          location_lat: number
+          location_lng: number
+          pay_type: string
+          postcode: string
+          rate: number
+          start_time: string
+          status: string
+          title: string
+          trade_category: string
+          viewer_radius_km: number
+        }[]
       }
-      close_tender: {
-        Args: { p_tender_id: string }
-        Returns: void
+      get_tender_for_viewer: {
+        Args: { p_tender_id: string; p_viewer_id: string }
+        Returns: {
+          admin_notes: string | null
+          ai_draft: Json | null
+          approval_reason: string | null
+          approval_status: string
+          approved_at: string | null
+          approved_by: string | null
+          budget_max_cents: number | null
+          budget_min_cents: number | null
+          builder_id: string
+          closes_at: string | null
+          created_at: string | null
+          deleted_at: string | null
+          desired_end_date: string | null
+          desired_start_date: string | null
+          id: string
+          is_anonymous: boolean
+          is_guest_tender: boolean | null
+          is_name_hidden: boolean | null
+          lat: number
+          limited_quotes_enabled: boolean | null
+          lng: number
+          postcode: string
+          project_description: string | null
+          project_name: string
+          quote_cap_total: number | null
+          quote_count_total: number | null
+          rejection_reason: string | null
+          shared_attachments: Json
+          status: string
+          suburb: string
+          tier: string
+          updated_at: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "tenders"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
-      reopen_tender: {
-        Args: { p_tender_id: string }
-        Returns: void
+      get_tenders_visible_to_viewer: {
+        Args: {
+          limit_count?: number
+          offset_count?: number
+          trade_filter?: string
+          viewer_id: string
+        }
+        Returns: {
+          budget_max_cents: number
+          budget_min_cents: number
+          builder_id: string
+          created_at: string
+          desired_end_date: string
+          desired_start_date: string
+          distance_km: number
+          id: string
+          is_anonymous: boolean
+          is_name_hidden: boolean
+          lat: number
+          lng: number
+          postcode: string
+          project_description: string
+          project_name: string
+          status: string
+          suburb: string
+          tier: string
+          viewer_radius_km: number
+        }[]
       }
-      cancel_tender: {
-        Args: { p_tender_id: string }
-        Returns: void
+      haversine_km: {
+        Args: { lat1: number; lat2: number; lon1: number; lon2: number }
+        Returns: number
       }
-      delete_tender: {
-        Args: { p_tender_id: string }
-        Returns: void
+      is_admin:
+        | { Args: never; Returns: boolean }
+        | { Args: { uid: string }; Returns: boolean }
+      is_premium_discovery: { Args: { uid: string }; Returns: boolean }
+      is_premium_user: { Args: { uid: string }; Returns: boolean }
+      is_tender_owner: {
+        Args: { p_tender_id: string; p_uid: string }
+        Returns: boolean
+      }
+      km_distance: {
+        Args: { lat1: number; lat2: number; lng1: number; lng2: number }
+        Returns: number
+      }
+      publish_tender: { Args: { p_tender_id: string }; Returns: undefined }
+      reopen_tender: { Args: { p_tender_id: string }; Returns: undefined }
+      request_to_quote: { Args: { p_tender_id: string }; Returns: undefined }
+      tender_has_valid_coords: {
+        Args: { p_lat: number; p_lng: number }
+        Returns: boolean
+      }
+      tender_submit_quote: {
+        Args: {
+          p_notes: string
+          p_price_cents: number
+          p_tender_id: string
+          p_trade_key: string
+        }
+        Returns: {
+          billing_mode: string
+          billing_month_key: string
+          contractor_id: string
+          created_at: string | null
+          deleted_at: string | null
+          id: string
+          notes: string | null
+          price_cents: number
+          status: string
+          submitted_at: string | null
+          tender_id: string
+          trade_key: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "tender_quotes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_user_trades: {
+        Args: { p_primary_trade: string; p_trades: string[]; p_user_id: string }
+        Returns: undefined
       }
     }
     Enums: {

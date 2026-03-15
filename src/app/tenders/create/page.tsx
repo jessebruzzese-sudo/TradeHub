@@ -22,6 +22,7 @@ import { needsBusinessVerification, redirectToVerifyBusiness, getVerifyBusinessU
 import { trackEvent } from '@/lib/analytics';
 
 import { TRADE_CATEGORIES } from '@/lib/trades';
+import { validateTradeName } from '@/lib/trade-validation';
 import { getTradeIcon } from '@/lib/trade-icons';
 import { TenderTier } from '@/lib/tender-types';
 
@@ -147,6 +148,9 @@ export default function CreateTenderPage() {
 
   const [suburb, setSuburb] = useState('');
   const [postcode, setPostcode] = useState('');
+  const [locationLat, setLocationLat] = useState<number | null>(null);
+  const [locationLng, setLocationLng] = useState<number | null>(null);
+  const [locationPlaceId, setLocationPlaceId] = useState<string | null>(null);
 
   // ✅ Store as YYYY-MM-DD (native date input)
   const [desiredStartDate, setDesiredStartDate] = useState('');
@@ -676,7 +680,9 @@ export default function CreateTenderPage() {
 
     if (mode === 'verified') {
       // Verified flow: use create_tender RPC (requires ABN verification)
-      const pTrades = tradeRequirements.map((r) => r.trade).filter((t) => t?.trim());
+      const pTrades = tradeRequirements
+        .map((r) => validateTradeName(r.trade))
+        .filter((t): t is string => t != null);
       if (pTrades.length === 0) {
         toast.error('Please select at least 1 trade before publishing.');
         setError('At least one trade is required.');
@@ -704,8 +710,9 @@ export default function CreateTenderPage() {
         p_desired_end_date: desiredEndDate?.trim() || null,
         p_shared_attachments: [] as unknown,
         p_is_anonymous: isAnonymous,
+        p_lat: locationLat ?? null,
+        p_lng: locationLng ?? null,
       };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase RPC type inference issue
       const { data: rpcTender, error: rpcErr } = await supabase.rpc('create_tender', createArgs as any);
 
       if (rpcErr) {
@@ -776,6 +783,9 @@ export default function CreateTenderPage() {
           projectDescription,
           suburb,
           postcode,
+          place_id: locationPlaceId,
+          lat: locationLat,
+          lng: locationLng,
           isNameHidden,
           isAnonymous,
           status: statusToUse,
@@ -860,7 +870,6 @@ export default function CreateTenderPage() {
 
     // Verified flow: call publish_tender (validates limit, readiness, etc.)
     const publishArgs = { p_tender_id: tender.id };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase RPC type inference issue
     const { error: publishErr } = await supabase.rpc('publish_tender', publishArgs as any);
 
     if (publishErr) {
@@ -881,6 +890,14 @@ export default function CreateTenderPage() {
 
     toast.success('Tender published');
     trackEvent('tender_created', tender?.id != null ? { tenderId: tender.id } : {});
+
+    // Fire-and-forget: send email alerts to eligible premium users (do not block on success)
+    fetch('/api/alerts/send-for-listing', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ listingType: 'tender', listingId: tender.id }),
+    }).catch((e) => console.warn('[tenders/create] alert send failed:', e));
+
     router.push(`/tenders/${tender.id}`);
   };
 
@@ -1125,10 +1142,11 @@ export default function CreateTenderPage() {
               onToggle={() => setOpenStep(openStep === 1 ? 0 : 1)}
             >
                 <div className="space-y-2">
-                  <Label className="text-base font-semibold text-slate-900">
+                  <Label htmlFor="tender-project-name" className="text-base font-semibold text-slate-900">
                     Project name
                   </Label>
                   <Input
+                    id="tender-project-name"
                     value={projectName}
                     onChange={(e) => setProjectName(e.target.value)}
                     placeholder='e.g. Single storey house, Multi unit sanitary plumbing, Renovation'
@@ -1347,18 +1365,29 @@ export default function CreateTenderPage() {
                           )}
                         </div>
 
-                        <div className="mt-3">
-                            <Button
+                        <div className="mt-4 mb-4">
+                            <button
                               type="button"
-                              variant="outline"
-                              size="sm"
                               disabled={!currentUser || !hasBuilderPremium(currentUser) || projectFiles.length === 0}
                               onClick={() => setShowPlansModal(true)}
-                              className="gap-2"
+                              className="
+                                inline-flex items-center gap-2 rounded-xl px-4 py-2.5
+                                bg-gradient-to-r from-indigo-500 via-purple-500 to-blue-500
+                                text-white font-semibold shadow-md
+                                hover:shadow-lg hover:shadow-indigo-500/30 hover:scale-[1.02] hover:-translate-y-[1px]
+                                transition-all duration-200
+                                disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:translate-y-0
+                              "
                             >
                               <Sparkles className="h-4 w-4" />
-                              Generate from plans (Premium)
-                            </Button>
+                              <span>Generate from plans</span>
+                              <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium text-white">
+                                Premium
+                              </span>
+                            </button>
+                            <p className="mt-1 text-xs text-slate-500">
+                              TradeHub AI reads your plans and generates a draft tender including suggested trades and scopes.
+                            </p>
                             {currentUser && !hasBuilderPremium(currentUser) && (
                               <div className="mt-2 text-xs text-slate-500">
                                 <span className="font-medium text-slate-700">
@@ -1661,6 +1690,11 @@ export default function CreateTenderPage() {
                   postcode={postcode}
                   onSuburbChange={setSuburb}
                   onPostcodeChange={setPostcode}
+                  onLatLngChange={(lat, lng) => {
+                    setLocationLat(lat);
+                    setLocationLng(lng);
+                  }}
+                  onPlaceIdChange={setLocationPlaceId}
                   required
                 />
 
@@ -1894,29 +1928,6 @@ export default function CreateTenderPage() {
                       )}
                     </div>
                   </div>
-
-                  {/* Free tier warning + Premium upgrade */}
-                  <div className="mt-4 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
-                    <div className="text-sm text-amber-900">
-                      <span className="font-semibold">Free plan:</span>{' '}
-                      You may publish <span className="font-semibold">1 tender per month</span>.
-                      Upgrade to Premium for unlimited listings.
-                    </div>
-
-                    <Button
-                      type="button"
-                      onClick={() => (window.location.href = '/pricing')}
-                      className={[
-                        'relative inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold',
-                        'bg-amber-400 text-black hover:bg-amber-300',
-                        'ring-2 ring-amber-300/50 shadow-[0_0_0_6px_rgba(251,191,36,0.08)]',
-                        'transition-all duration-200',
-                      ].join(' ')}
-                    >
-                      <Crown className="h-4 w-4 text-amber-800" />
-                      Upgrade to Premium
-                    </Button>
-                  </div>
                 </div>
 
                 {!isAdminUser && !isAbnVerified && (
@@ -1940,10 +1951,29 @@ export default function CreateTenderPage() {
         open={showPlansModal}
         onOpenChange={setShowPlansModal}
         files={projectFiles}
+        existingSuburb={suburb}
+        existingPostcode={postcode}
         onApply={(draft) => {
-          setProjectName(draft.project_name || projectName);
-          const desc = [
-            draft.summary ? draft.summary : null,
+          if (draft.project_name?.trim()) {
+            setProjectName(cleanAiProjectTitle(draft.project_name));
+          }
+          const loc = draft.detected_location;
+          if (loc && (loc.suburb || loc.address_text)) {
+            const suburbVal = loc.suburb?.trim() || (() => {
+              const addr = loc.address_text?.trim() || '';
+              const afterComma = addr.split(',').pop()?.trim();
+              return afterComma && afterComma.length < 50 ? afterComma : addr;
+            })();
+            if (suburbVal) setSuburb(suburbVal);
+            if (loc.postcode?.trim()) setPostcode(loc.postcode.trim());
+          }
+          const applied = draft as { geocoded_lat?: number | null; geocoded_lng?: number | null };
+          if (typeof applied.geocoded_lat === 'number' && typeof applied.geocoded_lng === 'number') {
+            setLocationLat(applied.geocoded_lat);
+            setLocationLng(applied.geocoded_lng);
+          }
+          const descParts = [
+            draft.project_description?.trim() || draft.summary?.trim() || null,
             draft.inclusions?.length ? `Inclusions:\n• ${draft.inclusions.join('\n• ')}` : null,
             draft.exclusions?.length ? `Exclusions:\n• ${draft.exclusions.join('\n• ')}` : null,
             draft.timing_notes?.length ? `Timing:\n• ${draft.timing_notes.join('\n• ')}` : null,
@@ -1951,14 +1981,26 @@ export default function CreateTenderPage() {
             draft.questions_to_confirm?.length
               ? `Questions to confirm:\n• ${draft.questions_to_confirm.join('\n• ')}`
               : null,
-          ]
-            .filter(Boolean)
-            .join('\n\n');
-          if (desc.trim()) setProjectDescription(desc);
-          if (draft.suggested_trades?.length) {
-            setTradeRequirements(
-              draft.suggested_trades.map((t) => ({ trade: t, subDescription: '' }))
-            );
+          ].filter(Boolean);
+          if (descParts.length > 0) {
+            setProjectDescription(descParts.join('\n\n'));
+          }
+          if (draft.suggested_trades_with_scope?.length) {
+            const valid = draft.suggested_trades_with_scope
+              .map((t) => {
+                const canonical = validateTradeName(t.trade);
+                return canonical ? { trade: canonical, subDescription: t.scope?.trim() || '' } : null;
+              })
+              .filter((r): r is { trade: string; subDescription: string } => r !== null);
+            if (valid.length > 0) setTradeRequirements(valid);
+          } else if (draft.suggested_trades?.length) {
+            const valid = draft.suggested_trades
+              .map((t) => {
+                const canonical = validateTradeName(t);
+                return canonical ? { trade: canonical, subDescription: (draft.trade_scopes?.[t] ?? []).join('. ').trim() || '' } : null;
+              })
+              .filter((r): r is { trade: string; subDescription: string } => r !== null);
+            if (valid.length > 0) setTradeRequirements(valid);
           }
         }}
       />

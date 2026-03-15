@@ -33,7 +33,7 @@ export default async function globalSetup(_config: FullConfig) {
 
   // Adjust selectors to your actual inputs/buttons
   await page.getByLabel(/email/i).fill(email);
-  await page.getByLabel(/password/i).fill(password);
+  await page.getByRole('textbox', { name: /password/i }).fill(password);
   await page.getByRole('button', { name: /sign in|log in/i }).click();
 
   // Wait for a stable post-login page

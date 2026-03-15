@@ -1,3 +1,4 @@
+// @ts-nocheck - Supabase client type inference
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createServerSupabase } from '@/lib/supabase-server';

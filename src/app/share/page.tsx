@@ -13,7 +13,8 @@ export default function SharePage() {
             alt="TradeHub"
             width={320}
             height={80}
-            className="h-auto w-[260px] sm:w-[320px]"
+            priority
+            className="h-auto w-[260px] sm:w-[320px] object-contain"
           />
         </div>
         <h1 className="mb-3 text-2xl font-bold text-gray-900 md:text-4xl">

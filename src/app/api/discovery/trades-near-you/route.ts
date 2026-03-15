@@ -11,6 +11,7 @@ import {
 
 type UserRow = {
   id: string;
+  plan?: string | null;
   location_lat?: number | null;
   location_lng?: number | null;
   base_lat?: number | null;
@@ -37,7 +38,11 @@ function getCandidateCoords(row: UserRow): { lat: number; lng: number } | null {
   return null;
 }
 
-function getTradesFromRow(row: UserRow): string[] {
+function getTradesFromRow(row: UserRow, userTradesMap?: Map<string, string[]>): string[] {
+  const fromUserTrades = userTradesMap?.get(row.id);
+  if (fromUserTrades && fromUserTrades.length > 0) {
+    return fromUserTrades;
+  }
   const primary = row.primary_trade ? [row.primary_trade] : [];
   let additional: string[] = [];
   const at = row.additional_trades as string[] | string | null | undefined;
@@ -74,10 +79,10 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: me, error: meErr } = await supabase
+    const { data: me, error: meErr } = await (supabase as any)
       .from('users')
       .select(
-        'id,location_lat,location_lng,base_lat,base_lng,search_lat,search_lng,is_premium,active_plan,subscription_status,subcontractor_plan,subcontractor_sub_status'
+        'id,plan,location_lat,location_lng,base_lat,base_lng,search_lat,search_lng,is_premium,active_plan,subscription_status,subcontractor_plan,subcontractor_sub_status'
       )
       .eq('id', user.id)
       .maybeSingle();
@@ -107,10 +112,10 @@ export async function GET() {
       `and(location_lat.gte.${bbox.minLat},location_lat.lte.${bbox.maxLat},location_lng.gte.${bbox.minLng},location_lng.lte.${bbox.maxLng}),` +
       `and(base_lat.gte.${bbox.minLat},base_lat.lte.${bbox.maxLat},base_lng.gte.${bbox.minLng},base_lng.lte.${bbox.maxLng})`;
 
-    let query = supabase
+    let query = (supabase as any)
       .from('users')
       .select(
-        'id,location_lat,location_lng,base_lat,base_lng,primary_trade,additional_trades,trades,is_premium,active_plan,subscription_status,subcontractor_plan,subcontractor_sub_status'
+        'id,plan,location_lat,location_lng,base_lat,base_lng,primary_trade,additional_trades,trades,is_premium,active_plan,subscription_status,subcontractor_plan,subcontractor_sub_status'
       )
       .eq('is_public_profile', true)
       .neq('id', user.id)
@@ -135,6 +140,34 @@ export async function GET() {
     }
 
     const rows = (candidates ?? []) as UserRow[];
+    const ids = rows.map((r) => r.id).filter(Boolean);
+
+    let userTradesMap = new Map<string, string[]>();
+    if (ids.length > 0) {
+      try {
+        const { data: utRows } = await (supabase as any)
+          .from('user_trades')
+          .select('user_id, trade, is_primary')
+          .in('user_id', ids)
+          .order('is_primary', { ascending: false })
+          .order('created_at', { ascending: true });
+        if (utRows && utRows.length > 0) {
+          const map = new Map<string, string[]>();
+          for (const r of utRows) {
+            const uid = (r as { user_id: string }).user_id;
+            const arr = map.get(uid) ?? [];
+            if (!arr.includes((r as { trade: string }).trade)) {
+              arr.push((r as { trade: string }).trade);
+            }
+            map.set(uid, arr);
+          }
+          userTradesMap = map;
+        }
+      } catch {
+        // user_trades may not exist
+      }
+    }
+
     const tradeCounts: Record<string, number> = {};
 
     const candidatesWithMeta = rows
@@ -161,7 +194,7 @@ export async function GET() {
     );
 
     for (const { row } of candidatesWithMeta) {
-      for (const t of getTradesFromRow(row)) {
+      for (const t of getTradesFromRow(row, userTradesMap)) {
         const key = t.trim();
         if (key) tradeCounts[key] = (tradeCounts[key] ?? 0) + 1;
       }

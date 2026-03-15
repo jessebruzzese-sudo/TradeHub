@@ -1,11 +1,22 @@
 const DEFAULT_RETURN_URL = '/dashboard';
 
 /** Structural type covering both User (types.ts) and CurrentUser (auth-context). */
-type ABNUser = {
+export type ABNUser = {
   abn?: string | null;
   abnStatus?: string | null;
+  abn_status?: string | null;
+  abn_verified_at?: string | null;
+  abnVerifiedAt?: string | null;
+  abn_verified?: boolean | null;
+  abnVerified?: boolean | null;
   abnRejectionReason?: string | null;
+  abn_rejection_reason?: string | null;
 };
+
+/** Alias for hasValidABN — use for "is this user ABN verified?" checks. */
+export function isAbnVerified(user: ABNUser | null): boolean {
+  return hasValidABN(user);
+}
 
 export function sanitizeReturnUrl(url: string | null | undefined): string {
   if (!url || typeof url !== 'string') {
@@ -53,14 +64,27 @@ export function sanitizeReturnUrl(url: string | null | undefined): string {
 
 export function hasValidABN(user: ABNUser | null): boolean {
   if (!user) return false;
-  if (!user.abn || user.abn.trim().length === 0) return false;
-  return user.abnStatus === 'VERIFIED';
+  const abn = user.abn ?? '';
+  if (!abn || String(abn).trim().length === 0) return false;
+  const status = String(user.abnStatus ?? user.abn_status ?? '').trim().toUpperCase();
+  if (status === 'VERIFIED') return true;
+  if (user.abn_verified_at ?? user.abnVerifiedAt) return true;
+  if (user.abn_verified === true || user.abnVerified === true) return true;
+  return false;
 }
 
 export function hasABNButNotVerified(user: ABNUser | null): boolean {
   if (!user) return false;
-  if (!user.abn || user.abn.trim().length === 0) return false;
-  return user.abnStatus !== 'VERIFIED';
+  const abn = user.abn ?? '';
+  if (!abn || String(abn).trim().length === 0) return false;
+  const status = String(user.abnStatus ?? user.abn_status ?? '').trim().toUpperCase();
+  return status !== 'VERIFIED' && !(user.abn_verified_at ?? user.abnVerifiedAt) && !(user.abn_verified === true || user.abnVerified === true);
+}
+
+/** Returns normalized ABN status (VERIFIED, PENDING, REJECTED, UNVERIFIED). */
+export function getABNStatus(user: ABNUser | null): string {
+  if (!user) return '';
+  return String(user.abnStatus ?? user.abn_status ?? '').trim().toUpperCase() || 'UNVERIFIED';
 }
 
 export function getABNStatusMessage(
@@ -77,14 +101,16 @@ export function getABNStatusMessage(
   if (!user.abn || user.abn.trim().length === 0) {
     return 'You need to provide your ABN before posting jobs.';
   }
-  if (!user.abnStatus || user.abnStatus === 'UNVERIFIED') {
+  const status = String(user.abnStatus ?? user.abn_status ?? '').toUpperCase();
+  if (!status || status === 'UNVERIFIED') {
     return 'Your ABN has been submitted and is pending verification.';
   }
-  if (user.abnStatus === 'PENDING') {
+  if (status === 'PENDING') {
     return 'Your ABN is currently being verified by our team.';
   }
-  if (user.abnStatus === 'REJECTED') {
-    return `Your ABN verification was rejected${user.abnRejectionReason ? ': ' + user.abnRejectionReason : '.'}`;
+  if (status === 'REJECTED') {
+    const reason = user.abnRejectionReason ?? user.abn_rejection_reason;
+    return `Your ABN verification was rejected${reason ? ': ' + reason : '.'}`;
   }
   return null;
 }

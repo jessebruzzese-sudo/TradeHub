@@ -1,19 +1,12 @@
+// @ts-nocheck - Supabase client type inference
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createServiceSupabase } from '@/lib/supabase-server';
 import { requireAdmin } from '@/lib/admin/require-admin';
 
 export const dynamic = 'force-dynamic';
 
-function serviceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  );
-}
-
-async function getUserNames(supabase: ReturnType<typeof serviceClient>, ids: string[]): Promise<Record<string, string>> {
-  const unique = [...new Set(ids)].filter(Boolean);
+async function getUserNames(supabase: ReturnType<typeof createServiceSupabase>, ids: string[]): Promise<Record<string, string>> {
+  const unique = Array.from(new Set(ids)).filter(Boolean);
   if (unique.length === 0) return {};
   const { data } = await supabase
     .from('users')
@@ -38,7 +31,7 @@ export async function GET(
       return NextResponse.json({ error: 'User ID required' }, { status: 400 });
     }
 
-    const supabase = serviceClient();
+    const supabase = createServiceSupabase();
 
     const [
       { data: reportsReceived },
@@ -46,22 +39,22 @@ export async function GET(
       { data: blocksByUser },
       { data: blocksOfUser },
     ] = await Promise.all([
-      supabase
+      (supabase as any)
         .from('user_reports')
         .select('id, reporter_id, reported_id, conversation_id, category, notes, status, created_at')
         .eq('reported_id', userId)
         .order('created_at', { ascending: false }),
-      supabase
+      (supabase as any)
         .from('user_reports')
         .select('id, reporter_id, reported_id, conversation_id, category, status, created_at')
         .eq('reporter_id', userId)
         .order('created_at', { ascending: false }),
-      supabase
+      (supabase as any)
         .from('user_blocks')
         .select('id, blocker_id, blocked_id, created_at')
         .eq('blocker_id', userId)
         .order('created_at', { ascending: false }),
-      supabase
+      (supabase as any)
         .from('user_blocks')
         .select('id, blocker_id, blocked_id, created_at')
         .eq('blocked_id', userId)

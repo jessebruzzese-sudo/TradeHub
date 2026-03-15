@@ -8,7 +8,7 @@ export type JobStatus = 'open' | 'accepted' | 'confirmed' | 'completed' | 'cance
 
 export type ApplicationStatus = 'applied' | 'selected' | 'accepted' | 'declined' | 'confirmed' | 'completed';
 
-export type PayType = 'fixed' | 'hourly' | 'quote_required';
+export type PayType = 'fixed' | 'hourly' | 'day_rate' | 'quote_required';
 
 export type SubcontractorPlan = 'NONE' | 'PRO_10';
 

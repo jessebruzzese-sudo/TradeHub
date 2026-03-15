@@ -1,5 +1,11 @@
+// @ts-nocheck - Supabase client type inference
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase-server';
+import { createEmailEvent } from '@/lib/email/create-email-event';
+import {
+  buildHireConfirmedTemplateData,
+  buildJobInviteTemplateData,
+} from '@/lib/email/email-template-data';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,7 +48,7 @@ export async function POST(
 
     const { data: job, error: jobErr } = await supabase
       .from('jobs')
-      .select('id, contractor_id, status, selected_subcontractor')
+      .select('id, contractor_id, status, selected_subcontractor, title, location, starts_at')
       .eq('id', jobId)
       .maybeSingle();
 
@@ -91,6 +97,42 @@ export async function POST(
         .eq('id', applicationId);
       if (appUpdateErr) {
         return NextResponse.json({ error: appUpdateErr.message }, { status: 500 });
+      }
+
+      // Core record state has been committed. Email is a side effect only.
+      try {
+        const [{ data: recipient }, { data: contractor }] = await Promise.all([
+          supabase
+            .from('users')
+            .select('id, email, name')
+            .eq('id', app.subcontractor_id)
+            .maybeSingle(),
+          supabase
+            .from('users')
+            .select('id, name')
+            .eq('id', authUser.id)
+            .maybeSingle(),
+        ]);
+
+        if (recipient?.email) {
+          await createEmailEvent({
+            userId: recipient.id,
+            toEmail: recipient.email,
+            emailType: 'job_invite',
+            payload: buildJobInviteTemplateData({
+              recipientName: recipient.name,
+              inviterName: contractor?.name,
+              jobTitle: job.title || 'Job opportunity',
+              location: job.location,
+              jobId,
+              inviterId: authUser.id,
+            }),
+            idempotencyKey: `job_invite:${jobId}:${app.subcontractor_id}`,
+            triggerSendImmediately: true,
+          });
+        }
+      } catch (emailErr) {
+        console.error('[jobs/action] job_invite email side effect failed', emailErr);
       }
     } else if (action === 'accept' || action === 'decline') {
       if (job.status !== 'accepted') {
@@ -190,6 +232,33 @@ export async function POST(
         .eq('id', selectedApp.id);
       if (appUpdateErr) {
         return NextResponse.json({ error: appUpdateErr.message }, { status: 500 });
+      }
+
+      // Core record state has been committed. Email is a side effect only.
+      try {
+        const { data: recipient } = await supabase
+          .from('users')
+          .select('id, email, name')
+          .eq('id', selectedId)
+          .maybeSingle();
+
+        if (recipient?.email) {
+          await createEmailEvent({
+            userId: recipient.id,
+            toEmail: recipient.email,
+            emailType: 'hire_confirmed',
+            payload: buildHireConfirmedTemplateData({
+              recipientName: recipient.name,
+              title: job.title || 'Job',
+              whenLabel: job.starts_at || undefined,
+              detailsPath: `/jobs/${jobId}`,
+            }),
+            idempotencyKey: `hire_confirmed:${jobId}:${selectedId}`,
+            triggerSendImmediately: true,
+          });
+        }
+      } catch (emailErr) {
+        console.error('[jobs/action] hire_confirmed email side effect failed', emailErr);
       }
     }
 

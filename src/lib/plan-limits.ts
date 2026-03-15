@@ -6,6 +6,7 @@
 export type PlanTier = 'free' | 'premium';
 
 export type PlanUser = {
+  plan?: string | null;
   is_premium?: boolean | null;
   subscription_status?: string | null;
   subscriptionStatus?: string | null;
@@ -85,6 +86,10 @@ const PREMIUM_LIMITS: PlanLimits = {
 
 function isPremium(user: TierUser | null | undefined): boolean {
   if (!user) return false;
+
+  const explicitPlan = normalisePlanString((user as TierUser & { plan?: string | null }).plan);
+  if (explicitPlan === 'premium') return true;
+  if (explicitPlan === 'free') return false;
 
   // Strong explicit flag
   if (user.is_premium === true) return true;

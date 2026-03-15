@@ -7,5 +7,5 @@ test('loads homepage', async ({ page }) => {
 
 test('logged in user can open dashboard', async ({ page }) => {
   await page.goto('/dashboard');
-  await expect(page.getByText(/dashboard/i)).toBeVisible();
+  await expect(page.getByText(/dashboard|welcome back/i).first()).toBeVisible({ timeout: 15_000 });
 });

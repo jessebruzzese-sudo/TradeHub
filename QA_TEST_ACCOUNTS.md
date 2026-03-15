@@ -12,6 +12,25 @@ We've implemented Option A - creating seeded test users with fixed primary trade
 
 Eight test accounts are available: four subcontractor accounts with fixed primary trades, three contractor accounts, and one admin account for approval workflows.
 
+### Manual Test Accounts (Non-Seeded)
+
+These are manually created accounts for specific testing scenarios:
+
+#### Non-ABN Verified Account
+- **Email:** test4@gmail.com
+- **Password:** password1
+- **ABN Status:** Not verified
+- **Purpose:** Testing flows that require or restrict non-ABN verified accounts (e.g. ABN gating, verification prompts)
+- **Playwright:** Use `PW_NO_ABN_EMAIL=test4@gmail.com` and `PW_NO_ABN_PASSWORD=password1` for ABN gating tests when not using the seeded `pw-unverified@tradehub.test` account
+
+#### Premium User Account
+- **Email:** test5@gmail.com
+- **Password:** password1
+- **Subscription:** Premium (ALL_ACCESS_PRO_26)
+- **Purpose:** Testing premium-only features (e.g. premium job visibility, premium gating)
+- **Playwright:** Use `PW_PREMIUM_EMAIL=test5@gmail.com` and `PW_PREMIUM_PASSWORD=password1` for premium tests
+- **Setup:** Create account via signup, then run `PW_PREMIUM_EMAIL=test5@gmail.com node scripts/enable-premium-user.mjs` to grant premium
+
 ### 1. Admin Test Account
 - **Email:** test+admin@tradebid.com.au
 - **Password:** password
@@ -208,7 +227,9 @@ WHERE email IN (
   'test+electrician@tradebid.com.au',
   'test+plumber@tradebid.com.au',
   'test+carpenter@tradebid.com.au',
-  'test+painter@tradebid.com.au'
+  'test+painter@tradebid.com.au',
+  'test4@gmail.com',
+  'test5@gmail.com'
 );
 ```
 

@@ -16,7 +16,9 @@
  *
  * Output: playwright/seed-ids.json with IDs for tests
  */
-import 'dotenv/config';
+import dotenv from 'dotenv';
+dotenv.config({ path: '.env.local' });
+dotenv.config();
 import { writeFileSync } from 'fs';
 import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'crypto';
@@ -105,6 +107,38 @@ const SEED_USERS = [
     builder_plan: 'NONE',
     builder_sub_status: 'NONE',
   },
+  {
+    email: 'pw-admin@tradehub.test',
+    name: 'QA Admin User',
+    role: 'admin',
+    primary_trade: null,
+    abn: '12345678904',
+    abn_status: 'VERIFIED',
+    is_public_profile: true,
+    base_lat: SYDNEY_LAT,
+    base_lng: SYDNEY_LNG,
+    location: 'Sydney',
+    postcode: '2000',
+    builder_plan: 'NONE',
+    builder_sub_status: 'NONE',
+    is_premium: true,
+  },
+  {
+    email: 'pw-plastering@tradehub.test',
+    name: 'QA Plastering User',
+    role: 'contractor',
+    primary_trade: 'Plastering / Gyprock',
+    abn: '12345678905',
+    abn_status: 'VERIFIED',
+    is_public_profile: true,
+    base_lat: SYDNEY_LAT,
+    base_lng: SYDNEY_LNG,
+    location: 'Sydney',
+    postcode: '2000',
+    builder_plan: 'NONE',
+    builder_sub_status: 'NONE',
+    is_premium: false,
+  },
 ];
 
 async function ensureUser(acc) {
@@ -122,15 +156,17 @@ async function ensureUser(acc) {
     await admin.auth.admin.updateUserById(authUser.id, { password: PASSWORD });
   }
   const userId = authUser.id;
+  const abnVerifiedAt = acc.abn_status === 'VERIFIED' && acc.abn ? NOW : null;
   const { error } = await admin.from('users').upsert(
     {
       id: userId,
       email: acc.email,
       name: acc.name,
       role: acc.role,
-      primary_trade: acc.primary_trade,
+      primary_trade: acc.primary_trade ?? null,
       abn: acc.abn,
       abn_status: acc.abn_status,
+      abn_verified_at: abnVerifiedAt,
       is_public_profile: acc.is_public_profile ?? true,
       base_lat: acc.base_lat,
       base_lng: acc.base_lng,
@@ -147,6 +183,14 @@ async function ensureUser(acc) {
     { onConflict: 'id' }
   );
   if (error) throw error;
+
+  // Populate user_trades for discovery RPCs (get_jobs_visible_to_viewer, get_tenders_visible_to_viewer)
+  if (acc.primary_trade) {
+    await admin.from('user_trades').upsert(
+      { user_id: userId, trade: acc.primary_trade, is_primary: true, updated_at: NOW },
+      { onConflict: 'user_id,trade' }
+    );
+  }
   return userId;
 }
 
@@ -303,6 +347,7 @@ async function main() {
     budget_max_cents: 140000,
     desired_start_date: TOMORROW,
     desired_end_date: IN_3_DAYS,
+    is_anonymous: false,
   };
   const { data: t3 } = await admin.from('tenders').insert(nonOwnedTender).select('id').single();
   if (t3) {
@@ -311,6 +356,69 @@ async function main() {
       { tender_id: t3.id, trade: 'Electrical', sub_description: '' },
       { onConflict: 'tender_id,trade' }
     );
+  }
+
+  // [E2E Discovery] tender for tender-discovery-visibility.spec.ts (deterministic coords)
+  const { error: delDiscovery } = await admin.from('tenders').delete().ilike('project_name', '[E2E Discovery]%');
+  if (delDiscovery) console.warn('Could not delete existing [E2E Discovery] tenders:', delDiscovery.message);
+  const discoveryTender = {
+    builder_id: otherId,
+    project_name: '[E2E Discovery] Plastering Tender',
+    project_description: 'Plastering and gyprock works for E2E discovery test.',
+    suburb: 'Sydney',
+    postcode: '2000',
+    lat: SYDNEY_LAT,
+    lng: SYDNEY_LNG,
+    status: 'LIVE',
+    tier: 'FREE_TRIAL',
+    budget_min_cents: 50000,
+    budget_max_cents: 100000,
+    desired_start_date: TOMORROW,
+    desired_end_date: IN_3_DAYS,
+    is_anonymous: false,
+  };
+  const { data: tDiscovery } = await admin.from('tenders').insert(discoveryTender).select('id').single();
+  if (tDiscovery) {
+    await admin.from('tender_trade_requirements').upsert(
+      { tender_id: tDiscovery.id, trade: 'Plastering / Gyprock', sub_description: 'Internal plasterboard wall and ceiling linings.' },
+      { onConflict: 'tender_id,trade' }
+    );
+  }
+
+  const anonymousTender = {
+    builder_id: otherId,
+    project_name: '[QA] Anonymous Tender',
+    project_description: 'Deterministic QA anonymous tender for request-to-quote tests.',
+    suburb: 'Sydney',
+    postcode: '2000',
+    lat: SYDNEY_LAT,
+    lng: SYDNEY_LNG,
+    status: 'LIVE',
+    tier: 'FREE_TRIAL',
+    budget_min_cents: 80000,
+    budget_max_cents: 150000,
+    desired_start_date: TOMORROW,
+    desired_end_date: IN_3_DAYS,
+    is_anonymous: true,
+  };
+  const { data: t4 } = await admin.from('tenders').insert(anonymousTender).select('id').single();
+  if (t4) {
+    ids.tenders.anonymous = t4.id;
+    await admin.from('tender_trade_requirements').upsert(
+      { tender_id: t4.id, trade: 'Electrical', sub_description: '' },
+      { onConflict: 'tender_id,trade' }
+    );
+  }
+
+  // Clear subcontractor_availability for QA users so "No availability" tests are deterministic
+  const qaUserIds = Object.values(ids.users);
+  if (qaUserIds.length > 0) {
+    const { error: delAvail } = await admin
+      .from('subcontractor_availability')
+      .delete()
+      .in('user_id', qaUserIds);
+    if (delAvail) console.warn('Could not clear QA availability:', delAvail.message);
+    else console.log('Cleared subcontractor_availability for QA users');
   }
 
   const outPath = 'playwright/seed-ids.json';

@@ -166,8 +166,14 @@ export function JobCard({ job, showStatus = true, extraActions }: JobCardProps) 
             <div className="flex items-center gap-1.5 min-w-0">
               <DollarSign className="w-4 h-4 flex-shrink-0 text-emerald-600" />
               <span className="truncate">
-                ${job.rate}
-                {job.payType === 'hourly' ? '/hr' : ''}
+                {job.rate != null && Number(job.rate) > 0 ? (
+                  <>
+                    ${job.rate}
+                    {job.payType === 'hourly' ? '/hr' : job.payType === 'day_rate' ? '/day' : ''}
+                  </>
+                ) : (
+                  'Price not specified'
+                )}
               </span>
             </div>
           </div>

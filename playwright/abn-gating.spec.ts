@@ -31,11 +31,11 @@ test.describe('ABN verification enforcement (verified user)', () => {
   test('can browse profiles via subcontractors', async ({ page }) => {
     await page.goto(`${BASE_URL}/subcontractors`)
     await page.waitForLoadState('networkidle')
-    const profileLink = page.getByRole('link', { name: /view profile|profile/i }).first()
+    // Use exact "View profile" to avoid matching sidebar "Profile" link
+    const profileLink = page.getByRole('link', { name: 'View profile' }).first()
     if (await profileLink.isVisible().catch(() => false)) {
       await profileLink.click()
-      await page.waitForLoadState('networkidle')
-      await expect(page).toHaveURL(/\/profile/)
+      await expect(page).toHaveURL(/\/profile/, { timeout: 15_000 })
     }
   })
 

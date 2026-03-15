@@ -27,14 +27,23 @@ export function PremiumJobUpsellModal({
 
   const handleUpgrade = () => {
     onOpenChange(false);
-    router.push('/pricing');
+    try {
+      router.push('/pricing');
+    } catch (e) {
+      console.error('[PremiumJobUpsellModal] handleUpgrade error', e);
+    }
   };
 
   const handleViewJob = () => {
     onOpenChange(false);
-    if (jobId) {
-      router.push(`/jobs/${jobId}`);
-    } else {
+    try {
+      if (jobId && typeof jobId === 'string' && jobId.trim()) {
+        router.push(`/jobs/${jobId}`);
+      } else {
+        router.push('/jobs');
+      }
+    } catch (e) {
+      console.error('[PremiumJobUpsellModal] handleViewJob error', e);
       router.push('/jobs');
     }
   };

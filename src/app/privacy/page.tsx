@@ -17,9 +17,12 @@ export default function PrivacyPage() {
             <div className="prose prose-sm max-w-none space-y-6">
               <section>
                 <h2 className="text-xl font-semibold text-gray-900 mb-3">1. Who We Are</h2>
-                <p className="text-gray-700">
+                <p className="text-gray-700 mb-2">
                   TradeHub is an online marketplace that connects contractors and subcontractors in Australia.
                   We provide a platform for posting jobs, tenders, and matching businesses based on trade, location, and availability.
+                </p>
+                <p className="text-gray-700 mb-2">
+                  TradeHub AU Pty Ltd ABN: 45 695 929 849
                 </p>
               </section>
 

@@ -1,6 +1,10 @@
+// @ts-nocheck - Supabase client type inference
 import { NextRequest, NextResponse } from "next/server";
+import type { Database } from "@/lib/database.types";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { requireAdmin } from "@/lib/admin/require-admin";
+import { createEmailEvent } from "@/lib/email/create-email-event";
+import { shouldSendEmailNow } from "@/lib/email/rollout";
 
 type AbnStatus = "UNVERIFIED" | "PENDING" | "VERIFIED" | "REJECTED";
 
@@ -32,7 +36,8 @@ export async function POST(
     const supabase = createServerSupabase();
     const { userId } = await requireAdmin(supabase);
 
-    const updateData: Record<string, unknown> = { abn_status };
+    type UsersUpdate = Database['public']['Tables']['users']['Update'];
+    const updateData: UsersUpdate = { abn_status };
 
     if (abn_status === "VERIFIED") {
       updateData.abn_verified_at = new Date().toISOString();
@@ -48,13 +53,47 @@ export async function POST(
       updateData.abn_verified_by = null;
     }
 
-    const { error } = await supabase
+    const { data: beforeUser } = await supabase
+      .from("users")
+      .select("id, email, name, abn_status")
+      .eq("id", id)
+      .maybeSingle();
+
+    const { data: updatedUser, error } = await supabase
       .from("users")
       .update(updateData)
-      .eq("id", id);
+      .eq("id", id)
+      .select("id, email, name, abn_status")
+      .maybeSingle();
 
     if (error) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
+    }
+
+    // Core profile update is committed. Email is a best-effort side effect.
+    try {
+      const movedToVerified =
+        beforeUser?.abn_status !== "VERIFIED" &&
+        updatedUser?.abn_status === "VERIFIED";
+
+      if (movedToVerified && updatedUser?.email) {
+        await createEmailEvent({
+          userId: updatedUser.id,
+          toEmail: updatedUser.email,
+          emailType: "abn_verified",
+          payload: {
+            firstName: updatedUser.name?.split?.(/\s+/)?.[0] || undefined,
+            profileUrl: `${process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://tradehub.com.au"}/profile`,
+          },
+          idempotencyKey: `abn_verified:${updatedUser.id}:${updatedUser.abn_status}`,
+          triggerSendImmediately: shouldSendEmailNow({
+            emailType: "abn_verified",
+            toEmail: updatedUser.email,
+          }),
+        });
+      }
+    } catch (emailErr) {
+      console.error("[admin/users/abn] abn_verified email side effect failed", emailErr);
     }
 
     return NextResponse.json({ ok: true });

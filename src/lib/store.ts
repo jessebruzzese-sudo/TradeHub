@@ -1,6 +1,4 @@
 import { User, Job, Application, Conversation, Message, Review, AuditLog, AdminNote, UserBlock } from './types';
-// mockData is environment-guarded: returns empty arrays in production, dev data only in development.
-import { mockData } from './mock-data';
 
 export interface AppStore {
   currentUser: User | null;
@@ -63,13 +61,13 @@ export interface AppStore {
 
 let store: AppStore = {
   currentUser: null,
-  users: [...mockData.users],
-  jobs: [...mockData.jobs],
-  applications: [...mockData.applications],
-  conversations: [...mockData.conversations],
-  messages: [...mockData.messages],
+  users: [],
+  jobs: [],
+  applications: [],
+  conversations: [],
+  messages: [],
   userBlocks: [],
-  reviews: mockData.reviews || [],
+  reviews: [],
   auditLogs: [],
   adminNotes: [],
 
@@ -359,13 +357,13 @@ export function getStore(): AppStore {
 export function resetStore(): void {
   store = {
     currentUser: null,
-    users: [...mockData.users],
-    jobs: [...mockData.jobs],
-    applications: [...mockData.applications],
-    conversations: [...mockData.conversations],
-    messages: [...mockData.messages],
+    users: [],
+    jobs: [],
+    applications: [],
+    conversations: [],
+    messages: [],
     userBlocks: [],
-    reviews: [...mockData.reviews],
+    reviews: [],
     auditLogs: [],
     adminNotes: [],
 

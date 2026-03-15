@@ -118,7 +118,20 @@ export default function AdminJobDetailPage() {
               </div>
               <div className="flex items-center gap-2 text-sm text-gray-600">
                 <DollarSign className="w-4 h-4" />
-                ${job.rate} {job.payType === 'hourly' ? '/ hour' : job.payType === 'fixed' ? 'fixed price' : ''}
+                {job.rate != null && Number(job.rate) > 0 ? (
+                  <>
+                    ${job.rate}{' '}
+                    {job.payType === 'hourly'
+                      ? '/ hour'
+                      : job.payType === 'day_rate'
+                        ? '/ day'
+                        : job.payType === 'fixed'
+                          ? 'fixed price'
+                          : ''}
+                  </>
+                ) : (
+                  'Price not specified'
+                )}
               </div>
               {job.dates && job.dates.length > 0 && (
                 <div>

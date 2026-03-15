@@ -8,7 +8,7 @@ export interface MessagingState {
 }
 
 export function getMessagingState(
-  job: Job | null,
+  job: { status?: string } | null,
   currentUser: { trustStatus?: string | null } | null,
   options?: { isBlockedByRecipient?: boolean }
 ): MessagingState {

@@ -4,37 +4,43 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Lock, MapPin, Globe } from 'lucide-react';
+import { Lock, MapPin, Globe, Plus, Trash2, X } from 'lucide-react';
 import { SiInstagram, SiFacebook, SiLinkedin, SiTiktok, SiYoutube } from 'react-icons/si';
 
 import { AppLayout } from '@/components/app-nav';
 import { ProfileAvatar } from '@/components/profile-avatar';
 
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Badge } from '@/components/ui/badge';
 
+import { RefinePillButton } from '@/components/ai/RefinePillButton';
+import { PremiumUpsellBar } from '@/components/premium-upsell-bar';
+import { SuburbAutocomplete } from '@/components/suburb-autocomplete';
 import { useAuth } from '@/lib/auth';
 import { getBrowserSupabase } from '@/lib/supabase-client';
 import { isAdmin } from '@/lib/is-admin';
 import { TRADE_CATEGORIES } from '@/lib/trades';
-import { hasSubcontractorPremium } from '@/lib/capability-utils';
+import { cn } from '@/lib/utils';
+import { canCustomSearchLocation, canMultiTrade, canChangePrimaryTrade } from '@/lib/capability-utils';
+import { hasValidABN } from '@/lib/abn-utils';
 import { MVP_FREE_MODE } from '@/lib/feature-flags';
 
 export default function EditProfilePage() {
-  const { currentUser, updateUser } = useAuth();
+  const { currentUser, isLoading, updateUser } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (currentUser === null) {
-      router.replace('/');
+    if (!isLoading && !currentUser) {
+      router.replace(`/login?returnUrl=${encodeURIComponent('/profile/edit')}`);
     }
-  }, [currentUser, router]);
+  }, [currentUser, isLoading, router]);
 
   const cardClass =
     'mb-5 rounded-2xl border border-slate-200/70 bg-white/75 p-5 shadow-sm backdrop-blur ' +
@@ -76,11 +82,76 @@ export default function EditProfilePage() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [savedTick, setSavedTick] = useState(false);
+  const [isRefiningBio, setIsRefiningBio] = useState(false);
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [linksOpen, setLinksOpen] = useState(false);
+
+  const [addLocationOpen, setAddLocationOpen] = useState(false);
+  const [addLocationSuburb, setAddLocationSuburb] = useState('');
+  const [addLocationPostcode, setAddLocationPostcode] = useState('');
+  const [addLocationLat, setAddLocationLat] = useState<number | null>(null);
+  const [addLocationLng, setAddLocationLng] = useState<number | null>(null);
+
+  const [additionalLocations, setAdditionalLocations] = useState<Array<{ id: string; location: string; postcode?: string | null; lat?: number | null; lng?: number | null }>>([]);
+  const [locationsLoading, setLocationsLoading] = useState(false);
+
+  const [userTrades, setUserTrades] = useState<Array<{ id: string | null; trade: string; is_primary: boolean }>>([]);
+  const [tradesLoading, setTradesLoading] = useState(false);
+  const [addTradeOpen, setAddTradeOpen] = useState(false);
+
+  // Load trades from API
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    let cancelled = false;
+    (async () => {
+      setTradesLoading(true);
+      try {
+        const res = await fetch('/api/profile/trades');
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (res.ok && Array.isArray(data?.trades)) {
+          setUserTrades(data.trades);
+        }
+      } finally {
+        if (!cancelled) setTradesLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [currentUser?.id]);
+
+  // Sync primaryTrade when userTrades loads; fallback to currentUser for legacy
+  useEffect(() => {
+    if (userTrades.length > 0) {
+      const primary = userTrades.find((t) => t.is_primary) ?? userTrades[0];
+      setPrimaryTrade(primary.trade);
+    } else if (!tradesLoading && currentUser?.primaryTrade) {
+      setPrimaryTrade(currentUser.primaryTrade);
+      setUserTrades([{ id: null, trade: currentUser.primaryTrade, is_primary: true }]);
+    }
+  }, [userTrades, currentUser?.primaryTrade, tradesLoading]);
+
+  // Load additional locations from API (Premium users only)
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    let cancelled = false;
+    (async () => {
+      setLocationsLoading(true);
+      try {
+        const res = await fetch('/api/profile/locations');
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (res.ok && Array.isArray(data?.locations)) {
+          setAdditionalLocations(data.locations);
+        }
+      } finally {
+        if (!cancelled) setLocationsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [currentUser?.id]);
 
   // Hydrate form state once user is available (and on user switch)
   useEffect(() => {
@@ -129,7 +200,7 @@ export default function EditProfilePage() {
   // Sync businessName when ABN is verified (keeps locked display value aligned with state)
   useEffect(() => {
     if (!currentUser) return;
-    const verified = (currentUser.abnStatus || '').toString().toUpperCase() === 'VERIFIED';
+    const verified = hasValidABN(currentUser);
     const entityName =
       (currentUser as any)?.abnEntityName ??
       (currentUser as any)?.abn_entity_name ??
@@ -141,7 +212,89 @@ export default function EditProfilePage() {
   }, [currentUser]);
 
   // Premium checks
-  const canMultiTrade = currentUser ? hasSubcontractorPremium(currentUser) || !!currentUser.additionalTradesUnlocked : false;
+  const isMultiTradeEnabled = currentUser ? canMultiTrade(currentUser) : false;
+  const canAddLocations = currentUser ? canCustomSearchLocation(currentUser) : false;
+
+  const handleAddLocation = async () => {
+    if (!canAddLocations) {
+      toast.error('Multiple locations require Premium');
+      return;
+    }
+    const loc = addLocationSuburb.trim();
+    if (!loc) {
+      toast.error('Please select or enter a location');
+      return;
+    }
+    const pc = addLocationPostcode.trim() || null;
+    const exists = additionalLocations.some(
+      (a) => a.location?.toLowerCase() === loc.toLowerCase() && (a.postcode || '') === (pc || '')
+    );
+    if (exists) {
+      toast.error('This location is already added');
+      return;
+    }
+    try {
+      setIsSaving(true);
+      const res = await fetch('/api/profile/locations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location: loc,
+          postcode: pc,
+          lat: addLocationLat,
+          lng: addLocationLng,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data?.error || 'Failed to add location');
+        return;
+      }
+      if (data?.location) {
+        setAdditionalLocations((prev) => [
+          ...prev,
+          {
+            id: data.location.id,
+            location: data.location.location,
+            postcode: data.location.postcode ?? null,
+            lat: data.location.lat ?? null,
+            lng: data.location.lng ?? null,
+          },
+        ]);
+      }
+      setAddLocationOpen(false);
+      setAddLocationSuburb('');
+      setAddLocationPostcode('');
+      setAddLocationLat(null);
+      setAddLocationLng(null);
+      toast.success('Location added');
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to add location');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleRemoveLocation = async (id: string) => {
+    if (!canAddLocations) return;
+    try {
+      setIsSaving(true);
+      const res = await fetch(`/api/profile/locations/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data?.error || 'Failed to remove location');
+        return;
+      }
+      setAdditionalLocations((prev) => prev.filter((l) => l.id !== id));
+      toast.success('Location removed');
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to remove location');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const parsedTrades = useMemo<string[]>(() => {
     return tradesText
@@ -150,11 +303,43 @@ export default function EditProfilePage() {
       .filter(Boolean);
   }, [tradesText]);
 
-  const availableAdditionalTradeOptions = useMemo<string[]>(() => {
-    const primary = currentUser?.primaryTrade ?? '';
-    const existing = currentUser?.additionalTrades ?? [];
-    return TRADE_CATEGORIES.filter((t) => t !== primary && !existing.includes(t));
-  }, [currentUser?.primaryTrade, currentUser?.additionalTrades]);
+  const selectedTrades = useMemo(() => userTrades.map((t) => t.trade), [userTrades]);
+  const availableTradeOptions = useMemo(
+    () => TRADE_CATEGORIES.filter((t) => !selectedTrades.includes(t)),
+    [selectedTrades]
+  );
+
+  const handleAddTrade = (trade: string) => {
+    if (!trade || !isMultiTradeEnabled) return;
+    if (selectedTrades.includes(trade)) return;
+    setUserTrades((prev) => {
+      const next = [...prev.map((t) => ({ ...t, is_primary: false })), { id: null, trade, is_primary: false }];
+      if (prev.length === 0) {
+        next[next.length - 1].is_primary = true;
+      }
+      return next;
+    });
+    setAddTradeOpen(false);
+  };
+
+  const handleRemoveTrade = (trade: string) => {
+    if (selectedTrades.length <= 1) return;
+    const primary = userTrades.find((t) => t.is_primary);
+    setUserTrades((prev) => {
+      const next = prev.filter((t) => t.trade !== trade);
+      if (primary?.trade === trade && next.length > 0) {
+        next[0].is_primary = true;
+      }
+      return next;
+    });
+  };
+
+  const handleSetPrimaryTrade = (trade: string) => {
+    setUserTrades((prev) =>
+      prev.map((t) => ({ ...t, is_primary: t.trade === trade }))
+    );
+    setPrimaryTrade(trade);
+  };
 
   // Avoid rendering controlled inputs before user exists (after hooks are declared)
   if (!currentUser) {
@@ -165,8 +350,8 @@ export default function EditProfilePage() {
     );
   }
 
-  const isAbnVerified = (currentUser.abnStatus || '').toString().toUpperCase() === 'VERIFIED';
-  const abnVerified = !!currentUser?.abnVerified || String(currentUser?.abnStatus || '').toUpperCase() === 'VERIFIED';
+  const isAbnVerified = hasValidABN(currentUser);
+  const abnVerified = isAbnVerified;
   const abnNumber = (currentUser?.abn || '').toString();
   const verifiedEntityName =
     (currentUser as any)?.abnEntityName ??
@@ -181,10 +366,8 @@ export default function EditProfilePage() {
   const showBusinessNameOnProfile = currentUser?.showBusinessNameOnProfile !== false;
   const businessNameDisplay = (verifiedEntityName ?? currentUser?.businessName ?? '').toString();
 
-  const primaryTradeValue =
-    ((currentUser as any)?.trades?.[0] as string | undefined) ??
-    primaryTrade ??
-    '';
+  const primaryTradeValue = primaryTrade || selectedTrades[0] || '';
+  const canEditTrades = canChangePrimaryTrade(currentUser);
 
   const ensureHttps = (raw: string) => {
     const v = (raw || '').trim();
@@ -292,52 +475,81 @@ export default function EditProfilePage() {
     }
   };
 
-  const handleAddAdditionalTrade = async (trade: string) => {
-    if (!trade) return;
-
-    if (!canMultiTrade) {
-      toast.error('Additional trades require Premium');
-      return;
-    }
-
-    const next = Array.from(new Set([...(currentUser.additionalTrades ?? []), trade]));
+  const handleRefineBio = async () => {
+    const raw = String(bio ?? '').trim();
+    if (!raw) return;
 
     try {
-      setIsSaving(true);
-      await updateUser({ additionalTrades: next });
-      toast.success('Trade added');
+      setIsRefiningBio(true);
+
+      const res = await fetch('/api/ai/refine-tender', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'bio',
+          text: raw,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data?.error ?? 'Could not refine bio.');
+        return;
+      }
+
+      const refined = String(data?.refined ?? '').trim();
+      if (!refined) {
+        toast.error('AI did not return a refinement. Try again.');
+        return;
+      }
+
+      setBio(refined);
+      toast.success('Bio refined.');
     } catch (e) {
-      console.error(e);
-      toast.error('Failed to add trade');
+      console.error('[profile] refine bio failed', e);
+      toast.error('Could not refine bio.');
     } finally {
-      setIsSaving(false);
+      setIsRefiningBio(false);
     }
   };
 
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    const effectivePrimaryTrade =
-      (((currentUser as any)?.trades?.[0] as string | undefined) ??
-        currentUser.primaryTrade ??
-        primaryTrade ??
-        '').toString();
-
-    // Primary trade is required for non-admins
-    if (!effectivePrimaryTrade.trim() && !isAdmin(currentUser)) {
+    const effectivePrimary = primaryTrade?.trim() || selectedTrades[0] || '';
+    if (!effectivePrimary && !isAdmin(currentUser)) {
       toast.error('Please select your primary trade');
+      return;
+    }
+
+    const tradesToSave = selectedTrades.length > 0 ? selectedTrades : [effectivePrimary];
+    if (tradesToSave.length > 1 && !isMultiTradeEnabled) {
+      toast.error('Multiple trades require Premium');
       return;
     }
 
     setIsSaving(true);
 
     try {
-      /**
-       * IMPORTANT:
-       * - Only name/bio/avatar/role are persisted today.
-       * - Everything else is merged in-memory by auth-context so the UI stays consistent.
-       * - Free-text "Additional Trade Skills" (parsedTrades) is NOT persisted to trades (profile copy only).
-       */
+      // Free users: primary trade is locked; skip trades API. Premium users: sync trades.
+      if (canEditTrades) {
+        const tradesRes = await fetch('/api/profile/trades', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            primaryTrade: effectivePrimary,
+            trades: tradesToSave,
+          }),
+        });
+        if (!tradesRes.ok) {
+          const data = await tradesRes.json().catch(() => ({}));
+          toast.error(data?.error || 'Failed to save trades');
+          setIsSaving(false);
+          return;
+        }
+      }
+
       const cleanedAbn = String(abnNumber || '').replace(/\s+/g, '');
       const enteredAbn = cleanedAbn.length > 0;
 
@@ -346,9 +558,7 @@ export default function EditProfilePage() {
         mini_bio: miniBio.trim() ? miniBio.trim() : null,
         bio: bio.trim() ? bio.trim() : undefined,
 
-        // UI-only fields for now (safe because auth merges them into state)
         businessName: isAbnVerified ? undefined : (businessName.trim() ? businessName.trim() : undefined),
-        primaryTrade: effectivePrimaryTrade.trim() ? effectivePrimaryTrade.trim() : undefined,
         isPublicProfile,
 
         website: normalizeWebsite(website) || undefined,
@@ -777,14 +987,27 @@ export default function EditProfilePage() {
             <div className="space-y-3">
               <div>
                 <Label htmlFor="bio" className="text-sm font-medium text-slate-800">Bio</Label>
-              <Textarea
-                id="bio"
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-                placeholder="Tell us about yourself..."
-                rows={4}
-                className={inputClass}
-              />
+                <Textarea
+                  id="bio"
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  placeholder="Tell us about yourself..."
+                  rows={4}
+                  className={inputClass}
+                />
+                <div className="mt-3 flex justify-end">
+                  <RefinePillButton
+                    variant="secondary"
+                    loading={isRefiningBio}
+                    disabled={!bio.trim()}
+                    onClick={handleRefineBio}
+                  />
+                </div>
+                {!bio.trim() && (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Write a bio first to use AI refinement.
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -861,189 +1084,300 @@ export default function EditProfilePage() {
               <p className="text-xs text-slate-600">Your primary trade and skills for job matching.</p>
             </div>
             <div className="space-y-3">
+              {/* Primary trade: editable for Premium, read-only for Free */}
               <div>
                 <Label className="text-sm font-medium text-slate-800">
                   Primary Trade <span className="text-red-500">*</span>
                 </Label>
-
-                <div className="mt-1 flex items-center gap-2">
-                  <Input
-                    value={primaryTradeValue}
-                    disabled
-                    className="flex-1 bg-slate-50 border-slate-200"
-                  />
-                  <Lock className="h-5 w-5 flex-shrink-0 text-slate-400" />
-                </div>
-
-                <p className="mt-2 text-xs text-slate-600">
-                  Your primary trade is set during signup and can&apos;t be changed.
-                </p>
-
-                {/* Premium upsell */}
-                <div className="mt-3 relative overflow-hidden rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 via-amber-50 to-white p-4 shadow-sm">
-                  <div className="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-amber-200/40 blur-2xl" />
-                  <div className="pointer-events-none absolute -left-10 -bottom-10 h-28 w-28 rounded-full bg-orange-200/30 blur-2xl" />
-
-                  <div className="relative flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold text-amber-900">
-                        Upgrade to Premium for multiple trades
-                      </div>
-                      <div className="mt-1 text-xs text-amber-900/80">
-                        Add additional trades to appear in more searches and get matched with more work.
-                      </div>
-                    </div>
-
-                    <Link href="/pricing">
-                      <Button
-                        type="button"
-                        className="
-                          group
-                          relative
-                          rounded-xl
-                          px-5 py-2.5
-                          font-semibold
-                          text-black
-                          bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500
-                          shadow-lg shadow-amber-500/40
-                          transition-all duration-200
-                          hover:shadow-xl hover:shadow-amber-500/60
-                          hover:-translate-y-0.5
-                          hover:scale-[1.03]
-                          active:scale-[0.98]
-                        "
-                      >
-                        <span className="pointer-events-none absolute inset-0 rounded-xl bg-white/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
-                        Upgrade
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
-              </div>
-
-              {primaryTradeValue && (
-              <div className="rounded-lg border-2 border-blue-200 bg-blue-50 p-6">
-                    <div className="mb-3 flex items-start justify-between">
-                  <div className="flex-1">
-                    <Label className="text-sm font-medium text-slate-800">
-                      {MVP_FREE_MODE ? 'Additional Trades' : 'Additional Trades (Premium Feature)'}
-                    </Label>
-                    <p className="mt-1 text-xs text-slate-600">
-                      Primary trade can&apos;t be changed after setup. Premium users can add additional trades.
-                    </p>
-                  </div>
-                </div>
-
-                {canMultiTrade ? (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 text-sm text-green-700">
-                      <div className="h-2 w-2 rounded-full bg-green-600" />
-                      <span className="font-medium">Multi-trade profiles unlocked</span>
-                    </div>
-
-                    <div>
-                      <Label htmlFor="additionalTrades" className="text-sm font-medium text-slate-800">Select Additional Trades</Label>
-                      <p className="mb-2 mt-1 text-xs text-slate-600">
-                        Choose trades beyond your primary trade to receive more job opportunities
-                      </p>
-
-                      <Select onValueChange={(v: string) => handleAddAdditionalTrade(v)}>
-                        <SelectTrigger className="mt-1">
-                          <SelectValue placeholder="Add a trade" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableAdditionalTradeOptions.map((trade: string) => (
-                            <SelectItem key={trade} value={trade}>
-                              {trade}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-
-                      {(currentUser.additionalTrades?.length ?? 0) > 0 && (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {(currentUser.additionalTrades ?? []).map((trade: string) => (
-                            <Badge key={trade} variant="secondary" className="text-sm">
-                              {trade}
-                            </Badge>
-                          ))}
-                        </div>
+                <div className="mt-1">
+                  {canEditTrades ? (
+                    <Select
+                      value={primaryTradeValue || undefined}
+                      onValueChange={(v) => {
+                        setPrimaryTrade(v);
+                        if (selectedTrades.includes(v)) {
+                          handleSetPrimaryTrade(v);
+                        } else {
+                          setUserTrades(
+                            isMultiTradeEnabled
+                              ? (prev) => [
+                                  ...prev.map((t) => ({ ...t, is_primary: false })),
+                                  { id: null, trade: v, is_primary: true },
+                                ]
+                              : () => [{ id: null, trade: v, is_primary: true }]
+                          );
+                        }
+                      }}
+                      disabled={tradesLoading}
+                    >
+                      <SelectTrigger className={inputClass}>
+                        <SelectValue placeholder="Select your primary trade" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TRADE_CATEGORIES.map((t) => (
+                          <SelectItem key={t} value={t}>
+                            {t}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div
+                      className={cn(
+                        inputClass,
+                        'flex min-h-10 items-center rounded-md border border-slate-200 bg-slate-50/80 px-3 py-2 text-sm text-slate-700'
                       )}
+                    >
+                      {primaryTradeValue || '—'}
                     </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <Lock className="h-4 w-4" />
-                      <span className="text-sm font-medium">
-                        {MVP_FREE_MODE ? 'Multi-trade profiles — Coming soon' : 'Multi-trade profiles are a Premium feature.'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-600">
-                      {MVP_FREE_MODE
-                        ? 'Multi-trade support will be available as part of Premium later. For now, your primary trade is used for matching.'
-                        : 'Get matched with more jobs by adding additional trades to your profile. Included with Premium.'}
+                  )}
+                </div>
+                {!canEditTrades && (
+                  <>
+                    <p className="mt-2 text-xs text-slate-600">
+                      Your primary trade is locked on the Free plan.
                     </p>
-                  </div>
+                    <PremiumUpsellBar
+                      title="Unlock additional trades with Premium"
+                      description="Premium lets you add more trades while keeping your primary trade set by you."
+                      ctaLabel="See Premium"
+                      href="/pricing"
+                      className="mt-3"
+                      mobileCollapsible={true}
+                    />
+                  </>
                 )}
               </div>
-            )}
 
-            {/* Role used for UI/copy only */}
-            {currentUser.role === 'subcontractor' && (
-              <div>
-                <Label htmlFor="tradesText" className="text-sm font-medium text-slate-800">Additional Trade Skills</Label>
-                <Input
-                  id="tradesText"
-                  type="text"
-                  value={tradesText}
-                  onChange={(e) => setTradesText(e.target.value)}
-                  placeholder="e.g., Commercial Electrical, Residential Wiring"
-                  className={inputClass}
-                />
-                <p className="mt-1 text-xs text-slate-600">
-                  Optional: List specific skills or specializations (separate with commas)
-                </p>
-              </div>
-            )}
+              {/* Premium: additional trades */}
+              {isMultiTradeEnabled && (
+                <div>
+                  <Label className="text-sm font-medium text-slate-800">Additional trades</Label>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {selectedTrades.map((trade) => {
+                      const isPrimary = trade === primaryTradeValue;
+                      return (
+                        <Badge
+                          key={trade}
+                          variant="secondary"
+                          className={cn(
+                            'gap-1.5 py-1.5 pl-2.5 pr-1.5 text-sm font-medium',
+                            isPrimary && 'ring-2 ring-slate-400 ring-offset-1'
+                          )}
+                        >
+                          {isPrimary && <span className="text-xs text-slate-500">Primary</span>}
+                          <span>{trade}</span>
+                          {selectedTrades.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveTrade(trade)}
+                              disabled={isSaving}
+                              className="ml-0.5 rounded-full p-0.5 hover:bg-slate-300/50 focus:outline-none disabled:opacity-50"
+                              aria-label={`Remove ${trade}`}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </Badge>
+                      );
+                    })}
+                    <Popover open={addTradeOpen} onOpenChange={setAddTradeOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1 rounded-lg border-slate-300"
+                          disabled={isSaving}
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add trades
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64 p-0" align="start">
+                        <div className="max-h-60 overflow-y-auto p-1">
+                          {availableTradeOptions.length === 0 ? (
+                            <p className="px-2 py-3 text-sm text-slate-500">All trades selected</p>
+                          ) : (
+                            availableTradeOptions.map((t) => (
+                              <button
+                                key={t}
+                                type="button"
+                                className="w-full rounded-md px-2 py-2 text-left text-sm hover:bg-slate-100"
+                                onClick={() => handleAddTrade(t)}
+                              >
+                                {t}
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+              )}
+
+              {/* Optional free-text skills (profile copy only) */}
+              {currentUser.role === 'subcontractor' && (
+                <div>
+                  <Label htmlFor="tradesText" className="text-sm font-medium text-slate-800">Additional Trade Skills</Label>
+                  <Input
+                    id="tradesText"
+                    type="text"
+                    value={tradesText}
+                    onChange={(e) => setTradesText(e.target.value)}
+                    placeholder="e.g., Commercial Electrical, Residential Wiring"
+                    className={inputClass}
+                  />
+                  <p className="mt-1 text-xs text-slate-600">
+                    Optional: List specific skills or specializations (separate with commas)
+                  </p>
+                </div>
+              )}
             </div>
           </div>
           )}
 
           {!isAdmin(currentUser) && (
-          <div className={cardClass}>
-            <div className="mb-3">
-              <h2 className="text-sm font-semibold text-slate-900">Location / Service area</h2>
-              <p className="text-xs text-slate-600">Where you&apos;re based and where you can work.</p>
+          <div id="location" className={cardClass}>
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900">Location / Service area</h2>
+                <p className="text-xs text-slate-600">Where you&apos;re based and where you can work.</p>
+              </div>
+              {canAddLocations && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 gap-1.5 rounded-lg border-slate-300"
+                  onClick={() => setAddLocationOpen(true)}
+                >
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">Add location</span>
+                </Button>
+              )}
             </div>
             <div className="space-y-3">
+              {/* Primary / base location */}
               {(() => {
                 const locationLabel =
                   typeof currentUser?.location === 'string' && currentUser.location.trim().length > 0
                     ? currentUser.location.trim()
                     : null;
                 return (
-              <div className={`${innerBubbleClass} flex items-center justify-between gap-4`}>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-slate-900">
-                    {locationLabel ?? 'Location not set'}
-                    {currentUser.postcode ? `, ${currentUser.postcode}` : ''}
-                  </p>
-
-                  <p className="mt-1 text-xs text-slate-600">
-                    {locationLabel
-                      ? 'This is the area you selected during signup.'
-                      : 'Set your base suburb to improve local matching.'}
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-center h-10 w-10 rounded-full bg-slate-100 border border-slate-200">
-                  <MapPin className="h-5 w-5 text-slate-500" />
-                </div>
-              </div>
+                  <div className={`${innerBubbleClass} flex items-center justify-between gap-4`}>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-slate-900">
+                        {locationLabel ?? 'Location not set'}
+                        {currentUser.postcode ? `, ${currentUser.postcode}` : ''}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        {locationLabel
+                          ? 'Primary location (set during signup).'
+                          : 'Set your base suburb to improve local matching.'}
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-center h-10 w-10 shrink-0 rounded-full bg-slate-100 border border-slate-200">
+                      <MapPin className="h-5 w-5 text-slate-500" />
+                    </div>
+                  </div>
                 );
               })()}
+
+              {/* Premium upsell for free users: additional locations */}
+              {!canAddLocations && (
+                <PremiumUpsellBar
+                  title="Add more service locations with Premium"
+                  description="Premium lets you expand your service area by adding additional locations."
+                  ctaLabel="See Premium"
+                  href="/pricing"
+                  className="mt-4"
+                  mobileCollapsible={true}
+                />
+              )}
+
+              {/* Additional locations (Premium) */}
+              {additionalLocations.map((loc) => (
+                <div
+                  key={loc.id}
+                  className={`${innerBubbleClass} flex items-center justify-between gap-4`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-900">
+                      {loc.location}
+                      {loc.postcode ? `, ${loc.postcode}` : ''}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-600">Additional location</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-9 w-9 p-0 text-slate-500 hover:text-red-600 hover:bg-red-50"
+                      onClick={() => handleRemoveLocation(loc.id)}
+                      disabled={isSaving}
+                      aria-label="Remove location"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
+
+            {/* Add location dialog */}
+            <Dialog
+              open={addLocationOpen}
+              onOpenChange={(open) => {
+                setAddLocationOpen(open);
+                if (!open) {
+                  setAddLocationSuburb('');
+                  setAddLocationPostcode('');
+                  setAddLocationLat(null);
+                  setAddLocationLng(null);
+                }
+              }}
+            >
+              <DialogContent className="sm:max-w-md" aria-describedby="add-location-desc">
+                <DialogHeader>
+                  <DialogTitle>Add location</DialogTitle>
+                  <DialogDescription id="add-location-desc">
+                    Add an additional service area. Select a suburb or enter location details.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 pt-2">
+                  <SuburbAutocomplete
+                    value={addLocationSuburb}
+                    postcode={addLocationPostcode}
+                    onSuburbChange={setAddLocationSuburb}
+                    onPostcodeChange={setAddLocationPostcode}
+                    onLatLngChange={(lat, lng) => {
+                      setAddLocationLat(lat);
+                      setAddLocationLng(lng);
+                    }}
+                    required
+                  />
+                  {addLocationSuburb.trim() && !addLocationPostcode.trim() && (
+                    <p className="text-xs text-slate-600">
+                      This location is too broad to determine a postcode automatically. Choose a more specific suburb or enter the postcode manually.
+                    </p>
+                  )}
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setAddLocationOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleAddLocation}
+                      disabled={isSaving || !addLocationSuburb.trim()}
+                    >
+                      {isSaving ? 'Adding…' : 'Add location'}
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
           )}
 

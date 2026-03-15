@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ChevronRight, Lock, Wrench } from 'lucide-react';
+import { ChevronRight, Wrench } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { isPremiumForDiscovery, getDiscoveryRadiusKm } from '@/lib/discovery';
 
@@ -13,13 +13,11 @@ type TradesNearYouData = {
   message?: string;
 };
 
-/** UI-only teaser trades (no real data, psychological teaser for free users). */
-const TEASER_TRADES = ['Tilers', 'Plasterers', 'Landscapers'];
-
 export function TradesNearYouCard() {
   const { currentUser } = useAuth();
   const userForDiscovery = currentUser
     ? {
+        plan: currentUser.plan ?? null,
         is_premium: currentUser.isPremium ?? undefined,
         subscription_status: currentUser.subscriptionStatus,
         subcontractor_sub_status: undefined,
@@ -36,6 +34,7 @@ export function TradesNearYouCard() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!currentUser?.id) return;
     fetch('/api/discovery/trades-near-you')
       .then((res) => {
         if (!res.ok) {
@@ -46,7 +45,7 @@ export function TradesNearYouCard() {
       })
       .then(setData)
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'));
-  }, []);
+  }, [currentUser?.id]);
 
   if (error) {
     return (
@@ -75,7 +74,6 @@ export function TradesNearYouCard() {
 
   const trades = data.trades ?? [];
   const displayTrades = trades.slice(0, 8);
-  const teaserItems = TEASER_TRADES.map((t) => ({ trade: t, count: 0 }));
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5">
@@ -123,38 +121,22 @@ export function TradesNearYouCard() {
       )}
 
       {showTeaser && trades.length > 0 && (
-        <div className="mt-4 rounded-lg border border-gray-200 bg-muted/30">
-          <div className="flex items-center justify-between border-b border-gray-200 px-3 py-2">
+        <div className="mt-4 rounded-lg border border-gray-200 bg-muted/30 px-4 py-3">
+          <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-medium text-gray-700">More trades (Premium)</span>
             <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-600">
               Locked
             </span>
           </div>
-          <ul className="space-y-0">
-            {teaserItems.map(({ trade }) => (
-              <li
-                key={trade}
-                className="flex cursor-not-allowed items-center justify-between px-3 py-2 text-sm text-gray-500"
-              >
-                <span className="blur-sm opacity-60">{trade}</span>
-                <span className="flex items-center gap-1.5 opacity-60">
-                  <span className="blur-sm">??</span>
-                  <Lock className="h-3.5 w-3.5 text-gray-400" />
-                </span>
-              </li>
-            ))}
-          </ul>
-          <div className="border-t border-gray-200 px-3 py-3">
-            <p className="mb-2 text-xs text-gray-600">
-              Unlock more trades up to 50km.
-            </p>
-            <Link
-              href="/pricing"
-              className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition hover:bg-primary/90"
-            >
-              View Premium
-            </Link>
-          </div>
+          <p className="mt-2 text-xs text-gray-600">
+            Unlock more trades up to 50km.
+          </p>
+          <Link
+            href="/pricing"
+            className="mt-2 inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition hover:bg-primary/90"
+          >
+            View Premium
+          </Link>
         </div>
       )}
     </div>

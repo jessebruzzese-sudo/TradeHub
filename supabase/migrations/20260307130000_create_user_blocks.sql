@@ -3,7 +3,7 @@
 -- Existing thread history remains visible; composer is disabled for B.
 
 CREATE TABLE IF NOT EXISTS user_blocks (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   blocker_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   blocked_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   created_at timestamptz DEFAULT now(),

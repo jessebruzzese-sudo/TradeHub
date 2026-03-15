@@ -168,11 +168,26 @@ export async function POST(req: Request) {
     const allowPlansLine = hasPlansMention(raw);
     const trade = String(body?.trade ?? '').trim();
     const location = String(body?.location ?? '').trim();
-    const mode = String(body?.mode ?? 'description').trim(); // 'name' | 'description'
+    const mode = String(body?.mode ?? 'description').trim(); // 'name' | 'description' | 'bio'
 
     if (!raw) {
       return NextResponse.json({ success: false, error: 'Missing text' }, { status: 400 });
     }
+
+    const systemBio = `
+You are TradeHub's assistant for Australian trade and construction professionals.
+
+Task:
+Refine the user's existing business bio. Do NOT generate from scratch — only improve what they wrote.
+
+Rules:
+- Keep the same meaning, trade context, and business details. Preserve user intent.
+- Improve clarity, grammar, and presentation. Make it sound trustworthy and professional.
+- Keep it short to medium length (2–5 sentences typical).
+- Avoid hype, exaggerated claims, or marketing fluff.
+- Australian spelling.
+- Output plain text only — no markdown, no headings, no bullet points, no labels.
+`.trim();
 
     const systemName = `
 You are TradeHub's assistant.
@@ -210,9 +225,13 @@ Formatting:
 - No Markdown headings (#, ##). Plain text + bullets only.
 `.trim();
 
-    const system = mode === 'name' ? systemName : systemDescription;
+    const system =
+      mode === 'name' ? systemName : mode === 'bio' ? systemBio : systemDescription;
 
-    const user = `
+    const user =
+      mode === 'bio'
+        ? `Refine this business bio (plain text only, same meaning, professional tone):\n\n${raw}`
+        : `
 Mode: ${mode}
 Trade: ${trade || 'Unknown'}
 Location: ${location || 'Unknown'}
@@ -234,6 +253,16 @@ ${raw}
 
     if (mode === 'description') {
       refined = trimToConfirmSection(refined);
+    }
+
+    if (mode === 'bio') {
+      // Plain text only — strip any accidental markdown
+      refined = refined
+        .replace(/^#{1,6}\s*/gm, '')
+        .replace(/\*\*(.*?)\*\*/g, '$1')
+        .replace(/\*(.*?)\*/g, '$1')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
     }
 
     if (mode === 'name') {

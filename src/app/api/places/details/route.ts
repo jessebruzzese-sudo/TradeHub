@@ -21,7 +21,33 @@ export async function GET(req: Request) {
   const comps = data?.result?.address_components || [];
   const getComp = (type: string) => comps.find((c: any) => (c.types || []).includes(type));
 
-  const postcode = getComp('postal_code')?.long_name || '';
+  const extractPostcode = (components: any[], formattedAddr: string) => {
+    const pc = components.find((c: any) => (c.types || []).includes('postal_code'))?.long_name;
+    if (pc) return pc;
+    const m = formattedAddr.match(/\b(\d{4})\b/);
+    return m ? m[1] : '';
+  };
+
+  let postcode = extractPostcode(comps, data?.result?.formatted_address || '');
+  const lat = data?.result?.geometry?.location?.lat ?? null;
+  const lng = data?.result?.geometry?.location?.lng ?? null;
+
+  if (!postcode && lat != null && lng != null) {
+    const geoUrl = new URL('https://maps.googleapis.com/maps/api/geocode/json');
+    geoUrl.searchParams.set('latlng', `${lat},${lng}`);
+    geoUrl.searchParams.set('key', key);
+
+    const geoRes = await fetch(geoUrl.toString());
+    const geoData = await geoRes.json().catch(() => ({}));
+    for (const r of geoData?.results || []) {
+      const pc = extractPostcode(r.address_components || [], r.formatted_address || '');
+      if (pc) {
+        postcode = pc;
+        break;
+      }
+    }
+  }
+
   const suburb =
     getComp('locality')?.long_name ||
     getComp('sublocality')?.long_name ||
@@ -30,8 +56,6 @@ export async function GET(req: Request) {
     '';
 
   const state = getComp('administrative_area_level_1')?.short_name || '';
-  const lat = data?.result?.geometry?.location?.lat ?? null;
-  const lng = data?.result?.geometry?.location?.lng ?? null;
 
   return NextResponse.json({
     ok: true,

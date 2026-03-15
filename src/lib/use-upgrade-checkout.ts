@@ -18,10 +18,9 @@ export function useUpgradeCheckout(plan: BillingPlanKey = 'BUSINESS_PRO_20') {
     }
     setIsLoading(true);
     try {
-      const res = await fetch('/api/billing/checkout', {
+      const res = await fetch('/api/billing/create-checkout-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {

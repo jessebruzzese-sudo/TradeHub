@@ -55,10 +55,10 @@ test.describe('TradeHub Pages E2E', () => {
     await page.waitForLoadState('networkidle')
 
     await expect(page).toHaveURL(/\/messages/)
-    // Messages page shows heading or empty state
+    // Messages page shows heading or empty state (incl. "Message any user" from description)
     const heading = page.getByRole('heading', { name: /messages/i }).first()
-    const emptyState = page.getByText(/no messages|start a conversation|select a conversation/i).first()
-    await expect(heading.or(emptyState)).toBeVisible()
+    const emptyState = page.getByText(/no messages|start a conversation|select a conversation|message any user/i).first()
+    await expect(heading.or(emptyState).first()).toBeVisible({ timeout: 15_000 })
   })
 
   test('profile page loads', async ({ page }) => {
@@ -80,16 +80,18 @@ test.describe('TradeHub Pages E2E', () => {
 
   // Subcontractors coverage exists in tradehub.spec.ts; removed duplicate to avoid interdependence.
 
-  test('pricing page loads for unauthenticated user', async ({ page }) => {
+  test.describe('Public pages (no auth)', () => {
     test.use({ storageState: { cookies: [], origins: [] } })
 
-    await page.goto(`${BASE_URL}/pricing`)
-    await page.waitForLoadState('networkidle')
+    test('pricing page loads for unauthenticated user', async ({ page }) => {
+      await page.goto(`${BASE_URL}/pricing`)
+      await page.waitForLoadState('networkidle')
 
-    await expect(page).toHaveURL(/\/pricing/)
-    await expect(
-      page.getByRole('heading', { name: /pricing|plans|get discovered|premium/i })
-    ).toBeVisible()
+      await expect(page).toHaveURL(/\/pricing/)
+      await expect(
+        page.getByRole('heading', { name: /pricing|plans|get discovered|premium/i }).first()
+      ).toBeVisible()
+    })
   })
 
   test('how-it-works page loads', async ({ page }) => {

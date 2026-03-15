@@ -19,6 +19,16 @@ import { PremiumUpsellBar } from '@/components/premium-upsell-bar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 import { useAuth } from '@/lib/auth';
 import { getBrowserSupabase } from '@/lib/supabase-client';
@@ -87,6 +97,8 @@ export default function JobsPage() {
   const [loadingMyPosts, setLoadingMyPosts] = useState(false);
   const [myPostsError, setMyPostsError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteConfirmJobId, setDeleteConfirmJobId] = useState<string | null>(null);
 
   // Compute ABN verified state (optional field right now)
   const showAbnGateForPosting = useMemo(
@@ -96,6 +108,7 @@ export default function JobsPage() {
 
   const userForDiscovery = currentUser
     ? {
+        plan: (currentUser as any).plan ?? null,
         is_premium: (currentUser as any).isPremium ?? (currentUser as any).is_premium ?? undefined,
         subscription_status: (currentUser as any).subscriptionStatus ?? (currentUser as any).subscription_status ?? null,
         active_plan: (currentUser as any).activePlan ?? (currentUser as any).active_plan ?? null,
@@ -108,6 +121,17 @@ export default function JobsPage() {
 
   const allowedRadiusKm = isPremium ? 100 : 20;
   const TradeIcon = getTradeIcon(currentUser?.primaryTrade ?? undefined);
+
+  const viewerTrades = useMemo(() => {
+    const t = (currentUser as any)?.trades;
+    if (Array.isArray(t) && t.length > 0) {
+      return t.filter((x: string) => typeof x === 'string' && x.trim()).map((x: string) => x.trim());
+    }
+    const pt = (currentUser as any)?.primaryTrade ?? (currentUser as any)?.primary_trade;
+    return pt ? [String(pt).trim()] : [];
+  }, [currentUser]);
+
+  const tradeFilterForRpc = viewerTrades.length > 0 ? viewerTrades.join('|') : null;
 
   // Fetch Find Work jobs via RPC (server-enforced radius)
   useEffect(() => {
@@ -123,7 +147,7 @@ export default function JobsPage() {
 
         const { data, error } = await (supabase as any).rpc('get_jobs_visible_to_viewer', {
           viewer_id: currentUser.id,
-          trade_filter: currentUser.primaryTrade ?? null,
+          trade_filter: tradeFilterForRpc,
           limit_count: 50,
           offset_count: 0,
         });
@@ -163,7 +187,7 @@ export default function JobsPage() {
     };
 
     run();
-  }, [currentUser?.id, currentUser?.primaryTrade, tab]);
+  }, [currentUser?.id, tab, tradeFilterForRpc]);
 
   // Fetch my posts from DB (owner view: jobs created by current user)
   useEffect(() => {
@@ -213,39 +237,29 @@ export default function JobsPage() {
       return;
     }
 
+    setDeletingId(jobId);
+
     try {
-      setDeletingId(jobId);
+      const res = await fetch(`/api/jobs/${jobId}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
 
-      const supabase = getBrowserSupabase();
-
-      const res = await supabase
-        .from('jobs')
-        .delete()
-        .eq('id', jobId)
-        .eq('contractor_id', currentUser.id)
-        .select('id');
-
-      if (res.error) {
-        console.error('[jobs] delete error', res.error);
-        toast.error(res.error.message || 'Delete failed');
-        return;
-      }
-
-      if (!res.data || res.data.length === 0) {
-        console.warn('[jobs] delete returned 0 rows (RLS mismatch or contractor_id mismatch)');
-        toast.error('Delete failed (no rows deleted). Check ownership/RLS.');
+      if (!res.ok) {
+        const msg =
+          (typeof data?.error === 'string' ? data.error : null) ??
+          (res.status === 403 ? 'You do not have permission to delete this job.' : 'Delete failed');
+        toast.error(msg);
         return;
       }
 
       toast.success('Job deleted');
-
-      // Update the same state your UI maps over:
       setMyPostsDb((prev: any[]) => (prev ?? []).filter((j) => j.id !== jobId));
     } catch (err) {
       console.error('[jobs] delete failed', err);
       toast.error('Could not delete job.');
     } finally {
       setDeletingId(null);
+      setDeleteConfirmOpen(false);
+      setDeleteConfirmJobId(null);
     }
   }
 
@@ -302,19 +316,19 @@ export default function JobsPage() {
   function JobRow({
     job,
     showActions = false,
-    onDelete,
+    onDeleteClick,
     deletingId,
   }: {
     job: any;
     showActions?: boolean;
-    onDelete?: (id: string) => void;
+    onDeleteClick?: (id: string) => void;
     deletingId?: string | null;
   }) {
     const deleteActions =
-      showActions && String(job.status || '').toLowerCase() === 'closed' ? (
+      showActions && onDeleteClick ? (
         <button
           type="button"
-          className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-red-600"
+          className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-red-600 transition-colors"
           disabled={deletingId === job.id}
           onMouseDown={(e) => {
             e.preventDefault();
@@ -323,7 +337,7 @@ export default function JobsPage() {
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            onDelete?.(job.id);
+            onDeleteClick(job.id);
           }}
         >
           <Trash2 className="h-4 w-4" />
@@ -589,7 +603,10 @@ export default function JobsPage() {
                           key={job.id}
                           job={job}
                           showActions
-                          onDelete={(id) => handleDeleteJob(id)}
+                          onDeleteClick={(id) => {
+                            setDeleteConfirmJobId(id);
+                            setDeleteConfirmOpen(true);
+                          }}
                           deletingId={deletingId}
                         />
                       ))}
@@ -629,6 +646,31 @@ export default function JobsPage() {
           </Tabs>
         </div>
       </div>
+
+      {/* Confirm Delete Job */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete job?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this job and its related data. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!deletingId}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!!deletingId || !deleteConfirmJobId}
+              className="bg-red-600 text-white hover:bg-red-700 focus:ring-red-500"
+              onClick={(e) => {
+                e.preventDefault();
+                if (deleteConfirmJobId && !deletingId) handleDeleteJob(deleteConfirmJobId);
+              }}
+            >
+              {deletingId ? 'Deleting…' : 'Delete Job'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }

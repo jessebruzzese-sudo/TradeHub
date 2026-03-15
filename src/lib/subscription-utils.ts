@@ -4,6 +4,7 @@ import { getTier, getLimits } from './plan-limits';
 
 /** Structural type covering both User (types.ts) and CurrentUser (auth-context). */
 type SubscriptionUser = {
+  plan?: string | null;
   complimentaryPremiumUntil?: string | Date | null;
   subscriptionStatus?: string | null;
   activePlan?: string | null;
@@ -76,6 +77,7 @@ export function hasComplimentaryPremium(user: SubscriptionUser | null | undefine
 /** Single-account: based on plan/subscription status only, not role. Uses unified active_plan + subscription_status, or legacy subcontractor fields. */
 export function isSubcontractorPro(user: SubscriptionUser | null | undefined): boolean {
   if (!user) return false;
+  if (String(user.plan || '').toLowerCase() === 'premium') return true;
 
   if (hasComplimentaryPremium(user)) return true;
 

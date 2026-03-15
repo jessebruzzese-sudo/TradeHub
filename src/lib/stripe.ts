@@ -1,22 +1,43 @@
-/**
- * Stripe helper - safe when env vars are missing.
- * Use in API routes only (server-side).
- */
 import Stripe from 'stripe';
 
+let stripeInstance: Stripe | null = null;
+
 export function getStripe(): Stripe | null {
-  const secret = process.env.STRIPE_SECRET_KEY;
-  if (!secret || !secret.trim()) return null;
-  return new Stripe(secret.trim(), {
-    apiVersion: '2026-01-28.clover' as const,
-    typescript: true,
-  });
+  const secret = process.env.STRIPE_SECRET_KEY?.trim();
+  if (!secret) return null;
+
+  if (!stripeInstance) {
+    stripeInstance = new Stripe(secret, {
+      apiVersion: '2026-02-25.clover' as const,
+      typescript: true,
+    });
+  }
+
+  return stripeInstance;
 }
 
-export function getSiteUrl(): string {
+export function getAppUrl(): string {
   return (
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    process.env.SITE_URL ||
-    'https://tradehub.com.au'
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
+    process.env.SITE_URL?.trim() ||
+    'http://localhost:3000'
   ).replace(/\/$/, '');
+}
+
+/** Backwards-compatible alias used by older routes. */
+export function getSiteUrl(): string {
+  return getAppUrl();
+}
+
+export function getPremiumPriceId(): string | null {
+  return (
+    process.env.STRIPE_PREMIUM_PRICE_ID?.trim() ||
+    process.env.STRIPE_PRICE_PREMIUM?.trim() ||
+    null
+  );
+}
+
+export function getWebhookSecret(): string | null {
+  return process.env.STRIPE_WEBHOOK_SECRET?.trim() || null;
 }

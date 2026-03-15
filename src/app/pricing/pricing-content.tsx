@@ -13,6 +13,7 @@ export default function PricingContent() {
   const { currentUser } = useAuth();
   const userForDiscovery = currentUser
     ? {
+        plan: currentUser.plan ?? null,
         is_premium: currentUser.isPremium ?? undefined,
         subscription_status: currentUser.subscriptionStatus,
         active_plan: currentUser.activePlan,
@@ -32,10 +33,9 @@ export default function PricingContent() {
     setCheckoutLoading(true);
     setShowWaitlist(false);
     try {
-      const res = await fetch('/api/billing/checkout', {
+      const res = await fetch('/api/billing/create-checkout-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: 'PREMIUM' }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.status === 503 && data?.code === 'stripe_not_configured') {

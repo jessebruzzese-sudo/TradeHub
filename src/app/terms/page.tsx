@@ -20,6 +20,9 @@ export default function TermsPage() {
                   <p className="text-gray-700 mb-2">
                     TradeHub is an online marketplace that connects contractors and subcontractors. TradeHub provides a platform only and does not perform trade or labour services.
                   </p>
+                  <p className="text-gray-700 mb-2">
+                    TradeHub AU Pty Ltd ABN: 45 695 929 849
+                  </p>
                   <p className="text-gray-700 mb-2">TradeHub is not:</p>
                   <ul className="list-disc pl-6 space-y-1 text-gray-700">
                     <li>An employer</li>

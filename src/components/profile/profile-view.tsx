@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 import Image from 'next/image';
@@ -24,14 +25,14 @@ import {
   Info,
   CalendarDays,
   Calendar,
-  Search,
-  Eye,
-  Target,
   MessageSquare,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { format, isAfter, startOfDay } from 'date-fns';
 
 import { getTradeIcon } from '@/lib/trade-icons';
+import { hasValidABN } from '@/lib/abn-utils';
 import { AppLayout } from '@/components/app-nav';
 import { ReliabilityReviewCard } from '@/components/reliability-review-card';
 import { ProfileAvatar } from '@/components/profile-avatar';
@@ -42,9 +43,11 @@ import { VerifiedBadge } from '@/components/verified-badge';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { PremiumUpsellBar } from '@/components/premium-upsell-bar';
 import { useAuth } from '@/lib/auth';
+import { toast } from 'sonner';
 import { isAdmin } from '@/lib/is-admin';
-import { isAbnVerified, abnLabel } from '@/lib/abn';
 import { isPremiumForDiscovery } from '@/lib/discovery';
 import { getStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -127,7 +130,7 @@ export function ProfileView({
   isMe?: boolean;
 }) {
   const isSelf = mode === 'self' || !!isMeProp;
-  const { currentUser, updateUser } = useAuth();
+  const { currentUser, updateUser, refreshUser } = useAuth();
   const router = useRouter();
   const store = useMemo(() => getStore(), []);
   const supabase = useMemo(() => getBrowserSupabase(), []);
@@ -150,6 +153,7 @@ export function ProfileView({
   const [availDates, setAvailDates] = useState<string[]>([]);
   const [availDesc, setAvailDesc] = useState<string>('');
   const [availLoading, setAvailLoading] = useState(false);
+  const [alertsUpsellOpen, setAlertsUpsellOpen] = useState(false);
   const today = startOfDay(new Date());
 
   useEffect(() => {
@@ -220,10 +224,6 @@ export function ProfileView({
       .filter((d) => !isAfter(today, d));
     return future.length;
   }, [availDates, today]);
-
-  const nextAvailableLabel = useMemo(() => {
-    return nextAvailable ? format(nextAvailable, 'EEE d MMM') : null;
-  }, [nextAvailable]);
 
   useEffect(() => {
     let cancelled = false;
@@ -299,6 +299,7 @@ export function ProfileView({
   const standardReviews = reviews.filter((r: any) => !r.isReliabilityReview);
 
   const userForDiscovery = isSelf && profile ? {
+    plan: (profile as any).plan ?? null,
     is_premium: (profile as any).isPremium ?? (profile as any).premium_now ?? undefined,
     subscription_status: (profile as any).subscriptionStatus,
     subcontractor_sub_status: undefined,
@@ -315,14 +316,6 @@ export function ProfileView({
     if (hasRealPremium) return 'Pro Plan';
     return 'Free Plan';
   })();
-  const planLabel = isPremiumForDiscoveryCheck ? 'Premium' : 'Free';
-  const freeRadiusKm = 20;
-  const discoveryLabel = isPremiumForDiscoveryCheck ? 'Premium radius' : `${freeRadiusKm}km radius`;
-  const abnVerified = isAbnVerified(profile);
-  const abnLabelText = abnLabel(profile);
-  const accountStatusLabel = String((profile as any)?.account_status ?? (profile as any)?.accountStatus ?? 'active');
-  const isPublicProfileRaw = (profile as any)?.is_public_profile ?? (profile as any)?.isPublicProfile;
-  const isPublicProfile = typeof isPublicProfileRaw === 'boolean' ? isPublicProfileRaw : true;
   const dashboardPath = isSelf && profile ? (isAdmin(profile) ? '/admin' : '/dashboard') : '/dashboard';
 
   const handleResetSimulation = () => {
@@ -338,7 +331,6 @@ export function ProfileView({
   };
 
   const p = profile as any;
-  const abnStatusNorm = String(p?.abn_status ?? p?.abnStatus ?? '').toUpperCase();
 
   // Pricing: use profile from API, or currentUser when viewing own profile (auth has full data)
   const pricingSource = isSelf ? (currentUser as any) : p;
@@ -354,7 +346,7 @@ export function ProfileView({
     if (pricingType === 'quote_on_request') return 'Quote on request';
     return null;
   })();
-  const isVerified = abnStatusNorm === 'VERIFIED' || !!(p?.abn_verified_at ?? p?.abnVerifiedAt);
+  const isVerified = hasValidABN(p);
   const displayName =
     (p?.name ?? p?.full_name ?? '').trim() ||
     (p?.email ? p.email.split('@')[0] : '') ||
@@ -369,6 +361,10 @@ export function ProfileView({
       ? ((p?.abn ?? '').trim())
       : (p?.abn ?? '').trim();
   const primaryTrade = p?.primaryTrade ?? p?.primary_trade ?? p?.trades?.[0] ?? null;
+  const allTrades = (p?.trades ?? []) as string[];
+  const otherTrades = primaryTrade
+    ? allTrades.filter((t) => t && t.trim() !== primaryTrade.trim())
+    : allTrades;
   const miniBio = p?.mini_bio ?? p?.miniBio ?? null;
   const bio = p?.bio ?? null;
   const rating = p?.rating ?? null;
@@ -454,98 +450,6 @@ export function ProfileView({
               </div>
             )}
           </div>
-
-          {isSelf && (
-            <div className="mb-6 rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-wrap gap-2">
-                  <div className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/90 px-3 py-1 text-xs text-slate-700 shadow-sm">
-                    <Target className="h-3.5 w-3.5 text-slate-500" />
-                    <span className="text-slate-500">Account</span>
-                    <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 px-2.5 py-0.5 text-xs font-semibold">
-                      {accountStatusLabel}
-                    </span>
-                  </div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/90 px-3 py-1 text-xs text-slate-700 shadow-sm">
-                    <Crown className="h-3.5 w-3.5 text-slate-500" />
-                    <span className="text-slate-500">Plan</span>
-                    <span
-                      className={
-                        planLabel === 'Free'
-                          ? 'rounded-full bg-slate-50 text-slate-700 border border-slate-200 px-2.5 py-0.5 text-xs font-semibold'
-                          : 'rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 px-2.5 py-0.5 text-xs font-semibold'
-                      }
-                    >
-                      {planLabel}
-                    </span>
-                  </div>
-                  {!isAdmin(profile) && (
-                    <div className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/90 px-3 py-1 text-xs text-slate-700 shadow-sm">
-                      <BadgeCheck className="h-3.5 w-3.5 text-slate-500" />
-                      <span className="text-slate-500">ABN</span>
-                      <span
-                        className={
-                          abnVerified
-                            ? 'rounded-full bg-blue-50 text-blue-700 border border-blue-100 px-2.5 py-0.5 text-xs font-semibold'
-                            : 'rounded-full bg-red-50 text-red-700 border border-red-100 px-2.5 py-0.5 text-xs font-semibold'
-                        }
-                      >
-                        {abnLabelText}
-                      </span>
-                    </div>
-                  )}
-                  <div className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/90 px-3 py-1 text-xs text-slate-700 shadow-sm">
-                    <Search className="h-3.5 w-3.5 text-slate-500" />
-                    <span className="text-slate-500">Discovery</span>
-                    <span className="rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 px-2.5 py-0.5 text-xs font-semibold">
-                      {discoveryLabel}
-                    </span>
-                  </div>
-                  <Link
-                    href="/profile/availability"
-                    className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/90 px-3 py-1 text-xs text-slate-700 shadow-sm transition hover:border-white/50 hover:bg-white hover:shadow-md"
-                  >
-                    <Calendar className="h-3.5 w-3.5 text-slate-500" />
-                    <span className="text-slate-500">Availability</span>
-                    <span
-                      className={
-                        nextAvailableLabel
-                          ? 'rounded-full bg-blue-50 text-blue-700 border border-blue-100 px-2.5 py-0.5 text-xs font-semibold'
-                          : 'rounded-full bg-slate-50 text-slate-700 border border-slate-200 px-2.5 py-0.5 text-xs font-semibold'
-                      }
-                    >
-                      {availLoading ? 'Loading…' : nextAvailableLabel ? nextAvailableLabel : 'Not listed'}
-                    </span>
-                  </Link>
-                  <div
-                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs shadow-sm
-                      ${isPublicProfile ? 'border-white/30 bg-white/90 text-slate-700' : 'border-red-200 bg-red-50/90 text-slate-700'}
-                    `}
-                  >
-                    <Eye className="h-3.5 w-3.5 text-slate-500" />
-                    <span className="text-slate-500">Profile</span>
-                    <span className={`text-xs font-medium ${isPublicProfile ? 'text-emerald-600' : 'text-red-600'}`}>
-                      {isPublicProfile ? 'Public' : 'Private'}
-                    </span>
-                  </div>
-                </div>
-                <Link href="/profile/availability" className="shrink-0">
-                  <Button
-                    className="h-10 rounded-full gap-2 px-5 shadow-md hover:shadow-lg bg-white text-blue-700 hover:bg-slate-50 transition-all"
-                  >
-                    {!nextAvailableLabel && (
-                      <span className="relative flex h-2 w-2">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400/70 opacity-60" />
-                        <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-600" />
-                      </span>
-                    )}
-                    <Calendar className="h-4 w-4" />
-                    {nextAvailableLabel ? 'Update availability' : 'List availability'}
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          )}
 
           <div className="text-slate-900">
             <div className="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white">
@@ -649,15 +553,34 @@ export function ProfileView({
                     </div>
 
                     {primaryTrade ? (
-                      (() => {
-                        const Icon = getTradeIcon(primaryTrade);
-                        return (
-                          <div className="mt-4 flex items-center gap-2 text-lg md:text-xl font-semibold text-slate-800 tracking-tight">
-                            <Icon className="h-5 w-5 text-blue-600" />
-                            <span>{primaryTrade}</span>
+                      <div className="mt-4 flex flex-wrap items-center gap-2">
+                        <div className="flex items-center gap-2 text-lg md:text-xl font-semibold text-slate-800 tracking-tight">
+                          {(() => {
+                            const Icon = getTradeIcon(primaryTrade);
+                            return (
+                              <>
+                                <Icon className="h-5 w-5 text-blue-600" />
+                                <span>{primaryTrade}</span>
+                              </>
+                            );
+                          })()}
+                        </div>
+                        {otherTrades.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {otherTrades.slice(0, 5).map((t) => (
+                              <span
+                                key={t}
+                                className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-700"
+                              >
+                                {t}
+                              </span>
+                            ))}
+                            {otherTrades.length > 5 && (
+                              <span className="text-xs text-slate-500">+{otherTrades.length - 5} more</span>
+                            )}
                           </div>
-                        );
-                      })()
+                        )}
+                      </div>
                     ) : null}
                   </div>
 
@@ -884,26 +807,162 @@ export function ProfileView({
               </Card>
             )}
 
-            {showUpgradeNudge && (
-              <div className="mb-6 relative overflow-hidden rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 via-amber-50 to-white p-5 shadow-sm">
-                <div className="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-amber-200/40 blur-2xl" />
-                <div className="pointer-events-none absolute -left-10 -bottom-10 h-28 w-28 rounded-full bg-orange-200/30 blur-2xl" />
-                <div className="relative flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-amber-900">Want to appear in more searches?</p>
-                    <p className="mt-1 text-xs text-amber-900/80">
-                      You&apos;re currently visible within 20km. Upgrade to Premium to increase your discovery radius up to 100km.
-                    </p>
-                  </div>
-                  <Link href="/pricing" className="shrink-0">
-                    <Button
-                      className="group relative rounded-xl px-5 py-2.5 font-semibold text-black bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500 shadow-lg shadow-amber-500/40 transition-all duration-200 hover:shadow-xl hover:shadow-amber-500/60 hover:-translate-y-0.5 hover:scale-[1.03] active:scale-[0.98]"
-                    >
-                      <span className="pointer-events-none absolute inset-0 rounded-xl bg-white/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
-                      View Premium
-                    </Button>
-                  </Link>
+            {isSelf && (
+              <div className="mb-6">
+                {/* Mobile: collapsible */}
+                <div className="md:hidden">
+                  <Collapsible open={alertsUpsellOpen} onOpenChange={setAlertsUpsellOpen}>
+                    <div className="relative overflow-hidden rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 via-amber-50 to-white shadow-sm">
+                      <CollapsibleTrigger asChild>
+                        <button
+                          type="button"
+                          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-amber-100/50 active:bg-amber-100"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <Crown className="h-5 w-5 shrink-0 text-amber-700" />
+                            <p className="text-sm font-semibold text-amber-900 truncate">
+                              Receive alerts when new jobs/tenders of your trade are listed
+                            </p>
+                          </div>
+                          <span className="shrink-0 text-amber-700" aria-hidden>
+                            {alertsUpsellOpen ? (
+                              <ChevronUp className="h-5 w-5" />
+                            ) : (
+                              <ChevronDown className="h-5 w-5" />
+                            )}
+                          </span>
+                        </button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="border-t border-amber-200/80 px-4 pb-4 pt-3">
+                          <p className="text-xs text-amber-900/80">
+                            Get notified when relevant jobs or tenders matching your trade are posted.
+                          </p>
+                          {!(hasRealPremium || isUsingSimulation) && (
+                            <p className="mt-1 text-xs text-amber-800/70">Premium unlocks email alerts.</p>
+                          )}
+                          <div className="mt-4 flex flex-wrap items-center gap-3">
+                            {(hasRealPremium || isUsingSimulation) ? (
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-amber-900">Receive alerts</span>
+                                <Switch
+                                  checked={(profile as any)?.receiveTradeAlerts ?? (profile as any)?.receive_trade_alerts ?? false}
+                                  onCheckedChange={async (checked) => {
+                                    if (profile?.id && currentUser?.id === profile.id) {
+                                      try {
+                                        const res = await fetch('/api/profile/trade-alerts', {
+                                          method: 'PATCH',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ enabled: checked }),
+                                        });
+                                        if (!res.ok) {
+                                          const data = await res.json().catch(() => ({}));
+                                          throw new Error(data?.error ?? 'Failed to update');
+                                        }
+                                        await refreshUser?.();
+                                      } catch (e) {
+                                        console.warn('Could not save alert preference:', e);
+                                        toast.error('Could not save. Please try again.');
+                                      }
+                                    }
+                                  }}
+                                />
+                              </div>
+                            ) : (
+                              <>
+                                <div className="flex items-center gap-2 opacity-60">
+                                  <span className="text-sm font-medium text-amber-900">Receive alerts</span>
+                                  <Switch disabled checked={false} />
+                                </div>
+                                <Link href="/pricing" className="shrink-0">
+                                  <Button
+                                    className="group relative rounded-xl px-5 py-2.5 font-semibold text-black bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500 shadow-lg shadow-amber-500/40 transition-all duration-200 hover:shadow-xl hover:shadow-amber-500/60 hover:-translate-y-0.5 hover:scale-[1.03] active:scale-[0.98]"
+                                  >
+                                    <span className="pointer-events-none absolute inset-0 rounded-xl bg-white/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+                                    View Premium
+                                  </Button>
+                                </Link>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </CollapsibleContent>
+                    </div>
+                  </Collapsible>
                 </div>
+                {/* Desktop: always expanded */}
+                <div className="hidden md:block relative overflow-hidden rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 via-amber-50 to-white p-5 shadow-sm">
+                  <div className="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-amber-200/40 blur-2xl" />
+                  <div className="pointer-events-none absolute -left-10 -bottom-10 h-28 w-28 rounded-full bg-orange-200/30 blur-2xl" />
+                  <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-amber-900">
+                        Receive alerts when new jobs/tenders of your trade are listed
+                      </p>
+                      <p className="mt-1 text-xs text-amber-900/80">
+                        Get notified when relevant jobs or tenders matching your trade are posted.
+                      </p>
+                      {!(hasRealPremium || isUsingSimulation) && (
+                        <p className="mt-1 text-xs text-amber-800/70">Premium unlocks email alerts.</p>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 flex-wrap items-center gap-3">
+                      {(hasRealPremium || isUsingSimulation) ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-amber-900">Receive alerts</span>
+                          <Switch
+                            checked={(profile as any)?.receiveTradeAlerts ?? (profile as any)?.receive_trade_alerts ?? false}
+                            onCheckedChange={async (checked) => {
+                              if (profile?.id && currentUser?.id === profile.id) {
+                                try {
+                                  const res = await fetch('/api/profile/trade-alerts', {
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ enabled: checked }),
+                                  });
+                                  if (!res.ok) {
+                                    const data = await res.json().catch(() => ({}));
+                                    throw new Error(data?.error ?? 'Failed to update');
+                                  }
+                                  await refreshUser?.();
+                                } catch (e) {
+                                  console.warn('Could not save alert preference:', e);
+                                  toast.error('Could not save. Please try again.');
+                                }
+                              }
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-2 opacity-60">
+                            <span className="text-sm font-medium text-amber-900">Receive alerts</span>
+                            <Switch disabled checked={false} />
+                          </div>
+                          <Link href="/pricing" className="shrink-0">
+                            <Button
+                              className="group relative rounded-xl px-5 py-2.5 font-semibold text-black bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500 shadow-lg shadow-amber-500/40 transition-all duration-200 hover:shadow-xl hover:shadow-amber-500/60 hover:-translate-y-0.5 hover:scale-[1.03] active:scale-[0.98]"
+                            >
+                              <span className="pointer-events-none absolute inset-0 rounded-xl bg-white/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+                              View Premium
+                            </Button>
+                          </Link>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {showUpgradeNudge && (
+              <div className="mb-6">
+                <PremiumUpsellBar
+                  title="Want to appear in more searches?"
+                  description="You're currently visible within 20km. Upgrade to Premium to increase your discovery radius up to 100km."
+                  ctaLabel="View Premium"
+                  href="/pricing"
+                />
               </div>
             )}
 

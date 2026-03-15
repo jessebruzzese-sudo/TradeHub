@@ -1,33 +1,8 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
-import { createClient } from '@supabase/supabase-js';
 import { getStripe, isStripeConfigured } from '@/lib/stripe/server';
 import { MVP_FREE_MODE } from '@/lib/feature-flags';
-
-function authClient() {
-  const cookieStore = cookies();
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-}
-
-function serviceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  );
-}
+import { createServerSupabase, createServiceSupabase } from '@/lib/supabase-server';
+import { getAppUrl } from '@/lib/stripe';
 
 export async function POST(req: Request) {
   if (MVP_FREE_MODE) {
@@ -43,7 +18,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Billing is not configured' }, { status: 503 });
   }
 
-  const supabaseAuth = authClient();
+  const supabaseAuth = createServerSupabase();
   const {
     data: { user },
     error: userErr,
@@ -53,38 +28,58 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const supabaseService = serviceClient();
-  const { data: dbUser, error: dbErr } = await supabaseService
+  const supabaseService = createServiceSupabase();
+  const { data: dbUser, error: dbErr } = await (supabaseService as any)
     .from('users')
-    .select('id, email, stripe_customer_id')
+    .select('id, email, name, business_name, stripe_customer_id')
     .eq('id', user.id)
     .maybeSingle();
 
   if (dbErr || !dbUser) {
+    if (dbErr) {
+      console.error('[billing/portal] failed loading user profile', { userId: user.id, error: dbErr });
+    }
     return NextResponse.json({ error: 'User profile not found' }, { status: 404 });
   }
 
-  let customerId = dbUser.stripe_customer_id as string | null;
-
+  let customerId = (dbUser.stripe_customer_id as string | null) ?? null;
   if (!customerId) {
-    const customer = await stripe.customers.create({
-      email: dbUser.email ?? user.email ?? undefined,
-      metadata: { user_id: user.id },
-    });
-    customerId = customer.id;
-    await supabaseService
-      .from('users')
-      .update({ stripe_customer_id: customerId })
-      .eq('id', user.id);
+    try {
+      const customer = await stripe.customers.create({
+        email: dbUser.email ?? user.email ?? undefined,
+        name: [dbUser.name, dbUser.business_name].filter(Boolean).join(' ') || undefined,
+        metadata: { userId: user.id },
+      });
+      customerId = customer.id;
+
+      const { error: customerSaveError } = await (supabaseService as any)
+        .from('users')
+        .update({ stripe_customer_id: customerId })
+        .eq('id', user.id);
+
+      if (customerSaveError) {
+        console.error('[billing/portal] failed to save stripe_customer_id', customerSaveError);
+        return NextResponse.json({ error: 'Failed to prepare billing portal' }, { status: 500 });
+      }
+    } catch (error) {
+      console.error('[billing/portal] failed creating customer', error);
+      return NextResponse.json({ error: 'Failed to prepare billing portal' }, { status: 500 });
+    }
   }
 
-  const origin = req.headers.get('origin') || req.headers.get('x-url') || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-  const baseUrl = origin.replace(/\/$/, '');
+  const requestOrigin = req.headers.get('origin') || req.headers.get('x-url');
+  const baseUrl = (requestOrigin || getAppUrl()).replace(/\/$/, '');
 
-  const session = await stripe.billingPortal.sessions.create({
-    customer: customerId,
-    return_url: `${baseUrl}/profile`,
-  });
+  let session: Awaited<ReturnType<typeof stripe.billingPortal.sessions.create>>;
+  try {
+    session = await stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: `${baseUrl}/pricing`,
+    });
+  } catch (error) {
+    console.error('[billing/portal] failed creating portal session', error);
+    return NextResponse.json({ error: 'Failed to create portal session' }, { status: 500 });
+  }
 
   const url = session.url ?? null;
   if (!url) {

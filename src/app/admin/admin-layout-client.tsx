@@ -3,7 +3,7 @@ import { useAuth } from '@/lib/auth';
 import { isAdmin } from '@/lib/is-admin';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Shield, Users, CheckCircle, FileText, Settings, AlertTriangle, Home, MessageSquare, Menu } from 'lucide-react';
+import { Shield, Users, CheckCircle, FileText, Settings, AlertTriangle, Home, MessageSquare, Menu, Mail } from 'lucide-react';
 import { useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { UnauthorizedAccess } from '@/components/unauthorized-access';
@@ -40,6 +40,7 @@ export default function AdminLayoutClient({
     { href: '/admin/tenders', icon: FileText, label: 'Tenders' },
     { href: '/admin/jobs', icon: MessageSquare, label: 'Jobs' },
     { href: '/admin/audit-log', icon: FileText, label: 'Audit Log' },
+    { href: '/admin/alerts', icon: Mail, label: 'Alerts' },
     { href: '/admin/settings', icon: Settings, label: 'Settings' },
   ];
 
