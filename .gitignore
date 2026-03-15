@@ -15,3 +15,4 @@ playwright/.auth/
 playwright/seed-ids.json
 pw-creds.json
 test-results/
+.vercel
