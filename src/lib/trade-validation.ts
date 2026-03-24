@@ -1,5 +1,5 @@
 /**
- * Strict trade validation for AI-generated tender drafts.
+ * Strict trade validation for AI-assisted drafts and profile trades.
  * Only allows trades from the canonical TradeHub list.
  * No fuzzy matching – exact match, trimmed whitespace, case-insensitive, or explicit alias only.
  */

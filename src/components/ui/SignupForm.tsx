@@ -377,7 +377,7 @@ export default function SignupForm({ role }: Props) {
                   <h3 className="text-xl font-bold text-gray-900 mb-2">Business details</h3>
                   <p className="text-sm text-gray-600 mb-6">
                     You can list availability and apply for work now. ABN verification is only needed for posting jobs and
-                    applying for tenders.
+                    applying to jobs posted by others.
                   </p>
                 </div>
 
@@ -405,7 +405,7 @@ export default function SignupForm({ role }: Props) {
                     className="mt-1"
                     inputMode="numeric"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Required to post jobs and apply for tenders</p>
+                  <p className="text-xs text-gray-500 mt-1">Required to post jobs and apply to jobs posted by others</p>
                 </div>
               </div>
             )}
@@ -431,7 +431,7 @@ export default function SignupForm({ role }: Props) {
                     className="mt-1"
                   />
                   <p className="text-xs text-gray-500 mt-2">
-                    Premium lets you expand your work radius to find more jobs and apply for more tenders.
+                    Premium lets you expand your work radius to find more jobs and apply to more listings.
                   </p>
                 </div>
               </div>

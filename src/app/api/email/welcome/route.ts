@@ -37,10 +37,14 @@ export async function POST() {
     });
 
     if (!result.ok) {
-      return NextResponse.json(
-        { ok: false, error: result.error || 'Failed to queue welcome email', eventId: result.eventId },
-        { status: 500 }
-      );
+      // Welcome email should never break app UX; treat pipeline errors as non-blocking.
+      console.warn('[welcome] non-blocking email error:', result.error);
+      return NextResponse.json({
+        ok: true,
+        skipped: true,
+        reason: result.error || 'Failed to queue welcome email',
+        eventId: result.eventId,
+      });
     }
 
     return NextResponse.json({ ok: true, eventId: result.eventId, alreadyExists: result.alreadyExists === true });

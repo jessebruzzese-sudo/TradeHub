@@ -258,10 +258,10 @@ export default function HowItWorksPage() {
                 </Button>
 
                 <Link
-                  href="/how-it-works/subcontractors"
+                  href="/jobs"
                   className="mt-1 inline-flex items-center justify-center text-sm font-semibold text-blue-600 underline underline-offset-4 transition hover:text-blue-700"
                 >
-                  Next page →
+                  Browse jobs →
                 </Link>
               </div>
             </section>

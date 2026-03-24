@@ -4,6 +4,7 @@ import { TRADE_CATEGORIES } from '@/lib/trades';
 import { getTier } from '@/lib/plan-limits';
 import { needsBusinessVerification } from '@/lib/verification-guard';
 import { isAdmin } from '@/lib/is-admin';
+import { refreshProfileStrength } from '@/lib/profile-strength';
 
 export const dynamic = 'force-dynamic';
 
@@ -120,6 +121,12 @@ export async function DELETE(
         { error: 'Failed to delete job' },
         { status: 500 }
       );
+    }
+    const contractorId = job.contractor_id as string;
+    try {
+      await refreshProfileStrength(contractorId);
+    } catch {
+      // non-blocking: counters + strength sync
     }
     console.log('[jobs delete] success');
     return NextResponse.json({ success: true });

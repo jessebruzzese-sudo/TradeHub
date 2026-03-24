@@ -19,7 +19,7 @@ export default function PrivacyPage() {
                 <h2 className="text-xl font-semibold text-gray-900 mb-3">1. Who We Are</h2>
                 <p className="text-gray-700 mb-2">
                   TradeHub is an online marketplace that connects contractors and subcontractors in Australia.
-                  We provide a platform for posting jobs, tenders, and matching businesses based on trade, location, and availability.
+                  We provide a platform for posting jobs and matching businesses based on trade, location, and availability.
                 </p>
                 <p className="text-gray-700 mb-2">
                   TradeHub AU Pty Ltd ABN: 45 695 929 849
@@ -36,7 +36,7 @@ export default function PrivacyPage() {
                     <strong>Profile & business details:</strong> Trade categories, location, radius preferences, ABN, and verification status.
                   </li>
                   <li>
-                    <strong>Content you create:</strong> Jobs, tenders, messages, and any files or uploads you submit through the platform.
+                    <strong>Content you create:</strong> Jobs, messages, and any files or uploads you submit through the platform.
                   </li>
                   <li>
                     <strong>Payment/billing info (if Stripe is enabled):</strong> We do not store card details. Stripe processes payments. We store subscription status and customer identifiers (e.g. Stripe customer ID) to manage your subscription.

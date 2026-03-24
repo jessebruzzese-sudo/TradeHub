@@ -22,16 +22,16 @@ const steps = [
   },
   {
     title: "Win work",
-    shortDesc: "Apply to jobs, quote tenders, and message directly.",
+    shortDesc: "Apply to jobs and message hirers directly.",
     expandDesc:
-      "Apply to jobs, quote tenders, and message directly. No lead fees — you keep control of pricing and relationships.",
+      "Apply to jobs and message hirers directly. No lead fees — you keep control of pricing and relationships.",
     Icon: Briefcase,
     cardClasses: "bg-amber-50/60 border-amber-100",
     iconClasses: "border-amber-100 bg-amber-50 text-amber-600",
   },
 ] as const;
 
-const STEP_HREFS = ["/how-it-works", "/how-it-works/subcontractors", "/how-tendering-works"] as const;
+const STEP_HREFS = ['/how-it-works', '/how-it-works', '/jobs'] as const;
 
 export default function HowItWorksSection() {
   return (

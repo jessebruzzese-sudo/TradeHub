@@ -17,7 +17,7 @@ export function buildAbnVerifiedTemplate(
     <ul>
       <li>Posting jobs</li>
       <li>Accepting hires</li>
-      <li>Submitting tenders</li>
+      <li>Applying to jobs posted by others</li>
     </ul>
     <p>View profile:</p>
     ${cta('Open profile', input.profileUrl)}
@@ -31,7 +31,7 @@ export function buildAbnVerifiedTemplate(
     'You now have full access to:',
     '- Posting jobs',
     '- Accepting hires',
-    '- Submitting tenders',
+    '- Applying to jobs posted by others',
     '',
     'View profile:',
     input.profileUrl,

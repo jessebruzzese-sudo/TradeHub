@@ -11,19 +11,21 @@ import React, {
 } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { getBrowserSupabase } from '@/lib/supabase-client';
+import { useActivityPing } from '@/hooks/useActivityPing';
 import {
   hasSubcontractorPremium,
   hasBuilderPremium,
   hasContractorPremium,
   canChangePrimaryTrade,
 } from '@/lib/capability-utils';
+import { normalizeGoogleListingVerificationStatus } from '@/lib/google-business';
 
 export async function ensureProfileRow(supabase: any, user: any) {
   if (!user?.id) return;
 
   const { data: existing, error: fetchError } = await supabase
     .from('users')
-    .select('id, abn, abn_status, abn_verified_at, business_name, is_public_profile')
+    .select('id, location, postcode, location_lat, location_lng, base_lat, base_lng, primary_trade, trades, abn, abn_status, abn_verified_at, business_name, is_public_profile')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -33,6 +35,19 @@ export async function ensureProfileRow(supabase: any, user: any) {
   }
 
   const meta = user.user_metadata ?? {};
+  const metaLocation = String(meta.location ?? '').trim() || null;
+  const metaPostcode = String(meta.postcode ?? '').trim() || null;
+  const metaLocationLatRaw = meta.locationLat ?? meta.location_lat;
+  const metaLocationLngRaw = meta.locationLng ?? meta.location_lng;
+  const metaLocationLat =
+    typeof metaLocationLatRaw === 'number' && Number.isFinite(metaLocationLatRaw)
+      ? metaLocationLatRaw
+      : null;
+  const metaLocationLng =
+    typeof metaLocationLngRaw === 'number' && Number.isFinite(metaLocationLngRaw)
+      ? metaLocationLngRaw
+      : null;
+  const metaHasValidCoords = hasValidCoordinatePair(metaLocationLat, metaLocationLng);
   const emailFallback = user.email ?? `${String(user.id)}@unknown.local`;
   const nameFallback = String(meta.full_name ?? meta.name ?? emailFallback).trim() || emailFallback;
   const roleRaw = String(meta.role ?? '').trim().toLowerCase();
@@ -56,6 +71,12 @@ export async function ensureProfileRow(supabase: any, user: any) {
       trust_status: trustStatusFallback,
       rating: 0,
       completed_jobs: 0,
+      location: metaLocation,
+      postcode: metaPostcode,
+      location_lat: metaHasValidCoords ? metaLocationLat : null,
+      location_lng: metaHasValidCoords ? metaLocationLng : null,
+      base_lat: metaHasValidCoords ? metaLocationLat : null,
+      base_lng: metaHasValidCoords ? metaLocationLng : null,
       primary_trade: meta.primaryTrade ?? meta.primary_trade ?? null,
       trades: Array.isArray(meta.trade_categories)
         ? [meta.trade_categories[0]].filter(Boolean)
@@ -94,9 +115,53 @@ export async function ensureProfileRow(supabase: any, user: any) {
   // Fetch latest row state before deciding if we need to backfill
   const { data: rowNow } = await supabase
     .from('users')
-    .select('id, abn, abn_status, abn_verified_at, business_name, is_public_profile')
+    .select('id, location, postcode, location_lat, location_lng, base_lat, base_lng, primary_trade, trades, abn, abn_status, abn_verified_at, business_name, is_public_profile')
     .eq('id', user.id)
     .maybeSingle();
+
+  const metaPrimaryTrade =
+    String(meta.primaryTrade ?? meta.primary_trade ?? '').trim() ||
+    (Array.isArray(meta.trade_categories) ? String(meta.trade_categories[0] ?? '').trim() : '') ||
+    (Array.isArray(meta.trades) ? String(meta.trades[0] ?? '').trim() : '');
+  const metaTrades = Array.isArray(meta.trade_categories)
+    ? (meta.trade_categories as unknown[]).map(String).map((t) => t.trim()).filter(Boolean)
+    : Array.isArray(meta.trades)
+      ? (meta.trades as unknown[]).map(String).map((t) => t.trim()).filter(Boolean)
+      : metaPrimaryTrade
+        ? [metaPrimaryTrade]
+        : [];
+  const metaCoordsValid = metaHasValidCoords;
+
+  // Backfill trade fields when trigger-created row missed them (e.g. metadata key mismatch during signup).
+  const rowPrimaryTrade = String((rowNow as any)?.primary_trade ?? '').trim();
+  const rowTrades = Array.isArray((rowNow as any)?.trades)
+    ? ((rowNow as any).trades as unknown[]).map(String).map((t) => t.trim()).filter(Boolean)
+    : [];
+  if ((!rowPrimaryTrade && metaPrimaryTrade) || (rowTrades.length === 0 && metaTrades.length > 0)) {
+    const tradeUpdate: Record<string, unknown> = {};
+    if (!rowPrimaryTrade && metaPrimaryTrade) tradeUpdate.primary_trade = metaPrimaryTrade;
+    if (rowTrades.length === 0 && metaTrades.length > 0) tradeUpdate.trades = metaTrades;
+    const { error: tradeBackfillErr } = await supabase.from('users').update(tradeUpdate).eq('id', user.id);
+    if (tradeBackfillErr) console.error('ensureProfileRow trade backfill error', tradeBackfillErr);
+  }
+  const rowHasCoords =
+    Number.isFinite(Number((rowNow as any)?.location_lat)) &&
+    Number.isFinite(Number((rowNow as any)?.location_lng));
+  if (!rowHasCoords && metaCoordsValid) {
+    const locationBackfill: Record<string, unknown> = {
+      location_lat: metaLocationLat,
+      location_lng: metaLocationLng,
+      base_lat: metaLocationLat,
+      base_lng: metaLocationLng,
+    };
+    if (metaLocation && !(rowNow as any)?.location) locationBackfill.location = metaLocation;
+    if (metaPostcode && !(rowNow as any)?.postcode) locationBackfill.postcode = metaPostcode;
+    const { error: locBackfillErr } = await supabase
+      .from('users')
+      .update(locationBackfill)
+      .eq('id', user.id);
+    if (locBackfillErr) console.error('ensureProfileRow location backfill error', locBackfillErr);
+  }
 
   const dbStatus = String(rowNow?.abn_status || '').toUpperCase();
   const dbVerified = dbStatus === 'VERIFIED' && !!rowNow?.abn_verified_at;
@@ -132,6 +197,14 @@ const numOrNull = (v: unknown): number | null => {
   const n = typeof v === 'number' ? v : Number(v);
   return Number.isFinite(n) ? n : null;
 };
+
+const isValidDiscoveryCoord = (v: unknown): v is number =>
+  typeof v === 'number' && Number.isFinite(v);
+
+const hasValidCoordinatePair = (lat: unknown, lng: unknown): lat is number =>
+  isValidDiscoveryCoord(lat) &&
+  isValidDiscoveryCoord(lng) &&
+  !(Number(lat) === 0 && Number(lng) === 0);
 
 type Day = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
 type Availability = Record<Day, boolean>;
@@ -172,6 +245,8 @@ type DbUserRow = {
   search_postcode?: string | null;
   search_lat?: number | null;
   search_lng?: number | null;
+  base_lat?: number | null;
+  base_lng?: number | null;
   location_lat?: number | null;
   location_lng?: number | null;
   radius?: number | null;
@@ -192,6 +267,19 @@ type DbUserRow = {
   pricing_amount?: number | null;
   show_pricing_on_profile?: boolean | null;
   show_pricing_in_listings?: boolean | null;
+  last_active_at?: string | null;
+  google_business_url?: string | null;
+  google_business_name?: string | null;
+  google_business_address?: string | null;
+  google_place_id?: string | null;
+  google_rating?: number | null;
+  google_review_count?: number | null;
+  google_listing_claimed_by_user?: boolean | null;
+  google_listing_verification_status?: string | null;
+  google_listing_verified_at?: string | null;
+  google_listing_verification_method?: string | null;
+  google_listing_verified_by?: string | null;
+  google_listing_rejection_reason?: string | null;
 };
 
 export type CurrentUser = {
@@ -278,8 +366,24 @@ export type CurrentUser = {
   showPricingOnProfile?: boolean;
   showPricingInListings?: boolean;
 
-  /** Premium: receive alerts when new jobs/tenders matching trade are listed */
+  /** Premium: receive alerts when new jobs matching trade are listed */
   receiveTradeAlerts?: boolean;
+
+  profileStrengthScore?: number | null;
+  profileStrengthBand?: string | null;
+  googleBusinessUrl?: string | null;
+  googleRating?: number | null;
+  googleReviewCount?: number | null;
+  googleBusinessName?: string | null;
+  googleBusinessAddress?: string | null;
+  googlePlaceId?: string | null;
+  googleListingClaimedByUser?: boolean;
+  googleListingVerificationStatus?: string | null;
+  googleListingVerifiedAt?: string | null;
+  googleListingVerificationMethod?: string | null;
+  googleListingVerifiedBy?: string | null;
+  googleListingRejectionReason?: string | null;
+  lastActiveAt?: string | null;
 }
 
 type SignupExtras = {
@@ -290,11 +394,13 @@ type SignupExtras = {
   abnVerified?: boolean;
   location?: string;
   postcode?: string;
+  locationLat?: number;
+  locationLng?: number;
   availability?: Record<string, boolean>;
   role?: string;
   trades?: string[];
   additionalTrades?: string[];
-  /** Full trade selection (1 for free, up to 5 for premium). TODO: migrate backend to use this. */
+  /** Full trade selection (1 for free, unlimited for premium). TODO: migrate backend to use this. */
   tradeCategories?: string[];
   /** Legal/full name (stored in metadata only; display name goes via `name` param). */
   legal_name?: string;
@@ -330,8 +436,25 @@ type UpdateUserInput = Partial<
     | 'tiktok'
     | 'youtube'
     | 'receiveTradeAlerts'
+    | 'googleBusinessUrl'
+    | 'googleBusinessName'
+    | 'googleBusinessAddress'
+    | 'googlePlaceId'
+    | 'googleRating'
+    | 'googleReviewCount'
+    | 'googleListingClaimedByUser'
+    | 'googleListingVerificationStatus'
   >
->;
+> & {
+  google_business_url?: string | null;
+  google_business_name?: string | null;
+  google_business_address?: string | null;
+  google_place_id?: string | null;
+  google_rating?: number | null;
+  google_review_count?: number | null;
+  google_listing_claimed_by_user?: boolean;
+  google_listing_verification_status?: string | null;
+};
 
 type AuthCtx = {
   session: Session | null;
@@ -401,8 +524,8 @@ function mapDbToUi(row: DbUserRow): CurrentUser {
       !!row.abn_verified_at,
     abnVerifiedAt: row.abn_verified_at ?? null,
     abnEntityName: row.business_name ?? null,
-    showAbnOnProfile: row.show_abn_on_profile === true,
-    showBusinessNameOnProfile: row.show_business_name_on_profile !== false,
+    showAbnOnProfile: row.show_abn_on_profile ?? false,
+    showBusinessNameOnProfile: row.show_business_name_on_profile ?? false,
     trades: Array.isArray(row.trades)
       ? (row.trades as any[]).map(String)
       : (row.trades ? (row.trades as any[]).map?.(String) : undefined),
@@ -448,6 +571,35 @@ function mapDbToUi(row: DbUserRow): CurrentUser {
     showPricingInListings: (row as any).show_pricing_in_listings === true,
 
     receiveTradeAlerts: (row as any).subcontractor_work_alerts_enabled === true,
+
+    profileStrengthScore:
+      (row as any).profile_strength_score != null ? Number((row as any).profile_strength_score) : null,
+    profileStrengthBand: (row as any).profile_strength_band ?? null,
+    googleBusinessUrl: (row as any).google_business_url ?? null,
+    googleBusinessName: (row as any).google_business_name ?? null,
+    googleBusinessAddress: (row as any).google_business_address ?? null,
+    googlePlaceId: (row as any).google_place_id ?? null,
+    googleRating:
+      (row as any).google_business_rating != null
+        ? Number((row as any).google_business_rating)
+        : (row as any).google_rating != null
+          ? Number((row as any).google_rating)
+          : null,
+    googleReviewCount:
+      (row as any).google_business_review_count != null
+        ? Number((row as any).google_business_review_count)
+        : (row as any).google_review_count != null
+          ? Number((row as any).google_review_count)
+          : null,
+    googleListingClaimedByUser: (row as any).google_listing_claimed_by_user === true,
+    googleListingVerificationStatus: normalizeGoogleListingVerificationStatus(
+      (row as any).google_listing_verification_status
+    ),
+    googleListingVerifiedAt: (row as any).google_listing_verified_at ?? null,
+    googleListingVerificationMethod: (row as any).google_listing_verification_method ?? null,
+    googleListingVerifiedBy: (row as any).google_listing_verified_by ?? null,
+    googleListingRejectionReason: (row as any).google_listing_rejection_reason ?? null,
+    lastActiveAt: (row as any).last_active_at ?? null,
   };
 }
 
@@ -504,6 +656,8 @@ function mapUiPatchToDb(patch: UpdateUserInput): Partial<DbUserRow> {
   if (patch.name !== undefined) out.name = patch.name ?? null;
   if (patch.role !== undefined) out.role = patch.role ?? null;
   if (patch.bio !== undefined) out.bio = patch.bio ?? null;
+  if (patch.location !== undefined) (out as any).location = patch.location ?? null;
+  if (patch.postcode !== undefined) (out as any).postcode = patch.postcode ?? null;
   if ((patch as any).mini_bio !== undefined) out.mini_bio = (patch as any).mini_bio ?? null;
   if (patch.avatar !== undefined) out.avatar = patch.avatar ?? null;
   if (patch.coverUrl !== undefined) out.cover_url = patch.coverUrl ?? null;
@@ -511,9 +665,9 @@ function mapUiPatchToDb(patch: UpdateUserInput): Partial<DbUserRow> {
   if (patch.businessName !== undefined) out.business_name = patch.businessName ?? null;
   if (patch.abn !== undefined) out.abn = patch.abn ?? null;
   if (patch.abnStatus !== undefined) out.abn_status = patch.abnStatus ?? null;
-  if (patch.showAbnOnProfile !== undefined) out.show_abn_on_profile = patch.showAbnOnProfile ?? false;
+  if (patch.showAbnOnProfile !== undefined) out.show_abn_on_profile = !!patch.showAbnOnProfile;
   if (patch.showBusinessNameOnProfile !== undefined)
-    out.show_business_name_on_profile = patch.showBusinessNameOnProfile ?? true;
+    out.show_business_name_on_profile = !!patch.showBusinessNameOnProfile;
   if (patch.additionalTrades !== undefined) out.additional_trades = patch.additionalTrades ?? null;
   if (patch.searchLocation !== undefined) out.search_location = patch.searchLocation ?? null;
   if (patch.searchPostcode !== undefined) out.search_postcode = patch.searchPostcode ?? null;
@@ -523,16 +677,51 @@ function mapUiPatchToDb(patch: UpdateUserInput): Partial<DbUserRow> {
   // Location coords (if patch supports them)
   if ((patch as any).locationLat !== undefined) out.location_lat = numOrNull((patch as any).locationLat);
   if ((patch as any).locationLng !== undefined) out.location_lng = numOrNull((patch as any).locationLng);
+  // Keep base coords in sync for features still reading base_*.
+  if ((patch as any).locationLat !== undefined) out.base_lat = numOrNull((patch as any).locationLat);
+  if ((patch as any).locationLng !== undefined) out.base_lng = numOrNull((patch as any).locationLng);
   // Radius fields (often come from inputs/sliders as strings)
   if ((patch as any).radius !== undefined) out.radius = numOrNull((patch as any).radius);
   if ((patch as any).preferredRadiusKm !== undefined) out.preferred_radius_km = numOrNull((patch as any).preferredRadiusKm);
   if ((patch as any).subcontractorPreferredRadiusKm !== undefined)
     out.subcontractor_preferred_radius_km = numOrNull((patch as any).subcontractorPreferredRadiusKm);
   if (patch.isPublicProfile !== undefined) out.is_public_profile = patch.isPublicProfile ?? false;
-  if (patch.website !== undefined) out.website = patch.website ?? null;
-  if (patch.instagram !== undefined) out.instagram = patch.instagram ?? null;
-  if (patch.facebook !== undefined) out.facebook = patch.facebook ?? null;
-  if (patch.linkedin !== undefined) out.linkedin = patch.linkedin ?? null;
+  if (patch.website !== undefined) {
+    out.website = patch.website ?? null;
+    (out as any).website_url = patch.website ?? null;
+  }
+  if (patch.instagram !== undefined) {
+    out.instagram = patch.instagram ?? null;
+    (out as any).instagram_url = patch.instagram ?? null;
+  }
+  if (patch.facebook !== undefined) {
+    out.facebook = patch.facebook ?? null;
+    (out as any).facebook_url = patch.facebook ?? null;
+  }
+  if (patch.linkedin !== undefined) {
+    out.linkedin = patch.linkedin ?? null;
+    (out as any).linkedin_url = patch.linkedin ?? null;
+  }
+  if (patch.googleBusinessUrl !== undefined) (out as any).google_business_url = patch.googleBusinessUrl ?? null;
+  if (patch.googleBusinessName !== undefined) (out as any).google_business_name = patch.googleBusinessName ?? null;
+  if (patch.googleBusinessAddress !== undefined) (out as any).google_business_address = patch.googleBusinessAddress ?? null;
+  if (patch.googlePlaceId !== undefined) (out as any).google_place_id = patch.googlePlaceId ?? null;
+  if (patch.googleRating !== undefined) {
+    (out as any).google_rating = patch.googleRating ?? null;
+    (out as any).google_business_rating = patch.googleRating ?? null;
+  }
+  if (patch.googleReviewCount !== undefined) {
+    (out as any).google_review_count = patch.googleReviewCount ?? null;
+    (out as any).google_business_review_count = patch.googleReviewCount ?? null;
+  }
+  if (patch.googleListingClaimedByUser !== undefined) {
+    (out as any).google_listing_claimed_by_user = !!patch.googleListingClaimedByUser;
+  }
+  if (patch.googleListingVerificationStatus !== undefined) {
+    (out as any).google_listing_verification_status = normalizeGoogleListingVerificationStatus(
+      patch.googleListingVerificationStatus
+    );
+  }
   if (patch.tiktok !== undefined) out.tiktok = patch.tiktok ?? null;
   if (patch.youtube !== undefined) out.youtube = patch.youtube ?? null;
   if ((patch as any).phone !== undefined) out.phone = (patch as any).phone ?? null;
@@ -546,6 +735,67 @@ function mapUiPatchToDb(patch: UpdateUserInput): Partial<DbUserRow> {
   return out;
 }
 
+/** DB columns that affect `calculate_profile_strength` / completeness & links. */
+function dbPatchAffectsProfileStrength(dbPatch: Partial<DbUserRow>): boolean {
+  const relevant = new Set([
+    'name',
+    'bio',
+    'mini_bio',
+    'avatar',
+    'cover_url',
+    'primary_trade',
+    'additional_trades',
+    'business_name',
+    'website',
+    'instagram',
+    'facebook',
+    'linkedin',
+    'tiktok',
+    'youtube',
+    'website_url',
+    'instagram_url',
+    'facebook_url',
+    'linkedin_url',
+    'google_business_url',
+    'google_rating',
+    'google_review_count',
+    'google_business_name',
+    'google_business_address',
+    'google_place_id',
+    'google_business_rating',
+    'google_business_review_count',
+    'google_listing_claimed_by_user',
+    'google_listing_verification_status',
+    'google_listing_verified_at',
+    'google_listing_verification_method',
+    'google_listing_verified_by',
+    'google_listing_rejection_reason',
+    'location',
+    'postcode',
+    'location_lat',
+    'location_lng',
+    'base_lat',
+    'base_lng',
+    'search_location',
+    'search_postcode',
+    'search_lat',
+    'search_lng',
+    'radius',
+    'preferred_radius_km',
+    'subcontractor_preferred_radius_km',
+    'is_public_profile',
+    'abn',
+    'abn_status',
+    'show_abn_on_profile',
+    'show_business_name_on_profile',
+    'phone',
+    'show_phone_on_profile',
+    'show_email_on_profile',
+    'subcontractor_work_alerts_enabled',
+  ]);
+  return Object.keys(dbPatch).some((k) => relevant.has(k));
+}
+
 export function AuthContextProvider({ children }: { children: React.ReactNode }) {
   const supabase = useMemo(() => getBrowserSupabase() as any, []);
 
@@ -556,6 +806,7 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
   // used to ignore stale async completions
   const seqRef = useRef(0);
   const welcomeEmailTriggeredRef = useRef<string | null>(null);
+  const geocodeBackfillTriggeredRef = useRef<Set<string>>(new Set());
 
   const loadProfile = useCallback(
     async (userId: string): Promise<CurrentUser | null> => {
@@ -564,22 +815,35 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
         // mini_bio, phone, show_phone_on_profile, show_email_on_profile, is_admin,
         // show_abn_on_profile, show_business_name_on_profile, pricing_type, pricing_amount,
         // show_pricing_on_profile, show_pricing_in_listings (may not exist in older DBs)
-        const baseSelect =
-          'id,email,name,role,trust_status,avatar,cover_url,bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,abn_verified_at,trades,additional_trades,website,instagram,facebook,linkedin,tiktok,youtube,' +
+        const baseSelectNoProfileStrength =
+          'id,email,name,role,trust_status,avatar,cover_url,bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,abn_verified_at,show_abn_on_profile,show_business_name_on_profile,trades,additional_trades,website,instagram,facebook,linkedin,tiktok,youtube,' +
           'location,postcode,location_lat,location_lng,' +
           'is_premium,active_plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,' +
           'complimentary_premium_until,premium_until,additional_trades_unlocked,search_location,search_postcode,search_lat,search_lng,' +
-          'is_public_profile,subcontractor_work_alerts_enabled';
+          'is_public_profile,subcontractor_work_alerts_enabled,last_active_at';
+        const baseSelect =
+          baseSelectNoProfileStrength +
+          ',profile_strength_score,profile_strength_band,website_url,instagram_url,facebook_url,linkedin_url,' +
+          'google_business_url,google_business_name,google_business_address,google_place_id,google_rating,google_review_count,google_business_rating,google_business_review_count,google_listing_claimed_by_user,google_listing_verification_status,google_listing_verified_at,google_listing_verification_method,google_listing_verified_by,google_listing_rejection_reason';
         const legacyCoordsSelect = baseSelect.replace('location_lat,location_lng,', 'lat,lng,');
         const loadWithSelect = (selectClause: string) =>
           (supabase.from('users') as any).select(selectClause).eq('id', userId).maybeSingle();
 
-        const minimalSelect = 'id,email,name,role,trust_status,primary_trade,trades,is_public_profile';
+        const minimalSelect =
+          'id,email,name,role,trust_status,primary_trade,trades,is_public_profile,show_abn_on_profile,show_business_name_on_profile';
         let { data: profile, error } = await loadWithSelect(baseSelect);
         if (error && (error as any)?.code === '42703') {
           // Backward compatibility: handle schema drift across environments.
           const msg = String((error as any)?.message || '').toLowerCase();
-          if (msg.includes('location_lat') || msg.includes('location_lng')) {
+          if (
+            msg.includes('profile_strength') ||
+            msg.includes('website_url') ||
+            msg.includes('google_business')
+          ) {
+            const resPs = await loadWithSelect(baseSelectNoProfileStrength);
+            profile = resPs.data;
+            error = resPs.error;
+          } else if (msg.includes('location_lat') || msg.includes('location_lng')) {
             const legacyRes = await loadWithSelect(legacyCoordsSelect);
             profile = legacyRes.data;
             error = legacyRes.error;
@@ -624,7 +888,7 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
 
         // Provide defaults for columns not in safe select (may not exist in DB)
         (profile as any).show_abn_on_profile ??= false;
-        (profile as any).show_business_name_on_profile ??= true;
+        (profile as any).show_business_name_on_profile ??= false;
         (profile as any).is_public_profile ??= true;
         (profile as any).pricing_type ??= null;
         (profile as any).pricing_amount ??= null;
@@ -743,6 +1007,8 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
     };
   }, [applySession, supabase]);
 
+  useActivityPing(session?.user?.id);
+
   useEffect(() => {
     if (!session?.user?.id || !currentUser?.id) return;
     if (welcomeEmailTriggeredRef.current === currentUser.id) return;
@@ -756,6 +1022,45 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
     });
   }, [session?.user?.id, currentUser?.id]);
 
+  useEffect(() => {
+    if (!session?.user?.id || !currentUser?.id) return;
+    if (session.user.id !== currentUser.id) return;
+
+    const hasLocation = typeof currentUser.location === 'string' && currentUser.location.trim().length > 0;
+    const hasCoords =
+      typeof currentUser.lat === 'number' &&
+      Number.isFinite(currentUser.lat) &&
+      typeof currentUser.lng === 'number' &&
+      Number.isFinite(currentUser.lng);
+    if (!hasLocation || hasCoords) return;
+
+    if (geocodeBackfillTriggeredRef.current.has(currentUser.id)) return;
+    geocodeBackfillTriggeredRef.current.add(currentUser.id);
+
+    fetch('/api/profile/geocode-location', { method: 'POST' })
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          console.warn('[auth] geocode backfill failed (non-blocking)', {
+            status: res.status,
+            body,
+          });
+          return;
+        }
+        await refreshUser();
+      })
+      .catch((e) => {
+        console.warn('[auth] geocode backfill request failed (non-blocking)', e);
+      });
+  }, [
+    session?.user?.id,
+    currentUser?.id,
+    currentUser?.location,
+    currentUser?.lat,
+    currentUser?.lng,
+    refreshUser,
+  ]);
+
   const login: AuthCtx['login'] = useCallback(
     async (email, password) => {
       setIsLoading(true);
@@ -763,6 +1068,9 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         applySession((data?.session as Session) ?? null);
+        if (data?.session?.user?.id) {
+          fetch('/api/activity/ping', { method: 'POST', credentials: 'include' }).catch(() => {});
+        }
       } finally {
         setIsLoading(false);
       }
@@ -776,6 +1084,10 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
       try {
         const cleanedAbn = extras.abn ? normalizeAbn(extras.abn) : '';
 
+        const signupLat = isValidDiscoveryCoord(extras.locationLat) ? extras.locationLat : null;
+        const signupLng = isValidDiscoveryCoord(extras.locationLng) ? extras.locationLng : null;
+        const hasSignupCoords = hasValidCoordinatePair(signupLat, signupLng);
+
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -784,13 +1096,21 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
               name,
               role: extras.role ?? null,
               primaryTrade: primaryTrade ?? null,
+              // Keep snake_case for DB triggers that read raw_user_meta_data->>'primary_trade'.
+              primary_trade: primaryTrade ?? null,
               businessName: extras.businessName ?? null,
+              business_name: extras.businessName ?? null,
               abn: cleanedAbn || null,
               abnEntityName: extras.abnEntityName ?? null,
               abnEntityType: extras.abnEntityType ?? null,
               abnVerified: extras.abnVerified ?? false,
               location: extras.location ?? null,
               postcode: extras.postcode ?? null,
+              // Persist both camel/snake keys for compatibility and future backfills.
+              locationLat: hasSignupCoords ? signupLat : null,
+              locationLng: hasSignupCoords ? signupLng : null,
+              location_lat: hasSignupCoords ? signupLat : null,
+              location_lng: hasSignupCoords ? signupLng : null,
               trades: extras.trades ?? null,
               additionalTrades: extras.additionalTrades ?? null,
               // TODO: migrate trigger to use trade_categories; for now primary_trade = first
@@ -801,27 +1121,30 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
           },
         });
         if (error) throw error;
+        const hasSession = !!data?.session;
 
         // Apply session immediately (may be null if email confirm ON)
         applySession((data?.session as Session) ?? null);
 
-        // Best-effort: ensure profile row exists even if session is null
-        if (data?.user) {
+        // Only run profile bootstrap when signup returned an authenticated session.
+        // If email confirmation is enabled, this will run after the user verifies/signs in.
+        if (hasSession && data?.user) {
           await ensureProfileRowInContext(data.user);
+          fetch('/api/activity/ping', { method: 'POST', credentials: 'include' }).catch(() => {});
         }
 
-        if (data?.user?.id) {
+        if (hasSession && data?.user?.id) {
           const normalizedTrades =
             extras.tradeCategories?.length
-              ? [extras.tradeCategories[0]]
+              ? [...new Set(extras.tradeCategories)]
               : primaryTrade
                 ? [primaryTrade]
                 : [];
 
-          const lat = typeof (extras as any).locationLat === 'number' ? (extras as any).locationLat : null;
-          const lng = typeof (extras as any).locationLng === 'number' ? (extras as any).locationLng : null;
+          const lat = hasSignupCoords ? signupLat : null;
+          const lng = hasSignupCoords ? signupLng : null;
           const coordsUpdate: Record<string, unknown> = { trades: normalizedTrades };
-          if (lat != null && lng != null && Number.isFinite(lat) && Number.isFinite(lng)) {
+          if (hasSignupCoords && lat != null && lng != null) {
             coordsUpdate.location_lat = lat;
             coordsUpdate.location_lng = lng;
             coordsUpdate.base_lat = lat;
@@ -832,6 +1155,16 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
             .from('users')
             .update(coordsUpdate)
             .eq('id', data.user.id);
+
+          // If location text exists but coords were not captured at signup,
+          // backfill coordinates so discovery works immediately.
+          if ((extras.location ?? '').trim() && (lat == null || lng == null)) {
+            try {
+              await fetch('/api/profile/geocode-location', { method: 'POST' });
+            } catch {
+              // non-blocking
+            }
+          }
         }
 
         // Trigger server-side welcome email pipeline (idempotent).
@@ -839,7 +1172,7 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
         // is still safe because server checks auth and dedupes welcome events.
         try {
           if (data?.user?.id && data?.user?.email) {
-            await fetch('/api/email/account-verification', {
+            const verifyRes = await fetch('/api/email/account-verification', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -848,12 +1181,22 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
                 name,
               }),
             });
+            if (!verifyRes.ok) {
+              const verifyJson = await verifyRes.json().catch(() => null);
+              console.warn('[auth] account-verification trigger failed (non-blocking)', {
+                status: verifyRes.status,
+                body: verifyJson,
+              });
+            }
           }
 
-          await fetch('/api/email/welcome', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-          });
+          // Welcome endpoint requires auth; skip when signup has no session yet.
+          if (hasSession) {
+            await fetch('/api/email/welcome', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
         } catch (e) {
           console.warn('[auth] welcome email trigger failed (non-blocking)', e);
         }
@@ -892,8 +1235,7 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
 
   const updateUser: AuthCtx['updateUser'] = useCallback(
     async (patch) => {
-      const userId = session?.user?.id;
-      if (!userId) throw new Error('Not authenticated');
+      if (!session?.user?.id) throw new Error('Not authenticated');
 
       // Enforce premium rules using current in-memory user (before DB or merge)
       setCurrentUser((prev) => {
@@ -928,8 +1270,16 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
         if ('additional_trades' in dbPatch) delete (dbPatch as any).additional_trades;
       }
       if (Object.keys(dbPatch).length > 0) {
-        const { error } = await (supabase.from('users') as any).update(dbPatch).eq('id', userId);
-        if (error) throw error;
+        const res = await fetch('/api/profile/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ patch: dbPatch }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data?.error || 'Failed to update profile');
+        }
       }
 
       // Merge all fields in-memory (until DB columns exist)
@@ -949,6 +1299,14 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
       });
 
       await refreshUser();
+      try {
+        if (Object.keys(dbPatch).length > 0 && dbPatchAffectsProfileStrength(dbPatch)) {
+          const res = await fetch('/api/profile/refresh-strength', { method: 'POST', credentials: 'include' });
+          if (res.ok) await refreshUser();
+        }
+      } catch {
+        // non-blocking
+      }
     },
     [refreshUser, session?.user?.id, supabase]
   );

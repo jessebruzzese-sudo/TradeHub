@@ -62,9 +62,9 @@ export default function TermsPage() {
                 </section>
 
                 <section>
-                  <h2 className="text-xl font-semibold text-gray-900 mb-3">5. Jobs, Tenders & Availability</h2>
+                  <h2 className="text-xl font-semibold text-gray-900 mb-3">5. Jobs & Availability</h2>
                   <p className="text-gray-700">
-                    Listings, tenders, and availability indicators are informational only. TradeHub does not guarantee work, payment, performance, or outcomes. All agreements are made directly between users.
+                    Listings and availability indicators are informational only. TradeHub does not guarantee work, payment, performance, or outcomes. All agreements are made directly between users.
                   </p>
                 </section>
 

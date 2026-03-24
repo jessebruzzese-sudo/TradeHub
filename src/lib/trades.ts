@@ -1,4 +1,4 @@
-// TradeHub trade categories – shared constant for discovery, signup, profile, and AI tender generation
+// TradeHub trade categories – shared constant for discovery, signup, profile, and AI helpers
 
 export const TRADE_CATEGORIES: string[] = [
   'Building',

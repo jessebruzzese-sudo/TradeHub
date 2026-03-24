@@ -13,7 +13,6 @@ import { useRouter } from 'next/navigation';
 import { getBrowserSupabase } from '@/lib/supabase-client';
 
 interface FeatureFlag {
-  guest_tenders_enabled: boolean;
   signups_enabled: boolean;
   emails_enabled: boolean;
   maintenance_mode: boolean;
@@ -28,7 +27,6 @@ export default function AdminSettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [flags, setFlags] = useState<FeatureFlag>({
-    guest_tenders_enabled: true,
     signups_enabled: true,
     emails_enabled: true,
     maintenance_mode: false,
@@ -50,7 +48,7 @@ export default function AdminSettingsPage() {
           const key = setting.key as keyof FeatureFlag;
           if (key === 'maintenance_message') {
             settingsMap[key] = typeof value === 'string' ? value : String(value);
-          } else if (key in settingsMap || key === 'guest_tenders_enabled' || key === 'signups_enabled' || key === 'emails_enabled' || key === 'maintenance_mode') {
+          } else if (key in settingsMap || key === 'signups_enabled' || key === 'emails_enabled' || key === 'maintenance_mode') {
             settingsMap[key] = value === true || value === 'true';
           }
         });
@@ -150,22 +148,6 @@ export default function AdminSettingsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="guest-tenders">Guest Tenders</Label>
-                <p className="text-sm text-gray-500">
-                  Allow guest users to submit tenders for admin approval
-                </p>
-              </div>
-              <Switch
-                id="guest-tenders"
-                checked={flags.guest_tenders_enabled}
-                onCheckedChange={(checked) =>
-                  setFlags((prev) => ({ ...prev, guest_tenders_enabled: checked }))
-                }
-              />
-            </div>
-
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label htmlFor="signups">User Signups</Label>

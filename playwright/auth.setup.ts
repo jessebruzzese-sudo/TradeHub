@@ -7,8 +7,38 @@ import { createChunks, stringToBase64URL } from '@supabase/ssr'
 config({ path: path.resolve(process.cwd(), '.env') })
 config({ path: path.resolve(process.cwd(), '.env.local') })
 
-const email = process.env.PW_EMAIL || 'pw-free@tradehub.test'
-const password = process.env.PW_PASSWORD || 'password1'
+function resolvePrimaryAuthCredentials() {
+  const allowCustom = process.env.PW_ALLOW_NON_QA_AUTH === '1'
+  const envEmail = process.env.PW_EMAIL
+  const envPassword = process.env.PW_PASSWORD
+  const canonicalEmail = 'pw-free@tradehub.test'
+  const canonicalPassword = 'password1'
+
+  if (!envEmail || !envPassword) {
+    return {
+      email: canonicalEmail,
+      password: canonicalPassword,
+    }
+  }
+
+  const isCanonicalQaFree = envEmail.toLowerCase() === canonicalEmail
+  if (allowCustom || isCanonicalQaFree) {
+    return { email: envEmail, password: envPassword }
+  }
+
+  console.warn(
+    `[playwright setup] PW_EMAIL="${envEmail}" is not the canonical QA free account. ` +
+      'Using pw-free@tradehub.test for stable ABN/onboarding gating tests. ' +
+      'Set PW_ALLOW_NON_QA_AUTH=1 to force custom credentials.'
+  )
+
+  return {
+    email: canonicalEmail,
+    password: canonicalPassword,
+  }
+}
+
+const { email, password } = resolvePrimaryAuthCredentials()
 const BASE64_PREFIX = 'base64-'
 
 // Must match supabase-js default: sb-${projectRef}-auth-token

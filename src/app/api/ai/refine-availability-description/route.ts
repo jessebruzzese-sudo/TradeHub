@@ -3,6 +3,17 @@ import { openai } from '@/lib/ai/openai';
 
 export const dynamic = 'force-dynamic';
 
+function fallbackRefineAvailability(raw: string) {
+  const cleaned = String(raw || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  if (!cleaned) return '';
+  const oneLine = cleaned.replace(/\n+/g, ' ');
+  return oneLine.length > 500 ? `${oneLine.slice(0, 497).trim()}…` : oneLine;
+}
+
 type Body = {
   text?: string;
   trade?: string;
@@ -51,6 +62,15 @@ Avoid:
     const user = trade
       ? `Trade: ${trade}\n\nUser notes:\n${raw}`
       : `User notes:\n${raw}`;
+
+    // Graceful fallback when OpenAI is not configured in this environment.
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json({
+        success: true,
+        refined: fallbackRefineAvailability(raw),
+        fallback: true,
+      });
+    }
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',

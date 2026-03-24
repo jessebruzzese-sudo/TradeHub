@@ -5,7 +5,7 @@
  * - Authentication (login, logout, session persistence, protected routes)
  * - Free vs Premium logic (feature gating, UI badges, API)
  * - ABN verification gating (verified vs unverified)
- * - Jobs, Tenders, Messaging, Profile systems
+ * - Jobs, Messaging, Profile systems
  * - Error detection (console.error/warn, 500/401 responses)
  *
  * Run: npx playwright test playwright/tradehub-platform-audit.spec.ts --headed
@@ -21,8 +21,30 @@ config({ path: path.resolve(process.cwd(), '.env') });
 config({ path: path.resolve(process.cwd(), '.env.local') });
 
 const BASE_URL = process.env.PW_BASE_URL || 'http://localhost:3000';
-const PW_EMAIL = process.env.PW_EMAIL || 'pw-free@tradehub.test';
-const PW_PASSWORD = process.env.PW_PASSWORD || 'password1';
+function resolveCanonicalQaAccount(
+  envEmail: string | undefined,
+  envPassword: string | undefined,
+  canonicalEmail: string,
+  canonicalPassword: string
+) {
+  const allowCustom = process.env.PW_ALLOW_NON_QA_AUTH === '1';
+  if (!envEmail || !envPassword) {
+    return { email: canonicalEmail, password: canonicalPassword };
+  }
+  if (allowCustom || envEmail.toLowerCase() === canonicalEmail.toLowerCase()) {
+    return { email: envEmail, password: envPassword };
+  }
+  return { email: canonicalEmail, password: canonicalPassword };
+}
+
+const primaryAccount = resolveCanonicalQaAccount(
+  process.env.PW_EMAIL,
+  process.env.PW_PASSWORD,
+  'pw-free@tradehub.test',
+  'password1'
+);
+const PW_EMAIL = primaryAccount.email;
+const PW_PASSWORD = primaryAccount.password;
 const PREMIUM_EMAIL = process.env.PW_PREMIUM_EMAIL || '';
 const PREMIUM_PASSWORD = process.env.PW_PREMIUM_PASSWORD || '';
 const NO_ABN_EMAIL = process.env.PW_NO_ABN_EMAIL || '';
@@ -218,7 +240,7 @@ test.describe('Authentication', () => {
     });
 
     test('protected routes redirect to login when not logged in', async ({ page }) => {
-      // /tenders and /messages allow unauthenticated browsing; only these redirect
+      // Protected app areas require login
       const protectedPaths = ['/dashboard', '/profile', '/jobs', '/subcontractors'];
       for (const path of protectedPaths) {
         await page.goto(`${BASE_URL}${path}`);
@@ -286,18 +308,15 @@ test.describe('Protected routes — authenticated', () => {
     await expect(jobsMarker).toBeVisible();
   });
 
-  test('/tenders loads', async ({ page }) => {
-    await page.goto(`${BASE_URL}/tenders`);
+  test('/search loads', async ({ page }) => {
+    await page.goto(`${BASE_URL}/search`);
     await page.waitForLoadState('networkidle');
-    await expect(page).toHaveURL(/\/tenders/);
-    const tendersMarker = page
-      .getByRole('tab', { name: /view available|my tenders/i })
-      .first()
-      .or(page.getByText(/view available|my tenders|post tender/i).first());
-    if (!(await tendersMarker.isVisible().catch(() => false))) {
-      test.skip(true, 'Tenders page loaded but expected tab markers were not visible');
+    await expect(page).toHaveURL(/\/search/);
+    const searchMarker = page.getByRole('heading', { name: /search/i }).first();
+    if (!(await searchMarker.isVisible().catch(() => false))) {
+      test.skip(true, 'Search page loaded but expected heading was not visible');
     }
-    await expect(tendersMarker).toBeVisible();
+    await expect(searchMarker).toBeVisible();
   });
 
   test('/messages loads', async ({ page }) => {
@@ -389,10 +408,10 @@ test.describe('ABN verification gating — unverified user', () => {
     await expect(page.getByRole('heading', { name: /jobs|find work/i }).first()).toBeVisible();
   });
 
-  test('unverified user can browse tenders', async ({ page }) => {
-    await page.goto(`${BASE_URL}/tenders`);
+  test('unverified user can browse search', async ({ page }) => {
+    await page.goto(`${BASE_URL}/search`);
     await page.waitForLoadState('networkidle');
-    await expect(page).toHaveURL(/\/tenders/);
+    await expect(page).toHaveURL(/\/search/);
   });
 
   test('unverified user can view profiles', async ({ page }) => {
@@ -497,70 +516,6 @@ test.describe('Jobs system', () => {
       test.skip(true, 'Reached jobs/create but form heading/input markers were not visible');
     }
     await expect(createJobMarker).toBeVisible({ timeout: 20_000 });
-  });
-});
-
-// ==================== TENDERS SYSTEM ====================
-test.describe('Tenders system', () => {
-  test('tenders list loads with View available and My Tenders tabs', async ({ page }) => {
-    await page.goto(`${BASE_URL}/tenders`);
-    await page.waitForLoadState('networkidle');
-    const viewAvailable = page
-      .getByRole('tab', { name: /view available tenders/i })
-      .first()
-      .or(page.getByText(/view available tenders|view available/i).first());
-    const myTenders = page
-      .getByRole('tab', { name: /my tenders/i })
-      .first()
-      .or(page.getByText(/my tenders/i).first());
-    if (!(await viewAvailable.isVisible().catch(() => false))) {
-      test.skip(true, 'Tenders list loaded but expected tab markers were not visible');
-    }
-    await expect(viewAvailable).toBeVisible();
-    if (await myTenders.isVisible().catch(() => false)) {
-      await expect(myTenders).toBeVisible();
-    }
-  });
-
-  test('tender detail renders when navigating to tender', async ({ page }) => {
-    await page.goto(`${BASE_URL}/tenders`);
-    await page.waitForLoadState('networkidle');
-    const tenderLink = page.getByRole('link', { name: /\[QA\]|tender|project/i }).first();
-    if (!(await tenderLink.isVisible().catch(() => false))) {
-      test.skip(true, 'No tender cards to click; run qa:seed for deterministic tenders');
-    }
-    await tenderLink.click();
-    await page.waitForLoadState('networkidle');
-    if (!page.url().match(/\/tenders\/[^/]+/)) {
-      test.skip(true, 'Tender link did not navigate to detail; UI may use different structure');
-    }
-    await expect(page).toHaveURL(/\/tenders\/[^/]+/);
-  });
-
-  test('tender creation flow accessible for verified user', async ({ page }) => {
-    await page.goto(`${BASE_URL}/tenders`);
-    const postTenderLink = page.getByRole('link', { name: /post tender/i }).first();
-    if (!(await postTenderLink.isVisible().catch(() => false))) {
-      test.skip(true, 'Post Tender CTA not visible for current user state');
-    }
-    await postTenderLink.click();
-    await page.waitForLoadState('networkidle');
-    if (page.url().includes('/verify-business')) {
-      test.skip(true, 'User needs ABN verification');
-    }
-    if (!page.url().includes('/tenders/create')) {
-      test.skip(true, 'Did not reach tenders/create');
-    }
-    // Step 1 marker can vary by render/state; accept any stable create-page markers.
-    const createMarker = page
-      .getByRole('heading', { name: /create new tender|project/i })
-      .first()
-      .or(page.getByText(/project name/i).first())
-      .or(page.getByPlaceholder(/single storey|renovation|plumbing/i).first());
-    if (!(await createMarker.isVisible().catch(() => false))) {
-      test.skip(true, 'Reached /tenders/create but project form markers were not visible');
-    }
-    await expect(createMarker).toBeVisible({ timeout: 15_000 });
   });
 });
 

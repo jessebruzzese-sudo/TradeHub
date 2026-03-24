@@ -205,16 +205,12 @@ async function persistPlan(
           subscription_started_at: startedAt,
           subscription_renews_at: renewsAt,
           subscription_canceled_at: null,
-          builder_plan: 'PREMIUM',
-          builder_sub_status: 'ACTIVE',
         }
       : {
           is_premium: false,
           active_plan: 'NONE',
           subscription_status: 'CANCELED',
           subscription_canceled_at: canceledAt ?? new Date().toISOString(),
-          builder_plan: 'NONE',
-          builder_sub_status: 'NONE',
         };
   if (customerId && !user.stripe_customer_id) updatePayload.stripe_customer_id = customerId;
   if (subscription?.id) updatePayload.stripe_subscription_id = subscription.id;

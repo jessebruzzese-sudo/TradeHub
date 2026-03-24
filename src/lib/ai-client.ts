@@ -1,4 +1,4 @@
-export type AiMode = "tender_draft" | "reply_suggest" | "quote_helper" | "general";
+export type AiMode = 'job_draft' | 'reply_suggest' | 'message_helper' | 'general';
 export type AiMsg = { role: "user" | "assistant"; content: string };
 
 export async function callTradeHubAI(args: {

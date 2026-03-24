@@ -2,12 +2,12 @@
   # Add receive_trade_alerts to users
 
   ## Overview
-  Premium-gated preference for job/tender alerts matching the user's trade.
-  When enabled, users receive notifications when new jobs or tenders matching
+  Premium-gated preference for job alerts matching the user's trade.
+  When enabled, users receive notifications when new jobs matching
   their trade(s) are listed.
 
   ## Changes
-  - `receive_trade_alerts` (boolean): Whether to receive alerts for new jobs/tenders in user's trade (default false)
+  - `receive_trade_alerts` (boolean): Whether to receive alerts for new jobs in user's trade (default false)
 */
 
 DO $$
@@ -20,4 +20,4 @@ BEGIN
   END IF;
 END $$;
 
-COMMENT ON COLUMN users.receive_trade_alerts IS 'Premium: receive alerts when new jobs/tenders matching user trade are listed';
+COMMENT ON COLUMN users.receive_trade_alerts IS 'Premium: receive alerts when new jobs matching user trade are listed';

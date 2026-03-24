@@ -56,10 +56,10 @@ export default function FAQsPage() {
         <Accordion type="single" collapsible className="space-y-4 mb-12">
           <AccordionItem value="item-1" className="bg-white border border-gray-200 rounded-xl px-6">
             <AccordionTrigger className="text-left font-bold text-gray-900 hover:no-underline py-4">
-              What is the difference between a tender and a job?
+              What is a job on TradeHub?
             </AccordionTrigger>
             <AccordionContent className="text-sm text-gray-600 pb-4">
-              A tender is a pricing request where you upload plans and receive multiple quotes from contractors. Once you accept a quote, you can convert it into a confirmed job with messaging and coordination. Jobs are ongoing work arrangements, while tenders are the quoting phase.
+              A job is a work opportunity posted by a business: scope, trade, timing, and location area. Subcontractors can apply or message through the platform; you agree details directly with the other party.
             </AccordionContent>
           </AccordionItem>
 
@@ -68,7 +68,7 @@ export default function FAQsPage() {
               How does pricing work?
             </AccordionTrigger>
             <AccordionContent className="text-sm text-gray-600 pb-4">
-              Everyone gets free access to browse tenders and jobs, with 1 trial tender included. After that, pay per tender or subscribe to Premium ($29/month) for unlimited tenders, quotes, multi-trade access, alerts, and market rate insights. One account type for everyone — no lead selling.
+              Browsing is free. Premium plans unlock a wider discovery radius, more trades on your profile, availability tools, and other upgrades. See the Pricing page for current plans — TradeHub does not sell leads.
             </AccordionContent>
           </AccordionItem>
 
@@ -77,7 +77,7 @@ export default function FAQsPage() {
               Is my project location visible to everyone?
             </AccordionTrigger>
             <AccordionContent className="text-sm text-gray-600 pb-4">
-              No. Tenders only show suburb and postcode — never your exact address. This protects your privacy while enabling contractors to assess distance. Exact addresses are shared only after you accept a quote and create a job.
+              Listings show suburb and general area for relevance — not your full private address. Share exact site details in messages once you are comfortable.
             </AccordionContent>
           </AccordionItem>
 
@@ -86,16 +86,16 @@ export default function FAQsPage() {
               Does TradeHub sell leads?
             </AccordionTrigger>
             <AccordionContent className="text-sm text-gray-600 pb-4">
-              No. TradeHub never sells leads. Contractors access tenders through flat monthly subscriptions (or 1 free quote per month). There are no per-lead fees. You control who sees your tender based on radius and trade selection.
+              No. TradeHub does not sell your details as “leads.” Work comes from real listings and discovery; optional subscriptions expand reach — not pay-per-lead access to your phone number.
             </AccordionContent>
           </AccordionItem>
 
           <AccordionItem value="item-5" className="bg-white border border-gray-200 rounded-xl px-6">
             <AccordionTrigger className="text-left font-bold text-gray-900 hover:no-underline py-4">
-              Can I hide my business name when posting a tender?
+              Can I control business visibility on my profile?
             </AccordionTrigger>
             <AccordionContent className="text-sm text-gray-600 pb-4">
-              Yes. You can choose to hide your business name when posting a tender. Contractors will see "Verified Builder" instead. This is useful when pricing competitively or working with unknown contractors.
+              Yes. You can choose what appears on your public profile and use in-app messaging before sharing more. ABN verification unlocks posting jobs and certain business actions.
             </AccordionContent>
           </AccordionItem>
 

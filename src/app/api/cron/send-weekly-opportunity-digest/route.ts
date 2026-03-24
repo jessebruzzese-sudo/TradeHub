@@ -58,41 +58,18 @@ async function runDigest(request: NextRequest) {
     ? userRows.filter((u: any) => String(u.email).toLowerCase() === oneAccountEmail)
     : userRows;
 
-  const [jobsRes, tendersRes] = await Promise.all([
-    svc
-      .from('jobs')
-      .select('id, title, trade_category, location, created_at')
-      .gte('created_at', since.toISOString())
-      .order('created_at', { ascending: false })
-      .limit(200),
-    svc
-      .from('tenders')
-      .select('id, project_name, suburb, created_at')
-      .gte('created_at', since.toISOString())
-      .order('created_at', { ascending: false })
-      .limit(200),
-  ]);
+  const jobsRes = await svc
+    .from('jobs')
+    .select('id, title, trade_category, location, created_at')
+    .gte('created_at', since.toISOString())
+    .order('created_at', { ascending: false })
+    .limit(200);
 
-  if (jobsRes.error || tendersRes.error) {
+  if (jobsRes.error) {
     return NextResponse.json(
-      { ok: false, error: jobsRes.error?.message || tendersRes.error?.message || 'query_failed' },
+      { ok: false, error: jobsRes.error?.message || 'query_failed' },
       { status: 500 }
     );
-  }
-
-  const tenders = tendersRes.data || [];
-  const tenderIds = tenders.map((t: any) => t.id);
-  let tenderTradesMap = new Map<string, string[]>();
-  if (tenderIds.length > 0) {
-    const { data: reqRows } = await (svc as any)
-      .from('tender_trade_requirements')
-      .select('tender_id, trade')
-      .in('tender_id', tenderIds);
-    for (const row of reqRows || []) {
-      const arr = tenderTradesMap.get(row.tender_id) || [];
-      arr.push(row.trade);
-      tenderTradesMap.set(row.tender_id, arr);
-    }
   }
 
   let sent = 0;
@@ -118,17 +95,6 @@ async function runDigest(request: NextRequest) {
       if (!userTrades.includes(normalizeTrade(j.trade_category))) continue;
       opportunities.push(`${j.trade_category} job${j.location ? ` — ${j.location}` : ''}`);
       if (opportunities.length >= 3) break;
-    }
-
-    if (opportunities.length < 3) {
-      for (const t of tenders as any[]) {
-        const reqTrades = (tenderTradesMap.get(t.id) || []).map(normalizeTrade);
-        if (reqTrades.length === 0) continue;
-        if (!reqTrades.some((trade) => userTrades.includes(trade))) continue;
-        const labelTrade = (tenderTradesMap.get(t.id) || [])[0] || 'General';
-        opportunities.push(`${labelTrade} tender${t.suburb ? ` — ${t.suburb}` : ''}`);
-        if (opportunities.length >= 3) break;
-      }
     }
 
     if (opportunities.length === 0) continue;

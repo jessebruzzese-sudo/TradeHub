@@ -1,6 +1,6 @@
 /**
  * Central plan limits: Free vs Premium.
- * Used for server-side enforcement of radius, availability, tenders, and quotes.
+ * Used for server-side enforcement of radius and availability.
  */
 
 export type PlanTier = 'free' | 'premium';
@@ -55,33 +55,23 @@ export function isPremiumPlanValue(plan?: string | null): boolean {
 }
 
 export type PlanLimits = {
-  /** Discovery/search radius cap (used for jobs + tenders discovery) */
+  /** Discovery/search radius cap (used for job discovery) */
   discoveryRadiusKm: number;
   /** Back-compat alias (some older callers may still use radiusKm) */
   radiusKm: number;
   availabilityDays: number;
-  tenderPerMonth: number | 'unlimited';
-  quotesPerTender: number | 'unlimited';
-  /** Total quotes per month across all tenders (Free plan cap) */
-  quotesPerMonth?: number | 'unlimited';
 };
 
 const FREE_LIMITS: PlanLimits = {
   discoveryRadiusKm: 20,
   radiusKm: 20,
   availabilityDays: 30,
-  tenderPerMonth: 1,
-  quotesPerTender: 3,
-  quotesPerMonth: 3,
 };
 
 const PREMIUM_LIMITS: PlanLimits = {
   discoveryRadiusKm: 100,
   radiusKm: 100,
   availabilityDays: 90,
-  tenderPerMonth: 'unlimited',
-  quotesPerTender: 'unlimited',
-  quotesPerMonth: 'unlimited',
 };
 
 function isPremium(user: TierUser | null | undefined): boolean {

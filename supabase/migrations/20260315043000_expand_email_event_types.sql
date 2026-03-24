@@ -13,8 +13,6 @@ alter table public.email_events
       'payment_failed',
       'job_invite',
       'job_alert',
-      'tender_alert',
-      'quote_request',
       'hire_confirmed',
       'new_message',
       'abn_verified',

@@ -16,9 +16,6 @@ export const MVP_RADIUS_KM = 25;
 /** Maximum availability calendar horizon (days) during MVP. */
 export const MVP_AVAILABILITY_HORIZON_DAYS = 60;
 
-/** Soft cap on tenders posted AND tenders applied/quoted per calendar month during MVP. */
-export const MVP_TENDERS_PER_MONTH_CAP = 3;
-
 /** Whether email alerts are enabled during MVP. */
 export const MVP_ALERTS_EMAIL_ENABLED = true;
 

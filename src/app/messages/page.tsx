@@ -4,7 +4,7 @@
  * QA notes — ABN gating (Messages):
  * - /messages list and thread reading work for unverified users.
  * - Plain sending messages remains allowed for unverified.
- * - Commitment action cards (Accept/Decline, Confirm hire, Accept quote, Award job, etc.) are blocked for unverified:
+ * - Commitment action cards (Accept/Decline, Confirm hire, Award job, etc.) are blocked for unverified:
  *   disabled button + "Verify ABN to continue" + CTA link to /verify-business. Verified users use action cards normally.
  */
 
@@ -742,7 +742,7 @@ export default function MessagesPage() {
                         title="No messages yet"
                         description="Message any user from their profile, search, or jobs to start a conversation."
                         ctaLabel="Browse jobs"
-                        onCtaClick={() => router.push('/tenders')}
+                        onCtaClick={() => router.push('/jobs')}
                       />
                     </div>
                   ) : (
@@ -1030,7 +1030,7 @@ export default function MessagesPage() {
                   title="No messages yet"
                   description="Message any user from their profile, search, or jobs to start a conversation."
                   ctaLabel="Browse jobs"
-                  onCtaClick={() => router.push('/tenders')}
+                  onCtaClick={() => router.push('/jobs')}
                 />
               ) : null}
               {conversations.map((conv) => {

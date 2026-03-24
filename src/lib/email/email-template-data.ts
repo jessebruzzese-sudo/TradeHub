@@ -2,7 +2,6 @@ import type {
   HireConfirmedTemplateInput,
   JobInviteTemplateInput,
   PremiumUpgradedTemplateInput,
-  QuoteRequestTemplateInput,
   WelcomeTemplateInput,
 } from '@/lib/email/types';
 
@@ -60,19 +59,6 @@ export function buildJobInviteTemplateData(input: {
   };
 }
 
-export function buildQuoteRequestTemplateData(input: {
-  recipientName?: string | null;
-  requesterName?: string | null;
-  tenderId?: string;
-}): QuoteRequestTemplateInput {
-  const base = appBaseUrl();
-  return {
-    firstName: firstName(input.recipientName),
-    requesterName: (input.requesterName || 'A TradeHub user').trim(),
-    requestUrl: `${base}/messages`,
-  };
-}
-
 export function buildHireConfirmedTemplateData(input: {
   recipientName?: string | null;
   title: string;
@@ -88,4 +74,3 @@ export function buildHireConfirmedTemplateData(input: {
     detailsUrl: `${base}${path}`,
   };
 }
-

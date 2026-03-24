@@ -9,6 +9,7 @@ import {
 } from '@/lib/discovery';
 import { getTier } from '@/lib/plan-limits';
 import { hasValidABN } from '@/lib/abn-utils';
+import { applyExcludeTestAccountsFilters } from '@/lib/test-account';
 
 type UserRow = {
   id: string;
@@ -201,6 +202,7 @@ export async function GET(
       .eq('is_public_profile', true)
       .neq('id', user.id)
       .or(orClause);
+    query = applyExcludeTestAccountsFilters(query);
 
     const { data: candidates, error: candErr } = await query;
 

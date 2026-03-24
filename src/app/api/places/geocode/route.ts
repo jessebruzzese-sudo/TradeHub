@@ -1,6 +1,6 @@
 /**
  * Geocode suburb + postcode to lat/lng.
- * Used when applying AI-generated tender drafts or manual suburb entry without place_id.
+ * Used when applying AI-generated drafts or manual suburb entry without place_id.
  */
 import { NextResponse } from 'next/server';
 

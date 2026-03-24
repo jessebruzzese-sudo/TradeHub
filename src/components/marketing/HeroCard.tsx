@@ -92,7 +92,7 @@ export function HeroCard({ mobileMinimal, heroOpen: _heroOpen, onHeroToggle: _on
         Built for Aussie tradies
       </span>
       <p className="max-w-2xl text-lg text-blue-100">
-        Get booked locally through real jobs, tenders, and discovery — no lead fees.
+        Get booked locally through real jobs and discovery — no lead fees.
       </p>
       <div className="flex flex-wrap gap-3">
         <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium md:text-sm">
@@ -176,7 +176,7 @@ export function HeroCard({ mobileMinimal, heroOpen: _heroOpen, onHeroToggle: _on
         <div className="mt-6 flex flex-col">
           <div className="space-y-4 md:order-1 md:block">
             <p className="max-w-2xl text-lg text-blue-100">
-              Get booked locally through real jobs, tenders, and discovery — no lead fees.
+              Get booked locally through real jobs and discovery — no lead fees.
             </p>
             <div className="flex flex-wrap gap-3">
               <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium md:text-sm">

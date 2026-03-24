@@ -61,7 +61,7 @@ export default function AdminAlertsPage() {
           </Button>
           <h1 className="text-2xl font-bold text-gray-900">Listing Alert Sends</h1>
           <p className="text-sm text-gray-600 mt-1">
-            Debug view of recent job/tender email alert sends (last 100)
+            Debug view of recent job email alert sends (last 100)
           </p>
         </div>
 
@@ -99,7 +99,7 @@ export default function AdminAlertsPage() {
                       <td className="px-4 py-3 text-sm text-gray-700">{r.listing_type}</td>
                       <td className="px-4 py-3 text-sm font-mono text-gray-700">
                         <a
-                          href={r.listing_type === 'job' ? `/jobs/${r.listing_id}` : `/tenders/${r.listing_id}`}
+                          href={`/jobs/${r.listing_id}`}
                           className="text-blue-600 hover:underline"
                           target="_blank"
                           rel="noopener noreferrer"

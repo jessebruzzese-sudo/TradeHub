@@ -41,7 +41,7 @@ function hasSearchFromData(user: UserLike | null | undefined): boolean {
 }
 
 /**
- * Returns the effective search origin for jobs/tenders matching and radius calculations.
+ * Returns the effective search origin for job matching and radius calculations.
  * - Premium users with search-from set: use searchLocation/searchPostcode/searchLat/searchLng.
  * - Everyone else: use base location/postcode/locationLat/locationLng.
  * Never overwrites base with search-from. Non-premium users always get base, even if search-from fields exist.

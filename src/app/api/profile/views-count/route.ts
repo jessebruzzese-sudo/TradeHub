@@ -25,19 +25,14 @@ export async function GET() {
       .gte('created_at', sevenDaysAgo.toISOString());
 
     if (error) {
-      console.error('profile_views count error:', error);
-      return NextResponse.json(
-        { error: 'Failed to load views count' },
-        { status: 500 }
-      );
+      // Non-critical metric: degrade gracefully instead of breaking dashboard with 500 noise.
+      console.warn('profile_views count unavailable, returning 0:', error.message);
+      return NextResponse.json({ viewsLast7Days: 0 });
     }
 
     return NextResponse.json({ viewsLast7Days: count ?? 0 });
   } catch (err: unknown) {
-    console.error('profile/views-count error:', err);
-    return NextResponse.json(
-      { error: 'Failed to load views count' },
-      { status: 500 }
-    );
+    console.warn('profile/views-count failed, returning 0:', err);
+    return NextResponse.json({ viewsLast7Days: 0 });
   }
 }

@@ -230,7 +230,7 @@ export default function QASetupPage() {
               <Alert>
                 <AlertDescription>
                   <strong>Next Steps:</strong> You can now log in with any of these accounts using
-                  the credentials shown above. Each account will only see tenders matching their
+                  the credentials shown above. Each account will only see jobs matching their
                   primary trade.
                 </AlertDescription>
               </Alert>

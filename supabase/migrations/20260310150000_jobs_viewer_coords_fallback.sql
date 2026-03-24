@@ -1,6 +1,6 @@
 -- Fix: get_jobs_visible_to_viewer uses base_lat/base_lng only. Use COALESCE with
 -- location_lat/location_lng so new users (who have coords from signup geocoding)
--- can see jobs. Mirrors tender discovery fix in 20260310140000.
+-- can see jobs.
 
 create or replace function public.get_jobs_visible_to_viewer(
   viewer_id uuid,

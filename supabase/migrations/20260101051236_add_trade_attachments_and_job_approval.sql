@@ -1,49 +1,8 @@
 /*
-  # Add Trade Attachments and Job Approval Workflow
+  # Job approval workflow
 
-  ## Changes
-
-  1. **Trade Attachments**
-    - Add `documents` column to `tender_trade_requirements` (jsonb array)
-      - Each document: { url: string, name: string, type: string, size: number }
-    - Add `links` column to `tender_trade_requirements` (jsonb array)
-      - Each link: { url: string, title: string }
-
-  2. **Job Approval Workflow**
-    - Add `approval_status` column to `jobs` (pending_approval, approved, rejected)
-    - Add `approval_notes` column to `jobs` (text, for admin notes on rejection)
-    - Add `approved_by` column to `jobs` (uuid, references users)
-    - Add `approved_at` column to `jobs` (timestamptz)
-    - Update existing jobs to have 'approved' status by default
-
-  3. **Security**
-    - Trade attachments inherit existing RLS policies from tender_trade_requirements
-    - Job approval fields follow existing job RLS policies
-    - Only admins can modify approval fields
-
-  ## Notes
-  - Trade attachments are scoped per trade requirement (not global tender)
-  - Jobs now require admin approval before becoming publicly visible
-  - Helper text in UI: "Only visible to this trade, the tender owner, and admin."
+  Adds admin approval fields to `jobs` for moderation.
 */
-
--- Add trade attachments columns to tender_trade_requirements
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_name = 'tender_trade_requirements' AND column_name = 'documents'
-  ) THEN
-    ALTER TABLE tender_trade_requirements ADD COLUMN documents jsonb DEFAULT '[]'::jsonb;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_name = 'tender_trade_requirements' AND column_name = 'links'
-  ) THEN
-    ALTER TABLE tender_trade_requirements ADD COLUMN links jsonb DEFAULT '[]'::jsonb;
-  END IF;
-END $$;
 
 -- Add job approval workflow columns
 DO $$

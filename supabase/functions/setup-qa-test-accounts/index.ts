@@ -81,7 +81,7 @@ const contractorTestAccounts: ContractorTestAccount[] = [
     password: 'password',
     name: 'QA Test - Contractor 1',
     role: 'contractor',
-    bio: 'QA test account for contractor tender creation workflows',
+    bio: 'QA test account for contractor job posting workflows',
     companyName: 'Build Co Sydney',
   },
   {
@@ -89,7 +89,7 @@ const contractorTestAccounts: ContractorTestAccount[] = [
     password: 'password',
     name: 'QA Test - Contractor 2',
     role: 'contractor',
-    bio: 'QA test account for multi-trade tender workflows',
+    bio: 'QA test account for multi-trade job workflows',
     companyName: 'Premier Constructions',
   },
   {
@@ -97,7 +97,7 @@ const contractorTestAccounts: ContractorTestAccount[] = [
     password: 'password',
     name: 'QA Test - Contractor 3',
     role: 'contractor',
-    bio: 'QA test account for large project tender workflows',
+    bio: 'QA test account for large project job workflows',
     companyName: 'Metro Builders Group',
   },
 ];
@@ -398,7 +398,6 @@ Deno.serve(async (req: Request) => {
             bio: contractorAccount.bio,
             builder_plan: 'NONE',
             builder_sub_status: 'NONE',
-            builder_free_trial_tender_used: false,
           });
 
           if (dbError) throw dbError;

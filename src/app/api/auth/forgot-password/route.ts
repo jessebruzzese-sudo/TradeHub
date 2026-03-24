@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServiceSupabase } from '@/lib/supabase-server';
+import { createServerSupabase } from '@/lib/supabase-server';
 import { createEmailEvent } from '@/lib/email/create-email-event';
 import { shouldSendEmailNow } from '@/lib/email/rollout';
 
@@ -36,6 +37,21 @@ export async function POST(req: Request) {
       process.env.APP_BASE_URL?.trim() ||
       process.env.NEXT_PUBLIC_APP_URL?.trim() ||
       'https://tradehub.com.au';
+
+    // Primary path: use Supabase native reset email. This is resilient even when
+    // the custom transactional email pipeline is unavailable.
+    try {
+      const publicSupabase = createServerSupabase();
+      const { error: nativeResetErr } = await publicSupabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${appBaseUrl}/reset-password`,
+      });
+      if (!nativeResetErr) {
+        return NextResponse.json({ ok: true, provider: 'supabase_native' });
+      }
+      console.warn('[forgot-password] native resetPasswordForEmail failed, falling back:', nativeResetErr);
+    } catch (nativeErr) {
+      console.warn('[forgot-password] native reset flow threw, falling back:', nativeErr);
+    }
 
     let resetUrl = `${appBaseUrl}/reset-password`;
     try {
@@ -81,7 +97,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unable to send reset link' }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, eventId: result.eventId });
+    return NextResponse.json({ ok: true, eventId: result.eventId, provider: 'email_pipeline' });
   } catch (error) {
     console.error('[forgot-password] invalid request:', error);
     return NextResponse.json({ error: 'Invalid request payload' }, { status: 400 });

@@ -25,37 +25,30 @@ Tester: _______________
 
 Using the same user account system, verify behaviour changes correctly:
 
-☐ User with contractor permissions can create a tender
-☐ User without contractor permissions cannot create a tender
+☐ User with contractor permissions can post a job (when ABN verified)
+☐ User without required verification cannot post a job
 ☐ User with subcontracting permissions can list availability
 ☐ UI hides actions the user cannot perform
 ☐ Restricted actions are blocked server-side (not UI-only)
 
-4. Tender Visibility & Trades
+4. Job Visibility & Trades
 
-Create a tender requiring Electrician + Plumber:
+Post a job requiring a specific trade (e.g. Electrical):
 
-☐ User with Electrician trade sees tender
-☐ User with Plumber trade sees tender
-☐ User with Carpenter trade does NOT see tender
+☐ User with matching trade sees the job in discovery (within radius rules)
+☐ User with a non-matching trade does not see irrelevant listings
 
-Tender detail page:
-☐ Electrician user sees only main + electrician content
-☐ Plumber user sees only main + plumber content
+Job detail page:
+☐ Poster and applicants see the correct scope and actions for their role
 
-5. Quotes / Applications
+5. Applications
 
-☐ Eligible user can apply or submit a quote
-☐ User cannot quote on their own tender
-☐ Tender must be LIVE to accept quotes
-
-Limited Quotes enabled:
-☐ All quote attempts are blocked
-☐ Correct message is shown
+☐ Eligible user can apply or message on a job
+☐ User cannot apply to their own job posting (where enforced)
 
 6. Messaging
 
-☐ Job/tender thread is created correctly
+☐ Job-related thread is created correctly
 ☐ Only users involved can access the thread
 ☐ Messages send and receive correctly
 ☐ Refresh preserves message history

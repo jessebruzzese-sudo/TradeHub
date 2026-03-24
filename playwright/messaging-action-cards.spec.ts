@@ -14,7 +14,7 @@ test.describe('Messaging — baseline (deterministic)', () => {
     await page.goto(`${BASE_URL}/messages`);
     await page.waitForLoadState('networkidle');
     await expect(page).toHaveURL(/\/messages/);
-    await expect(page.getByRole('heading', { name: /messages|conversations/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^messages$/i })).toBeVisible();
   });
 });
 

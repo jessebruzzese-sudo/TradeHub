@@ -37,7 +37,7 @@
 
   ## Notes
   - No lead-selling: Pro is for reach and alerts, not per-lead access
-  - All job/tender details remain visible to Free users
+  - All job details remain visible to Free users
   - Contractor/builder billing fields unchanged
 */
 

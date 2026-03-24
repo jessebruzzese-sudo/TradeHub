@@ -4,7 +4,6 @@
  */
 
 import { getDocumentProxy, extractText, renderPageAsImage } from 'unpdf';
-import { createWorker } from 'tesseract.js';
 import sharp from 'sharp';
 import { classifyPlanPage, type PlanPageType } from './plan-page-classifier';
 import { shouldTryRotatedOcr, pickBestOcrResult, type RotationDegrees } from './page-rotation-detection';
@@ -20,16 +19,12 @@ export type PlanPageAnalysis = {
 };
 
 const MAX_PAGES_ANALYZED = 12;
+const MAX_PAGES_WITH_ROTATED_OCR = 6;
 const WEAK_EMBEDDED_TEXT_THRESHOLD = 200;
 
-async function ocrImageBuffer(buffer: Buffer): Promise<string> {
-  const worker = await createWorker('eng');
-  try {
-    const { data } = await worker.recognize(buffer);
-    return data?.text?.trim() ?? '';
-  } finally {
-    await worker.terminate();
-  }
+async function ocrImageBuffer(worker: any, buffer: Buffer): Promise<string> {
+  const { data } = await worker.recognize(buffer);
+  return data?.text?.trim() ?? '';
 }
 
 async function rotateImageBuffer(buffer: Buffer, degrees: 90 | 270): Promise<Buffer> {
@@ -67,69 +62,81 @@ export async function preprocessPdfPlan(
 
   const pagesToProcess = Math.min(totalPages, MAX_PAGES_ANALYZED);
   const pages: PlanPageAnalysis[] = [];
+  const { createWorker } = await import('tesseract.js');
+  const worker = await createWorker('eng');
 
-  for (let p = 1; p <= pagesToProcess; p++) {
-    try {
-      console.log('[generate-from-plans] OCR page start', { pageNumber: p });
+  try {
+    for (let p = 1; p <= pagesToProcess; p++) {
+      try {
+        console.log('[generate-from-plans] OCR page start', { pageNumber: p });
 
-      const imgBuffer = await renderPageAsImage(pdfDoc, p, { scale: 1.2 });
-      const buf = Buffer.from(imgBuffer);
+        const imgBuffer = await renderPageAsImage(pdfDoc, p, { scale: 1.2 });
+        const buf = Buffer.from(imgBuffer);
 
-      let ocrText = await ocrImageBuffer(buf);
-      let rotation: RotationDegrees = 0;
+        let ocrText = await ocrImageBuffer(worker, buf);
+        let rotation: RotationDegrees = 0;
 
-      if (shouldTryRotatedOcr(ocrText)) {
-        const results: { rotation: RotationDegrees; ocrText: string }[] = [
-          { rotation: 0, ocrText },
-        ];
+        if (shouldTryRotatedOcr(ocrText) && p <= MAX_PAGES_WITH_ROTATED_OCR) {
+          const results: { rotation: RotationDegrees; ocrText: string }[] = [
+            { rotation: 0, ocrText },
+          ];
 
-        try {
-          const rotated90 = await rotateImageBuffer(buf, 90);
-          const ocr90 = await ocrImageBuffer(rotated90);
-          results.push({ rotation: 90, ocrText: ocr90 });
-        } catch {
-          // skip
+          try {
+            const rotated90 = await rotateImageBuffer(buf, 90);
+            const ocr90 = await ocrImageBuffer(worker, rotated90);
+            results.push({ rotation: 90, ocrText: ocr90 });
+          } catch {
+            // skip
+          }
+          try {
+            const rotated270 = await rotateImageBuffer(buf, 270);
+            const ocr270 = await ocrImageBuffer(worker, rotated270);
+            results.push({ rotation: 270, ocrText: ocr270 });
+          } catch {
+            // skip
+          }
+
+          const best = pickBestOcrResult(results);
+          ocrText = best.ocrText;
+          rotation = best.rotation;
+          console.log('[generate-from-plans] OCR page result', {
+            pageNumber: p,
+            textLength: best.textLength,
+            rotation,
+          });
+        } else {
+          if (shouldTryRotatedOcr(ocrText) && p > MAX_PAGES_WITH_ROTATED_OCR) {
+            console.log('[generate-from-plans] skipping rotated OCR due cap', {
+              pageNumber: p,
+              maxRotatedPages: MAX_PAGES_WITH_ROTATED_OCR,
+            });
+          }
+          console.log('[generate-from-plans] OCR page result', {
+            pageNumber: p,
+            textLength: ocrText.length,
+            rotation: 0,
+          });
         }
-        try {
-          const rotated270 = await rotateImageBuffer(buf, 270);
-          const ocr270 = await ocrImageBuffer(rotated270);
-          results.push({ rotation: 270, ocrText: ocr270 });
-        } catch {
-          // skip
-        }
 
-        const best = pickBestOcrResult(results);
-        ocrText = best.ocrText;
-        rotation = best.rotation;
-        console.log('[generate-from-plans] OCR page result', {
+        const classification = classifyPlanPage(ocrText);
+        const headingHints = extractHeadingHints(ocrText);
+        const dwellingLabel = extractDwellingLabelFromText(ocrText);
+
+        pages.push({
           pageNumber: p,
-          textLength: best.textLength,
+          pageType: classification.pageType,
           rotation,
+          ocrText,
+          headingHints,
+          dwellingLabel,
+          confidence: classification.confidence,
         });
-      } else {
-        console.log('[generate-from-plans] OCR page result', {
-          pageNumber: p,
-          textLength: ocrText.length,
-          rotation: 0,
-        });
+      } catch (err) {
+        console.error('[generate-from-plans] page preprocess failed', { pageNumber: p, error: err });
       }
-
-      const classification = classifyPlanPage(ocrText);
-      const headingHints = extractHeadingHints(ocrText);
-      const dwellingLabel = extractDwellingLabelFromText(ocrText);
-
-      pages.push({
-        pageNumber: p,
-        pageType: classification.pageType,
-        rotation,
-        ocrText,
-        headingHints,
-        dwellingLabel,
-        confidence: classification.confidence,
-      });
-    } catch (err) {
-      console.error('[generate-from-plans] page preprocess failed', { pageNumber: p, error: err });
     }
+  } finally {
+    await worker.terminate();
   }
 
   console.log('[generate-from-plans] classified pages', {

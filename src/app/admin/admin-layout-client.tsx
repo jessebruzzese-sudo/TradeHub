@@ -37,7 +37,6 @@ export default function AdminLayoutClient({
   ];
 
   const overflowNavItems = [
-    { href: '/admin/tenders', icon: FileText, label: 'Tenders' },
     { href: '/admin/jobs', icon: MessageSquare, label: 'Jobs' },
     { href: '/admin/audit-log', icon: FileText, label: 'Audit Log' },
     { href: '/admin/alerts', icon: Mail, label: 'Alerts' },

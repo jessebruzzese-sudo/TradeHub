@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AppLayout } from '@/components/app-nav';
@@ -10,12 +10,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/lib/auth';
-import { isPremiumForDiscovery } from '@/lib/discovery';
-import { getBrowserSupabase } from '@/lib/supabase-client';
 import { getStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { hasValidABN } from '@/lib/abn-utils';
+import { TRADE_CATEGORIES } from '@/lib/trades';
 import { MapPin, Search as SearchIcon, MessageSquare, Crown } from 'lucide-react';
+import ProfileSummaryTrustBar from '@/components/profile/ProfileSummaryTrustBar';
 
 type DirectoryUser = {
   id: string;
@@ -44,6 +44,13 @@ type DirectoryUser = {
   pricing_type?: string | null;
   pricing_amount?: number | null;
   show_pricing_in_listings?: boolean | null;
+
+  profile_strength_score?: number | null;
+  completed_jobs?: number | null;
+  /** Aliases from `/api/discovery/search` (optional). */
+  average_rating?: number | null;
+  review_count?: number | null;
+  reliability_percent?: number | null;
 };
 
 function norm(v?: string | null) {
@@ -86,36 +93,32 @@ function scoreUser(u: any) {
   return weightedScore;
 }
 
-function starsFromRating(r?: number | null) {
-  const v = Math.max(0, Math.min(5, Number(r ?? 0)));
-  const full = Math.floor(v);
-  const half = v - full >= 0.5 ? 1 : 0;
-  const empty = 5 - full - half;
-  return { v, full, half, empty };
+function reliabilityToPercentSearch(r?: number | null): number | null {
+  if (r == null || !Number.isFinite(Number(r))) return null;
+  const v = Number(r);
+  if (v <= 5) return Math.round((v / 5) * 100);
+  return Math.round(Math.min(100, v));
+}
+
+function getUserTrades(u: DirectoryUser): string[] {
+  const raw = (u as any)?.trades;
+  const fromTrades = Array.isArray(raw)
+    ? raw.map((t: unknown) => String(t).trim()).filter(Boolean)
+    : typeof raw === 'string'
+      ? raw.split(',').map((t) => t.trim()).filter(Boolean)
+      : [];
+  const fromTradeCategories = Array.isArray((u as any)?.trade_categories)
+    ? ((u as any).trade_categories as unknown[]).map((t) => String(t).trim()).filter(Boolean)
+    : [];
+  const fromPrimary = String((u as any)?.primary_trade ?? '').trim();
+  const merged = [...fromTrades, ...fromTradeCategories, ...(fromPrimary ? [fromPrimary] : [])];
+  return Array.from(new Set(merged));
 }
 
 export default function SearchDirectoryPage() {
-  const supabase = useMemo(() => getBrowserSupabase(), []);
   const router = useRouter();
   const store = useMemo(() => getStore(), []);
   const { currentUser } = useAuth();
-
-  const userForDiscovery = useMemo(
-    () =>
-      currentUser
-        ? {
-            plan: (currentUser as any).plan ?? null,
-            is_premium: (currentUser as any).isPremium ?? (currentUser as any).is_premium ?? undefined,
-            subscription_status: (currentUser as any).subscriptionStatus ?? (currentUser as any).subscription_status ?? null,
-            active_plan: (currentUser as any).activePlan ?? (currentUser as any).active_plan ?? null,
-            subcontractor_plan: undefined,
-            subcontractor_sub_status: undefined,
-          }
-        : null,
-    [currentUser]
-  );
-  const isViewerPremium = isPremiumForDiscovery(userForDiscovery);
-  const useRadiusApi = !!currentUser && !isViewerPremium;
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -124,6 +127,7 @@ export default function SearchDirectoryPage() {
   const [outsideRadiusCount, setOutsideRadiusCount] = useState(0);
   const [allowedRadiusKm, setAllowedRadiusKm] = useState(20);
   const [missingLocation, setMissingLocation] = useState(false);
+  const geocodeBackfillAttemptedRef = useRef(false);
   const [q, setQ] = useState('');
   const [trade, setTrade] = useState<string>('all');
   const [sort, setSort] = useState<
@@ -141,56 +145,33 @@ export default function SearchDirectoryPage() {
         setOutsideRadiusCount(0);
         setMissingLocation(false);
 
-        if (useRadiusApi) {
-          const params = new URLSearchParams();
-          if (q) params.set('q', q);
-          if (trade !== 'all') params.set('trade', trade);
-          if (verifiedOnly) params.set('verifiedOnly', 'true');
-          const res = await fetch(`/api/discovery/search?${params}`);
-          if (!res.ok) {
-            if (res.status === 401) throw new Error('Sign in to search');
-            throw new Error('Failed to load');
-          }
-          const data = await res.json();
-          if (cancelled) return;
-          setUsers((data.profiles ?? []) as DirectoryUser[]);
-          setOutsideRadiusCount(data.outsideRadiusCount ?? 0);
-          setAllowedRadiusKm(data.allowedRadiusKm ?? 20);
-          setMissingLocation(data.missingLocation ?? false);
-        } else {
-          const query = (supabase as any)
-            .from('public_profile_directory_with_ratings')
-            .select(
-              `id,
-               name,
-               role,
-               avatar,
-               cover_url,
-               business_name,
-               trades,
-               location,
-               postcode,
-               mini_bio,
-               rating,
-               rating_avg,
-               rating_count,
-               up_count,
-               down_count,
-               reliability_rating,
-               abn_status,
-               abn_verified_at,
-               premium_now,
-               premium_expires_at`
-            )
-            .eq('is_public_profile', true)
-            .neq('role', 'admin')
-            .order('business_name', { ascending: true });
-
-          const { data, error } = await query;
-
-          if (error) throw error;
-          if (!cancelled) setUsers(((data as unknown) as DirectoryUser[]) || []);
+        const params = new URLSearchParams();
+        if (q) params.set('q', q);
+        if (trade !== 'all') params.set('trade', trade);
+        if (verifiedOnly) params.set('verifiedOnly', 'true');
+        const res = await fetch(`/api/discovery/search?${params}`);
+        if (!res.ok) {
+          if (res.status === 401) throw new Error('Sign in to search');
+          throw new Error('Failed to load');
         }
+        const data = await res.json();
+        if (cancelled) return;
+        if (data?.missingLocation && !geocodeBackfillAttemptedRef.current) {
+          geocodeBackfillAttemptedRef.current = true;
+          try {
+            const geocodeRes = await fetch('/api/profile/geocode-location', { method: 'POST' });
+            if (geocodeRes.ok && !cancelled) {
+              setRetryKey((k) => k + 1);
+              return;
+            }
+          } catch {
+            // non-blocking: fall through to existing missing-location UI
+          }
+        }
+        setUsers((data.profiles ?? []) as DirectoryUser[]);
+        setOutsideRadiusCount(data.outsideRadiusCount ?? 0);
+        setAllowedRadiusKm(data.allowedRadiusKm ?? 20);
+        setMissingLocation(data.missingLocation ?? false);
       } catch (e) {
         console.error('Search directory load failed', e);
         if (!cancelled) {
@@ -208,17 +189,11 @@ export default function SearchDirectoryPage() {
     return () => {
       cancelled = true;
     };
-  }, [supabase, retryKey, useRadiusApi, q, trade, verifiedOnly]);
+  }, [retryKey, q, trade, verifiedOnly]);
 
   const allTrades = useMemo(() => {
-    const set = new Set<string>();
-    for (const u of users) {
-      for (const t of u.trades || []) {
-        if (t) set.add(t);
-      }
-    }
-    return ['all', ...Array.from(set).sort((a, b) => a.localeCompare(b))];
-  }, [users]);
+    return ['all', ...TRADE_CATEGORIES];
+  }, []);
 
   const filtered = useMemo(() => {
     const queryText = q.trim().toLowerCase();
@@ -230,7 +205,7 @@ export default function SearchDirectoryPage() {
       const name = norm(u.business_name || u.name).toLowerCase();
       const loc = norm(u.location || '').toLowerCase();
       const postcode = norm(u.postcode || '').toLowerCase();
-      const tradesRaw = (u.trades || []).map((t) => String(t));
+      const tradesRaw = getUserTrades(u);
       const tradesNorm = tradesRaw.map((t) => normTrade(t));
 
       const matchesText =
@@ -418,13 +393,13 @@ export default function SearchDirectoryPage() {
               <Card className="rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200 shadow-md">
                 <CardContent className="p-6">
                   <p className="text-sm font-medium text-slate-900">
-                    Add your location to discover profiles near you
+                    Set your map location to discover profiles near you
                   </p>
                   <p className="mt-1 text-sm text-slate-600">
-                    Free accounts can see profiles within {allowedRadiusKm}km. Add your location in profile settings to get started.
+                    Free accounts can see profiles within {allowedRadiusKm}km. If you already entered a suburb, open profile settings and re-select it so coordinates are saved.
                   </p>
                   <Link href="/profile/edit#location">
-                    <Button className="mt-4">Add location</Button>
+                    <Button className="mt-4">Set location</Button>
                   </Link>
                 </CardContent>
               </Card>
@@ -434,16 +409,11 @@ export default function SearchDirectoryPage() {
                   <p className="text-sm font-medium text-slate-900">
                     No profiles found
                   </p>
-                  <p className="mt-1 text-sm text-slate-600">
-                    {outsideRadiusCount > 0
-                      ? `No profiles within your ${allowedRadiusKm}km radius match your filters. ${outsideRadiusCount} matching profile${outsideRadiusCount === 1 ? '' : 's'} ${outsideRadiusCount === 1 ? 'is' : 'are'} outside your radius.`
-                      : 'Try a different trade or broaden your search.'}
-                  </p>
                 </CardContent>
               </Card>
             ) : (
               <>
-                {useRadiusApi && outsideRadiusCount > 0 && (
+                {outsideRadiusCount > 0 && (
                   <p className="mb-3 text-sm text-slate-600">
                     {outsideRadiusCount} matching profile{outsideRadiusCount === 1 ? '' : 's'} {outsideRadiusCount === 1 ? 'is' : 'are'} outside your {allowedRadiusKm}km radius.
                   </p>
@@ -452,6 +422,7 @@ export default function SearchDirectoryPage() {
                 {ranked.map((u) => {
                   const loc = u.location;
                   const premium = isPremium(u);
+                  const userTrades = getUserTrades(u);
 
                   return (
                     <div
@@ -543,31 +514,34 @@ export default function SearchDirectoryPage() {
                           )}
 
                           {(() => {
-                            const avg = Number((u as any).rating_avg ?? u.rating ?? 0);
-                            const count = Number((u as any).rating_count ?? 0);
-                            if (avg === 0 && count === 0) return null;
-                            const s = starsFromRating(avg);
+                            const avg = Number(
+                              (u as any).average_rating ?? (u as any).rating_avg ?? u.rating ?? 0
+                            );
+                            const count = Number((u as any).review_count ?? (u as any).rating_count ?? 0);
+                            const relPct =
+                              (u as any).reliability_percent != null &&
+                              !Number.isNaN(Number((u as any).reliability_percent))
+                                ? Number((u as any).reliability_percent)
+                                : reliabilityToPercentSearch((u as any).reliability_rating);
+                            const str = (u as any).profile_strength_score;
+                            const strengthPct =
+                              str != null && str !== '' && !Number.isNaN(Number(str)) ? Number(str) : null;
+                            const showRating = count > 0 || avg > 0;
+                            if (!showRating && relPct == null && strengthPct == null) return null;
                             return (
-                              <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
-                                <div className="flex items-center gap-0.5">
-                                  {Array.from({ length: s.full }).map((_, i) => (
-                                    <span key={'f'+i}>★</span>
-                                  ))}
-                                  {s.half === 1 && <span>☆</span>}
-                                  {Array.from({ length: s.empty }).map((_, i) => (
-                                    <span key={'e'+i}>☆</span>
-                                  ))}
-                                </div>
-                                <span className="font-semibold">{avg.toFixed(1)}</span>
-                                {count > 0 && (
-                                  <span className="text-slate-500">({count})</span>
-                                )}
+                              <div className="mt-2">
+                                <ProfileSummaryTrustBar
+                                  rating={showRating ? avg : undefined}
+                                  reviewCount={showRating ? count : undefined}
+                                  reliabilityPercent={relPct}
+                                  profileStrengthScore={strengthPct}
+                                />
                               </div>
                             );
                           })()}
 
                           <div className="mt-3 flex flex-wrap items-center gap-2">
-                            {(u.trades || []).slice(0, 5).map((t) => (
+                            {userTrades.slice(0, 5).map((t) => (
                               <span
                                 key={t}
                                 className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700"
@@ -575,9 +549,9 @@ export default function SearchDirectoryPage() {
                                 {prettyTrade(t)}
                               </span>
                             ))}
-                            {(u.trades || []).length > 5 && (
+                            {userTrades.length > 5 && (
                               <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
-                                +{(u.trades || []).length - 5}
+                                +{userTrades.length - 5}
                               </span>
                             )}
                             {isVerified(u) && (

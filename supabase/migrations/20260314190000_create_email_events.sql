@@ -13,7 +13,7 @@ create table if not exists public.email_events (
   sent_at timestamptz,
   created_at timestamptz not null default now(),
   constraint email_events_type_check
-    check (email_type in ('welcome', 'premium_upgraded', 'job_invite', 'quote_request', 'hire_confirmed')),
+    check (email_type in ('welcome', 'premium_upgraded', 'job_invite', 'hire_confirmed')),
   constraint email_events_status_check
     check (status in ('pending', 'sent', 'failed'))
 );

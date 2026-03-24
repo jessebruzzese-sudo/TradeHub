@@ -33,7 +33,18 @@ function meterPercent(value: number, max: number): number {
 }
 
 function toBreakdown(strengthCalc: ProfileStrengthCalc | null, profile: Record<string, any>): ProfileStrengthBreakdown {
-  const score = Number(strengthCalc?.total ?? profile?.profile_strength_score ?? 0);
+  const activityFromCalc = Number(strengthCalc?.activity ?? 0);
+  const linksFromCalc = Number(strengthCalc?.links ?? 0);
+  const googleFromCalc = Number(strengthCalc?.google ?? 0);
+  const likesFromCalc = Number(strengthCalc?.likes ?? 0);
+  const completenessFromCalc = Number(strengthCalc?.completeness ?? 0);
+  const abnFromCalc = Number(strengthCalc?.abn ?? 0);
+  const computedScoreFromCalc = Math.max(
+    0,
+    Math.min(100, Math.floor(activityFromCalc + linksFromCalc + googleFromCalc + likesFromCalc + completenessFromCalc + abnFromCalc))
+  );
+  const rawScore = Number(strengthCalc?.total ?? profile?.profile_strength_score ?? 0);
+  const score = rawScore > 0 ? rawScore : computedScoreFromCalc;
   const band = normalizeProfileStrengthBand(strengthCalc?.band ?? profile?.profile_strength_band ?? 'LOW');
   const abnVerified = profile?.abn_verified === true || profile?.abnVerified === true || profile?.abn_status === 'verified';
 
@@ -41,12 +52,12 @@ function toBreakdown(strengthCalc: ProfileStrengthCalc | null, profile: Record<s
     return {
       score,
       band,
-      activity_points: Number(strengthCalc.activity ?? 0),
-      links_points: Number(strengthCalc.links ?? 0),
-      google_points: Number(strengthCalc.google ?? 0),
-      likes_points: Number(strengthCalc.likes ?? 0),
-      completeness_points: Number(strengthCalc.completeness ?? 0),
-      abn_points: Number(strengthCalc.abn ?? 0),
+      activity_points: activityFromCalc,
+      links_points: linksFromCalc,
+      google_points: googleFromCalc,
+      likes_points: likesFromCalc,
+      completeness_points: completenessFromCalc,
+      abn_points: abnFromCalc,
     };
   }
 
@@ -87,7 +98,13 @@ export default function ProfileStrengthSection({ strengthCalc, profile }: Props)
   const inactiveDays = typeof strengthCalc?.inactive_days === 'number'
     ? strengthCalc.inactive_days
     : getInactiveDays(lastActiveAt);
-  const activityWarning = getActivityWarning(lastActiveAt);
+  const activityWarning = typeof strengthCalc?.inactive_days === 'number'
+    ? (inactiveDays >= 30
+        ? 'Your profile has been inactive. Open TradeHub to restore your activity score.'
+        : inactiveDays >= 22
+          ? 'Your activity score is starting to drop. Open TradeHub regularly to keep it strong.'
+          : null)
+    : getActivityWarning(lastActiveAt);
 
   const improvementItems = getMissingProfileImprovementItems({
     abnVerified,

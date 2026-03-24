@@ -1,6 +1,7 @@
 // @ts-nocheck - Supabase client type inference
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase-server';
+import { isLikelyTestAccount } from '@/lib/test-account';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,12 +52,19 @@ export async function GET(request: NextRequest) {
         .select('id, conversation_id, sender_id, text, attachments, is_system_message, created_at')
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: true }),
-      supabase.from('users').select('id, name, avatar').eq('id', otherUserId).maybeSingle(),
+      supabase.from('users').select('id, name, avatar, email').eq('id', otherUserId).maybeSingle(),
     ]);
 
     if (msgErr) {
       console.error('messages GET error:', msgErr);
       return NextResponse.json({ error: msgErr.message }, { status: 500 });
+    }
+
+    if (
+      otherUser &&
+      isLikelyTestAccount({ email: (otherUser as any).email, name: (otherUser as any).name })
+    ) {
+      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
     }
 
     const formatted = (messages ?? []).map((m) => ({

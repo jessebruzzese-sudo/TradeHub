@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { checkTenderCreationLimit } from './tender-limit-utils';
 import { getLimits, getTier, isPremiumPlanValue } from './plan-limits';
 import {
   bboxForRadiusKm,
@@ -107,47 +106,5 @@ describe('enforcement sweep: trade validation strictness', () => {
     const scoped = validateTradeWithScope({ trade: '  electrical ', scope: 'Rewire kitchen', extra: 1 });
     expect(scoped?.trade).toBe('Electrical');
     expect(scoped?.scope).toBe('Rewire kitchen');
-  });
-});
-
-describe('enforcement sweep: tender creation limits', () => {
-  const mockSupabase = (count: number | null, error: unknown = null) => ({
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          in: () => ({
-            gte: async () => ({ count, error }),
-          }),
-        }),
-      }),
-    }),
-  });
-
-  it('allows unlimited for premium users', async () => {
-    const result = await checkTenderCreationLimit(
-      mockSupabase(999) as any,
-      'user-1',
-      { id: 'user-1', plan: 'premium' }
-    );
-    expect(result.allowed).toBe(true);
-  });
-
-  it('blocks free users after monthly threshold', async () => {
-    const result = await checkTenderCreationLimit(
-      mockSupabase(1) as any,
-      'user-2',
-      { id: 'user-2', plan: 'free' }
-    );
-    expect(result.allowed).toBe(false);
-    expect(result.message).toMatch(/1 active tender per month/i);
-  });
-
-  it('fails open on query errors', async () => {
-    const result = await checkTenderCreationLimit(
-      mockSupabase(null, new Error('db error')) as any,
-      'user-3',
-      { id: 'user-3', plan: 'free' }
-    );
-    expect(result.allowed).toBe(true);
   });
 });

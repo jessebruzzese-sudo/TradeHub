@@ -37,7 +37,6 @@ import {
   ArrowRight,
   MessageSquare,
   Search,
-  FileText,
   ClipboardList,
   Bell,
   User,
@@ -128,7 +127,7 @@ function StatusChipsContent({
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom" align="center" className="max-w-[220px]">
-                <p className="text-xs">Verify ABN to post jobs and tenders</p>
+                <p className="text-xs">Verify ABN to post jobs</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -238,6 +237,8 @@ export default function DashboardPage() {
   const isAdminUser = isAdmin(currentUser);
   const isContractor = role === 'contractor';
   const isSubcontractor = role === 'subcontractor';
+  // Admin accounts should retain full operator dashboard actions.
+  const showContractorSections = isContractor || isAdminUser;
 
   const firstName =
     (currentUser?.name || (currentUser as any)?.fullName || (currentUser as any)?.businessName || '').split(' ')[0] ||
@@ -335,7 +336,7 @@ export default function DashboardPage() {
       return {
         key: 'verify_abn',
         title: 'Verify your ABN',
-        description: 'Verification unlocks posting jobs and applying for tenders.',
+        description: 'Verification unlocks posting jobs and applying to jobs.',
         cta: 'Verify ABN',
         href: `/verify-business?returnUrl=${encode('/dashboard')}`,
         secondaryCta: 'Learn more',
@@ -420,7 +421,7 @@ export default function DashboardPage() {
   }, [searchParams, router]);
 
   useEffect(() => {
-    if (!currentUser?.id) return;
+    if (!hasSession || !currentUser?.id) return;
 
     let cancelled = false;
 
@@ -450,7 +451,7 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser?.id]);
+  }, [hasSession, currentUser?.id]);
 
   useEffect(() => {
     if (!hasSession || !currentUser?.id) return;
@@ -856,7 +857,7 @@ export default function DashboardPage() {
           </div>
         </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {isContractor && (
+            {showContractorSections && (
               <>
                 <ActionCard
                   title="Post a Job"
@@ -871,13 +872,14 @@ export default function DashboardPage() {
                   href="/subcontractors"
                   icon={<Users className="h-5 w-5" />}
                 />
-                <ActionCard
-                  title="Tenders"
-                  description="Create and manage tenders."
-                  href="/tenders"
-                  icon={<FileText className="h-5 w-5" />}
-                  badge={!abnVerified ? <Badge variant="secondary">ABN required</Badge> : undefined}
-                />
+                {!isSubcontractor && (
+                  <ActionCard
+                    title="My Profile"
+                    description="View and edit your professional details."
+                    href="/profile"
+                    icon={<User className="h-5 w-5" />}
+                  />
+                )}
               </>
             )}
             {isSubcontractor && (
@@ -895,11 +897,10 @@ export default function DashboardPage() {
                   icon={<ClipboardList className="h-5 w-5" />}
                 />
                 <ActionCard
-                  title="Tenders"
-                  description="View and respond to tenders."
-                  href="/tenders"
-                  icon={<FileText className="h-5 w-5" />}
-                  badge={!abnVerified ? <Badge variant="secondary">ABN required</Badge> : undefined}
+                  title="My Profile"
+                  description="View and edit your professional details."
+                  href="/profile"
+                  icon={<User className="h-5 w-5" />}
                 />
               </>
             )}
@@ -976,7 +977,7 @@ export default function DashboardPage() {
           </div>
         </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {isContractor && (
+            {showContractorSections && (
               <>
                 <SecondaryToolCard
                   title="Messages"

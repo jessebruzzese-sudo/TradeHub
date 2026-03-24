@@ -5,7 +5,6 @@
 import type { RoomCounts } from '@/lib/ai/plan-room-detection';
 import type { BuildingElements } from '@/lib/ai/plan-room-detection';
 import type { DrainageDetection } from '@/lib/ai/plan-drainage-detection';
-import type { DetectedLocation } from '@/lib/ai/tender-draft-schema';
 import type { InferredTrade } from '@/lib/ai/plan-trade-inference';
 
 export type PlanConfidence = 'HIGH' | 'MEDIUM' | 'LOW';
@@ -58,7 +57,6 @@ export type DetectedSignalsInput = {
   drainage: DrainageDetection;
   inferredTrades: InferredTrade[];
   planText: string;
-  detectedLocation?: DetectedLocation | null;
   dwellingCount?: number;
 };
 

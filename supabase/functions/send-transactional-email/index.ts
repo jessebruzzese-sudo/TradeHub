@@ -32,14 +32,6 @@ import {
   type JobAlertTemplateInput,
 } from './templates/job-alert.ts';
 import {
-  buildTenderAlertTemplate,
-  type TenderAlertTemplateInput,
-} from './templates/tender-alert.ts';
-import {
-  buildQuoteRequestTemplate,
-  type QuoteRequestTemplateInput,
-} from './templates/quote-request.ts';
-import {
   buildHireConfirmedTemplate,
   type HireConfirmedTemplateInput,
 } from './templates/hire-confirmed.ts';
@@ -70,8 +62,6 @@ type EmailType =
   | 'payment_failed'
   | 'job_invite'
   | 'job_alert'
-  | 'tender_alert'
-  | 'quote_request'
   | 'hire_confirmed'
   | 'new_message'
   | 'abn_verified'
@@ -110,10 +100,6 @@ function buildTemplate(emailType: EmailType, payload: Record<string, unknown>): 
       return buildJobInviteTemplate(payload as unknown as JobInviteTemplateInput);
     case 'job_alert':
       return buildJobAlertTemplate(payload as unknown as JobAlertTemplateInput);
-    case 'tender_alert':
-      return buildTenderAlertTemplate(payload as unknown as TenderAlertTemplateInput);
-    case 'quote_request':
-      return buildQuoteRequestTemplate(payload as unknown as QuoteRequestTemplateInput);
     case 'hire_confirmed':
       return buildHireConfirmedTemplate(payload as unknown as HireConfirmedTemplateInput);
     case 'new_message':

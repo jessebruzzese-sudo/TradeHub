@@ -2,7 +2,7 @@
   # Create listing_alert_sends table
 
   ## Overview
-  Logs email sends for job/tender alerts. Used for duplicate prevention and debugging.
+  Logs email sends for job listing alerts. Used for duplicate prevention and debugging.
 
   ## Table: listing_alert_sends
   - id, listing_type, listing_id, recipient_user_id, recipient_email, trade_label
@@ -15,7 +15,7 @@
 
 CREATE TABLE IF NOT EXISTS public.listing_alert_sends (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  listing_type text NOT NULL CHECK (listing_type IN ('job', 'tender')),
+  listing_type text NOT NULL CHECK (listing_type IN ('job')),
   listing_id uuid NOT NULL,
   recipient_user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   recipient_email text NOT NULL,
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS public.listing_alert_sends (
 CREATE INDEX IF NOT EXISTS idx_listing_alert_sends_listing ON public.listing_alert_sends(listing_type, listing_id);
 CREATE INDEX IF NOT EXISTS idx_listing_alert_sends_recipient ON public.listing_alert_sends(recipient_user_id);
 
-COMMENT ON TABLE public.listing_alert_sends IS 'Log of email alerts sent for new jobs/tenders; used for duplicate prevention and debugging';
+COMMENT ON TABLE public.listing_alert_sends IS 'Log of email alerts sent for new jobs; used for duplicate prevention and debugging';
 
 -- RLS: restrict client access; service-role used for server-side writes
 ALTER TABLE public.listing_alert_sends ENABLE ROW LEVEL SECURITY;

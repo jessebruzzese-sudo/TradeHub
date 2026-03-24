@@ -3,22 +3,13 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { AppLayout } from '@/components/app-nav';
 import { Bell, CheckCircle, AlertCircle, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/empty-state';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { useAuth } from '@/lib/auth';
 import { useNotificationsUnread } from '@/lib/notifications-unread-context';
 import { getBrowserSupabase } from '@/lib/supabase-client';
-import { slugifyTrade } from '@/lib/slug-utils';
 import { toast } from 'sonner';
 
 type Notification = {
@@ -31,177 +22,6 @@ type Notification = {
   created_at: string | null;
   link?: string;
 };
-
-function QuoteRequestNotificationCard({
-  notification,
-  supabase,
-  currentUserId,
-  onAction,
-  onDelete,
-}: {
-  notification: Notification;
-  supabase: ReturnType<typeof getBrowserSupabase>;
-  currentUserId: string;
-  onAction: () => void;
-  onDelete: () => void;
-}) {
-  const [accepting, setAccepting] = useState(false);
-  const [declining, setDeclining] = useState(false);
-  const [trades, setTrades] = useState<{ trade: string }[]>([]);
-  const [selectedTrade, setSelectedTrade] = useState<string>('');
-  const [resolved, setResolved] = useState(false);
-  const router = useRouter();
-
-  const data = (notification.data ?? {}) as { request_id?: string; tender_id?: string; requester_id?: string };
-  const requestId = data.request_id as string | undefined;
-  const tenderId = data.tender_id as string | undefined;
-  const requesterId = data.requester_id as string | undefined;
-
-  const isQuoteRequest = notification.type === 'QUOTE_REQUEST';
-
-  useEffect(() => {
-    if (isQuoteRequest && tenderId) {
-      supabase
-        .from('tender_trade_requirements')
-        .select('trade')
-        .eq('tender_id', tenderId)
-        .then(({ data: reqs }) => {
-          const list = (reqs ?? []) as { trade: string }[];
-          setTrades(list);
-          if (list.length === 1) setSelectedTrade(slugifyTrade(list[0].trade));
-        });
-    }
-  }, [isQuoteRequest, tenderId, supabase]);
-
-  const markNotificationRead = useCallback(async () => {
-    if (!notification.read) {
-      await supabase.from('notifications').update({ read: true }).eq('id', notification.id).eq('user_id', currentUserId);
-    }
-  }, [notification.id, notification.read, currentUserId, supabase]);
-
-  const handleAccept = async () => {
-    if (!requestId || !selectedTrade) {
-      toast.error('Please select a trade');
-      return;
-    }
-    setAccepting(true);
-    try {
-      // TODO(email-pipeline): migrate this RPC call behind a server API route so
-      // transactional email side effects are queued entirely server-side after commit.
-      const { error } = await supabase.rpc('accept_quote_request', {
-        p_request_id: requestId,
-        p_trade_slug: selectedTrade,
-      });
-      if (error) {
-        const msg = String((error as any)?.message || '');
-        if (msg.includes('quote_trade_limit_reached')) toast.error('Requester has used their 3 quotes for this trade.');
-        else toast.error('Could not accept.');
-        return;
-      }
-      await markNotificationRead();
-      toast.success('Request accepted');
-      setResolved(true);
-      onAction();
-      if (requesterId) {
-        router.push(`/messages?userId=${requesterId}`);
-      }
-    } catch (e) {
-      toast.error('Could not accept');
-    } finally {
-      setAccepting(false);
-    }
-  };
-
-  const handleDecline = async () => {
-    if (!requestId) return;
-    setDeclining(true);
-    try {
-      const { error } = await supabase.rpc('decline_quote_request', { p_request_id: requestId });
-      if (error) {
-        toast.error('Could not decline');
-        return;
-      }
-      await markNotificationRead();
-      toast.success('Request declined');
-      setResolved(true);
-      onAction();
-    } catch (e) {
-      toast.error('Could not decline');
-    } finally {
-      setDeclining(false);
-    }
-  };
-
-  return (
-    <div
-      className={`bg-white border border-gray-200 rounded-xl p-4 hover:shadow-sm transition-shadow ${
-        !notification.read ? 'bg-blue-50' : ''
-      }`}
-    >
-      <div className="flex items-start gap-3">
-        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-          <Bell className="w-5 h-5 text-blue-600" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-3 mb-1">
-            <h3 className="font-semibold text-gray-900">{notification.title}</h3>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {!notification.read && (
-                <div className="w-2 h-2 bg-blue-600 rounded-full mt-2" />
-              )}
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center touch-manipulation"
-                aria-label="Delete notification"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-          <p className="text-sm text-gray-600 mb-2">{notification.description}</p>
-          <p className="text-xs text-gray-500 mb-3">{notification.created_at ? timeAgo(notification.created_at) : ''}</p>
-          {isQuoteRequest && !resolved && requestId && tenderId && (
-            <div className="flex flex-wrap items-center gap-2 mt-2">
-              {trades.length > 1 ? (
-                <Select value={selectedTrade} onValueChange={setSelectedTrade}>
-                  <SelectTrigger className="w-[180px] h-9">
-                    <SelectValue placeholder="Select trade" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {trades.map((t) => (
-                      <SelectItem key={t.trade} value={slugifyTrade(t.trade)}>
-                        {t.trade}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : null}
-              <Button
-                size="sm"
-                onClick={handleAccept}
-                disabled={accepting || declining || !selectedTrade}
-              >
-                {accepting ? 'Accepting…' : 'Accept'}
-              </Button>
-              <Button size="sm" variant="outline" onClick={handleDecline} disabled={accepting || declining}>
-                {declining ? 'Declining…' : 'Decline'}
-              </Button>
-              <Button size="sm" variant="ghost" asChild>
-                <Link href={`/tenders/${tenderId}`}>View tender</Link>
-              </Button>
-            </div>
-          )}
-          {isQuoteRequest && resolved && tenderId && (
-            <Button size="sm" variant="outline" asChild>
-              <Link href={`/tenders/${tenderId}`}>View tender</Link>
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function GenericNotificationCard({
   notification,
@@ -435,24 +255,13 @@ export default function NotificationsPage() {
 
             {!loading && notifications.length > 0 && (
               <div className="space-y-2">
-                {notifications.map((notification) =>
-                  notification.type === 'QUOTE_REQUEST' ? (
-                    <QuoteRequestNotificationCard
-                      key={notification.id}
-                      notification={notification}
-                      supabase={supabase}
-                      currentUserId={currentUser!.id}
-                      onAction={fetchNotifications}
-                      onDelete={() => handleDelete(notification.id)}
-                    />
-                  ) : (
-                    <GenericNotificationCard
-                      key={notification.id}
-                      notification={notification}
-                      onDelete={() => handleDelete(notification.id)}
-                    />
-                  )
-                )}
+                {notifications.map((notification) => (
+                  <GenericNotificationCard
+                    key={notification.id}
+                    notification={notification}
+                    onDelete={() => handleDelete(notification.id)}
+                  />
+                ))}
               </div>
             )}
 

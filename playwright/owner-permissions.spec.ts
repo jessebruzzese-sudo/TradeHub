@@ -1,5 +1,5 @@
 /**
- * Owner-only permissions for jobs and tenders.
+ * Owner-only permissions for jobs.
  * - Only owner/admin sees close/delete/manage actions.
  * - Non-owner users do not see owner-only controls.
  *
@@ -60,54 +60,5 @@ test.describe('Owner-only permissions — jobs', () => {
 
     const closeBtn = page.getByRole('button', { name: /close job posting/i });
     await expect(closeBtn).toBeHidden();
-  });
-});
-
-test.describe('Owner-only permissions — tenders', () => {
-  test('owned tender detail shows Manage/Close/Delete', async ({ page }) => {
-    await page.goto(`${BASE_URL}/tenders`);
-    await page.waitForLoadState('networkidle');
-    await page.getByRole('tab', { name: /my tenders/i }).click();
-    await page.waitForLoadState('networkidle');
-
-    const seededLink = page.getByRole('link', { name: SEED_TITLES.tender.ownedLive });
-    const fallbackLink = page.locator('a[href^="/tenders/"]').first();
-    const tenderLink = (await seededLink.isVisible().catch(() => false)) ? seededLink : fallbackLink;
-    if (!(await tenderLink.isVisible().catch(() => false))) {
-      test.skip(true, 'Missing seed: run npm run qa:seed');
-    }
-    await tenderLink.click();
-    await page.waitForLoadState('networkidle');
-
-    const manageBtn = page.getByRole('button', { name: /manage tender/i });
-    if (await manageBtn.isVisible().catch(() => false)) {
-      await expect(manageBtn).toBeVisible();
-    }
-    const closeBtn = page.getByRole('button', { name: /^close$/i });
-    const deleteBtn = page.getByRole('button', { name: /^delete$/i });
-    if (await closeBtn.isVisible().catch(() => false)) await expect(closeBtn).toBeVisible();
-    if (await deleteBtn.isVisible().catch(() => false)) await expect(deleteBtn).toBeVisible();
-  });
-
-  test('non-owned tender detail does not show Manage/Close/Delete', async ({ page }) => {
-    await page.goto(`${BASE_URL}/tenders`);
-    await page.waitForLoadState('networkidle');
-    await page.getByRole('tab', { name: /view available tenders/i }).click();
-    await page.waitForLoadState('networkidle');
-
-    const seededLink = page.getByRole('link', { name: SEED_TITLES.tender.nonOwned });
-    const fallbackLink = page.locator('a[href^="/tenders/"]').first();
-    const tenderLink = (await seededLink.isVisible().catch(() => false)) ? seededLink : fallbackLink;
-    if (!(await tenderLink.isVisible().catch(() => false))) {
-      test.skip(true, 'Missing seed: run npm run qa:seed');
-    }
-    await tenderLink.click();
-    await page.waitForLoadState('networkidle');
-
-    const manageBtn = page.getByRole('button', { name: /manage tender/i });
-    if (await manageBtn.isVisible().catch(() => false)) {
-      test.skip(true, 'Viewed tender is owned; need [QA] Non-Owned Tender');
-    }
-    await expect(manageBtn).toBeHidden();
   });
 });

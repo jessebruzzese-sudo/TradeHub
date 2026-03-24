@@ -1,6 +1,6 @@
 /**
  * ABN enforcement: gates ACTIONS ONLY (create/publish/apply/confirm/accept/award).
- * Browsing Jobs/Tenders/Messages is allowed for non-ABN users.
+ * Browsing Jobs/Messages is allowed for non-ABN users.
  */
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { hasValidABN, getABNGateUrl } from '@/lib/abn-utils';

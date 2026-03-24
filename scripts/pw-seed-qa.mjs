@@ -9,9 +9,8 @@
  * - pw-free@tradehub.test (verified free user) — PW_EMAIL
  * - pw-premium@tradehub.test (verified premium user) — PW_PREMIUM_EMAIL
  * - pw-unverified@tradehub.test (unverified, no ABN) — PW_NO_ABN_EMAIL
- * - pw-other@tradehub.test (verified, for non-owned jobs/tenders)
+ * - pw-other@tradehub.test (verified, for non-owned jobs)
  * - Jobs: owned open, non-owned open, owned with attachment
- * - Tenders: owned draft, owned live, non-owned
  * - Public profiles (2+), one verified
  *
  * Output: playwright/seed-ids.json with IDs for tests
@@ -142,6 +141,25 @@ const SEED_USERS = [
 ];
 
 async function ensureUser(acc) {
+  const tradeList = acc.primary_trade ? [acc.primary_trade] : [];
+  const userMetadata = {
+    name: acc.name,
+    role: acc.role,
+    primaryTrade: acc.primary_trade ?? null,
+    primary_trade: acc.primary_trade ?? null,
+    trade_categories: tradeList,
+    trades: tradeList,
+    abn: acc.abn ?? null,
+    abn_status: acc.abn_status ?? null,
+    abnVerified: acc.abn_status === 'VERIFIED',
+    location: acc.location ?? null,
+    postcode: acc.postcode ?? null,
+    locationLat: acc.base_lat ?? null,
+    locationLng: acc.base_lng ?? null,
+    location_lat: acc.base_lat ?? null,
+    location_lng: acc.base_lng ?? null,
+  };
+
   const { data: users } = await admin.auth.admin.listUsers();
   let authUser = users?.users?.find((u) => u.email === acc.email);
   if (!authUser) {
@@ -149,11 +167,15 @@ async function ensureUser(acc) {
       email: acc.email,
       password: PASSWORD,
       email_confirm: true,
+      user_metadata: userMetadata,
     });
     if (error) throw error;
     authUser = data.user;
   } else {
-    await admin.auth.admin.updateUserById(authUser.id, { password: PASSWORD });
+    await admin.auth.admin.updateUserById(authUser.id, {
+      password: PASSWORD,
+      user_metadata: userMetadata,
+    });
   }
   const userId = authUser.id;
   const abnVerifiedAt = acc.abn_status === 'VERIFIED' && acc.abn ? NOW : null;
@@ -184,7 +206,7 @@ async function ensureUser(acc) {
   );
   if (error) throw error;
 
-  // Populate user_trades for discovery RPCs (get_jobs_visible_to_viewer, get_tenders_visible_to_viewer)
+  // Populate user_trades for discovery RPCs (get_jobs_visible_to_viewer)
   if (acc.primary_trade) {
     await admin.from('user_trades').upsert(
       { user_id: userId, trade: acc.primary_trade, is_primary: true, updated_at: NOW },
@@ -195,7 +217,7 @@ async function ensureUser(acc) {
 }
 
 async function main() {
-  const ids = { users: {}, jobs: {}, tenders: {} };
+  const ids = { users: {}, jobs: {} };
 
   console.log('Seeding QA users...');
   for (const u of SEED_USERS) {
@@ -203,7 +225,6 @@ async function main() {
   }
   const freeId = ids.users['pw-free@tradehub.test'];
   const otherId = ids.users['pw-other@tradehub.test'];
-  const unverifiedId = ids.users['pw-unverified@tradehub.test'];
 
   // Jobs: owned by free, non-owned by other (delete existing QA jobs first for idempotency)
   console.log('Seeding QA jobs...');
@@ -271,144 +292,6 @@ async function main() {
   };
   const { data: job3 } = await admin.from('jobs').insert(jobWithAttachment).select('id').single();
   if (job3) ids.jobs.withAttachment = job3.id;
-
-  // Tenders: owned draft, owned live, non-owned (delete existing QA tenders first)
-  console.log('Seeding QA tenders...');
-  const { error: delTenders } = await admin.from('tenders').delete().ilike('project_name', '[QA]%');
-  if (delTenders) console.warn('Could not delete existing QA tenders:', delTenders.message);
-  const ownedDraft = {
-    builder_id: freeId,
-    project_name: '[QA] Owned Draft Tender',
-    project_description: 'Deterministic QA draft for owner tests.',
-    suburb: 'Sydney',
-    postcode: '2000',
-    lat: SYDNEY_LAT,
-    lng: SYDNEY_LNG,
-    status: 'DRAFT',
-    tier: 'FREE_TRIAL',
-    budget_min_cents: 50000,
-    budget_max_cents: 100000,
-    desired_start_date: TOMORROW,
-    desired_end_date: IN_3_DAYS,
-  };
-  const { data: t1 } = await admin.from('tenders').insert(ownedDraft).select('id').single();
-  if (t1) {
-    ids.tenders.ownedDraft = t1.id;
-    await admin.from('tender_trade_requirements').upsert(
-      { tender_id: t1.id, trade: 'Electrical', sub_description: '' },
-      { onConflict: 'tender_id,trade' }
-    );
-  }
-
-  const ownedLive = {
-    builder_id: freeId,
-    project_name: '[QA] Owned Live Tender',
-    project_description: 'Deterministic QA live tender.',
-    suburb: 'Sydney',
-    postcode: '2000',
-    lat: SYDNEY_LAT,
-    lng: SYDNEY_LNG,
-    status: 'LIVE',
-    tier: 'FREE_TRIAL',
-    budget_min_cents: 60000,
-    budget_max_cents: 120000,
-    desired_start_date: TOMORROW,
-    desired_end_date: IN_3_DAYS,
-  };
-  const { data: t2 } = await admin.from('tenders').insert(ownedLive).select('id').single();
-  if (t2) {
-    ids.tenders.ownedLive = t2.id;
-    await admin.from('tender_trade_requirements').upsert(
-      { tender_id: t2.id, trade: 'Plumbing', sub_description: '' },
-      { onConflict: 'tender_id,trade' }
-    );
-    // Tender with document attachment for attachment tests
-    await admin.from('tender_documents').insert({
-      tender_id: t2.id,
-      file_name: 'qa-spec.pdf',
-      file_url: 'https://example.com/qa-spec.pdf',
-      mime_type: 'application/pdf',
-      size_bytes: 1024,
-      trade: null,
-    });
-  }
-
-  const nonOwnedTender = {
-    builder_id: otherId,
-    project_name: '[QA] Non-Owned Tender',
-    project_description: 'Deterministic QA tender from other builder.',
-    suburb: 'Sydney',
-    postcode: '2000',
-    lat: SYDNEY_LAT,
-    lng: SYDNEY_LNG,
-    status: 'LIVE',
-    tier: 'FREE_TRIAL',
-    budget_min_cents: 70000,
-    budget_max_cents: 140000,
-    desired_start_date: TOMORROW,
-    desired_end_date: IN_3_DAYS,
-    is_anonymous: false,
-  };
-  const { data: t3 } = await admin.from('tenders').insert(nonOwnedTender).select('id').single();
-  if (t3) {
-    ids.tenders.nonOwned = t3.id;
-    await admin.from('tender_trade_requirements').upsert(
-      { tender_id: t3.id, trade: 'Electrical', sub_description: '' },
-      { onConflict: 'tender_id,trade' }
-    );
-  }
-
-  // [E2E Discovery] tender for tender-discovery-visibility.spec.ts (deterministic coords)
-  const { error: delDiscovery } = await admin.from('tenders').delete().ilike('project_name', '[E2E Discovery]%');
-  if (delDiscovery) console.warn('Could not delete existing [E2E Discovery] tenders:', delDiscovery.message);
-  const discoveryTender = {
-    builder_id: otherId,
-    project_name: '[E2E Discovery] Plastering Tender',
-    project_description: 'Plastering and gyprock works for E2E discovery test.',
-    suburb: 'Sydney',
-    postcode: '2000',
-    lat: SYDNEY_LAT,
-    lng: SYDNEY_LNG,
-    status: 'LIVE',
-    tier: 'FREE_TRIAL',
-    budget_min_cents: 50000,
-    budget_max_cents: 100000,
-    desired_start_date: TOMORROW,
-    desired_end_date: IN_3_DAYS,
-    is_anonymous: false,
-  };
-  const { data: tDiscovery } = await admin.from('tenders').insert(discoveryTender).select('id').single();
-  if (tDiscovery) {
-    await admin.from('tender_trade_requirements').upsert(
-      { tender_id: tDiscovery.id, trade: 'Plastering / Gyprock', sub_description: 'Internal plasterboard wall and ceiling linings.' },
-      { onConflict: 'tender_id,trade' }
-    );
-  }
-
-  const anonymousTender = {
-    builder_id: otherId,
-    project_name: '[QA] Anonymous Tender',
-    project_description: 'Deterministic QA anonymous tender for request-to-quote tests.',
-    suburb: 'Sydney',
-    postcode: '2000',
-    lat: SYDNEY_LAT,
-    lng: SYDNEY_LNG,
-    status: 'LIVE',
-    tier: 'FREE_TRIAL',
-    budget_min_cents: 80000,
-    budget_max_cents: 150000,
-    desired_start_date: TOMORROW,
-    desired_end_date: IN_3_DAYS,
-    is_anonymous: true,
-  };
-  const { data: t4 } = await admin.from('tenders').insert(anonymousTender).select('id').single();
-  if (t4) {
-    ids.tenders.anonymous = t4.id;
-    await admin.from('tender_trade_requirements').upsert(
-      { tender_id: t4.id, trade: 'Electrical', sub_description: '' },
-      { onConflict: 'tender_id,trade' }
-    );
-  }
 
   // Clear subcontractor_availability for QA users so "No availability" tests are deterministic
   const qaUserIds = Object.values(ids.users);

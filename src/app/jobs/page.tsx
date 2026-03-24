@@ -9,7 +9,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Briefcase, Plus, ShieldCheck, ArrowRight, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -118,6 +118,56 @@ export default function JobsPage() {
     : null;
 
   const isPremium = isPremiumForDiscovery(userForDiscovery);
+
+  const [postLimitInfo, setPostLimitInfo] = useState<{
+    unlimited: boolean;
+    usedInWindow?: number;
+    maxFree?: number;
+    windowDays?: number;
+  } | null>(null);
+
+  const refreshPostLimit = useCallback(async () => {
+    if (!currentUser?.id) return;
+    if (isPremium) {
+      setPostLimitInfo({ unlimited: true });
+      return;
+    }
+    try {
+      const res = await fetch('/api/jobs/post-limit', { credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPostLimitInfo(null);
+        return;
+      }
+      if (data.unlimited) {
+        setPostLimitInfo({ unlimited: true });
+        return;
+      }
+      setPostLimitInfo({
+        unlimited: false,
+        usedInWindow: data.usedInWindow ?? 0,
+        maxFree: data.maxFree ?? 1,
+        windowDays: data.windowDays ?? 30,
+      });
+    } catch {
+      setPostLimitInfo(null);
+    }
+  }, [currentUser?.id, isPremium]);
+
+  useEffect(() => {
+    void refreshPostLimit();
+  }, [refreshPostLimit]);
+
+  const atFreeJobLimit =
+    !isPremium &&
+    postLimitInfo !== null &&
+    !postLimitInfo.unlimited &&
+    (postLimitInfo.usedInWindow ?? 0) >= (postLimitInfo.maxFree ?? 1);
+
+  const freeJobUsageLine =
+    postLimitInfo && !postLimitInfo.unlimited && postLimitInfo.maxFree != null && postLimitInfo.windowDays != null
+      ? `${Math.min(postLimitInfo.usedInWindow ?? 0, postLimitInfo.maxFree)} of ${postLimitInfo.maxFree} free job posts used in the last ${postLimitInfo.windowDays} days.`
+      : null;
 
   const allowedRadiusKm = isPremium ? 100 : 20;
   const TradeIcon = getTradeIcon(currentUser?.primaryTrade ?? undefined);
@@ -253,6 +303,7 @@ export default function JobsPage() {
 
       toast.success('Job deleted');
       setMyPostsDb((prev: any[]) => (prev ?? []).filter((j) => j.id !== jobId));
+      void refreshPostLimit();
     } catch (err) {
       console.error('[jobs] delete failed', err);
       toast.error('Could not delete job.');
@@ -440,6 +491,26 @@ export default function JobsPage() {
             </div>
           )}
 
+          {!showAbnGateForPosting && !isPremium && postLimitInfo && !postLimitInfo.unlimited && (
+            <div
+              className={`mb-4 rounded-xl border px-4 py-3 text-sm shadow-sm ${
+                atFreeJobLimit ? 'border-amber-300 bg-amber-50 text-amber-950' : 'border-slate-200 bg-white/90 text-slate-800'
+              }`}
+            >
+              {atFreeJobLimit ? (
+                <p>
+                  <span className="font-semibold">Your free job limit has been reached.</span>{' '}
+                  <Link href="/pricing" className="font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900">
+                    Upgrade for unlimited jobs
+                  </Link>
+                  .
+                </p>
+              ) : freeJobUsageLine ? (
+                <p>{freeJobUsageLine}</p>
+              ) : null}
+            </div>
+          )}
+
           <Tabs value={tab} onValueChange={(v) => setTab(v as JobsTab)}>
             {/* Main surface */}
             <Card className="border-black/5 bg-white/75 shadow-sm backdrop-blur">
@@ -464,6 +535,22 @@ export default function JobsPage() {
                         <ArrowRight className="h-4 w-4" />
                       </Button>
                     </Link>
+                  ) : atFreeJobLimit ? (
+                    <div className="flex flex-col items-stretch gap-1 sm:items-end">
+                      <Button
+                        type="button"
+                        variant="primary-green"
+                        className="h-10 gap-2 rounded-xl opacity-60 shadow-sm"
+                        disabled
+                        aria-disabled
+                      >
+                        <Plus className="h-4 w-4" />
+                        Post Job
+                      </Button>
+                      <span className="max-w-[14rem] text-right text-xs text-amber-900 sm:max-w-none">
+                        Free limit reached — upgrade for unlimited posting.
+                      </span>
+                    </div>
                   ) : (
                     <Link href="/jobs/create">
                       <Button

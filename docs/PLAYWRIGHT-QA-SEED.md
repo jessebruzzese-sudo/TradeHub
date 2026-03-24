@@ -33,13 +33,10 @@ Deterministic seed data for E2E tests. Run before the Playwright suite for stabl
 | User | pw-free@tradehub.test | Verified free (PW_EMAIL) |
 | User | pw-premium@tradehub.test | Verified premium |
 | User | pw-unverified@tradehub.test | Unverified, no ABN |
-| User | pw-other@tradehub.test | Non-owned jobs/tenders |
+| User | pw-other@tradehub.test | Non-owned jobs |
 | Job | [QA] Owned Open Job | Owner-permissions |
 | Job | [QA] Non-Owned Open Job | Non-owner tests |
 | Job | [QA] Job With Attachment | Attachment tests |
-| Tender | [QA] Owned Draft Tender | Owner draft |
-| Tender | [QA] Owned Live Tender | Owner live + document |
-| Tender | [QA] Non-Owned Tender | Non-owner tests |
 
 ## Output
 

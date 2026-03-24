@@ -15,14 +15,12 @@ import { CheckCircle2 } from 'lucide-react';
 interface ApprovalConfirmationModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  type: 'tender' | 'job';
   redirectPath?: string;
 }
 
 export function ApprovalConfirmationModal({
   open,
   onOpenChange,
-  type,
   redirectPath = '/dashboard',
 }: ApprovalConfirmationModalProps) {
   const router = useRouter();
@@ -41,19 +39,12 @@ export function ApprovalConfirmationModal({
               <CheckCircle2 className="h-8 w-8 text-green-600" />
             </div>
           </div>
-          <DialogTitle className="text-center text-xl">
-            {type === 'tender' ? 'Tender' : 'Job'} submitted for approval
-          </DialogTitle>
+          <DialogTitle className="text-center text-xl">Job submitted for approval</DialogTitle>
           <DialogDescription className="text-center space-y-3">
             <p>
-              Your {type} has been sent to our team for a quick review. This usually takes less
-              than 1 hour. You'll be notified as soon as it's approved and live.
+              Your job has been sent to our team for a quick review. This usually takes less than 1
+              hour. You&apos;ll be notified as soon as it&apos;s approved and live.
             </p>
-            {type === 'tender' && (
-              <p className="text-sm text-gray-600 bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
-                Once approved, subcontractors can submit quotes and message you. You'll confirm the hire once you choose the right person for the job.
-              </p>
-            )}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="sm:justify-center">

@@ -9,6 +9,7 @@ import {
 } from '@/lib/discovery';
 import { getTier } from '@/lib/plan-limits';
 import { hasValidABN } from '@/lib/abn-utils';
+import { applyExcludeTestAccountsFilters } from '@/lib/test-account';
 
 type UserRow = {
   id: string;
@@ -34,6 +35,9 @@ type UserRow = {
   is_premium?: boolean | null;
   premium_now?: boolean | null;
   premium_expires_at?: string | null;
+  reliability_rating?: number | null;
+  profile_strength_score?: number | null;
+  completed_jobs?: number | null;
 };
 
 function normalizeTrade(s: string): string {
@@ -85,6 +89,13 @@ function isVerified(row: UserRow): boolean {
 
 function norm(v?: string | null): string {
   return String(v || '').trim().toLowerCase();
+}
+
+function reliabilityToPercent(r: number | null | undefined): number | null {
+  if (r == null || !Number.isFinite(Number(r))) return null;
+  const v = Number(r);
+  if (v <= 5) return Math.round((v / 5) * 100);
+  return Math.round(Math.min(100, v));
 }
 
 function matchesText(row: UserRow, queryText: string, userTradesMap?: Map<string, string[]>): boolean {
@@ -158,15 +169,18 @@ export async function GET(request: NextRequest) {
       `and(location_lat.gte.${bbox.minLat},location_lat.lte.${bbox.maxLat},location_lng.gte.${bbox.minLng},location_lng.lte.${bbox.maxLng}),` +
       `and(base_lat.gte.${bbox.minLat},base_lat.lte.${bbox.maxLat},base_lng.gte.${bbox.minLng},base_lng.lte.${bbox.maxLng})`;
 
-    const { data: candidates, error: candErr } = await (supabase as any)
+    let candidatesQuery = (supabase as any)
       .from('users')
       .select(
-        'id,plan,location_lat,location_lng,base_lat,base_lng,primary_trade,additional_trades,trades,business_name,name,base_suburb,location,postcode,abn_status,abn_verified_at,avatar,cover_url,mini_bio,role,is_premium'
+        'id,plan,location_lat,location_lng,base_lat,base_lng,primary_trade,additional_trades,trades,business_name,name,base_suburb,location,postcode,abn_status,abn_verified_at,avatar,cover_url,mini_bio,role,is_premium,reliability_rating,profile_strength_score,completed_jobs'
       )
       .eq('is_public_profile', true)
       .neq('id', user.id)
       .neq('role', 'admin')
       .or(orClause);
+    candidatesQuery = applyExcludeTestAccountsFilters(candidatesQuery);
+
+    const { data: candidates, error: candErr } = await candidatesQuery;
 
     if (candErr) {
       if (candErr.message?.includes('is_public_profile') || candErr.code === '42P01') {
@@ -264,12 +278,18 @@ export async function GET(request: NextRequest) {
             mini_bio: c.row.mini_bio ?? null,
             rating_avg: ratings?.rating_avg ?? null,
             rating_count: ratings?.rating_count ?? null,
+            average_rating: ratings?.rating_avg ?? null,
+            review_count: ratings?.rating_count ?? null,
             up_count: ratings?.up_count ?? null,
             down_count: ratings?.down_count ?? null,
             abn_status: c.row.abn_status ?? null,
             abn_verified_at: c.row.abn_verified_at ?? null,
             premium_now: c.isPremium,
             distance_km: c.distanceKm,
+            reliability_rating: (c.row as UserRow).reliability_rating ?? null,
+            reliability_percent: reliabilityToPercent((c.row as UserRow).reliability_rating ?? null),
+            profile_strength_score: (c.row as UserRow).profile_strength_score ?? null,
+            completed_jobs: (c.row as UserRow).completed_jobs ?? null,
           };
         });
 
@@ -301,12 +321,18 @@ export async function GET(request: NextRequest) {
           mini_bio: c.row.mini_bio ?? null,
           rating_avg: ratings?.rating_avg ?? null,
           rating_count: ratings?.rating_count ?? null,
+          average_rating: ratings?.rating_avg ?? null,
+          review_count: ratings?.rating_count ?? null,
           up_count: ratings?.up_count ?? null,
           down_count: ratings?.down_count ?? null,
           abn_status: c.row.abn_status ?? null,
           abn_verified_at: c.row.abn_verified_at ?? null,
           premium_now: c.isPremium,
           distance_km: c.distanceKm,
+          reliability_rating: (c.row as UserRow).reliability_rating ?? null,
+          reliability_percent: reliabilityToPercent((c.row as UserRow).reliability_rating ?? null),
+          profile_strength_score: (c.row as UserRow).profile_strength_score ?? null,
+          completed_jobs: (c.row as UserRow).completed_jobs ?? null,
         };
       });
 

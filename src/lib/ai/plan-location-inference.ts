@@ -4,7 +4,7 @@
  * Includes plausibility filtering to reject garbage extracted from plan notes/specifications.
  */
 
-import type { DetectedLocation } from '@/lib/ai/tender-draft-schema';
+import type { DetectedLocation } from '@/lib/ai/plan-detected-location';
 
 /** Common street type suffixes for address matching */
 const STREET_TYPES = [

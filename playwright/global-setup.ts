@@ -37,7 +37,7 @@ export default async function globalSetup(_config: FullConfig) {
   await page.getByRole('button', { name: /sign in|log in/i }).click();
 
   // Wait for a stable post-login page
-  await page.waitForURL(/dashboard|jobs|tenders/i, { timeout: 30_000 });
+  await page.waitForURL(/dashboard|jobs|search/i, { timeout: 30_000 });
   await page.context().storageState({ path: storageStatePath });
 
   await browser.close();

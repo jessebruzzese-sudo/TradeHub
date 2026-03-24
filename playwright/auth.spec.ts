@@ -27,7 +27,7 @@ test.describe('Authentication', () => {
     test('login with valid credentials redirects to dashboard or jobs', async ({ page }) => {
       test.skip(!ACCOUNTS.free.email || !ACCOUNTS.free.password, 'PW_EMAIL/PW_PASSWORD required');
       await loginViaUI(page, ACCOUNTS.free.email, ACCOUNTS.free.password);
-      await expect(page).toHaveURL(/\/(dashboard|jobs|tenders)/);
+      await expect(page).toHaveURL(/\/(dashboard|jobs|search)/);
     });
 
     test('wrong credentials show error', async ({ page }) => {
@@ -48,7 +48,7 @@ test.describe('Authentication', () => {
       await logoutViaUI(page);
       // If UI logout didn't clear cookies (timing), clear them so we can assert protected redirect
       const url = page.url();
-      if (url.includes('/dashboard') || url.includes('/jobs') || url.includes('/tenders')) {
+      if (url.includes('/dashboard') || url.includes('/jobs') || url.includes('/search')) {
         await page.context().clearCookies();
       }
       await page.goto(`${BASE_URL}/dashboard`);
@@ -101,10 +101,10 @@ test.describe('Authentication', () => {
       await expect(page).toHaveURL(/\/login/, { timeout: 15_000 });
     });
 
-    test('tenders page loads without login (browseable)', async ({ page }) => {
-      await page.goto(`${BASE_URL}/tenders`);
+    test('search page loads without login (browseable)', async ({ page }) => {
+      await page.goto(`${BASE_URL}/search`);
       await page.waitForLoadState('networkidle');
-      await expect(page).toHaveURL(/\/tenders/);
+      await expect(page).toHaveURL(/\/search/);
     });
   });
 });

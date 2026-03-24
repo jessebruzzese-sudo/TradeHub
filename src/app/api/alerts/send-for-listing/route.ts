@@ -1,7 +1,6 @@
 /**
  * POST /api/alerts/send-for-listing
- * Trigger email alerts for a newly published job or tender.
- * Called by client after successful publish. Errors are swallowed; publish must not fail.
+ * Trigger email alerts for a newly published job.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase-server';
@@ -29,34 +28,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'listingType and listingId required' }, { status: 400 });
     }
 
-    if (listingType !== 'job' && listingType !== 'tender') {
+    if (listingType !== 'job') {
       return NextResponse.json({ error: 'Invalid listingType' }, { status: 400 });
     }
 
-    // Verify the user owns the listing
-    if (listingType === 'job') {
-      const { data: job } = await supabase
-        .from('jobs')
-        .select('contractor_id')
-        .eq('id', listingId)
-        .maybeSingle();
-      const j = job as { contractor_id?: string } | null;
-      if (!j || j.contractor_id !== authUser.id) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-      }
-    } else {
-      const { data: tender } = await supabase
-        .from('tenders')
-        .select('builder_id')
-        .eq('id', listingId)
-        .maybeSingle();
-      const t = tender as { builder_id?: string } | null;
-      if (!t || t.builder_id !== authUser.id) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-      }
+    const { data: job } = await supabase
+      .from('jobs')
+      .select('contractor_id')
+      .eq('id', listingId)
+      .maybeSingle();
+    const j = job as { contractor_id?: string } | null;
+    if (!j || j.contractor_id !== authUser.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const result = await sendListingAlerts(listingType as 'job' | 'tender', listingId);
+    const result = await sendListingAlerts(listingId);
 
     return NextResponse.json({
       success: true,

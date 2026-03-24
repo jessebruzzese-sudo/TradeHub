@@ -13,9 +13,9 @@ const TILES = [
     value: 'fees',
     icon: CircleDollarSign,
     title: 'No lead fees',
-    desc: 'You never pay for leads. Work comes from real jobs, tenders, and discovery — not bought lists.',
+    desc: 'You never pay for leads. Work comes from real jobs and discovery — not bought lists.',
     expanded:
-      "Unlike lead marketplaces, TradeHub doesn't sell your details to multiple contractors. You get contacted for real jobs, tenders, and discovery — and keep more of what you earn.",
+      "Unlike lead marketplaces, TradeHub doesn't sell your details to multiple contractors. You get contacted for real jobs and discovery — and keep more of what you earn.",
     accentStrip: <div className="h-1 w-full bg-gradient-to-r from-blue-500 to-sky-400" />,
     iconClasses: 'mt-0.5 h-11 w-11 rounded-xl bg-blue-50 text-blue-700 ring-1 ring-blue-100 flex items-center justify-center',
     itemClasses: 'data-[state=open]:border-l-blue-500',

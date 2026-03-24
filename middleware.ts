@@ -10,7 +10,6 @@ const PUBLIC_ROUTES = [
   '/pricing',
   '/faqs',
   '/how-it-works',
-  '/how-tendering-works',
   '/privacy',
   '/terms',
   '/forgot-password',
@@ -20,7 +19,6 @@ const PUBLIC_ROUTES = [
 const PROTECTED_ROUTES = [
   '/dashboard',
   '/jobs',
-  '/tenders',
   '/messages',
   '/notifications',
   '/profile',
@@ -40,6 +38,17 @@ function isPublicRoute(pathname: string): boolean {
 
 function isProtectedRoute(pathname: string): boolean {
   return PROTECTED_ROUTES.some(route => pathname === route || pathname.startsWith(`${route}/`));
+}
+
+/** Completed Works: manage + create are auth-only; /works/[id] stays public (handled in page + API). */
+function isWorksAuthRequired(pathname: string): boolean {
+  if (pathname === '/works' || pathname === '/works/') return true;
+  if (pathname === '/works/create' || pathname.startsWith('/works/create/')) return true;
+  return false;
+}
+
+function requiresAuthentication(pathname: string): boolean {
+  return isProtectedRoute(pathname) || isWorksAuthRequired(pathname);
 }
 
 function isAdminRoute(pathname: string): boolean {
@@ -98,13 +107,18 @@ function validateReturnUrl(url: string | null, fallback: string): string {
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
-  if (shouldSkipMiddleware(pathname)) {
+  if (pathname.startsWith('/how-it-works/subcontractors')) {
+    return NextResponse.redirect(new URL('/how-it-works', request.url));
+  }
+
+  if (shouldSkip(pathname)) {
     return NextResponse.next();
   }
 
-  let response = NextResponse.next({
-    request: { headers: request.headers },
-  });
+  // Avoid passing request headers into NextResponse.next() here.
+  // Reconstructing the request object in middleware can disturb request bodies
+  // for downstream API/route handlers (observed in Playwright POST flows).
+  let response = NextResponse.next();
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -117,9 +131,7 @@ export async function middleware(request: NextRequest) {
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {
             request.cookies.set(name, value);
-            response = NextResponse.next({
-              request: { headers: request.headers },
-            });
+            response = NextResponse.next();
             response.cookies.set(name, value, options);
           });
         },
@@ -176,7 +188,7 @@ export async function middleware(request: NextRequest) {
   // -------------------------
   // 2) GENERAL PROTECTED ROUTES
   // -------------------------
-  if (isProtectedRoute(pathname) && !isAuthenticated) {
+  if (requiresAuthentication(pathname) && !isAuthenticated) {
     const fullPath = pathname + search;
     const loginUrl = new URL('/login', request.url);
 

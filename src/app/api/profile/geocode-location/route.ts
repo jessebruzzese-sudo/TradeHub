@@ -1,7 +1,7 @@
 /**
  * Geocode the authenticated user's location+postcode and persist location_lat,
  * location_lng, base_lat, base_lng. Used to backfill users who signed up before
- * we captured coords, so tender/job discovery (radius filtering) works.
+ * we captured coords, so job discovery (radius filtering) works.
  */
 import { NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase-server';

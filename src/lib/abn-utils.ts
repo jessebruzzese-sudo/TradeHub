@@ -144,7 +144,7 @@ export function testSanitizeReturnUrl() {
     { input: 'relative/path', expected: '/dashboard', name: 'Relative path without leading slash' },
     { input: '%2F%2Fevil.com', expected: '/dashboard', name: 'URL-encoded protocol-relative' },
     { input: '/%2F/evil.com', expected: '/dashboard', name: 'Encoded slash after slash' },
-    { input: '/tenders/123', expected: '/tenders/123', name: 'Valid tender path' },
+    { input: '/jobs/123', expected: '/jobs/123', name: 'Valid job path' },
   ];
 
   const results = tests.map(test => {

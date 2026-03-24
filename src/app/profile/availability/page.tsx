@@ -216,7 +216,7 @@ export default function AvailabilityPage() {
 
   return (
     <AppLayout>
-      {/* Grey wrapper — matches Jobs / Profile / Tenders */}
+      {/* Grey wrapper — matches Jobs / Profile */}
       <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-slate-50 via-slate-100 to-slate-200">
         {/* Dotted overlay */}
         <div

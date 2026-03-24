@@ -64,7 +64,12 @@ test.describe('Jobs', () => {
     await page.goto(`${BASE_URL}/jobs`);
     await waitStable(page);
     const postJobLink = page.getByRole('link', { name: /post job/i });
-    await expect(postJobLink).toBeVisible();
-    await expect(postJobLink).toHaveAttribute('href', /\/jobs\/create/);
+    if (await postJobLink.first().isVisible().catch(() => false)) {
+      await expect(postJobLink.first()).toHaveAttribute('href', /\/jobs\/create/);
+      return;
+    }
+    const verifyCta = page.getByRole('link', { name: /verify abn to post|verify now/i }).first();
+    await expect(verifyCta).toBeVisible();
+    await expect(verifyCta).toHaveAttribute('href', /\/verify-business/);
   });
 });

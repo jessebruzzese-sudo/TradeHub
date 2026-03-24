@@ -32,7 +32,7 @@
     "test:e2e:tradehub": "playwright test playwright/tradehub.spec.ts",
     "test:api:major": "playwright test playwright/api-major-endpoints.spec.ts --project=chromium",
     "test:platform:full": "playwright test playwright/platform-full-regression.spec.ts --project=chromium",
-    "test:lib:enforcement": "vitest run src/lib/enforcement-sweep.test.ts src/lib/plan-limits.test.ts src/lib/tender-discovery.test.ts src/lib/trade-lock.test.ts src/lib/trade-validation.test.ts",
+    "test:lib:enforcement": "vitest run src/lib/enforcement-sweep.test.ts src/lib/plan-limits.test.ts src/lib/trade-lock.test.ts src/lib/trade-validation.test.ts",
     "test:ci:full": "npm run lint && npm run typecheck && npm run test:lib:enforcement && npm run test:api:major && npm run test:platform:full && playwright test playwright/supabase-guardrails.spec.ts --project=chromium",
     "db:gen-types": "supabase gen types typescript --project-id jkcaukvywhmlnqfeovuv > src/lib/database.types.ts"
   },

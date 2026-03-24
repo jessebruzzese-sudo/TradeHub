@@ -1,6 +1,7 @@
 // @ts-nocheck - Supabase client type inference
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase-server';
+import { isLikelyTestAccount } from '@/lib/test-account';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +32,21 @@ export async function POST(request: NextRequest) {
 
     if (otherUserId === authUser.id) {
       return NextResponse.json({ error: 'Cannot message yourself' }, { status: 400 });
+    }
+
+    const { data: otherUser } = await supabase
+      .from('users')
+      .select('id, email, name')
+      .eq('id', otherUserId)
+      .maybeSingle();
+    if (
+      !otherUser ||
+      isLikelyTestAccount({
+        email: otherUser.email,
+        name: otherUser.name,
+      })
+    ) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     const [p1, p2] = authUser.id < otherUserId ? [authUser.id, otherUserId] : [otherUserId, authUser.id];
@@ -156,7 +172,7 @@ export async function GET() {
         .order('created_at', { ascending: false }),
       supabase
         .from('users')
-        .select('id, name, avatar')
+        .select('id, name, avatar, email')
         .in('id', Array.from(otherUserIds)),
       jobIds.size > 0
         ? supabase
@@ -178,7 +194,11 @@ export async function GET() {
     }
 
     const userMap: Record<string, { name: string; avatar: string | null }> = {};
+    const visibleOtherIds = new Set<string>();
     for (const u of users) {
+      const hidden = isLikelyTestAccount({ email: (u as any).email, name: u.name });
+      if (hidden) continue;
+      visibleOtherIds.add(u.id);
       userMap[u.id] = { name: u.name ?? 'Unknown', avatar: u.avatar ?? null };
     }
 
@@ -187,7 +207,12 @@ export async function GET() {
       jobMap[j.id] = { title: j.title ?? 'Job', status: j.status ?? 'open' };
     }
 
-    const conversations = convs.map((c) => {
+    const conversations = convs
+      .filter((c) => {
+        const otherId = c.contractor_id === authUser.id ? c.subcontractor_id : c.contractor_id;
+        return visibleOtherIds.has(otherId);
+      })
+      .map((c) => {
       const otherId = c.contractor_id === authUser.id ? c.subcontractor_id : c.contractor_id;
       const other = userMap[otherId] ?? { name: 'Unknown', avatar: null };
       const lastMsg = lastMessageByConv[c.id];
@@ -215,7 +240,7 @@ export async function GET() {
         jobTitle: job?.title ?? null,
         jobStatus: job?.status ?? null,
       };
-    });
+      });
 
     return NextResponse.json({ conversations });
   } catch (err) {

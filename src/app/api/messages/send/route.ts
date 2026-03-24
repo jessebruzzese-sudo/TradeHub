@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase-server';
 import { createEmailEvent } from '@/lib/email/create-email-event';
 import { shouldSendEmailNow } from '@/lib/email/rollout';
+import { isLikelyTestAccount } from '@/lib/test-account';
 
 export const dynamic = 'force-dynamic';
 
@@ -90,6 +91,21 @@ export async function POST(request: NextRequest) {
     const recipientId =
       conv.contractor_id === authUser.id ? conv.subcontractor_id : conv.contractor_id;
 
+    const { data: recipientMeta } = await supabase
+      .from('users')
+      .select('id, email, name')
+      .eq('id', recipientId)
+      .maybeSingle();
+    if (
+      !recipientMeta ||
+      isLikelyTestAccount({
+        email: recipientMeta.email,
+        name: recipientMeta.name,
+      })
+    ) {
+      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+    }
+
     const [res1, res2] = await Promise.all([
       supabase
         .from('user_blocks')
@@ -142,25 +158,19 @@ export async function POST(request: NextRequest) {
 
     // Core message state is committed. Email is best-effort side effect only.
     try {
-      const { data: recipient } = await supabase
-        .from('users')
-        .select('id, email, name')
-        .eq('id', recipientId)
-        .maybeSingle();
-
-      if (recipient?.email) {
+      if (recipientMeta?.email) {
         await createEmailEvent({
-          userId: recipient.id,
-          toEmail: recipient.email,
+          userId: recipientMeta.id,
+          toEmail: recipientMeta.email,
           emailType: 'new_message',
           payload: {
-            firstName: recipient.name?.split?.(/\s+/)?.[0] || undefined,
+            firstName: recipientMeta.name?.split?.(/\s+/)?.[0] || undefined,
             messagesUrl: `${process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://tradehub.com.au'}/messages`,
           },
           idempotencyKey: `new_message:${message.id}`,
           triggerSendImmediately: shouldSendEmailNow({
             emailType: 'new_message',
-            toEmail: recipient.email,
+            toEmail: recipientMeta.email,
           }),
         });
       }

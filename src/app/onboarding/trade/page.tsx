@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { isAdmin } from '@/lib/is-admin';
@@ -11,7 +11,11 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle, ArrowLeft } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Link from 'next/link';
+
+const BUILDER_INTERNAL_VALUE = 'Building';
+const BUILDER_DISPLAY_LABEL = 'Builder/Contractor';
 
 export default function TradeOnboardingPage() {
   const { currentUser, updateUser } = useAuth();
@@ -19,6 +23,16 @@ export default function TradeOnboardingPage() {
   const [selectedTrade, setSelectedTrade] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showBuilderPrompt, setShowBuilderPrompt] = useState(false);
+  const hadBuilderSelectedRef = useRef(false);
+
+  useEffect(() => {
+    const hasBuilder = selectedTrade === BUILDER_INTERNAL_VALUE;
+    if (hasBuilder && !hadBuilderSelectedRef.current) {
+      setShowBuilderPrompt(true);
+    }
+    hadBuilderSelectedRef.current = hasBuilder;
+  }, [selectedTrade]);
 
   const handleSubmit = async () => {
     if (!selectedTrade) {
@@ -53,6 +67,9 @@ export default function TradeOnboardingPage() {
     return '/dashboard';
   };
 
+  const getTradeDisplayLabel = (trade: string) =>
+    trade === BUILDER_INTERNAL_VALUE ? BUILDER_DISPLAY_LABEL : trade;
+
   return (
     <div className="min-h-screen w-full bg-slate-50 flex items-center justify-center py-8 pb-8">
       <div className="w-full px-4 sm:px-6 flex justify-center">
@@ -70,7 +87,7 @@ export default function TradeOnboardingPage() {
           <div className="space-y-1">
             <CardTitle className="text-2xl font-bold">Choose your primary trade</CardTitle>
             <CardDescription className="text-base">
-              This determines the jobs and tenders you'll see. Primary trade can't be changed after setup. Premium users can add additional trades.
+              This determines the jobs you'll see. Primary trade can't be changed after setup. Premium users can add additional trades.
             </CardDescription>
           </div>
           </CardHeader>
@@ -88,7 +105,7 @@ export default function TradeOnboardingPage() {
                 <div key={trade} className="flex items-center space-x-2 border rounded-lg p-3 hover:bg-slate-50 transition-colors">
                   <RadioGroupItem value={trade} id={trade} />
                   <Label htmlFor={trade} className="flex-1 cursor-pointer font-normal">
-                    {trade}
+                    {getTradeDisplayLabel(trade)}
                   </Label>
                 </div>
               ))}
@@ -116,6 +133,21 @@ export default function TradeOnboardingPage() {
           </CardContent>
         </Card>
       </div>
+      <Dialog open={showBuilderPrompt} onOpenChange={setShowBuilderPrompt}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center">Builder/Contractor selected</DialogTitle>
+            <DialogDescription className="text-center">
+              Builder/Contractor Role is recommended with premium user to post and receive jobs as any trade
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-center">
+            <Button type="button" onClick={() => setShowBuilderPrompt(false)}>
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

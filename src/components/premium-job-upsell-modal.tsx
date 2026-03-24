@@ -60,10 +60,10 @@ export function PremiumJobUpsellModal({
           <DialogTitle className="text-center text-xl">
             Upgrade to Premium to send alerts to available trades instantly
           </DialogTitle>
-          <DialogDescription className="text-center space-y-3">
-            <p>
+          <DialogDescription className="text-center">
+            <span>
               Your job is listed normally. Upgrade to instantly notify available trades in your area.
-            </p>
+            </span>
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="sm:justify-center flex-col gap-2 sm:flex-col">

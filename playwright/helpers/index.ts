@@ -10,19 +10,67 @@ import { loadSeedIds, SEED_TITLES } from '../seed-ids';
 
 const BASE_URL = process.env.PW_BASE_URL || 'http://localhost:3000';
 
+function resolveFreeAccountFromEnv() {
+  const allowCustom = process.env.PW_ALLOW_NON_QA_AUTH === '1';
+  const envEmail = process.env.PW_EMAIL;
+  const envPassword = process.env.PW_PASSWORD;
+  const canonicalEmail = 'pw-free@tradehub.test';
+  const canonicalPassword = 'password1';
+
+  if (!envEmail || !envPassword) {
+    return { email: canonicalEmail, password: canonicalPassword };
+  }
+
+  const isCanonicalQaFree = envEmail.toLowerCase() === canonicalEmail;
+  if (allowCustom || isCanonicalQaFree) {
+    return { email: envEmail, password: envPassword };
+  }
+
+  return { email: canonicalEmail, password: canonicalPassword };
+}
+
+function resolveCanonicalQaAccount(
+  envEmail: string | undefined,
+  envPassword: string | undefined,
+  canonicalEmail: string,
+  canonicalPassword: string,
+): { email: string; password: string } {
+  const allowCustom = process.env.PW_ALLOW_NON_QA_AUTH === '1';
+  if (!envEmail || !envPassword) {
+    return { email: canonicalEmail, password: canonicalPassword };
+  }
+  if (allowCustom || envEmail.toLowerCase() === canonicalEmail.toLowerCase()) {
+    return { email: envEmail, password: envPassword };
+  }
+  return { email: canonicalEmail, password: canonicalPassword };
+}
+
 // Account credentials from env
+const freeAccount = resolveFreeAccountFromEnv();
+const premiumAccount = resolveCanonicalQaAccount(
+  process.env.PW_PREMIUM_EMAIL,
+  process.env.PW_PREMIUM_PASSWORD,
+  'pw-premium@tradehub.test',
+  'password1',
+);
+const unverifiedAccount = resolveCanonicalQaAccount(
+  process.env.PW_NO_ABN_EMAIL,
+  process.env.PW_NO_ABN_PASSWORD,
+  'pw-unverified@tradehub.test',
+  'password1',
+);
 export const ACCOUNTS = {
   free: {
-    email: process.env.PW_EMAIL || 'pw-free@tradehub.test',
-    password: process.env.PW_PASSWORD || 'password1',
+    email: freeAccount.email,
+    password: freeAccount.password,
   },
   premium: {
-    email: process.env.PW_PREMIUM_EMAIL || 'pw-premium@tradehub.test',
-    password: process.env.PW_PREMIUM_PASSWORD || 'password1',
+    email: premiumAccount.email,
+    password: premiumAccount.password,
   },
   unverified: {
-    email: process.env.PW_NO_ABN_EMAIL || 'pw-unverified@tradehub.test',
-    password: process.env.PW_NO_ABN_PASSWORD || 'password1',
+    email: unverifiedAccount.email,
+    password: unverifiedAccount.password,
   },
   poster: {
     email: process.env.PW_POSTER_EMAIL || 'pw-other@tradehub.test',
@@ -71,11 +119,11 @@ export async function loginViaUI(page: Page, email: string, password: string): P
   await emailInput.first().fill(email);
   await page.locator('#password').fill(password);
   await page.getByRole('button', { name: /sign in|log in/i }).click();
-  // Accept any post-login route (dashboard, jobs, tenders, root, verify-business, etc.)
+  // Accept any post-login route (dashboard, jobs, search, root, verify-business, etc.)
   await page.waitForURL(
     (url: string | URL) => {
       const path = typeof url === 'string' ? new URL(url).pathname : url.pathname;
-      return path === '/' || /^\/(dashboard|jobs|tenders|messages|admin|onboarding|profile|subcontractors|search|verify-business)/.test(path);
+      return path === '/' || /^\/(dashboard|jobs|messages|admin|onboarding|profile|subcontractors|search|verify-business)/.test(path);
     },
     { timeout: 20_000 }
   );
@@ -130,12 +178,6 @@ export function hasSeedData(): boolean {
 export function getSeedJobId(key: 'ownedOpen' | 'nonOwnedOpen' | 'withAttachment'): string | null {
   const ids = loadSeedIds();
   return ids?.jobs?.[key] ?? null;
-}
-
-/** Get seed tender ID by key. */
-export function getSeedTenderId(key: 'ownedDraft' | 'ownedLive' | 'nonOwned' | 'anonymous'): string | null {
-  const ids = loadSeedIds();
-  return ids?.tenders?.[key] ?? null;
 }
 
 /** Get seed user ID by email. */

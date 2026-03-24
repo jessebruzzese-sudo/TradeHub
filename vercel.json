@@ -1,8 +1,8 @@
 {
   "crons": [
     {
-      "path": "/api/cron/cleanup-expired-tenders",
-      "schedule": "0 3 * * *"
+      "path": "/api/cron/send-weekly-opportunity-digest",
+      "schedule": "0 8 * * 1"
     }
   ]
 }

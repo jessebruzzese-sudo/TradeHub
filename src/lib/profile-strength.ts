@@ -10,15 +10,33 @@ export function parseProfileStrengthRpcResult(data: unknown): ProfileStrengthCal
   if (!row || typeof row !== 'object') return null;
   const o = row as Record<string, unknown>;
   if (o.error) return null;
+  const activity = Number(o.activity_points ?? o.activity ?? 0);
+  const links = Number(o.links_points ?? o.links ?? 0);
+  const google = Number(o.google_points ?? o.google ?? 0);
+  const likes = Number(o.likes_points ?? o.likes ?? 0);
+  const completeness = Number(o.completeness_points ?? o.completeness ?? 0);
+  const abn = Number(o.abn_points ?? o.abn ?? 0);
+  const totalRaw = Number(
+    o.total ??
+      o.score ??
+      o.total_score ??
+      o.profile_strength_score ??
+      0
+  );
+  const computedTotal = Math.max(
+    0,
+    Math.min(100, Math.floor(activity + links + google + likes + completeness + abn))
+  );
+
   return {
-    total: Number(o.total ?? 0),
+    total: totalRaw > 0 ? totalRaw : computedTotal,
     band: String(o.band ?? 'LOW'),
-    activity: Number(o.activity_points ?? o.activity ?? 0),
-    links: Number(o.links_points ?? o.links ?? 0),
-    google: Number(o.google_points ?? o.google ?? 0),
-    likes: Number(o.likes_points ?? o.likes ?? 0),
-    completeness: Number(o.completeness_points ?? o.completeness ?? 0),
-    abn: Number(o.abn_points ?? o.abn ?? 0),
+    activity,
+    links,
+    google,
+    likes,
+    completeness,
+    abn,
     last_active_at: (o.last_active_at as string | null) ?? null,
     inactive_days: Number(o.inactive_days ?? 0),
     activity_tier: (o.activity_tier as ProfileStrengthCalc['activity_tier']) ?? undefined,

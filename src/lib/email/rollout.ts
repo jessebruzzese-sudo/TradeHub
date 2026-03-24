@@ -8,7 +8,6 @@ const ROLLOUT_TYPES = new Set<TransactionalEmailType>([
   'payment_receipt',
   'payment_failed',
   'job_alert',
-  'tender_alert',
   'new_message',
   'abn_verified',
   'reliability_review',

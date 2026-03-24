@@ -147,7 +147,7 @@ export default function PricingContent() {
                   <div className="flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <div className="text-sm font-semibold text-white leading-snug">
-                        Generate project tenders instantly with your Personal AI Agent
+                        Draft job listings from plans with your Personal AI Agent
                       </div>
                       <span className="flex items-center gap-1 text-[10px] font-semibold bg-white/20 px-2 py-1 rounded-full">
                         <Sparkles className="w-3 h-3 text-purple-400 drop-shadow-[0_0_4px_rgba(168,85,247,0.8)]" />
@@ -165,11 +165,11 @@ export default function PricingContent() {
               <div className="grid grid-cols-2 gap-2">
                 <div className="bg-white/10 rounded-full px-3 py-1.5 text-xs text-white flex items-center gap-1.5">
                   <Check className="w-3 h-3 flex-shrink-0" />
-                  <span>Unlimited tenders</span>
+                  <span>Unlimited job posts</span>
                 </div>
                 <div className="bg-white/10 rounded-full px-3 py-1.5 text-xs text-white flex items-center gap-1.5">
                   <Check className="w-3 h-3 flex-shrink-0" />
-                  <span>Unlimited quotes</span>
+                  <span>Unlimited messaging</span>
                 </div>
                 <div className="bg-white/10 rounded-full px-3 py-1.5 text-xs text-white flex items-center gap-1.5">
                   <Check className="w-3 h-3 flex-shrink-0" />
@@ -198,7 +198,7 @@ export default function PricingContent() {
                       <Check className="w-4 h-4 text-amber-200 flex-shrink-0 mt-0.5" />
                       <span>
                         <span className="font-semibold flex items-center gap-2">
-                          Generate project tenders instantly with your Personal AI Agent
+                          Draft job listings from plans with your Personal AI Agent
                           <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-white/20 px-2 py-1 rounded-full">
                             <Sparkles className="w-3 h-3 text-purple-400 drop-shadow-[0_0_4px_rgba(168,85,247,0.8)]" />
                             AI
@@ -211,11 +211,11 @@ export default function PricingContent() {
                     </div>
                     <div className="flex items-start gap-2">
                       <Check className="w-4 h-4 text-amber-200 flex-shrink-0 mt-0.5" />
-                      <span>Unlimited project tenders — post and manage work without caps</span>
+                      <span>Unlimited job posts — post and manage work without caps</span>
                     </div>
                     <div className="flex items-start gap-2">
                       <Check className="w-4 h-4 text-amber-200 flex-shrink-0 mt-0.5" />
-                      <span>Unlimited quotes — no per-lead or per-quote fees</span>
+                      <span>Unlimited messaging — no per-lead fees</span>
                     </div>
                     <div className="flex items-start gap-2">
                       <Check className="w-4 h-4 text-amber-200 flex-shrink-0 mt-0.5" />
@@ -282,7 +282,7 @@ export default function PricingContent() {
 
                 <span className="text-sm md:text-base relative z-10">
                   <span className="font-semibold flex items-center gap-2">
-                    Generate project tenders instantly with your Personal AI Agent
+                    Draft job listings from plans with your Personal AI Agent
                     <span className="flex items-center gap-1 text-[10px] font-semibold bg-white/20 px-2 py-1 rounded-full">
                       <Sparkles className="w-3 h-3 text-purple-400 drop-shadow-[0_0_4px_rgba(168,85,247,0.8)]" />
                       AI
@@ -295,11 +295,11 @@ export default function PricingContent() {
               </li>
               <li className="flex items-start gap-3">
                 <Check className="w-5 h-5 text-amber-200 flex-shrink-0 mt-0.5" />
-                <span className="text-sm md:text-base">Unlimited project tenders — post and manage work without caps</span>
+                <span className="text-sm md:text-base">Unlimited job posts — post and manage work without caps</span>
               </li>
               <li className="flex items-start gap-3">
                 <Check className="w-5 h-5 text-amber-200 flex-shrink-0 mt-0.5" />
-                <span className="text-sm md:text-base">Unlimited quotes — no per-lead or per-quote fees</span>
+                <span className="text-sm md:text-base">Unlimited messaging — no per-lead fees</span>
               </li>
               <li className="flex items-start gap-3">
                 <Check className="w-5 h-5 text-amber-200 flex-shrink-0 mt-0.5" />
@@ -373,15 +373,15 @@ export default function PricingContent() {
                 <ul className="space-y-3 mb-6 mt-4">
                   <li className="flex items-start gap-3">
                     <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span className="text-sm text-gray-700">Browse jobs & tenders</span>
+                    <span className="text-sm text-gray-700">Browse jobs</span>
                   </li>
                   <li className="flex items-start gap-3">
                     <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span className="text-sm text-gray-700">1 active tender per month</span>
+                    <span className="text-sm text-gray-700">Post jobs (standard limits apply)</span>
                   </li>
                   <li className="flex items-start gap-3">
                     <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span className="text-sm text-gray-700">Up to 3 quotes per tender</span>
+                    <span className="text-sm text-gray-700">Apply to jobs and message businesses</span>
                   </li>
                   <li className="flex items-start gap-3">
                     <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
@@ -427,15 +427,15 @@ export default function PricingContent() {
             <ul className="space-y-3 mb-8 flex-1">
               <li className="flex items-start gap-3">
                 <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                <span className="text-sm md:text-base text-gray-700">Browse jobs & tenders</span>
+                <span className="text-sm md:text-base text-gray-700">Browse jobs</span>
               </li>
               <li className="flex items-start gap-3">
                 <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                <span className="text-sm md:text-base text-gray-700">1 active tender per month</span>
+                <span className="text-sm md:text-base text-gray-700">Post jobs (standard limits apply)</span>
               </li>
               <li className="flex items-start gap-3">
                 <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                <span className="text-sm md:text-base text-gray-700">Up to 3 quotes per tender</span>
+                <span className="text-sm md:text-base text-gray-700">Apply to jobs and message businesses</span>
               </li>
               <li className="flex items-start gap-3">
                 <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
@@ -491,7 +491,7 @@ export default function PricingContent() {
         {/* Requirements Note */}
         <div className="max-w-5xl mx-auto mt-6 text-center">
           <p className="text-sm text-blue-100">
-            ABN verification required to post jobs or tenders. Browsing is always free.
+            ABN verification required to post jobs or apply to jobs. Browsing is always free.
           </p>
         </div>
 
@@ -510,7 +510,7 @@ export default function PricingContent() {
                   <ul className="space-y-2 text-sm text-gray-700">
                     <li className="flex items-start gap-2">
                       <Check className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
-                      <span>Anonymised quotes submitted (with delays)</span>
+                      <span>Anonymised pricing signals from the marketplace (with delays)</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <Check className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
@@ -592,7 +592,7 @@ export default function PricingContent() {
                 <div className="flex-1">
                   <h4 className="font-semibold text-gray-900 mb-2">No Lead Selling</h4>
                   <p className="text-sm text-gray-600">
-                    Flat subscription. Unlimited access. No paying for dead leads. Your tenders go directly to qualified contractors.
+                    Flat subscription. Unlimited access. No paying for dead leads. Your job posts reach qualified contractors.
                   </p>
                 </div>
                 <Check className="w-4 h-4 text-green-600 opacity-80 flex-shrink-0 ml-3 mt-0.5" />

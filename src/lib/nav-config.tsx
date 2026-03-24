@@ -9,6 +9,7 @@ import {
   Search,
   Briefcase,
   Calendar,
+  Images,
   FileText,
   MessageSquare,
   Bell,
@@ -42,7 +43,7 @@ export interface NavSectionConfig {
 /** Support mailto for Help / Support */
 export const SUPPORT_MAILTO = 'mailto:Support@tradehub.com.au?subject=TradeHub%20Support%20Request';
 
-/** Main Actions: discovery, jobs, tenders */
+/** Main Actions: discovery, jobs */
 export const MAIN_ACTIONS_SECTION: NavSectionConfig = {
   title: 'Main Actions',
   items: [
@@ -50,8 +51,8 @@ export const MAIN_ACTIONS_SECTION: NavSectionConfig = {
     { label: 'Subcontractors', href: '/subcontractors', icon: Users },
     { label: 'Search Trades', href: '/search', icon: Search },
     { label: 'Jobs', href: '/jobs', icon: Briefcase },
+    { label: 'Completed Works', href: '/works', icon: Images },
     { label: 'List Availability', href: '/profile/availability', icon: Calendar },
-    { label: 'Tenders', href: '/tenders', icon: FileText, requiresABN: true },
   ],
 };
 

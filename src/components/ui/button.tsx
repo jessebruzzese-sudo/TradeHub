@@ -25,7 +25,7 @@ const buttonVariants = cva(
         link: 'text-primary underline-offset-4 hover:underline',
 
         // ✅ TradeHub semantic variants
-        // 🔴 Project Tendering
+        // 🔴 Primary actions
         'primary-red':
           'bg-red-500 text-white border border-red-200 hover:bg-red-600 active:bg-red-700 focus-visible:ring-red-400',
 

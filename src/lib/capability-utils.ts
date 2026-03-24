@@ -114,10 +114,6 @@ export function hasSubcontractorPremium(user: CapabilityUser): boolean {
   return hasCapability(user, 'SUBCONTRACTOR') || isSimulatingPremium();
 }
 
-export function canPostPremiumTenders(user: CapabilityUser): boolean {
-  return hasBuilderPremium(user);
-}
-
 /** Single-account model: any logged-in user can post jobs (ABN enforced at action time via permissions.ts). */
 export function canPostJobs(user: CapabilityUser): boolean {
   return !!user;
@@ -180,13 +176,6 @@ export function getMaxAvailabilityHorizonDays(user: CapabilityUser): number {
   return hasSubcontractorPremium(user) ? 60 : 14;
 }
 
-export function getMaxTenderQuotes(user: CapabilityUser, tenderType: 'basic' | 'premium'): number {
-  if (tenderType === 'premium') {
-    return Infinity;
-  }
-  return 3;
-}
-
 export function getPlanName(plan: SubscriptionPlan): string {
   switch (plan) {
     case 'BUSINESS_PRO_20':
@@ -216,7 +205,7 @@ export function getPlanPrice(plan: SubscriptionPlan): number {
 export function getPlanDescription(plan: SubscriptionPlan): string {
   switch (plan) {
     case 'BUSINESS_PRO_20':
-      return 'Post tenders and hire subcontractors';
+      return 'Post jobs and hire subcontractors';
     case 'SUBCONTRACTOR_PRO_10':
       return 'Enhanced subcontractor tools';
     case 'ALL_ACCESS_PRO_26':
@@ -250,21 +239,6 @@ export function isSubscriptionActive(user: CapabilityUser): boolean {
   return user.subscriptionStatus === 'ACTIVE';
 }
 
-export function getTenderCloseHours(user: CapabilityUser): number {
-  const plan = user.activePlan || 'NONE';
-
-  switch (plan) {
-    case 'BUSINESS_PRO_20':
-      return 72; // 3 days
-    case 'ALL_ACCESS_PRO_26':
-      return 168; // 7 days
-    case 'SUBCONTRACTOR_PRO_10':
-      return 24; // 1 day (though subcontractors typically can't post tenders)
-    default:
-      return 24; // 1 day for free tier
-  }
-}
-
 export function canAccessFeature(user: CapabilityUser, feature: string): boolean {
   if (user.accountSuspended) {
     if (user.suspensionEndsAt && new Date() < new Date(user.suspensionEndsAt)) {
@@ -276,8 +250,6 @@ export function canAccessFeature(user: CapabilityUser, feature: string): boolean
   }
 
   switch (feature) {
-    case 'post_premium_tender':
-      return canPostPremiumTenders(user);
     case 'post_job':
       return canPostJobs(user);
     case 'unlimited_radius':
@@ -308,15 +280,6 @@ export function getFeatureLock(user: CapabilityUser, feature: string): FeatureLo
   }
 
   switch (feature) {
-    case 'post_premium_tender':
-      return {
-        locked: true,
-        reason: 'Premium tenders require Business Pro',
-        upgradeUrl: '/pricing',
-        upgradePlan: 'BUSINESS_PRO_20',
-        upgradePlanName: 'Business Pro',
-        upgradePlanPrice: 20,
-      };
     case 'unlimited_radius':
       return {
         locked: true,

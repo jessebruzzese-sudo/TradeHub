@@ -37,7 +37,7 @@ export function AllAccessUpgradeModal({ open, onOpenChange }: AllAccessUpgradeMo
           <div className="flex items-start gap-3">
             <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="font-medium text-sm">Post tenders & receive quotes</p>
+              <p className="font-medium text-sm">Post jobs & reach more trades</p>
               <p className="text-sm text-gray-600">Price your projects with unlimited radius</p>
             </div>
           </div>

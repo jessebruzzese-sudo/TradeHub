@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { ACCOUNTS, loginAs, loginViaUI, logoutViaUI } from './helpers';
+import { ACCOUNTS, loginAs, loginViaUI, logoutViaUI, waitStable } from './helpers';
 
 const BASE_URL = process.env.PW_BASE_URL || 'http://localhost:3000';
 const HAS_UNVERIFIED = Boolean(process.env.PW_NO_ABN_EMAIL && process.env.PW_NO_ABN_PASSWORD);
@@ -20,7 +20,7 @@ async function go(page: Page, path: string) {
 }
 
 test.describe('Platform full regression (critical UX)', () => {
-  test('auth, ABN, premium, jobs/tenders, messaging, profile, admin, billing, smoke', async ({ page }) => {
+  test('auth, ABN, premium, jobs, messaging, profile, admin, billing, smoke', async ({ page }) => {
     test.setTimeout(180_000);
     // 1) Authentication + session flows
     await page.context().clearCookies();
@@ -58,23 +58,19 @@ test.describe('Platform full regression (critical UX)', () => {
     await loginAs(page, ACCOUNTS.free.email, ACCOUNTS.free.password);
     await go(page, '/jobs');
     await expect(page).toHaveURL(/\/jobs/);
-    await go(page, '/tenders');
-    await expect(page).toHaveURL(/\/tenders/);
+    await go(page, '/search');
+    await expect(page).toHaveURL(/\/search/);
 
     await go(page, '/jobs/create');
     expect(page.url()).toMatch(/\/jobs\/create|\/verify-business|\/dashboard|\/login/);
-    await go(page, '/tenders/create');
-    expect(page.url()).toMatch(/\/tenders\/create|\/verify-business|\/dashboard|\/login/);
 
     if (HAS_UNVERIFIED) {
       await loginAs(page, ACCOUNTS.unverified.email, ACCOUNTS.unverified.password);
       await go(page, '/jobs');
       await expect(page).toHaveURL(/\/jobs/);
-      await go(page, '/tenders');
-      await expect(page).toHaveURL(/\/tenders/);
+      await go(page, '/search');
+      await expect(page).toHaveURL(/\/search/);
       await go(page, '/jobs/create');
-      expect(page.url()).toMatch(/\/verify-business|\/dashboard/);
-      await go(page, '/tenders/create');
       expect(page.url()).toMatch(/\/verify-business|\/dashboard/);
       await go(page, '/messages');
       await expect(page).toHaveURL(/\/messages/);
@@ -93,7 +89,7 @@ test.describe('Platform full regression (critical UX)', () => {
       expect(/unlock multi-trade discovery|free: primary trade only/i.test(premiumText)).toBeFalsy();
     }
 
-    // 4) Jobs and tenders core flows (critical navigation + key CTAs)
+    // 4) Jobs core flows (critical navigation + key CTAs)
     await loginAs(page, ACCOUNTS.free.email, ACCOUNTS.free.password);
     await go(page, '/jobs');
     const firstJobLink = page.locator('a[href^="/jobs/"]:not([href="/jobs/create"])').first();
@@ -104,18 +100,6 @@ test.describe('Platform full regression (critical UX)', () => {
       const applyBtn = page.getByRole('button', { name: /apply|message|request/i }).first();
       if (await applyBtn.isVisible().catch(() => false)) {
         await expect(applyBtn).toBeVisible();
-      }
-    }
-
-    await go(page, '/tenders');
-    const firstTenderLink = page.locator('a[href^="/tenders/"]:not([href="/tenders/create"])').first();
-    if (await firstTenderLink.isVisible().catch(() => false)) {
-      await firstTenderLink.click();
-      await waitStable(page, 250);
-      expect(page.url()).toMatch(/\/tenders\/[^/]+/);
-      const quoteBtn = page.getByRole('button', { name: /quote|request|submit/i }).first();
-      if (await quoteBtn.isVisible().catch(() => false)) {
-        await expect(quoteBtn).toBeVisible();
       }
     }
 
@@ -171,7 +155,7 @@ test.describe('Platform full regression (critical UX)', () => {
     expect([200, 400, 401, 404, 503]).toContain(portalRes);
 
     // 9) Basic regression + smoke
-    for (const path of ['/', '/jobs', '/tenders', '/subcontractors', '/pricing', '/messages']) {
+    for (const path of ['/', '/jobs', '/search', '/subcontractors', '/pricing', '/messages']) {
       await go(page, path);
       await expect(page.locator('body')).not.toContainText(/application error|something went wrong|500/i);
     }

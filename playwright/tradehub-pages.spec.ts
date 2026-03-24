@@ -56,9 +56,16 @@ test.describe('TradeHub Pages E2E', () => {
 
     await expect(page).toHaveURL(/\/messages/)
     // Messages page shows heading or empty state (incl. "Message any user" from description)
-    const heading = page.getByRole('heading', { name: /messages/i }).first()
-    const emptyState = page.getByText(/no messages|start a conversation|select a conversation|message any user/i).first()
-    await expect(heading.or(emptyState).first()).toBeVisible({ timeout: 15_000 })
+    const heading = page.locator('h1,h2,h3', { hasText: /messages/i }).locator(':visible').first()
+    const emptyState = page
+      .locator('h1,h2,h3,p,div', { hasText: /no messages|start a conversation|select a conversation|message any user/i })
+      .locator(':visible')
+      .first()
+    if ((await heading.count()) > 0) {
+      await expect(heading).toBeVisible({ timeout: 15_000 })
+    } else {
+      await expect(emptyState).toBeVisible({ timeout: 15_000 })
+    }
   })
 
   test('profile page loads', async ({ page }) => {

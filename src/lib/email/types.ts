@@ -7,8 +7,6 @@ export type TransactionalEmailType =
   | 'payment_failed'
   | 'job_invite'
   | 'job_alert'
-  | 'tender_alert'
-  | 'quote_request'
   | 'hire_confirmed'
   | 'new_message'
   | 'abn_verified'
@@ -71,19 +69,6 @@ export type JobAlertTemplateInput = {
   jobUrl: string;
 };
 
-export type TenderAlertTemplateInput = {
-  firstName?: string;
-  projectName: string;
-  tradeRequired: string;
-  tenderUrl: string;
-};
-
-export type QuoteRequestTemplateInput = {
-  firstName?: string;
-  requesterName: string;
-  requestUrl: string;
-};
-
 export type HireConfirmedTemplateInput = {
   firstName?: string;
   projectName: string;
@@ -121,8 +106,6 @@ export type TransactionalEmailPayloadMap = {
   payment_failed: PaymentFailedTemplateInput;
   job_invite: JobInviteTemplateInput;
   job_alert: JobAlertTemplateInput;
-  tender_alert: TenderAlertTemplateInput;
-  quote_request: QuoteRequestTemplateInput;
   hire_confirmed: HireConfirmedTemplateInput;
   new_message: NewMessageTemplateInput;
   abn_verified: AbnVerifiedTemplateInput;

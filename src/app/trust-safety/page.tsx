@@ -57,7 +57,7 @@ export default function TrustSafetyPage() {
               {
                 icon: <MessageSquare className="h-4 w-4 text-orange-600" />,
                 title: 'On-platform messaging',
-                desc: 'Keep job and tender conversations in one place with a clean thread history.',
+                desc: 'Keep job-related conversations in one place with a clean thread history.',
               },
             ].map((t) => (
               <Card key={t.title} className="border-emerald-100">

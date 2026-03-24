@@ -8,7 +8,7 @@ import type { BuildingElements } from '@/lib/ai/plan-room-detection';
  * Used when AI returns generic, empty, or filler-heavy scope text.
  */
 /**
- * Fallback scopes written like a builder requesting quotes from subcontractors.
+ * Fallback scopes written like a builder briefing subcontractors.
  * Reference rooms/building elements when known; be concise but specific.
  */
 export const TRADE_SCOPE_FALLBACKS: Record<string, string> = {

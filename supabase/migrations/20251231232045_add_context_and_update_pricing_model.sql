@@ -218,7 +218,6 @@ CREATE TABLE IF NOT EXISTS usage_metrics (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   metric_type text NOT NULL CHECK (metric_type IN (
-    'TENDER_POSTED',
     'JOB_POSTED',
     'QUOTE_RECEIVED',
     'APPLICATION_SUBMITTED',

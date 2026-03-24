@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
+import { applyExcludeTestAccountsFilters } from '@/lib/test-account';
 
 export const revalidate = 60;
 
@@ -56,29 +57,38 @@ export async function GET() {
     // 2) Must be admin (checked with service role so RLS can't block it)
     const { data: profile, error: adminErr } = await supabaseService
       .from('users')
-      .select('is_admin')
+      .select('is_admin, role')
       .eq('id', user.id)
       .maybeSingle();
 
-    if (adminErr || !profile || profile.is_admin !== true) {
+    const role = String((profile as any)?.role || '').trim().toLowerCase();
+    const isAdmin = !!profile && (profile.is_admin === true || role === 'admin');
+
+    if (adminErr || !isAdmin) {
       if (adminErr) console.error('Admin is_admin lookup failed:', adminErr);
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // 3) Stats (service role counts)
-    const [totalUsersRes, pendingVerificationsRes, activeJobsRes, totalJobsRes] =
-      await Promise.all([
-        supabaseService.from('users').select('*', { count: 'exact', head: true }),
-        supabaseService
-          .from('users')
-          .select('*', { count: 'exact', head: true })
-          .eq('trust_status', 'pending'),
-        supabaseService
-          .from('jobs')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'active'),
-        supabaseService.from('jobs').select('*', { count: 'exact', head: true }),
-      ]);
+    const totalUsersQuery = applyExcludeTestAccountsFilters(
+      supabaseService.from('users').select('*', { count: 'exact', head: true })
+    );
+    const pendingVerificationsQuery = applyExcludeTestAccountsFilters(
+      supabaseService
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+        .eq('trust_status', 'pending')
+    );
+
+    const [totalUsersRes, pendingVerificationsRes, activeJobsRes, totalJobsRes] = await Promise.all([
+      totalUsersQuery,
+      pendingVerificationsQuery,
+      supabaseService
+        .from('jobs')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'active'),
+      supabaseService.from('jobs').select('*', { count: 'exact', head: true }),
+    ]);
 
     // If any query errors, log and fail gracefully
     const errors = {

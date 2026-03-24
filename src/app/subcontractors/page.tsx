@@ -310,7 +310,7 @@ export default function SubcontractorsPage() {
   return (
     <TradeGate>
       <AppLayout transparentBackground>
-        {/* Blue wrapper (same as tenders page) */}
+        {/* Blue wrapper (marketing layout) */}
         <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800">
           {/* Dotted overlay */}
           <div

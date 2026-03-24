@@ -31,6 +31,17 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 
+const BUILDER_INTERNAL_VALUE = 'Building';
+const BUILDER_DISPLAY_LABEL = 'Builder/Contractor';
+const toTradeDisplayLabel = (trade: string) =>
+  trade === BUILDER_INTERNAL_VALUE ? BUILDER_DISPLAY_LABEL : trade;
+const hasValidCoordPair = (lat: number | null, lng: number | null) =>
+  typeof lat === 'number' &&
+  Number.isFinite(lat) &&
+  typeof lng === 'number' &&
+  Number.isFinite(lng) &&
+  !(lat === 0 && lng === 0);
+
 const stepAccent = (n: number) => {
   switch (n) {
     case 1:
@@ -383,7 +394,7 @@ export default function SignupPage() {
     try {
       // Backward compat: backend expects primary_trade (single). TODO: migrate fully to trade_categories.
       const primaryTrade = tradeCategories[0] ?? null;
-      const normalizedTrades = primaryTrade ? [primaryTrade] : [];
+      const normalizedTrades = tradeCategories.length > 0 ? [...new Set(tradeCategories)] : primaryTrade ? [primaryTrade] : [];
 
       await signup(visibleName?.trim() || '', email, password, primaryTrade ?? '', {
         businessName,
@@ -393,8 +404,8 @@ export default function SignupPage() {
         abnVerified: abnVerified ? true : undefined,
         location,
         postcode,
-        locationLat: typeof locationLat === 'number' && typeof locationLng === 'number' ? locationLat : undefined,
-        locationLng: typeof locationLat === 'number' && typeof locationLng === 'number' ? locationLng : undefined,
+        locationLat: hasValidCoordPair(locationLat, locationLng) ? locationLat : undefined,
+        locationLng: hasValidCoordPair(locationLat, locationLng) ? locationLng : undefined,
         availability: {},
         tradeCategories,
         trades: normalizedTrades,
@@ -644,7 +655,7 @@ export default function SignupPage() {
               number={2}
               icon={Wrench}
               title="Select your trade(s)"
-              subtitle="Choose the trade(s) you work in. Free: 1 trade. Premium: up to 5."
+              subtitle="Choose the trade(s) you work in. Free: 1 trade. Premium: unlimited trades."
               enabled={maxUnlockedStep >= 2}
               open={openSection === 2}
               completed={isStepDone(2)}
@@ -686,7 +697,7 @@ export default function SignupPage() {
               number={3}
               icon={Building2}
               title="Business details"
-              subtitle="You can list availability and apply for work now. ABN verification is only needed for posting jobs and applying for tenders."
+              subtitle="You can list availability and apply for work now. ABN verification is only needed for posting jobs and applying to jobs posted by others."
               enabled={maxUnlockedStep >= 3}
               open={openSection === 3}
               completed={isStepDone(3)}
@@ -726,7 +737,7 @@ export default function SignupPage() {
                     >
                       <path d="M12 2l2.1 2.1 3-.3-.3 3L19 9l3 3-3 3 .3 3-3-.3L12 22l-2.1-2.1-3 .3.3-3L5 15l-3-3 3-3-.3-3 3 .3L12 2z"/>
                     </svg>
-                    <span>Required to post jobs and apply for tenders</span>
+                    <span>Required to post jobs and apply to jobs posted by others</span>
                   </div>
 
                   <div className="mt-3 flex items-center gap-3">
@@ -836,7 +847,7 @@ export default function SignupPage() {
                     className="mt-1"
                   />
                   <p className="text-xs text-slate-500 mt-2">
-                    Premium lets you expand your work radius to find more jobs and apply for more tenders.
+                    Premium lets you expand your work radius to find more jobs and apply to more listings.
                   </p>
                 </div>
                 <div className="mt-6 flex justify-end">
@@ -880,7 +891,9 @@ export default function SignupPage() {
                   <div className="min-w-0 break-words">
                     <div className="font-medium text-slate-900">Trade(s)</div>
                     <div className="text-slate-600 break-words">
-                      {tradeCategories.length > 0 ? tradeCategories.join(', ') : '—'}
+                      {tradeCategories.length > 0
+                        ? tradeCategories.map(toTradeDisplayLabel).join(', ')
+                        : '—'}
                     </div>
                   </div>
                   {businessName && (

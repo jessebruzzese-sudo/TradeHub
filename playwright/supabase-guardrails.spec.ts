@@ -89,15 +89,11 @@ test.describe('Supabase-backed platform guardrails', () => {
       await waitStable(page, 250);
       await expect(page).toHaveURL(/\/jobs/);
 
-      await page.goto(`${BASE_URL}/tenders`);
+      await page.goto(`${BASE_URL}/search`);
       await waitStable(page, 250);
-      await expect(page).toHaveURL(/\/tenders/);
+      await expect(page).toHaveURL(/\/search/);
 
       await page.goto(`${BASE_URL}/jobs/create`);
-      await waitStable(page, 250);
-      await expect(page.url()).toMatch(/\/verify-business|\/dashboard/);
-
-      await page.goto(`${BASE_URL}/tenders/create`);
       await waitStable(page, 250);
       await expect(page.url()).toMatch(/\/verify-business|\/dashboard/);
 

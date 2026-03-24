@@ -36,8 +36,8 @@ npx playwright test auth.spec.ts
 # Profile and free/premium
 npx playwright test profile.spec.ts free-premium-enforcement.spec.ts
 
-# Jobs and tenders
-npx playwright test jobs.spec.ts tenders.spec.ts
+# Jobs
+npx playwright test jobs.spec.ts
 
 # Discovery and radius
 npx playwright test discovery-radius.spec.ts
@@ -47,9 +47,6 @@ npx playwright test messaging.spec.ts notifications.spec.ts
 
 # ABN enforcement
 npx playwright test abn-enforcement.spec.ts
-
-# Tender request-to-quote flow
-npx playwright test tender-request-flow.spec.ts
 
 # Admin smoke
 npx playwright test admin.spec.ts
@@ -66,13 +63,11 @@ npx playwright test abn-gating-unverified.spec.ts
 | `profile.spec.ts` | Profile edit, free trade lock, premium upsell |
 | `free-premium-enforcement.spec.ts` | Free vs premium rules |
 | `jobs.spec.ts` | Jobs browse, detail, trade matching |
-| `tenders.spec.ts` | Tenders browse, detail, anonymous flow |
-| `discovery-radius.spec.ts` | Trade filter, radius |
+| `discovery-radius.spec.ts` | Trade filter, radius, search |
 | `messaging.spec.ts` | Messages page, thread creation |
 | `notifications.spec.ts` | Notifications page, badge |
 | `abn-enforcement.spec.ts` | Verified user ABN rules |
 | `abn-gating-unverified.spec.ts` | Unverified user gating |
-| `tender-request-flow.spec.ts` | Request-to-quote flow |
 | `admin.spec.ts` | Admin dashboard smoke |
 
 ## Helpers
@@ -80,7 +75,7 @@ npx playwright test abn-gating-unverified.spec.ts
 `playwright/helpers/index.ts` provides:
 - `loginViaUI`, `logoutViaUI`, `switchToUser`
 - `waitStable`
-- `getSeedIds`, `getSeedJobId`, `getSeedTenderId`, `getSeedUserId`
+- `getSeedIds`, `getSeedJobId`, `getSeedUserId`
 - `hasSeedData`, `SEED_TITLES`
 - `ACCOUNTS` (free, premium, unverified, poster, admin)
 

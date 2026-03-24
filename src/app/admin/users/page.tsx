@@ -15,7 +15,6 @@ import {
 } from '@/components/ui/select';
 import { Search, Filter, Loader2, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { getBrowserSupabase } from '@/lib/supabase-client';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '@/lib/auth';
 import { isAdmin } from '@/lib/is-admin';
@@ -26,6 +25,7 @@ interface UserRow {
   name: string;
   email: string;
   role: string;
+  accountType: 'qa' | 'real';
   primaryTrade?: string;
   trustStatus: string;
   createdAt: string;
@@ -43,9 +43,10 @@ type SortBy =
   | 'inactive'
   | 'never';
 
+type AccountTypeFilter = 'all' | 'qa' | 'real';
+
 export default function AdminUsersPage() {
   const router = useRouter();
-  const supabase = getBrowserSupabase();
   const { currentUser, isLoading } = useAuth();
 
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -54,6 +55,7 @@ export default function AdminUsersPage() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<SortBy>('newest');
+  const [accountTypeFilter, setAccountTypeFilter] = useState<AccountTypeFilter>('all');
   const [tradeFilter, setTradeFilter] = useState<string>('all');
   const [trades, setTrades] = useState<string[]>([]);
 
@@ -79,84 +81,32 @@ export default function AdminUsersPage() {
   useEffect(() => {
     if (!currentUser || !isAdmin(currentUser)) return;
     loadUsers();
-    loadTrades();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sortBy, tradeFilter, currentUser?.id]);
-
-  const loadTrades = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('primary_trade')
-        .not('primary_trade', 'is', null);
-
-      if (error) throw error;
-
-      const uniqueTrades = Array.from(new Set((data || []).map((u: any) => u.primary_trade).filter(Boolean)));
-      setTrades(uniqueTrades as string[]);
-    } catch (err) {
-      console.error('Error loading trades:', err);
-      // don’t block users list if trades fails
-    }
-  };
+  }, [sortBy, tradeFilter, accountTypeFilter, currentUser?.id]);
 
   const loadUsers = async () => {
     try {
       setLoading(true);
       setErrorMsg('');
+      const params = new URLSearchParams({
+        sortBy,
+        trade: tradeFilter,
+        accountType: accountTypeFilter,
+      });
+      const res = await fetch(`/api/admin/users?${params.toString()}`, { cache: 'no-store' });
+      const payload = await res.json();
 
-      let query = supabase
-        .from('users')
-        .select('id, name, email, role, primary_trade, trust_status, created_at, last_seen_at, avatar');
-
-      if (tradeFilter !== 'all') {
-        query = query.eq('primary_trade', tradeFilter);
-      }
-
-      const now = new Date();
-      const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000);
-      const startOfToday = new Date(new Date().setHours(0, 0, 0, 0));
-      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-
-      switch (sortBy) {
-        case 'newest':
-          query = query.order('created_at', { ascending: false });
-          break;
-        case 'oldest':
-          query = query.order('created_at', { ascending: true });
-          break;
-        case 'online':
-          query = query.gte('last_seen_at', twoMinutesAgo.toISOString()).order('last_seen_at', { ascending: false });
-          break;
-        case 'today':
-          query = query.gte('last_seen_at', startOfToday.toISOString()).order('last_seen_at', { ascending: false });
-          break;
-        case 'week':
-          query = query.gte('last_seen_at', sevenDaysAgo.toISOString()).order('last_seen_at', { ascending: false });
-          break;
-        case 'month':
-          query = query.gte('last_seen_at', thirtyDaysAgo.toISOString()).order('last_seen_at', { ascending: false });
-          break;
-        case 'inactive':
-          query = query.lt('last_seen_at', thirtyDaysAgo.toISOString()).order('last_seen_at', { ascending: false });
-          break;
-        case 'never':
-          query = query.is('last_seen_at', null).order('created_at', { ascending: false });
-          break;
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        console.error('Error loading users:', error);
+      if (!res.ok) {
+        console.error('Error loading users:', payload);
         setUsers([]);
-        // ✅ show helpful RLS hint
-        setErrorMsg(
-          `${error.message}\n\nIf you only see yourself (or nothing), this is usually RLS. Add an admin SELECT policy on public.users so admins can read all rows.`
-        );
+        setTrades([]);
+        setErrorMsg(payload?.error || `Failed to load users (${res.status})`);
         return;
       }
+
+      const data = Array.isArray(payload?.users) ? payload.users : [];
+      const tradesFromApi = Array.isArray(payload?.trades) ? payload.trades : [];
+      setTrades(tradesFromApi as string[]);
 
       setUsers(
         (data || []).map((u: any) => ({
@@ -164,6 +114,7 @@ export default function AdminUsersPage() {
           name: u.name ?? '',
           email: u.email ?? '',
           role: u.role ?? '',
+          accountType: u.account_type === 'qa' ? 'qa' : 'real',
           primaryTrade: u.primary_trade ?? undefined,
           trustStatus: u.trust_status ?? 'pending',
           createdAt: u.created_at,
@@ -174,6 +125,7 @@ export default function AdminUsersPage() {
     } catch (err: any) {
       console.error('Error loading users:', err);
       setUsers([]);
+      setTrades([]);
       setErrorMsg(err?.message || 'Failed to load users');
     } finally {
       setLoading(false);
@@ -268,6 +220,17 @@ export default function AdminUsersPage() {
                 ))}
               </SelectContent>
             </Select>
+
+            <Select value={accountTypeFilter} onValueChange={(value) => setAccountTypeFilter(value as AccountTypeFilter)}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Account type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All accounts</SelectItem>
+                <SelectItem value="real">Real only</SelectItem>
+                <SelectItem value="qa">QA/Test only</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </Card>
@@ -285,6 +248,7 @@ export default function AdminUsersPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Account Type</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Trade</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
@@ -314,6 +278,12 @@ export default function AdminUsersPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <Badge variant="outline" className="capitalize">
                         {user.role || '—'}
+                      </Badge>
+                    </td>
+
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <Badge variant={user.accountType === 'qa' ? 'secondary' : 'default'} className="uppercase">
+                        {user.accountType === 'qa' ? 'QA/Test' : 'Real'}
                       </Badge>
                     </td>
 

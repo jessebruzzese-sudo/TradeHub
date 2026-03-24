@@ -114,7 +114,6 @@ export default function AdminPage() {
           <AdminCard href="/admin/users" icon={Users} title="Users" />
           <AdminCard href="/admin/verifications" icon={ShieldCheck} title="Verifications" />
           <AdminCard href="/admin/jobs" icon={FileText} title="Jobs" />
-          <AdminCard href="/admin/tenders" icon={FileText} title="Tenders" />
           <AdminCard href="/admin/reviews" icon={MessageSquare} title="Reviews" />
           <AdminCard href="/admin/audit-log" icon={ShieldCheck} title="Audit Log" />
           <AdminCard href="/admin/qa-setup" icon={TestTube} title="QA Setup" />

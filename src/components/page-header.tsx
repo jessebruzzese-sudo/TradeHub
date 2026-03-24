@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 interface PageHeaderProps {
   backLink?: {
     href: string;
+    /** Defaults to "Back to Dashboard" */
+    label?: string;
   };
   title: string;
   description?: string;
@@ -26,7 +28,7 @@ export function PageHeader({ backLink, title, description, action, tone = 'light
           className={`inline-flex items-center text-sm mb-3 transition-colors ${backClass}`}
         >
           <ArrowLeft className={`w-4 h-4 mr-1 ${iconClass}`} />
-          Back to Dashboard
+          {backLink.label ?? 'Back to Dashboard'}
         </Link>
       )}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">

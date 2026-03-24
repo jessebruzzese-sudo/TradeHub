@@ -1177,6 +1177,97 @@ export type Database = {
           },
         ]
       }
+      previous_work: {
+        Row: {
+          caption: string
+          created_at: string
+          id: string
+          location: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          caption: string
+          created_at?: string
+          id?: string
+          location?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          caption?: string
+          created_at?: string
+          id?: string
+          location?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "previous_work_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "previous_work_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profile_directory_with_ratings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "previous_work_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "previous_work_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_ratings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      previous_work_images: {
+        Row: {
+          created_at: string
+          id: string
+          image_path: string
+          previous_work_id: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          image_path: string
+          previous_work_id: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          image_path?: string
+          previous_work_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "previous_work_images_previous_work_id_fkey"
+            columns: ["previous_work_id"]
+            isOneToOne: false
+            referencedRelation: "previous_work"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profile_views: {
         Row: {
           created_at: string | null
@@ -1608,436 +1699,6 @@ export type Database = {
           },
         ]
       }
-      tender_documents: {
-        Row: {
-          created_at: string | null
-          file_name: string
-          file_url: string
-          id: string
-          mime_type: string | null
-          size_bytes: number | null
-          tender_id: string
-          trade: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          file_name: string
-          file_url: string
-          id?: string
-          mime_type?: string | null
-          size_bytes?: number | null
-          tender_id: string
-          trade?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          file_name?: string
-          file_url?: string
-          id?: string
-          mime_type?: string | null
-          size_bytes?: number | null
-          tender_id?: string
-          trade?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tender_documents_tender_id_fkey"
-            columns: ["tender_id"]
-            isOneToOne: false
-            referencedRelation: "tender_quote_counts"
-            referencedColumns: ["tender_id"]
-          },
-          {
-            foreignKeyName: "tender_documents_tender_id_fkey"
-            columns: ["tender_id"]
-            isOneToOne: false
-            referencedRelation: "tenders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      tender_quote_requests: {
-        Row: {
-          created_at: string
-          id: string
-          requester_id: string
-          status: string
-          tender_id: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          requester_id: string
-          status?: string
-          tender_id: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          requester_id?: string
-          status?: string
-          tender_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tender_quote_requests_requester_id_fkey"
-            columns: ["requester_id"]
-            isOneToOne: false
-            referencedRelation: "public_profile_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tender_quote_requests_requester_id_fkey"
-            columns: ["requester_id"]
-            isOneToOne: false
-            referencedRelation: "public_profile_directory_with_ratings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tender_quote_requests_requester_id_fkey"
-            columns: ["requester_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tender_quote_requests_requester_id_fkey"
-            columns: ["requester_id"]
-            isOneToOne: false
-            referencedRelation: "users_with_ratings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tender_quote_requests_tender_id_fkey"
-            columns: ["tender_id"]
-            isOneToOne: false
-            referencedRelation: "tender_quote_counts"
-            referencedColumns: ["tender_id"]
-          },
-          {
-            foreignKeyName: "tender_quote_requests_tender_id_fkey"
-            columns: ["tender_id"]
-            isOneToOne: false
-            referencedRelation: "tenders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      tender_quotes: {
-        Row: {
-          billing_mode: string
-          billing_month_key: string
-          contractor_id: string
-          created_at: string | null
-          deleted_at: string | null
-          id: string
-          notes: string | null
-          price_cents: number
-          status: string
-          submitted_at: string | null
-          tender_id: string
-          trade_key: string
-        }
-        Insert: {
-          billing_mode: string
-          billing_month_key: string
-          contractor_id: string
-          created_at?: string | null
-          deleted_at?: string | null
-          id?: string
-          notes?: string | null
-          price_cents: number
-          status?: string
-          submitted_at?: string | null
-          tender_id: string
-          trade_key: string
-        }
-        Update: {
-          billing_mode?: string
-          billing_month_key?: string
-          contractor_id?: string
-          created_at?: string | null
-          deleted_at?: string | null
-          id?: string
-          notes?: string | null
-          price_cents?: number
-          status?: string
-          submitted_at?: string | null
-          tender_id?: string
-          trade_key?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tender_quotes_contractor_id_fkey"
-            columns: ["contractor_id"]
-            isOneToOne: false
-            referencedRelation: "public_profile_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tender_quotes_contractor_id_fkey"
-            columns: ["contractor_id"]
-            isOneToOne: false
-            referencedRelation: "public_profile_directory_with_ratings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tender_quotes_contractor_id_fkey"
-            columns: ["contractor_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tender_quotes_contractor_id_fkey"
-            columns: ["contractor_id"]
-            isOneToOne: false
-            referencedRelation: "users_with_ratings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tender_quotes_tender_id_fkey"
-            columns: ["tender_id"]
-            isOneToOne: false
-            referencedRelation: "tender_quote_counts"
-            referencedColumns: ["tender_id"]
-          },
-          {
-            foreignKeyName: "tender_quotes_tender_id_fkey"
-            columns: ["tender_id"]
-            isOneToOne: false
-            referencedRelation: "tenders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      tender_trade_requirements: {
-        Row: {
-          created_at: string | null
-          documents: Json | null
-          id: string
-          links: Json | null
-          max_budget_cents: number | null
-          min_budget_cents: number | null
-          sub_description: string
-          tender_id: string
-          trade: string
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          documents?: Json | null
-          id?: string
-          links?: Json | null
-          max_budget_cents?: number | null
-          min_budget_cents?: number | null
-          sub_description: string
-          tender_id: string
-          trade: string
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          documents?: Json | null
-          id?: string
-          links?: Json | null
-          max_budget_cents?: number | null
-          min_budget_cents?: number | null
-          sub_description?: string
-          tender_id?: string
-          trade?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tender_trade_requirements_tender_id_fkey"
-            columns: ["tender_id"]
-            isOneToOne: false
-            referencedRelation: "tender_quote_counts"
-            referencedColumns: ["tender_id"]
-          },
-          {
-            foreignKeyName: "tender_trade_requirements_tender_id_fkey"
-            columns: ["tender_id"]
-            isOneToOne: false
-            referencedRelation: "tenders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      tender_trades: {
-        Row: {
-          id: string
-          tender_id: string
-          trade_name: string
-          trade_slug: string
-        }
-        Insert: {
-          id?: string
-          tender_id: string
-          trade_name: string
-          trade_slug: string
-        }
-        Update: {
-          id?: string
-          tender_id?: string
-          trade_name?: string
-          trade_slug?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tender_trades_tender_id_fkey"
-            columns: ["tender_id"]
-            isOneToOne: false
-            referencedRelation: "tender_quote_counts"
-            referencedColumns: ["tender_id"]
-          },
-          {
-            foreignKeyName: "tender_trades_tender_id_fkey"
-            columns: ["tender_id"]
-            isOneToOne: false
-            referencedRelation: "tenders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      tenders: {
-        Row: {
-          admin_notes: string | null
-          ai_draft: Json | null
-          approval_reason: string | null
-          approval_status: string
-          approved_at: string | null
-          approved_by: string | null
-          budget_max_cents: number | null
-          budget_min_cents: number | null
-          builder_id: string
-          closes_at: string | null
-          created_at: string | null
-          deleted_at: string | null
-          desired_end_date: string | null
-          desired_start_date: string | null
-          id: string
-          is_anonymous: boolean
-          is_guest_tender: boolean | null
-          is_name_hidden: boolean | null
-          lat: number
-          limited_quotes_enabled: boolean | null
-          lng: number
-          postcode: string
-          project_description: string | null
-          project_name: string
-          quote_cap_total: number | null
-          quote_count_total: number | null
-          rejection_reason: string | null
-          shared_attachments: Json
-          status: string
-          suburb: string
-          tier: string
-          updated_at: string | null
-        }
-        Insert: {
-          admin_notes?: string | null
-          ai_draft?: Json | null
-          approval_reason?: string | null
-          approval_status?: string
-          approved_at?: string | null
-          approved_by?: string | null
-          budget_max_cents?: number | null
-          budget_min_cents?: number | null
-          builder_id: string
-          closes_at?: string | null
-          created_at?: string | null
-          deleted_at?: string | null
-          desired_end_date?: string | null
-          desired_start_date?: string | null
-          id?: string
-          is_anonymous?: boolean
-          is_guest_tender?: boolean | null
-          is_name_hidden?: boolean | null
-          lat: number
-          limited_quotes_enabled?: boolean | null
-          lng: number
-          postcode: string
-          project_description?: string | null
-          project_name: string
-          quote_cap_total?: number | null
-          quote_count_total?: number | null
-          rejection_reason?: string | null
-          shared_attachments?: Json
-          status?: string
-          suburb: string
-          tier: string
-          updated_at?: string | null
-        }
-        Update: {
-          admin_notes?: string | null
-          ai_draft?: Json | null
-          approval_reason?: string | null
-          approval_status?: string
-          approved_at?: string | null
-          approved_by?: string | null
-          budget_max_cents?: number | null
-          budget_min_cents?: number | null
-          builder_id?: string
-          closes_at?: string | null
-          created_at?: string | null
-          deleted_at?: string | null
-          desired_end_date?: string | null
-          desired_start_date?: string | null
-          id?: string
-          is_anonymous?: boolean
-          is_guest_tender?: boolean | null
-          is_name_hidden?: boolean | null
-          lat?: number
-          limited_quotes_enabled?: boolean | null
-          lng?: number
-          postcode?: string
-          project_description?: string | null
-          project_name?: string
-          quote_cap_total?: number | null
-          quote_count_total?: number | null
-          rejection_reason?: string | null
-          shared_attachments?: Json
-          status?: string
-          suburb?: string
-          tier?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tenders_builder_id_fkey"
-            columns: ["builder_id"]
-            isOneToOne: false
-            referencedRelation: "public_profile_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tenders_builder_id_fkey"
-            columns: ["builder_id"]
-            isOneToOne: false
-            referencedRelation: "public_profile_directory_with_ratings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tenders_builder_id_fkey"
-            columns: ["builder_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tenders_builder_id_fkey"
-            columns: ["builder_id"]
-            isOneToOne: false
-            referencedRelation: "users_with_ratings"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       usage_metrics: {
         Row: {
           created_at: string | null
@@ -2336,53 +1997,6 @@ export type Database = {
           },
         ]
       }
-      user_trade_quote_credits: {
-        Row: {
-          trade_slug: string
-          used_count: number
-          user_id: string
-        }
-        Insert: {
-          trade_slug: string
-          used_count?: number
-          user_id: string
-        }
-        Update: {
-          trade_slug?: string
-          used_count?: number
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_trade_quote_credits_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "public_profile_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_trade_quote_credits_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "public_profile_directory_with_ratings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_trade_quote_credits_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_trade_quote_credits_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users_with_ratings"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       user_trades: {
         Row: {
           created_at: string
@@ -2471,25 +2085,16 @@ export type Database = {
           base_postcode: string | null
           base_suburb: string | null
           bio: string | null
-          builder_free_trial_tender_used: boolean | null
-          builder_plan: string | null
-          builder_sub_renews_at: string | null
-          builder_sub_status: string | null
           business_name: string | null
           completed_jobs: number | null
           complimentary_premium_until: string | null
           complimentary_reason: string | null
-          contractor_plan: string | null
-          contractor_sub_renews_at: string | null
-          contractor_sub_status: string | null
           cover_url: string | null
           created_at: string | null
           deleted_at: string | null
           email: string
           entity_type: string | null
           facebook: string | null
-          free_quote_month_key: string | null
-          free_quote_used_count: number | null
           id: string
           instagram: string | null
           is_admin: boolean
@@ -2560,6 +2165,33 @@ export type Database = {
           updated_at: string | null
           website: string | null
           youtube: string | null
+          profile_strength_score: number
+          profile_strength_band: string
+          profile_likes_count: number
+          website_url: string | null
+          instagram_url: string | null
+          facebook_url: string | null
+          linkedin_url: string | null
+          google_business_url: string | null
+          google_business_name: string | null
+          google_business_address: string | null
+          google_place_id: string | null
+          google_business_rating: number | null
+          google_business_review_count: number | null
+          google_rating: number | null
+          google_review_count: number | null
+          google_rating_verified: boolean
+          google_listing_claimed_by_user: boolean
+          google_listing_verification_status: string
+          google_listing_verified_at: string | null
+          google_listing_verification_method: string | null
+          google_listing_verified_by: string | null
+          google_listing_rejection_reason: string | null
+          works_completed_count: number
+          jobs_posted_count: number
+          works_uploaded_count: number
+          profile_completion_score: number
+          last_strength_calculated_at: string | null
         }
         Insert: {
           abn?: string | null
@@ -2592,25 +2224,16 @@ export type Database = {
           base_postcode?: string | null
           base_suburb?: string | null
           bio?: string | null
-          builder_free_trial_tender_used?: boolean | null
-          builder_plan?: string | null
-          builder_sub_renews_at?: string | null
-          builder_sub_status?: string | null
           business_name?: string | null
           completed_jobs?: number | null
           complimentary_premium_until?: string | null
           complimentary_reason?: string | null
-          contractor_plan?: string | null
-          contractor_sub_renews_at?: string | null
-          contractor_sub_status?: string | null
           cover_url?: string | null
           created_at?: string | null
           deleted_at?: string | null
           email: string
           entity_type?: string | null
           facebook?: string | null
-          free_quote_month_key?: string | null
-          free_quote_used_count?: number | null
           id?: string
           instagram?: string | null
           is_admin?: boolean
@@ -2680,6 +2303,21 @@ export type Database = {
           trust_status?: string
           updated_at?: string | null
           website?: string | null
+          google_business_url?: string | null
+          google_business_name?: string | null
+          google_business_address?: string | null
+          google_place_id?: string | null
+          google_business_rating?: number | null
+          google_business_review_count?: number | null
+          google_rating?: number | null
+          google_review_count?: number | null
+          google_rating_verified?: boolean
+          google_listing_claimed_by_user?: boolean
+          google_listing_verification_status?: string
+          google_listing_verified_at?: string | null
+          google_listing_verification_method?: string | null
+          google_listing_verified_by?: string | null
+          google_listing_rejection_reason?: string | null
           youtube?: string | null
         }
         Update: {
@@ -2713,25 +2351,16 @@ export type Database = {
           base_postcode?: string | null
           base_suburb?: string | null
           bio?: string | null
-          builder_free_trial_tender_used?: boolean | null
-          builder_plan?: string | null
-          builder_sub_renews_at?: string | null
-          builder_sub_status?: string | null
           business_name?: string | null
           completed_jobs?: number | null
           complimentary_premium_until?: string | null
           complimentary_reason?: string | null
-          contractor_plan?: string | null
-          contractor_sub_renews_at?: string | null
-          contractor_sub_status?: string | null
           cover_url?: string | null
           created_at?: string | null
           deleted_at?: string | null
           email?: string
           entity_type?: string | null
           facebook?: string | null
-          free_quote_month_key?: string | null
-          free_quote_used_count?: number | null
           id?: string
           instagram?: string | null
           is_admin?: boolean
@@ -2801,6 +2430,21 @@ export type Database = {
           trust_status?: string
           updated_at?: string | null
           website?: string | null
+          google_business_url?: string | null
+          google_business_name?: string | null
+          google_business_address?: string | null
+          google_place_id?: string | null
+          google_business_rating?: number | null
+          google_business_review_count?: number | null
+          google_rating?: number | null
+          google_review_count?: number | null
+          google_rating_verified?: boolean
+          google_listing_claimed_by_user?: boolean
+          google_listing_verification_status?: string
+          google_listing_verified_at?: string | null
+          google_listing_verification_method?: string | null
+          google_listing_verified_by?: string | null
+          google_listing_rejection_reason?: string | null
           youtube?: string | null
         }
         Relationships: []
@@ -2965,13 +2609,6 @@ export type Database = {
         }
         Relationships: []
       }
-      tender_quote_counts: {
-        Row: {
-          quotes_received: number | null
-          tender_id: string | null
-        }
-        Relationships: []
-      }
       user_rating_aggregates: {
         Row: {
           down_count: number | null
@@ -3041,25 +2678,16 @@ export type Database = {
           base_postcode: string | null
           base_suburb: string | null
           bio: string | null
-          builder_free_trial_tender_used: boolean | null
-          builder_plan: string | null
-          builder_sub_renews_at: string | null
-          builder_sub_status: string | null
           business_name: string | null
           completed_jobs: number | null
           complimentary_premium_until: string | null
           complimentary_reason: string | null
-          contractor_plan: string | null
-          contractor_sub_renews_at: string | null
-          contractor_sub_status: string | null
           cover_url: string | null
           created_at: string | null
           deleted_at: string | null
           down_count: number | null
           email: string | null
           facebook: string | null
-          free_quote_month_key: string | null
-          free_quote_used_count: number | null
           id: string | null
           instagram: string | null
           is_admin: boolean | null
@@ -3133,77 +2761,7 @@ export type Database = {
       }
     }
     Functions: {
-      accept_quote_request: {
-        Args: { p_request_id: string; p_trade_slug: string }
-        Returns: undefined
-      }
-      can_publish_tender: { Args: { uid: string }; Returns: boolean }
-      cancel_tender: { Args: { p_tender_id: string }; Returns: undefined }
       check_email_exists: { Args: { check_email: string }; Returns: boolean }
-      cleanup_expired_tenders: { Args: never; Returns: number }
-      close_tender: { Args: { p_tender_id: string }; Returns: undefined }
-      create_tender: {
-        Args: {
-          p_budget_max_cents: number
-          p_budget_min_cents: number
-          p_description: string
-          p_desired_end_date: string
-          p_desired_start_date: string
-          p_is_anonymous?: boolean
-          p_lat?: number
-          p_lng?: number
-          p_postcode: string
-          p_project_name: string
-          p_shared_attachments: Json
-          p_suburb: string
-          p_trades: string[]
-        }
-        Returns: {
-          admin_notes: string | null
-          ai_draft: Json | null
-          approval_reason: string | null
-          approval_status: string
-          approved_at: string | null
-          approved_by: string | null
-          budget_max_cents: number | null
-          budget_min_cents: number | null
-          builder_id: string
-          closes_at: string | null
-          created_at: string | null
-          deleted_at: string | null
-          desired_end_date: string | null
-          desired_start_date: string | null
-          id: string
-          is_anonymous: boolean
-          is_guest_tender: boolean | null
-          is_name_hidden: boolean | null
-          lat: number
-          limited_quotes_enabled: boolean | null
-          lng: number
-          postcode: string
-          project_description: string | null
-          project_name: string
-          quote_cap_total: number | null
-          quote_count_total: number | null
-          rejection_reason: string | null
-          shared_attachments: Json
-          status: string
-          suburb: string
-          tier: string
-          updated_at: string | null
-        }
-        SetofOptions: {
-          from: "*"
-          to: "tenders"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      decline_quote_request: {
-        Args: { p_request_id: string }
-        Returns: undefined
-      }
-      delete_tender: { Args: { p_tender_id: string }; Returns: undefined }
       get_jobs_visible_to_viewer: {
         Args: {
           limit_count?: number
@@ -3233,78 +2791,6 @@ export type Database = {
           viewer_radius_km: number
         }[]
       }
-      get_tender_for_viewer: {
-        Args: { p_tender_id: string; p_viewer_id: string }
-        Returns: {
-          admin_notes: string | null
-          ai_draft: Json | null
-          approval_reason: string | null
-          approval_status: string
-          approved_at: string | null
-          approved_by: string | null
-          budget_max_cents: number | null
-          budget_min_cents: number | null
-          builder_id: string
-          closes_at: string | null
-          created_at: string | null
-          deleted_at: string | null
-          desired_end_date: string | null
-          desired_start_date: string | null
-          id: string
-          is_anonymous: boolean
-          is_guest_tender: boolean | null
-          is_name_hidden: boolean | null
-          lat: number
-          limited_quotes_enabled: boolean | null
-          lng: number
-          postcode: string
-          project_description: string | null
-          project_name: string
-          quote_cap_total: number | null
-          quote_count_total: number | null
-          rejection_reason: string | null
-          shared_attachments: Json
-          status: string
-          suburb: string
-          tier: string
-          updated_at: string | null
-        }[]
-        SetofOptions: {
-          from: "*"
-          to: "tenders"
-          isOneToOne: false
-          isSetofReturn: true
-        }
-      }
-      get_tenders_visible_to_viewer: {
-        Args: {
-          limit_count?: number
-          offset_count?: number
-          trade_filter?: string
-          viewer_id: string
-        }
-        Returns: {
-          budget_max_cents: number
-          budget_min_cents: number
-          builder_id: string
-          created_at: string
-          desired_end_date: string
-          desired_start_date: string
-          distance_km: number
-          id: string
-          is_anonymous: boolean
-          is_name_hidden: boolean
-          lat: number
-          lng: number
-          postcode: string
-          project_description: string
-          project_name: string
-          status: string
-          suburb: string
-          tier: string
-          viewer_radius_km: number
-        }[]
-      }
       haversine_km: {
         Args: { lat1: number; lat2: number; lon1: number; lon2: number }
         Returns: number
@@ -3314,48 +2800,9 @@ export type Database = {
         | { Args: { uid: string }; Returns: boolean }
       is_premium_discovery: { Args: { uid: string }; Returns: boolean }
       is_premium_user: { Args: { uid: string }; Returns: boolean }
-      is_tender_owner: {
-        Args: { p_tender_id: string; p_uid: string }
-        Returns: boolean
-      }
       km_distance: {
         Args: { lat1: number; lat2: number; lng1: number; lng2: number }
         Returns: number
-      }
-      publish_tender: { Args: { p_tender_id: string }; Returns: undefined }
-      reopen_tender: { Args: { p_tender_id: string }; Returns: undefined }
-      request_to_quote: { Args: { p_tender_id: string }; Returns: undefined }
-      tender_has_valid_coords: {
-        Args: { p_lat: number; p_lng: number }
-        Returns: boolean
-      }
-      tender_submit_quote: {
-        Args: {
-          p_notes: string
-          p_price_cents: number
-          p_tender_id: string
-          p_trade_key: string
-        }
-        Returns: {
-          billing_mode: string
-          billing_month_key: string
-          contractor_id: string
-          created_at: string | null
-          deleted_at: string | null
-          id: string
-          notes: string | null
-          price_cents: number
-          status: string
-          submitted_at: string | null
-          tender_id: string
-          trade_key: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "tender_quotes"
-          isOneToOne: true
-          isSetofReturn: false
-        }
       }
       update_user_trades: {
         Args: { p_primary_trade: string; p_trades: string[]; p_user_id: string }

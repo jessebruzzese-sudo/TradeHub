@@ -1,16 +1,13 @@
 /**
  * Server-side alert service: find eligible recipients and send email alerts
- * when a new job or tender is published.
+ * when a new job is published.
  */
 import { createServiceSupabase } from '@/lib/supabase-server';
 import { getTier } from '@/lib/plan-limits';
 import { createEmailEvent } from '@/lib/email/create-email-event';
 import { shouldSendEmailNow } from '@/lib/email/rollout';
 
-export type ListingType = 'job' | 'tender';
-
 export type SendListingAlertsResult = {
-  listingType: ListingType;
   listingId: string;
   sent: number;
   failed: number;
@@ -40,12 +37,8 @@ function tradesMatch(userTrades: string[], listingTrades: string[]): boolean {
   return false;
 }
 
-export async function sendListingAlerts(
-  listingType: ListingType,
-  listingId: string
-): Promise<SendListingAlertsResult> {
+export async function sendListingAlerts(listingId: string): Promise<SendListingAlertsResult> {
   const result: SendListingAlertsResult = {
-    listingType,
     listingId,
     sent: 0,
     failed: 0,
@@ -56,27 +49,34 @@ export async function sendListingAlerts(
   const supabase = createServiceSupabase();
 
   try {
-    if (listingType === 'job') {
-      const { data: job, error } = await supabase
-        .from('jobs')
-        .select('id, title, description, trade_category, location, postcode, contractor_id')
-        .eq('id', listingId)
-        .maybeSingle();
+    const { data: job, error } = await supabase
+      .from('jobs')
+      .select('id, title, description, trade_category, location, postcode, contractor_id')
+      .eq('id', listingId)
+      .maybeSingle();
 
-      if (error || !job) {
-        result.errors.push(`Job not found: ${listingId}`);
-        return result;
-      }
+    if (error || !job) {
+      result.errors.push(`Job not found: ${listingId}`);
+      return result;
+    }
 
-      const j = job as { id: string; contractor_id: string; title?: string; description?: string; trade_category?: string; location?: string; postcode?: string };
-      const ownerId = j.contractor_id;
-      const listingTrades = [j.trade_category].filter((x): x is string => Boolean(x));
-      const location = [j.location, j.postcode].filter(Boolean).join(', ') || null;
+    const j = job as {
+      id: string;
+      contractor_id: string;
+      title?: string;
+      description?: string;
+      trade_category?: string;
+      location?: string;
+      postcode?: string;
+    };
+    const ownerId = j.contractor_id;
+    const listingTrades = [j.trade_category].filter((x): x is string => Boolean(x));
+    const location = [j.location, j.postcode].filter(Boolean).join(', ') || null;
 
-      const recipients = await getEligibleRecipients(supabase, listingTrades, ownerId);
-      await sendToRecipients(supabase, {
-        emailType: 'job_alert',
-        listingType: 'job',
+    const recipients = await getEligibleRecipients(supabase, listingTrades, ownerId);
+    await sendToRecipients(
+      supabase,
+      {
         listingId,
         recipients,
         tradeLabel: j.trade_category ?? null,
@@ -86,56 +86,13 @@ export async function sendListingAlerts(
           location: location ?? 'Unknown',
           jobUrl: `${appBaseUrl()}/jobs/${j.id}`,
         }),
-      }, result);
-    } else {
-      const { data: tender, error } = await supabase
-        .from('tenders')
-        .select('id, project_name, project_description, suburb, postcode, builder_id')
-        .eq('id', listingId)
-        .maybeSingle();
-
-      if (error || !tender) {
-        result.errors.push(`Tender not found: ${listingId}`);
-        return result;
-      }
-
-      const t = tender as { builder_id: string; project_name?: string; project_description?: string; suburb?: string; postcode?: string };
-
-      const { data: tradeReqs } = await supabase
-        .from('tender_trade_requirements')
-        .select('trade')
-        .eq('tender_id', listingId);
-
-      const listingTrades = (tradeReqs ?? []).map((r: { trade: string }) => r.trade).filter((x): x is string => Boolean(x));
-      if (listingTrades.length === 0) {
-        result.errors.push('Tender has no trades');
-        return result;
-      }
-
-      const ownerId = t.builder_id;
-      const title = t.project_name ?? 'Untitled tender';
-      const location = [t.suburb, t.postcode].filter(Boolean).join(', ') || null;
-      const primaryTrade = listingTrades[0];
-
-      const recipients = await getEligibleRecipients(supabase, listingTrades, ownerId);
-      await sendToRecipients(supabase, {
-        emailType: 'tender_alert',
-        listingType: 'tender',
-        listingId,
-        recipients,
-        tradeLabel: primaryTrade,
-        buildPayload: (recipient) => ({
-          firstName: recipient.name?.split?.(/\s+/)?.[0] || undefined,
-          projectName: title,
-          tradeRequired: primaryTrade,
-          tenderUrl: `${appBaseUrl()}/tenders/${listingId}`,
-        }),
-      }, result);
-    }
+      },
+      result
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     result.errors.push(msg);
-    console.error('[sendListingAlerts]', listingType, listingId, e);
+    console.error('[sendListingAlerts]', listingId, e);
   }
 
   return result;
@@ -150,7 +107,9 @@ async function getEligibleRecipients(
 ): Promise<Recipient[]> {
   const { data: users, error } = await supabase
     .from('users')
-    .select('id, email, name, primary_trade, trades, additional_trades, subcontractor_work_alerts_enabled, deleted_at, is_premium, subscription_status, active_plan, subcontractor_plan, subcontractor_sub_status, complimentary_premium_until, premium_until')
+    .select(
+      'id, email, name, primary_trade, trades, additional_trades, subcontractor_work_alerts_enabled, deleted_at, is_premium, subscription_status, active_plan, subcontractor_plan, subcontractor_sub_status, complimentary_premium_until, premium_until'
+    )
     .eq('subcontractor_work_alerts_enabled', true)
     .neq('id', excludeOwnerId)
     .is('deleted_at', null);
@@ -174,7 +133,6 @@ async function getEligibleRecipients(
         }
       }
     } catch {
-      // If auth schema query is unavailable, fall back to prior behavior.
       for (const id of ids) validAuthIds.add(id);
     }
   }
@@ -200,7 +158,14 @@ async function getEligibleRecipients(
   }
 
   const recipients: Recipient[] = [];
-  type UserRow = { id: string; email?: string; name?: string | null; primary_trade?: string; trades?: string[]; additional_trades?: string[] };
+  type UserRow = {
+    id: string;
+    email?: string;
+    name?: string | null;
+    primary_trade?: string;
+    trades?: string[];
+    additional_trades?: string[];
+  };
   for (const u of users as UserRow[]) {
     if (!validAuthIds.has(u.id)) continue;
     if (!u.email?.trim()) continue;
@@ -227,8 +192,6 @@ async function getEligibleRecipients(
 async function sendToRecipients(
   supabase: ReturnType<typeof createServiceSupabase>,
   params: {
-    emailType: 'job_alert' | 'tender_alert';
-    listingType: ListingType;
     listingId: string;
     buildPayload: (recipient: Recipient) => Record<string, unknown>;
     recipients: Recipient[];
@@ -240,7 +203,7 @@ async function sendToRecipients(
     const existing = await (supabase as any)
       .from('listing_alert_sends')
       .select('id')
-      .eq('listing_type', params.listingType)
+      .eq('listing_type', 'job')
       .eq('listing_id', params.listingId)
       .eq('recipient_user_id', r.userId)
       .maybeSingle();
@@ -253,15 +216,15 @@ async function sendToRecipients(
     const eventResult = await createEmailEvent({
       userId: r.userId,
       toEmail: r.email,
-      emailType: params.emailType,
+      emailType: 'job_alert',
       payload: {
         ...params.buildPayload(r),
-        listingType: params.listingType,
+        listingType: 'job',
         listingId: params.listingId,
       } as any,
-      idempotencyKey: `${params.emailType}:${params.listingId}:${r.userId}`,
+      idempotencyKey: `job_alert:${params.listingId}:${r.userId}`,
       triggerSendImmediately: shouldSendEmailNow({
-        emailType: params.emailType,
+        emailType: 'job_alert',
         toEmail: r.email,
       }),
     });
@@ -273,7 +236,7 @@ async function sendToRecipients(
     const errorMessage = eventResult.ok ? null : eventResult.error ?? 'unknown_error';
 
     const insertRow = {
-      listing_type: params.listingType,
+      listing_type: 'job',
       listing_id: params.listingId,
       recipient_user_id: r.userId,
       recipient_email: r.email,
@@ -288,7 +251,6 @@ async function sendToRecipients(
       if (insertErr.code === '23505') {
         result.skipped++;
       } else if (eventResult.ok) {
-        // Email may already be delivered even if audit log insert fails (e.g. orphaned user FK).
         result.sent++;
         result.errors.push(`Sent to ${r.email}, but log insert failed: ${insertErr.message}`);
       } else {

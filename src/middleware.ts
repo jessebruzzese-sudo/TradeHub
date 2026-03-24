@@ -2,9 +2,15 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(req: NextRequest) {
-  let response = NextResponse.next({
-    request: req,
-  });
+  const { pathname } = req.nextUrl;
+
+  if (pathname.startsWith('/how-it-works/subcontractors')) {
+    return NextResponse.redirect(new URL('/how-it-works', req.url));
+  }
+
+  // Keep middleware response lightweight to avoid disturbing request bodies
+  // needed by downstream route handlers.
+  let response = NextResponse.next();
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;

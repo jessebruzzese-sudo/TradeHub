@@ -1,6 +1,6 @@
 /**
- * Coordinate validity helpers for tender/job discovery.
- * Used in tender creation, discovery RPC, and tests.
+ * Coordinate validity helpers for job discovery.
+ * Used in job flows, discovery RPC, and tests.
  *
  * Valid coordinates:
  * - lat and lng must both be finite numbers
@@ -30,7 +30,7 @@ export function hasValidCoordinates(
 }
 
 /**
- * Strict Australia-only check (optional, for tender discovery in AU).
+ * Strict Australia-only check (optional, for discovery in AU).
  * Use when you want to reject obviously wrong AU coordinates.
  */
 export function hasValidCoordinatesAU(

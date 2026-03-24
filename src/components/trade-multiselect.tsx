@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback } from 'react';
-import Link from 'next/link';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TRADE_CATEGORIES } from '@/lib/trades';
 import { cn } from '@/lib/utils';
 
@@ -12,52 +12,58 @@ export type TradeMultiSelectProps = {
   value: string[];
   onChange: (next: string[]) => void;
   isPremium: boolean;
-  maxPremium?: number;
   label?: string;
   /** Show validation error below the grid */
   error?: string;
 };
-
-const DEFAULT_MAX_PREMIUM = 5;
+const BUILDER_INTERNAL_VALUE = 'Building';
+const BUILDER_DISPLAY_LABEL = 'Builder/Contractor';
 
 export function TradeMultiSelect({
   value,
   onChange,
   isPremium,
-  maxPremium = DEFAULT_MAX_PREMIUM,
   label = 'Trade categories',
   error,
 }: TradeMultiSelectProps) {
-  const maxAllowed = isPremium ? maxPremium : 1;
+  const [showBuilderPrompt, setShowBuilderPrompt] = useState(false);
+  const hadBuilderSelectedRef = useRef(false);
 
   const handleToggle = useCallback(
     (trade: string, checked: boolean) => {
       if (checked) {
-        if (value.length >= maxAllowed) {
-          if (!isPremium && value.length >= 1) {
-            return; // Don't change; gating UI will show
-          }
-          if (isPremium && value.length >= maxPremium) {
-            return;
-          }
+        if (!isPremium && value.length >= 1) {
+          return; // Free users can only keep one trade selected.
         }
         onChange([...value, trade]);
       } else {
         onChange(value.filter((t) => t !== trade));
       }
     },
-    [value, onChange, isPremium, maxAllowed, maxPremium]
+    [value, onChange, isPremium]
   );
 
   const wouldExceedFree = !isPremium && value.length >= 1;
-  const wouldExceedPremium = isPremium && value.length >= maxPremium;
-  const atPremiumLimit = isPremium && value.length >= maxPremium;
+
+  useEffect(() => {
+    const hasBuilder = value.includes(BUILDER_INTERNAL_VALUE);
+    if (hasBuilder && !hadBuilderSelectedRef.current) {
+      setShowBuilderPrompt(true);
+    }
+    hadBuilderSelectedRef.current = hasBuilder;
+  }, [value]);
+
+  const getTradeDisplayLabel = (trade: string) =>
+    trade === BUILDER_INTERNAL_VALUE ? BUILDER_DISPLAY_LABEL : trade;
 
   return (
     <div className="space-y-3">
       <h3 className="text-lg font-semibold text-slate-900">Select your trade</h3>
       <p className="text-sm text-slate-500">
-        Free plan: choose 1 trade. Premium: choose up to {maxPremium}.
+        Free plan: choose 1 trade.{' '}
+        <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-sm font-semibold text-amber-900">
+          Premium: choose unlimited trades.
+        </span>
       </p>
 
       <div
@@ -77,42 +83,47 @@ export function TradeMultiSelect({
               id={`trade-${trade}`}
               checked={value.includes(trade)}
               onCheckedChange={(checked) => handleToggle(trade, checked === true)}
-              disabled={atPremiumLimit && !value.includes(trade)}
-              aria-disabled={
-                (wouldExceedFree && !value.includes(trade)) ||
-                (wouldExceedPremium && !value.includes(trade))
-              }
+              disabled={wouldExceedFree && !value.includes(trade)}
+              aria-disabled={wouldExceedFree && !value.includes(trade)}
             />
             <Label
               htmlFor={`trade-${trade}`}
               className="cursor-pointer font-normal text-sm"
             >
-              {trade}
+              {getTradeDisplayLabel(trade)}
             </Label>
           </div>
         ))}
       </div>
 
       {!isPremium && wouldExceedFree && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-          <p className="mb-2">Multiple trades are a Premium feature.</p>
-          <Link href="/pricing">
-            <Button type="button" variant="outline" size="sm">
-              Unlock Multi-Trade
-            </Button>
-          </Link>
+        <div className="rounded-xl border border-amber-300 bg-amber-100 p-4">
+          <p>
+            <span className="font-semibold text-amber-900">Multiple trades are a Premium feature.</span>{' '}
+            <span className="text-amber-800">Free accounts can select one trade during signup.</span>
+          </p>
         </div>
-      )}
-
-      {isPremium && atPremiumLimit && value.length > 0 && (
-        <p className="text-sm text-slate-600">
-          You can select up to {maxPremium} trades.
-        </p>
       )}
 
       {error && (
         <p className="text-sm text-red-600">{error}</p>
       )}
+
+      <Dialog open={showBuilderPrompt} onOpenChange={setShowBuilderPrompt}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center">Builder/Contractor selected</DialogTitle>
+            <DialogDescription className="text-center">
+              Builder/Contractor Role is recommended with premium user to post and receive jobs as any trade
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-center">
+            <Button type="button" onClick={() => setShowBuilderPrompt(false)}>
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

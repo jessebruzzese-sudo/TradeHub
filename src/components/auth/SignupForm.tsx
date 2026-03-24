@@ -349,7 +349,7 @@ export default function SignupForm({ role }: Props) {
                 <div>
                   <h3 className="text-xl font-bold text-gray-900 mb-2">Business details</h3>
                   <p className="text-sm text-gray-600 mb-6">
-                    You can list availability and apply for work now. ABN verification is only needed for posting jobs and applying for tenders.
+                    You can list availability and apply for work now. ABN verification is only needed for posting jobs and applying to jobs posted by others.
                   </p>
                 </div>
 

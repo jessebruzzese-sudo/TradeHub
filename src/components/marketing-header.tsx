@@ -9,7 +9,7 @@ export function MarketingHeader() {
   const isAuthed = !!session?.user;
 
   const jobsHref = isAuthed ? '/jobs' : buildLoginUrl('/jobs');
-  const tendersHref = isAuthed ? '/tenders' : buildLoginUrl('/tenders');
+  const searchHref = isAuthed ? '/search' : buildLoginUrl('/search');
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white/95 backdrop-blur">
@@ -26,8 +26,8 @@ export function MarketingHeader() {
           <Link href={jobsHref} className="text-sm font-medium text-gray-600 hover:text-gray-900">
             Jobs
           </Link>
-          <Link href={tendersHref} className="text-sm font-medium text-gray-600 hover:text-gray-900">
-            Tenders
+          <Link href={searchHref} className="text-sm font-medium text-gray-600 hover:text-gray-900">
+            Search
           </Link>
           <Link href="/how-it-works" className="text-sm font-medium text-gray-600 hover:text-gray-900">
             How it works

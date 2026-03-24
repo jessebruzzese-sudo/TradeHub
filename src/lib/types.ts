@@ -353,9 +353,7 @@ export interface SubscriptionHistory {
 }
 
 export type UsageMetricType =
-  | 'TENDER_POSTED'
   | 'JOB_POSTED'
-  | 'QUOTE_RECEIVED'
   | 'APPLICATION_SUBMITTED'
   | 'AVAILABILITY_BROADCAST'
   | 'RADIUS_USED_KM';

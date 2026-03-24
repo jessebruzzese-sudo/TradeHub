@@ -105,15 +105,13 @@ export async function POST(req: Request) {
     await admin.storage.from('avatars').remove([`${userId}/avatar.png`]).catch(() => {});
     await admin.storage.from('covers').remove([`${userId}/cover.png`]).catch(() => {});
 
-    step = 'soft_delete_jobs_tenders';
+    step = 'soft_delete_jobs';
     // 2) Soft-delete owned marketplace content
     await admin.from('jobs').update({ deleted_at: nowIso }).eq('contractor_id', userId);
-    await admin.from('tenders').update({ deleted_at: nowIso }).eq('builder_id', userId);
 
     step = 'delete_relations';
     // 3) Remove owned activity & user-generated relations
     await admin.from('applications').delete().eq('subcontractor_id', userId);
-    await admin.from('tender_quotes').delete().eq('contractor_id', userId);
     await admin.from('notifications').delete().eq('user_id', userId);
     await admin.from('profile_views').delete().eq('viewer_user_id', userId);
     await admin.from('profile_views').delete().eq('viewed_user_id', userId);

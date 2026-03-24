@@ -1,5 +1,5 @@
 /**
- * Trade validation tests – AI tender generation must only use canonical TradeHub trades.
+ * Trade validation tests – AI-assisted drafts must only use canonical TradeHub trades.
  */
 import { describe, it, expect } from 'vitest';
 import {

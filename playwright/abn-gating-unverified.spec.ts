@@ -15,11 +15,11 @@ test.describe('ABN gating — unverified user', () => {
     await expect(page.getByRole('heading', { name: /jobs|find work|my job posts/i })).toBeVisible()
   })
 
-  test('can browse tenders page', async ({ page }) => {
-    await page.goto(`${BASE_URL}/tenders`)
+  test('can browse search page', async ({ page }) => {
+    await page.goto(`${BASE_URL}/search`)
     await page.waitForLoadState('networkidle')
-    await expect(page).toHaveURL(/\/tenders/)
-    await expect(page.getByRole('heading', { name: /tenders|marketplace/i })).toBeVisible()
+    await expect(page).toHaveURL(/\/search/)
+    await expect(page.getByRole('heading', { name: /search|discover|trades/i })).toBeVisible()
   })
 
   test('can browse subcontractors page', async ({ page }) => {
@@ -39,15 +39,6 @@ test.describe('ABN gating — unverified user', () => {
 
   test('redirects to verify-business when navigating to jobs/create', async ({ page }) => {
     await page.goto(`${BASE_URL}/jobs/create`)
-    await page.waitForLoadState('networkidle')
-    await expect(page).toHaveURL(/\/verify-business/)
-    await expect(page.getByText(/verify|abn|business/i)).toBeVisible()
-  })
-
-  test('redirects to verify-business when navigating to tenders/create', async ({ page }) => {
-    await page.goto(`${BASE_URL}/tenders`)
-    await page.waitForLoadState('networkidle')
-    await page.getByRole('link', { name: /post tender/i }).click()
     await page.waitForLoadState('networkidle')
     await expect(page).toHaveURL(/\/verify-business/)
     await expect(page.getByText(/verify|abn|business/i)).toBeVisible()
