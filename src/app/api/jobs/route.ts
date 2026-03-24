@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabase } from '@/lib/supabase-server';
+import { createServerSupabase, createServiceSupabase } from '@/lib/supabase-server';
 import { TRADE_CATEGORIES } from '@/lib/trades';
 import { getTier } from '@/lib/plan-limits';
+import {
+  countJobsPostedInWindow,
+  FREE_JOB_POST_LIMIT_MESSAGE,
+  FREE_JOB_POST_MAX_PER_WINDOW,
+  JOB_POST_LIMIT_ERROR_CODE,
+  recordJobPostEvent,
+} from '@/lib/job-post-limits';
 import { needsBusinessVerification } from '@/lib/verification-guard';
+import { refreshProfileStrength } from '@/lib/profile-strength';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +22,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: NextRequest) {
   try {
     const supabase = createServerSupabase();
+    const serviceSupabase = createServiceSupabase();
     const {
       data: { user },
       error: authErr,
@@ -73,6 +82,20 @@ export async function POST(request: NextRequest) {
       if (!userTrades.includes(tradeCategory)) {
         return NextResponse.json(
           { error: 'Free accounts can only post jobs in their listed trade(s). Upgrade to Premium to post in any trade.' },
+          { status: 403 }
+        );
+      }
+
+      let postedInWindow = 0;
+      try {
+        postedInWindow = await countJobsPostedInWindow(serviceSupabase, user.id);
+      } catch (countErr) {
+        console.error('[api/jobs] post limit count failed', countErr);
+        return NextResponse.json({ error: 'Could not verify posting limit' }, { status: 500 });
+      }
+      if (postedInWindow >= FREE_JOB_POST_MAX_PER_WINDOW) {
+        return NextResponse.json(
+          { error: FREE_JOB_POST_LIMIT_MESSAGE, code: JOB_POST_LIMIT_ERROR_CODE },
           { status: 403 }
         );
       }
@@ -144,6 +167,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!isPremium) {
+      try {
+        await recordJobPostEvent(serviceSupabase, {
+          contractorId: user.id,
+          jobId: created.id,
+        });
+      } catch (eventErr) {
+        // Keep limits durable: if we cannot record usage, roll back the created job.
+        console.error('[api/jobs] failed to record job post event; rolling back job', eventErr);
+        const { error: rollbackErr } = await serviceSupabase.from('jobs').delete().eq('id', created.id);
+        if (rollbackErr) {
+          console.error('[api/jobs] rollback failed after event log failure', rollbackErr);
+        }
+        return NextResponse.json({ error: 'Failed to create job' }, { status: 500 });
+      }
+    }
+
+    await refreshProfileStrength(user.id);
     return NextResponse.json({ id: created.id });
   } catch (err) {
     console.error('[api/jobs] error:', err);

@@ -10,7 +10,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { format as formatDate } from 'date-fns';
 import { Calendar as CalendarIcon, Camera, Clock, Loader2, Upload, X, FileText, Info } from 'lucide-react';
@@ -40,6 +40,7 @@ import { TRADE_CATEGORIES } from '@/lib/trades';
 import { safeRouterPush } from '@/lib/safe-nav';
 import { needsBusinessVerification, redirectToVerifyBusiness, getVerifyBusinessUrl } from '@/lib/verification-guard';
 import { MVP_FREE_MODE } from '@/lib/feature-flags';
+import { FREE_JOB_POST_LIMIT_MESSAGE, JOB_POST_LIMIT_ERROR_CODE } from '@/lib/job-post-limits';
 
 type PayType = 'fixed' | 'hourly' | 'day_rate';
 
@@ -100,6 +101,12 @@ export default function CreateJobPage() {
 
   const [isRefiningDescription, setIsRefiningDescription] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [postLimitInfo, setPostLimitInfo] = useState<{
+    unlimited: boolean;
+    usedInWindow?: number;
+    maxFree?: number;
+    windowDays?: number;
+  } | null>(null);
 
   // MUST be above any early return (rules-of-hooks)
   const computedMultiDurationDays = useMemo(() => {
@@ -149,6 +156,38 @@ export default function CreateJobPage() {
     }
   }, [tradeCategory, posterTrades]);
 
+  const refreshPostLimit = useCallback(async () => {
+    if (!currentUser?.id) return;
+    if (isPremium) {
+      setPostLimitInfo({ unlimited: true });
+      return;
+    }
+    try {
+      const res = await fetch('/api/jobs/post-limit', { credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPostLimitInfo(null);
+        return;
+      }
+      if (data.unlimited) {
+        setPostLimitInfo({ unlimited: true });
+        return;
+      }
+      setPostLimitInfo({
+        unlimited: false,
+        usedInWindow: data.usedInWindow ?? 0,
+        maxFree: data.maxFree ?? 1,
+        windowDays: data.windowDays ?? 30,
+      });
+    } catch {
+      setPostLimitInfo(null);
+    }
+  }, [currentUser?.id, isPremium]);
+
+  useEffect(() => {
+    void refreshPostLimit();
+  }, [refreshPostLimit]);
+
   // ABN gate: redirect only after profile has loaded (avoid gating verified users during load).
   useEffect(() => {
     if (isLoading || hasRedirected.current) return;
@@ -188,6 +227,17 @@ export default function CreateJobPage() {
 
   const abnStatusMessage = getABNStatusMessage(currentUser);
   const hasAbnPending = hasABNButNotVerified(currentUser);
+
+  const atFreeJobLimit =
+    !isPremium &&
+    postLimitInfo !== null &&
+    !postLimitInfo.unlimited &&
+    (postLimitInfo.usedInWindow ?? 0) >= (postLimitInfo.maxFree ?? 1);
+
+  const freeJobUsageLine =
+    postLimitInfo && !postLimitInfo.unlimited && postLimitInfo.maxFree != null && postLimitInfo.windowDays != null
+      ? `${Math.min(postLimitInfo.usedInWindow ?? 0, postLimitInfo.maxFree)} of ${postLimitInfo.maxFree} free job posts used in the last ${postLimitInfo.windowDays} days.`
+      : null;
 
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 B';
@@ -273,7 +323,7 @@ export default function CreateJobPage() {
 
     try {
       setIsRefiningDescription(true);
-      const res = await fetch('/api/ai/refine-tender', {
+      const res = await fetch('/api/ai/refine-job-description', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -311,6 +361,11 @@ export default function CreateJobPage() {
     e.preventDefault();
 
     if (isSubmitting) return;
+
+    if (atFreeJobLimit) {
+      toast.error(FREE_JOB_POST_LIMIT_MESSAGE);
+      return;
+    }
 
     if (!title.trim()) return toast.error('Please enter a job title');
     if (!tradeCategory.trim()) return toast.error('Please set a trade category');
@@ -372,6 +427,11 @@ export default function CreateJobPage() {
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (data?.code === JOB_POST_LIMIT_ERROR_CODE) {
+          toast.error(typeof data?.error === 'string' ? data.error : FREE_JOB_POST_LIMIT_MESSAGE);
+          void refreshPostLimit();
+          return;
+        }
         throw new Error(data?.error || 'Failed to create job');
       }
 
@@ -472,6 +532,33 @@ export default function CreateJobPage() {
                       </Button>
                     </Link>
                   )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!isPremium && postLimitInfo && !postLimitInfo.unlimited && (
+            <div
+              className={`mb-6 rounded-xl border p-4 ${
+                atFreeJobLimit ? 'border-amber-300 bg-amber-50' : 'border-slate-200/90 bg-white/95 shadow-sm'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-slate-600" aria-hidden />
+                <div className="flex-1 space-y-2">
+                  {freeJobUsageLine ? (
+                    <p className="text-sm text-slate-800">{freeJobUsageLine}</p>
+                  ) : null}
+                  {atFreeJobLimit ? (
+                    <>
+                      <p className="text-sm font-medium text-amber-950">
+                        Your free job limit has been reached. Upgrade for unlimited jobs.
+                      </p>
+                      <Button asChild size="sm" className="mt-1">
+                        <Link href="/pricing">Upgrade to Premium</Link>
+                      </Button>
+                    </>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -862,7 +949,11 @@ export default function CreateJobPage() {
               </div>
 
               <div className="flex gap-3">
-                <Button type="submit" className="flex-1" disabled={hasAbnPending || isSubmitting}>
+                <Button
+                  type="submit"
+                  className="flex-1"
+                  disabled={hasAbnPending || isSubmitting || atFreeJobLimit}
+                >
                   {isSubmitting ? (
                     <span className="flex items-center justify-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
