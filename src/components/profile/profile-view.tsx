@@ -35,6 +35,7 @@ import { getTradeIcon } from '@/lib/trade-icons';
 import { hasValidABN } from '@/lib/abn-utils';
 import { AppLayout } from '@/components/app-nav';
 import { ReliabilityReviewCard } from '@/components/reliability-review-card';
+import { PreviousWorkSection } from '@/components/profile/previous-work-section';
 import { ProfileAvatar } from '@/components/profile-avatar';
 import { ProfileCover } from '@/components/profile-cover';
 import { ProBadge } from '@/components/pro-badge';
@@ -58,6 +59,11 @@ import { useSimulatedPremium } from '@/lib/use-simulated-premium';
 import { MVP_FREE_MODE } from '@/lib/feature-flags';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import type { ProfileStrengthCalc } from '@/lib/profile-strength-types';
+import ProfileSummaryTrustBar from '@/components/profile/ProfileSummaryTrustBar';
+import ProfileStrengthSection from '@/components/profile/ProfileStrengthSection';
+import LikeProfileButton from '@/components/profile/LikeProfileButton';
+import ExternalProofSection from '@/components/profile/ExternalProofSection';
 
 type ProfileViewMode = 'self' | 'public';
 
@@ -92,6 +98,43 @@ export type PublicProfileData = {
   show_pricing_on_profile?: boolean | null;
 };
 
+function proofHrefWebsite(raw: string | null | undefined) {
+  const v = (raw || '').trim();
+  if (!v) return null;
+  if (/^https?:\/\//i.test(v)) return v;
+  return `https://${v.replace(/^\/\//, '')}`;
+}
+
+function proofHrefInstagram(raw: string | null | undefined) {
+  const v = (raw || '').trim();
+  if (!v) return null;
+  if (/^https?:\/\//i.test(v)) return v;
+  return `https://instagram.com/${v.replace(/^@/, '')}`;
+}
+
+function proofHrefFacebook(raw: string | null | undefined) {
+  const v = (raw || '').trim();
+  if (!v) return null;
+  if (/^https?:\/\//i.test(v)) return v;
+  return `https://facebook.com/${v}`;
+}
+
+function proofHrefLinkedin(raw: string | null | undefined) {
+  const v = (raw || '').trim();
+  if (!v) return null;
+  if (/^https?:\/\//i.test(v)) return v;
+  return v.startsWith('in/') || v.startsWith('company/')
+    ? `https://linkedin.com/${v}`
+    : `https://linkedin.com/in/${v}`;
+}
+
+function proofHrefGoogleBusiness(raw: string | null | undefined) {
+  const v = (raw || '').trim();
+  if (!v) return null;
+  if (/^https?:\/\//i.test(v)) return v;
+  return `https://${v}`;
+}
+
 function toUrl(platform: string, raw: string) {
   const v = (raw || '').trim();
   if (!v) return null;
@@ -120,14 +163,27 @@ function toUrl(platform: string, raw: string) {
   }
 }
 
+function reliabilityToPercent(r: number | null | undefined): number | null {
+  if (r == null || !Number.isFinite(Number(r))) return null;
+  const v = Number(r);
+  if (v <= 5) return Math.round((v / 5) * 100);
+  return Math.round(Math.min(100, v));
+}
+
 export function ProfileView({
   mode,
   profile,
   isMe: isMeProp,
+  strengthCalc: strengthCalcProp,
+  viewerLikeState: viewerLikeStateProp,
 }: {
   mode: ProfileViewMode;
   profile: any;
   isMe?: boolean;
+  /** Server-fetched breakdown; if omitted, client loads `/api/profile/[id]/strength`. */
+  strengthCalc?: ProfileStrengthCalc | null;
+  /** From `/profile/[id]` server: whether viewer liked + total likes count (skips client GET). */
+  viewerLikeState?: { liked: boolean; count: number } | null;
 }) {
   const isSelf = mode === 'self' || !!isMeProp;
   const { currentUser, updateUser, refreshUser } = useAuth();
@@ -154,7 +210,60 @@ export function ProfileView({
   const [availDesc, setAvailDesc] = useState<string>('');
   const [availLoading, setAvailLoading] = useState(false);
   const [alertsUpsellOpen, setAlertsUpsellOpen] = useState(false);
+  const [strengthCalc, setStrengthCalc] = useState<ProfileStrengthCalc | null>(strengthCalcProp ?? null);
+  const [likeInitial, setLikeInitial] = useState<{ liked: boolean; count: number } | null>(
+    viewerLikeStateProp ?? null
+  );
   const today = startOfDay(new Date());
+
+  useEffect(() => {
+    setStrengthCalc(strengthCalcProp ?? null);
+  }, [strengthCalcProp, profileUserId]);
+
+  useEffect(() => {
+    if (strengthCalcProp) return;
+    const id = (profile as any)?.id as string | undefined;
+    if (!id) return;
+    let cancelled = false;
+    fetch(`/api/profile/${id}/strength`, { credentials: 'include' })
+      .then((r) => r.json())
+      .then((j) => {
+        if (cancelled || j?.error) return;
+        setStrengthCalc(j as ProfileStrengthCalc);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [profileUserId, strengthCalcProp]);
+
+  useEffect(() => {
+    if (viewerLikeStateProp != null) {
+      setLikeInitial(viewerLikeStateProp);
+    }
+  }, [viewerLikeStateProp]);
+
+  useEffect(() => {
+    if (viewerLikeStateProp != null) return;
+    if (!profileUserId || !currentUser?.id || currentUser.id === profileUserId) {
+      setLikeInitial(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/profile/${profileUserId}/like`, { credentials: 'include' })
+      .then((r) => r.json())
+      .then((j) => {
+        if (cancelled) return;
+        setLikeInitial({
+          liked: !!j.liked,
+          count: typeof j.likesCount === 'number' ? j.likesCount : 0,
+        });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [viewerLikeStateProp, profileUserId, currentUser?.id]);
 
   useEffect(() => {
     const id = (profile as any)?.id;
@@ -352,14 +461,14 @@ export function ProfileView({
     (p?.email ? p.email.split('@')[0] : '') ||
     (p?.business_name ?? '').trim() ||
     'Profile';
-  const businessName =
-    (p?.showBusinessNameOnProfile === true || p?.show_business_name_on_profile === true)
-      ? ((p?.businessName ?? p?.business_name) || '').trim()
-      : (p?.business_name ?? p?.business_name_display ?? '').trim();
-  const abnToShow =
-    (p?.showAbnOnProfile === true || p?.show_abn_on_profile === true)
-      ? ((p?.abn ?? '').trim())
-      : (p?.abn ?? '').trim();
+  const shouldShowBusinessName =
+    p?.showBusinessNameOnProfile === true || p?.show_business_name_on_profile === true;
+  const businessName = shouldShowBusinessName
+    ? ((p?.businessName ?? p?.business_name) || '').trim()
+    : '';
+  const shouldShowAbn =
+    p?.showAbnOnProfile === true || p?.show_abn_on_profile === true;
+  const abnToShow = shouldShowAbn ? ((p?.abn ?? '').trim()) : '';
   const primaryTrade = p?.primaryTrade ?? p?.primary_trade ?? p?.trades?.[0] ?? null;
   const allTrades = (p?.trades ?? []) as string[];
   const otherTrades = primaryTrade
@@ -372,10 +481,10 @@ export function ProfileView({
   const showProBadge = !!(p?.premium_now ?? p?.isPremium ?? hasRealPremium);
   const links = (p?.links ?? {}) as Record<string, any>;
   const normalizedLinks = {
-    website: links.website ?? links.Website ?? p?.website ?? null,
-    instagram: links.instagram ?? links.Instagram ?? p?.instagram ?? null,
-    facebook: links.facebook ?? links.Facebook ?? p?.facebook ?? null,
-    linkedin: links.linkedin ?? links.linkedIn ?? links.LinkedIn ?? p?.linkedin ?? null,
+    website: links.website ?? links.Website ?? p?.website_url ?? p?.website ?? null,
+    instagram: links.instagram ?? links.Instagram ?? p?.instagram_url ?? p?.instagram ?? null,
+    facebook: links.facebook ?? links.Facebook ?? p?.facebook_url ?? p?.facebook ?? null,
+    linkedin: links.linkedin ?? links.linkedIn ?? links.LinkedIn ?? p?.linkedin_url ?? p?.linkedin ?? null,
     tiktok: links.tiktok ?? links.TikTok ?? p?.tiktok ?? null,
     youtube: links.youtube ?? links.YouTube ?? p?.youtube ?? null,
   };
@@ -395,6 +504,13 @@ export function ProfileView({
       : Number((1 + (upCount / totalVotes) * 4).toFixed(1));
 
   const avg = Number((p?.rating_avg ?? starAverage) || 0);
+  const strengthScoreStored = p?.profile_strength_score != null ? Number(p.profile_strength_score) : null;
+  const strengthBandStored = p?.profile_strength_band != null ? String(p.profile_strength_band) : null;
+  const strengthPct =
+    strengthCalc?.total ??
+    (strengthScoreStored != null && !Number.isNaN(strengthScoreStored) ? strengthScoreStored : null);
+  const strengthBand = strengthCalc?.band ?? strengthBandStored ?? 'LOW';
+  const reliabilityPct = reliabilityToPercent(reliabilityRating);
   const starClass =
     avg >= 4.5
       ? "text-yellow-500"
@@ -422,7 +538,41 @@ export function ProfileView({
                 </Button>
               </Link>
             ) : (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {!isSelf && profileUserId && currentUser?.id && currentUser.id !== profileUserId && (
+                  <LikeProfileButton
+                    profileUserId={profileUserId}
+                    initialLiked={likeInitial?.liked ?? false}
+                    initialLikesCount={likeInitial?.count ?? 0}
+                    onUpdated={(p) => {
+                      if (p.profileStrengthScore != null && p.profileStrengthBand) {
+                        setStrengthCalc((prev) => {
+                          const base: ProfileStrengthCalc = prev ?? {
+                            total: 0,
+                            band: 'LOW',
+                            activity: 0,
+                            links: 0,
+                            google: 0,
+                            likes: 0,
+                            completeness: 0,
+                          };
+                          return {
+                            ...base,
+                            total: p.profileStrengthScore ?? base.total,
+                            band: p.profileStrengthBand ?? base.band,
+                          };
+                        });
+                        return;
+                      }
+                      fetch(`/api/profile/${profileUserId}/strength`, { credentials: 'include' })
+                        .then((r) => r.json())
+                        .then((j) => {
+                          if (!j?.error) setStrengthCalc(j as ProfileStrengthCalc);
+                        })
+                        .catch(() => {});
+                    }}
+                  />
+                )}
                 <Button
                   variant="default"
                   size="sm"
@@ -518,6 +668,19 @@ export function ProfileView({
                     {miniBio && (
                       <div className="mt-2 text-sm md:text-base text-slate-600 leading-snug">{miniBio}</div>
                     )}
+
+                    <div className="mt-4">
+                      <ProfileSummaryTrustBar
+                        rating={avg}
+                        reviewCount={Number((p as any)?.rating_count ?? totalVotes)}
+                        reliabilityPercent={reliabilityPct}
+                        profileStrengthScore={
+                          strengthPct != null && !Number.isNaN(Number(strengthPct))
+                            ? Number(strengthPct)
+                            : null
+                        }
+                      />
+                    </div>
 
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                       {businessName ? (
@@ -673,6 +836,35 @@ export function ProfileView({
                   )}
                 </div>
 
+                <div className="mt-6 space-y-4">
+                  <ProfileStrengthSection strengthCalc={strengthCalc} profile={p} />
+                  <ExternalProofSection
+                    websiteUrl={proofHrefWebsite(p?.website_url ?? p?.website)}
+                    instagramUrl={proofHrefInstagram(p?.instagram_url ?? p?.instagram)}
+                    facebookUrl={proofHrefFacebook(p?.facebook_url ?? p?.facebook)}
+                    linkedinUrl={proofHrefLinkedin(p?.linkedin_url ?? p?.linkedin)}
+                    googleBusinessUrl={proofHrefGoogleBusiness(p?.google_business_url)}
+                    googleBusinessName={p?.google_business_name ?? null}
+                    googleBusinessAddress={p?.google_business_address ?? null}
+                    googleRating={
+                      p?.google_business_rating != null
+                        ? Number(p.google_business_rating)
+                        : p?.google_rating != null
+                          ? Number(p.google_rating)
+                          : null
+                    }
+                    googleReviewCount={
+                      p?.google_business_review_count != null
+                        ? Number(p.google_business_review_count)
+                        : p?.google_review_count != null
+                          ? Number(p.google_review_count)
+                          : null
+                    }
+                    googleListingVerificationStatus={p?.google_listing_verification_status ?? p?.googleListingVerificationStatus}
+                    abnVerified={isVerified}
+                  />
+                </div>
+
                 {hasAnyLinks && (
                   <div className="mt-6">
                     <div className="mb-4 h-px w-full bg-gradient-to-r from-transparent via-slate-300/60 to-transparent" />
@@ -767,6 +959,14 @@ export function ProfileView({
               </div>
             </div>
 
+            {profileUserId ? (
+              <PreviousWorkSection
+                userId={profileUserId}
+                isSelf={isSelf}
+                primaryTradeLabel={typeof primaryTrade === 'string' && primaryTrade.trim() ? primaryTrade.trim() : null}
+              />
+            ) : null}
+
             {isSelf && (
               <Card className="mb-6 border-blue-200 bg-gradient-to-b from-blue-50/60 to-white">
                 <CardHeader className="pb-3">
@@ -821,7 +1021,7 @@ export function ProfileView({
                           <div className="flex items-center gap-3 min-w-0">
                             <Crown className="h-5 w-5 shrink-0 text-amber-700" />
                             <p className="text-sm font-semibold text-amber-900 truncate">
-                              Receive alerts when new jobs/tenders of your trade are listed
+                              Receive alerts when new jobs in your trade are listed
                             </p>
                           </div>
                           <span className="shrink-0 text-amber-700" aria-hidden>
@@ -836,7 +1036,7 @@ export function ProfileView({
                       <CollapsibleContent>
                         <div className="border-t border-amber-200/80 px-4 pb-4 pt-3">
                           <p className="text-xs text-amber-900/80">
-                            Get notified when relevant jobs or tenders matching your trade are posted.
+                            Get notified when relevant jobs matching your trade are posted.
                           </p>
                           {!(hasRealPremium || isUsingSimulation) && (
                             <p className="mt-1 text-xs text-amber-800/70">Premium unlocks email alerts.</p>
@@ -897,10 +1097,10 @@ export function ProfileView({
                   <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold text-amber-900">
-                        Receive alerts when new jobs/tenders of your trade are listed
+                        Receive alerts when new jobs in your trade are listed
                       </p>
                       <p className="mt-1 text-xs text-amber-900/80">
-                        Get notified when relevant jobs or tenders matching your trade are posted.
+                        Get notified when relevant jobs matching your trade are posted.
                       </p>
                       {!(hasRealPremium || isUsingSimulation) && (
                         <p className="mt-1 text-xs text-amber-800/70">Premium unlocks email alerts.</p>
