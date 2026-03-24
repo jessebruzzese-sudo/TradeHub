@@ -25,7 +25,10 @@ interface SuburbAutocompleteProps {
   onPlaceIdChange?: (placeId: string | null) => void;
 
   required?: boolean;
+  disabled?: boolean;
   className?: string;
+  /** Override default "Location (Suburb)" label (e.g. "Location (optional)") */
+  locationLabel?: string;
 }
 
 export function SuburbAutocomplete({
@@ -36,7 +39,9 @@ export function SuburbAutocomplete({
   onLatLngChange,
   onPlaceIdChange,
   required = false,
+  disabled = false,
   className = '',
+  locationLabel = 'Location (Suburb)',
 }: SuburbAutocompleteProps) {
   const [inputValue, setInputValue] = useState(value);
   const [isOpen, setIsOpen] = useState(false);
@@ -117,6 +122,7 @@ export function SuburbAutocomplete({
   }, [debouncedValue]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (disabled) return;
     const newValue = e.target.value;
     setInputValue(newValue);
     onSuburbChange(newValue);
@@ -132,6 +138,7 @@ export function SuburbAutocomplete({
   };
 
   const selectPrediction = async (p: Prediction) => {
+    if (disabled) return;
     const fullLabel = p.description;
     const mainLabel = p.structured_formatting?.main_text || p.description;
 
@@ -167,6 +174,7 @@ export function SuburbAutocomplete({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (disabled) return;
     if (!isOpen) {
       if (e.key === 'ArrowDown') {
         setIsOpen(true);
@@ -223,7 +231,7 @@ export function SuburbAutocomplete({
     <div className={`space-y-4 ${className}`}>
       <div className="relative">
         <Label htmlFor="suburb">
-          Location (Suburb) {required && <span className="text-red-500">*</span>}
+          {locationLabel} {required && <span className="text-red-500">*</span>}
         </Label>
 
         <div className="relative mt-1">
@@ -234,9 +242,10 @@ export function SuburbAutocomplete({
             value={inputValue}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            onFocus={() => inputValue.length >= 2 && setIsOpen(true)}
+            onFocus={() => !disabled && inputValue.length >= 2 && setIsOpen(true)}
             placeholder="Start typing suburb name..."
             required={required}
+            disabled={disabled}
             className="pr-10"
             autoComplete="off"
           />
@@ -247,7 +256,7 @@ export function SuburbAutocomplete({
           )}
         </div>
 
-        {isOpen && predictions.length > 0 && (
+        {!disabled && isOpen && predictions.length > 0 && (
           <div
             ref={dropdownRef}
             className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-64 overflow-auto"
@@ -277,7 +286,7 @@ export function SuburbAutocomplete({
           </div>
         )}
 
-        {showNoResults && (
+        {!disabled && showNoResults && (
           <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg p-4">
             <p className="text-sm text-gray-600 text-center">
               No locations found. You can continue with manual entry.
@@ -293,7 +302,7 @@ export function SuburbAutocomplete({
             Postcode {required && <span className="text-red-500">*</span>}
           </Label>
 
-          {selectedPlaceId && !isPostcodeEditable && (
+          {!disabled && selectedPlaceId && !isPostcodeEditable && (
             <button
               type="button"
               onClick={() => setIsPostcodeEditable(true)}
@@ -304,7 +313,7 @@ export function SuburbAutocomplete({
             </button>
           )}
 
-          {isPostcodeEditable && (
+          {!disabled && isPostcodeEditable && (
             <button
               type="button"
               onClick={() => setIsPostcodeEditable(false)}
@@ -323,11 +332,18 @@ export function SuburbAutocomplete({
           onChange={(e) => onPostcodeChange(e.target.value)}
           placeholder="e.g. 3105"
           required={required}
-          readOnly={selectedPlaceId !== null && !isPostcodeEditable}
-          className={selectedPlaceId && !isPostcodeEditable ? 'bg-gray-50 cursor-default' : ''}
+          disabled={disabled}
+          readOnly={disabled || (selectedPlaceId !== null && !isPostcodeEditable)}
+          className={
+            disabled
+              ? 'bg-slate-100 text-slate-700'
+              : selectedPlaceId && !isPostcodeEditable
+                ? 'bg-gray-50 cursor-default'
+                : ''
+          }
         />
 
-        {selectedPlaceId && !isPostcodeEditable && (
+        {!disabled && selectedPlaceId && !isPostcodeEditable && (
           <p className="text-xs text-gray-500 mt-1">Auto-filled from Google Places</p>
         )}
       </div>

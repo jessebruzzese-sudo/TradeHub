@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Lock, MapPin, Globe, Plus, Trash2, X } from 'lucide-react';
+import { ChevronDown, Lock, MapPin, Globe, Plus, Trash2, X, Loader2, Star, ExternalLink } from 'lucide-react';
 import { SiInstagram, SiFacebook, SiLinkedin, SiTiktok, SiYoutube } from 'react-icons/si';
 
 import { AppLayout } from '@/components/app-nav';
@@ -31,10 +31,40 @@ import { cn } from '@/lib/utils';
 import { canCustomSearchLocation, canMultiTrade, canChangePrimaryTrade } from '@/lib/capability-utils';
 import { hasValidABN } from '@/lib/abn-utils';
 import { MVP_FREE_MODE } from '@/lib/feature-flags';
+import { getGoogleBusinessStatusLabel } from '@/lib/google-business';
 
+type GoogleBusinessSearchResult = {
+  placeId: string;
+  description: string;
+};
+
+type GoogleBusinessDetails = {
+  placeId: string;
+  name: string;
+  address: string;
+  googleMapsUrl: string | null;
+  rating: number | null;
+  reviewCount: number | null;
+};
+
+function normalizePrimaryLocationSource(user: any): {
+  suburb: string;
+  postcode: string;
+  lat: number | null;
+  lng: number | null;
+} {
+  const suburb = String(user?.location ?? user?.base_location ?? user?.search_location ?? '').trim();
+  const postcode = String(user?.postcode ?? user?.base_postcode ?? user?.search_postcode ?? '').trim();
+  const latCandidates = [user?.location_lat, user?.lat, user?.base_lat, user?.search_lat];
+  const lngCandidates = [user?.location_lng, user?.lng, user?.base_lng, user?.search_lng];
+  const lat = latCandidates.find((v) => typeof v === 'number' && Number.isFinite(v)) ?? null;
+  const lng = lngCandidates.find((v) => typeof v === 'number' && Number.isFinite(v)) ?? null;
+  return { suburb, postcode, lat, lng };
+}
 export default function EditProfilePage() {
-  const { currentUser, isLoading, updateUser } = useAuth();
+  const { session, currentUser, isLoading, updateUser } = useAuth();
   const router = useRouter();
+  const hasSession = !!session?.user;
 
   useEffect(() => {
     if (!isLoading && !currentUser) {
@@ -59,6 +89,10 @@ export default function EditProfilePage() {
   const [bio, setBio] = useState<string>('');
   const [primaryTrade, setPrimaryTrade] = useState<string>('');
   const [isPublicProfile, setIsPublicProfile] = useState<boolean>(false);
+  const [location, setLocation] = useState<string>('');
+  const [postcode, setPostcode] = useState<string>('');
+  const [locationLat, setLocationLat] = useState<number | null>(null);
+  const [locationLng, setLocationLng] = useState<number | null>(null);
 
   // free-text skills field (comma separated)
   const [tradesText, setTradesText] = useState<string>('');
@@ -71,9 +105,29 @@ export default function EditProfilePage() {
   const [tiktok, setTiktok] = useState<string>('');
   const [youtube, setYoutube] = useState<string>('');
 
+  const [googleBusinessUrl, setGoogleBusinessUrl] = useState('');
+  const [googleBusinessName, setGoogleBusinessName] = useState('');
+  const [googlePlaceId, setGooglePlaceId] = useState('');
+  const [googleRating, setGoogleRating] = useState('');
+  const [googleReviewCount, setGoogleReviewCount] = useState('');
+  const [googleListingVerificationStatus, setGoogleListingVerificationStatus] = useState<string>('UNVERIFIED');
+  const [googleListingRejectionReason, setGoogleListingRejectionReason] = useState('');
+  const [googleBusinessAddress, setGoogleBusinessAddress] = useState('');
+  const [googleSearchQuery, setGoogleSearchQuery] = useState('');
+  const [googleSearchResults, setGoogleSearchResults] = useState<GoogleBusinessSearchResult[]>([]);
+  const [googleSearchLoading, setGoogleSearchLoading] = useState(false);
+  const [googleSearchError, setGoogleSearchError] = useState<string | null>(null);
+  const [googleLookupMode, setGoogleLookupMode] = useState(false);
+  const [googleSelectionLoading, setGoogleSelectionLoading] = useState(false);
+  const [googleDropdownOpen, setGoogleDropdownOpen] = useState(false);
+  const [googleHighlightedIndex, setGoogleHighlightedIndex] = useState(-1);
+  const googleSearchWrapRef = React.useRef<HTMLDivElement | null>(null);
+
   const [phone, setPhone] = useState<string>('');
   const [showPhoneOnProfile, setShowPhoneOnProfile] = useState<boolean>(false);
   const [showEmailOnProfile, setShowEmailOnProfile] = useState<boolean>(false);
+  const [showAbnOnProfile, setShowAbnOnProfile] = useState<boolean>(false);
+  const [showBusinessNameOnProfile, setShowBusinessNameOnProfile] = useState<boolean>(false);
 
   const [pricingType, setPricingType] = useState<string>('');
   const [pricingAmount, setPricingAmount] = useState<string>('');
@@ -104,7 +158,7 @@ export default function EditProfilePage() {
 
   // Load trades from API
   useEffect(() => {
-    if (!currentUser?.id) return;
+    if (!hasSession || !currentUser?.id) return;
     let cancelled = false;
     (async () => {
       setTradesLoading(true);
@@ -120,7 +174,7 @@ export default function EditProfilePage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [currentUser?.id]);
+  }, [hasSession, currentUser?.id]);
 
   // Sync primaryTrade when userTrades loads; fallback to currentUser for legacy
   useEffect(() => {
@@ -135,7 +189,7 @@ export default function EditProfilePage() {
 
   // Load additional locations from API (Premium users only)
   useEffect(() => {
-    if (!currentUser?.id) return;
+    if (!hasSession || !currentUser?.id) return;
     let cancelled = false;
     (async () => {
       setLocationsLoading(true);
@@ -151,11 +205,12 @@ export default function EditProfilePage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [currentUser?.id]);
+  }, [hasSession, currentUser?.id]);
 
   // Hydrate form state once user is available (and on user switch)
   useEffect(() => {
     if (!currentUser) return;
+    const canonicalLocation = normalizePrimaryLocationSource(currentUser as any);
 
     setName(currentUser.name ?? '');
     setMiniBio((currentUser as any)?.miniBio ?? (currentUser as any)?.mini_bio ?? '');
@@ -163,6 +218,10 @@ export default function EditProfilePage() {
     setBio(currentUser.bio ?? '');
     setPrimaryTrade((currentUser.primaryTrade as string | undefined) ?? ((currentUser as any)?.trades?.[0] as string | undefined) ?? '');
     setIsPublicProfile(currentUser.isPublicProfile ?? false);
+    setLocation(canonicalLocation.suburb);
+    setPostcode(canonicalLocation.postcode);
+    setLocationLat(canonicalLocation.lat);
+    setLocationLng(canonicalLocation.lng);
 
     setTradesText(((currentUser.trades ?? []) as string[]).join(', '));
 
@@ -173,9 +232,51 @@ export default function EditProfilePage() {
     setTiktok((currentUser as any)?.tiktok ?? '');
     setYoutube((currentUser as any)?.youtube ?? '');
 
+    setGoogleBusinessUrl(
+      (currentUser as any)?.googleBusinessUrl ?? (currentUser as any)?.google_business_url ?? ''
+    );
+    setGoogleBusinessName(
+      (currentUser as any)?.googleBusinessName ?? (currentUser as any)?.google_business_name ?? ''
+    );
+    setGooglePlaceId(
+      (currentUser as any)?.googlePlaceId ?? (currentUser as any)?.google_place_id ?? ''
+    );
+    const gr = (currentUser as any)?.googleRating ?? (currentUser as any)?.google_rating;
+    setGoogleRating(gr != null && gr !== '' ? String(gr) : '');
+    const grc = (currentUser as any)?.googleReviewCount ?? (currentUser as any)?.google_review_count;
+    setGoogleReviewCount(grc != null && grc !== '' ? String(grc) : '');
+    setGoogleBusinessAddress(
+      (currentUser as any)?.googleBusinessAddress ?? (currentUser as any)?.google_business_address ?? ''
+    );
+    setGoogleListingVerificationStatus(
+      String(
+        (currentUser as any)?.googleListingVerificationStatus ??
+          (currentUser as any)?.google_listing_verification_status ??
+          'UNVERIFIED'
+      ).toUpperCase()
+    );
+    setGoogleListingRejectionReason(
+      (currentUser as any)?.googleListingRejectionReason ?? (currentUser as any)?.google_listing_rejection_reason ?? ''
+    );
+    const hasLinkedGoogle = !!String(
+      (currentUser as any)?.googlePlaceId ??
+      (currentUser as any)?.google_place_id ??
+      (currentUser as any)?.googleBusinessUrl ??
+      (currentUser as any)?.google_business_url ??
+      ''
+    ).trim();
+    setGoogleLookupMode(!hasLinkedGoogle);
+    setGoogleSearchQuery('');
+    setGoogleSearchResults([]);
+    setGoogleSearchError(null);
+    setGoogleDropdownOpen(false);
+    setGoogleHighlightedIndex(-1);
+
     setPhone((currentUser as any)?.phone ?? '');
     setShowPhoneOnProfile((currentUser as any)?.showPhoneOnProfile ?? (currentUser as any)?.show_phone_on_profile ?? false);
     setShowEmailOnProfile((currentUser as any)?.showEmailOnProfile ?? (currentUser as any)?.show_email_on_profile ?? false);
+    setShowAbnOnProfile((currentUser as any)?.showAbnOnProfile ?? (currentUser as any)?.show_abn_on_profile ?? false);
+    setShowBusinessNameOnProfile((currentUser as any)?.showBusinessNameOnProfile ?? (currentUser as any)?.show_business_name_on_profile ?? false);
 
     const pt = (currentUser as any)?.pricingType ?? (currentUser as any)?.pricing_type ?? '';
     setPricingType(pt ? String(pt) : '');
@@ -184,6 +285,179 @@ export default function EditProfilePage() {
     setShowPricingOnProfile((currentUser as any)?.showPricingOnProfile ?? (currentUser as any)?.show_pricing_on_profile ?? false);
     setShowPricingInListings((currentUser as any)?.showPricingInListings ?? (currentUser as any)?.show_pricing_in_listings ?? false);
   }, [currentUser]);
+
+  useEffect(() => {
+    if (!googleLookupMode) return;
+    const query = googleSearchQuery.trim();
+    if (query.length < 2) {
+      setGoogleSearchResults([]);
+      setGoogleSearchError(null);
+      setGoogleSearchLoading(false);
+      setGoogleDropdownOpen(false);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        setGoogleSearchLoading(true);
+        setGoogleSearchError(null);
+        const res = await fetch(`/api/google-business/search?q=${encodeURIComponent(query)}`);
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!res.ok) {
+          setGoogleSearchResults([]);
+          setGoogleSearchError(data?.error || 'Could not load Google business results right now');
+          return;
+        }
+        setGoogleSearchResults(Array.isArray(data?.predictions) ? data.predictions : []);
+        setGoogleDropdownOpen(true);
+        setGoogleHighlightedIndex(-1);
+      } catch {
+        if (!cancelled) {
+          setGoogleSearchResults([]);
+          setGoogleSearchError('Could not load Google business results right now');
+        }
+      } finally {
+        if (!cancelled) setGoogleSearchLoading(false);
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [googleLookupMode, googleSearchQuery]);
+
+  useEffect(() => {
+    const onDocClick = (event: MouseEvent) => {
+      if (!googleSearchWrapRef.current) return;
+      if (!googleSearchWrapRef.current.contains(event.target as Node)) {
+        setGoogleDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, []);
+
+  const handleSelectGoogleBusiness = async (result: GoogleBusinessSearchResult) => {
+    try {
+      setGoogleSelectionLoading(true);
+      setGoogleSearchError(null);
+      const res = await fetch(`/api/google-business/details?placeId=${encodeURIComponent(result.placeId)}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.placeId) {
+        toast.error(data?.error || 'Could not load selected Google listing');
+        return;
+      }
+      const details = data as GoogleBusinessDetails;
+      setGooglePlaceId(details.placeId || result.placeId);
+      setGoogleBusinessName(details.name || '');
+      setGoogleBusinessAddress(details.address || result.description || '');
+      setGoogleBusinessUrl(details.googleMapsUrl || '');
+      setGoogleRating(
+        details.rating != null && Number.isFinite(Number(details.rating))
+          ? String(details.rating)
+          : ''
+      );
+      setGoogleReviewCount(
+        details.reviewCount != null && Number.isFinite(Number(details.reviewCount))
+          ? String(details.reviewCount)
+          : ''
+      );
+      setGoogleListingVerificationStatus('SELF_CONFIRMED');
+      setGoogleListingRejectionReason('');
+      setGoogleLookupMode(false);
+      setGoogleSearchQuery('');
+      setGoogleSearchResults([]);
+      setGoogleDropdownOpen(false);
+      setGoogleHighlightedIndex(-1);
+      await updateUser({
+        googleBusinessUrl: details.googleMapsUrl || null,
+        googleBusinessName: details.name || null,
+        googleBusinessAddress: details.address || null,
+        googlePlaceId: details.placeId || result.placeId || null,
+        googleRating:
+          details.rating != null && Number.isFinite(Number(details.rating))
+            ? Number(details.rating)
+            : null,
+        googleReviewCount:
+          details.reviewCount != null && Number.isFinite(Number(details.reviewCount))
+            ? Number(details.reviewCount)
+            : null,
+        googleListingClaimedByUser: true,
+      } as any);
+      toast.success('Google business listing linked');
+    } catch {
+      toast.error('Could not load selected Google listing');
+    } finally {
+      setGoogleSelectionLoading(false);
+    }
+  };
+
+  const handleRemoveGoogleBusiness = async () => {
+    setGoogleBusinessUrl('');
+    setGoogleBusinessName('');
+    setGooglePlaceId('');
+    setGoogleBusinessAddress('');
+    setGoogleRating('');
+    setGoogleReviewCount('');
+    setGoogleListingVerificationStatus('UNVERIFIED');
+    setGoogleListingRejectionReason('');
+    setGoogleLookupMode(true);
+    setGoogleSearchQuery('');
+    setGoogleSearchResults([]);
+    setGoogleSearchError(null);
+    setGoogleDropdownOpen(false);
+    setGoogleHighlightedIndex(-1);
+    try {
+      await updateUser({
+        googleBusinessUrl: null,
+        googleBusinessName: null,
+        googleBusinessAddress: null,
+        googlePlaceId: null,
+        googleRating: null,
+        googleReviewCount: null,
+        googleListingClaimedByUser: false,
+      } as any);
+      toast.success('Google business listing removed');
+    } catch {
+      toast.error('Could not remove Google business listing');
+    }
+  };
+
+  const canShowGoogleDropdown =
+    googleLookupMode && googleDropdownOpen && googleSearchQuery.trim().length >= 2;
+
+  const handleGoogleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!canShowGoogleDropdown) {
+      if (e.key === 'Escape') setGoogleDropdownOpen(false);
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setGoogleHighlightedIndex((prev) => {
+        if (googleSearchResults.length === 0) return -1;
+        return Math.min(prev + 1, googleSearchResults.length - 1);
+      });
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setGoogleHighlightedIndex((prev) => Math.max(prev - 1, 0));
+      return;
+    }
+    if (e.key === 'Enter') {
+      if (googleHighlightedIndex >= 0 && googleSearchResults[googleHighlightedIndex]) {
+        e.preventDefault();
+        void handleSelectGoogleBusiness(googleSearchResults[googleHighlightedIndex]);
+      }
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setGoogleDropdownOpen(false);
+      setGoogleHighlightedIndex(-1);
+    }
+  };
 
   // Auto-open Links section if user already has links saved
   useEffect(() => {
@@ -214,6 +488,7 @@ export default function EditProfilePage() {
   // Premium checks
   const isMultiTradeEnabled = currentUser ? canMultiTrade(currentUser) : false;
   const canAddLocations = currentUser ? canCustomSearchLocation(currentUser) : false;
+  const canEditPrimaryLocation = currentUser ? canCustomSearchLocation(currentUser) : false;
 
   const handleAddLocation = async () => {
     if (!canAddLocations) {
@@ -362,8 +637,6 @@ export default function EditProfilePage() {
     (currentUser as any)?.abn ??
     (currentUser as any)?.abn_number ??
     null;
-  const showAbnOnProfile = currentUser?.showAbnOnProfile === true;
-  const showBusinessNameOnProfile = currentUser?.showBusinessNameOnProfile !== false;
   const businessNameDisplay = (verifiedEntityName ?? currentUser?.businessName ?? '').toString();
 
   const primaryTradeValue = primaryTrade || selectedTrades[0] || '';
@@ -482,7 +755,7 @@ export default function EditProfilePage() {
     try {
       setIsRefiningBio(true);
 
-      const res = await fetch('/api/ai/refine-tender', {
+      const res = await fetch('/api/ai/refine-bio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -568,9 +841,23 @@ export default function EditProfilePage() {
         tiktok: tiktok.trim() ? normalizeTiktok(tiktok) : undefined,
         youtube: youtube.trim() ? normalizeYoutube(youtube) : undefined,
 
+        googleBusinessUrl: googleBusinessUrl.trim() || null,
+        googleBusinessName: googleBusinessName.trim() || null,
+        googlePlaceId: googlePlaceId.trim() || null,
+        googleBusinessAddress: googleBusinessAddress.trim() || null,
+        googleRating:
+          googleRating.trim() && !Number.isNaN(Number(googleRating)) ? Number(googleRating) : null,
+        googleReviewCount:
+          googleReviewCount.trim() && !Number.isNaN(parseInt(googleReviewCount, 10))
+            ? parseInt(googleReviewCount, 10)
+            : null,
+        googleListingClaimedByUser: !!(googlePlaceId.trim() || googleBusinessUrl.trim()),
+
         phone: phone.trim() ? phone.trim() : null,
         show_phone_on_profile: !!showPhoneOnProfile,
         show_email_on_profile: !!showEmailOnProfile,
+        showAbnOnProfile: !!showAbnOnProfile,
+        showBusinessNameOnProfile: !!showBusinessNameOnProfile,
 
         pricingType: pricingType || null,
         pricingAmount: pricingType && pricingType !== 'quote_on_request' && pricingAmount.trim()
@@ -579,8 +866,14 @@ export default function EditProfilePage() {
         showPricingOnProfile: pricingType ? !!showPricingOnProfile : false,
         showPricingInListings: pricingType ? !!showPricingInListings : false,
 
-        location: undefined,
-        postcode: undefined,
+        ...(canEditPrimaryLocation
+          ? {
+              location: location.trim() || null,
+              postcode: postcode.trim() || null,
+              locationLat,
+              locationLng,
+            }
+          : {}),
 
         abn: enteredAbn ? cleanedAbn : null,
       };
@@ -761,7 +1054,7 @@ export default function EditProfilePage() {
                   autoComplete="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="e.g. 04xx xxx xxx or +61 4xx xxx xxx"
+                  placeholder="e.g 04xx xxx xxx"
                   className={`mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 ${inputClass}`}
                 />
                 <p className="mt-1 text-xs text-slate-500">
@@ -809,11 +1102,11 @@ export default function EditProfilePage() {
                   className="w-full text-left"
                   aria-expanded={linksOpen}
                 >
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-sm font-semibold text-slate-900">Links</h3>
-                        <span className="text-[11px] font-semibold text-slate-500">
+                      <div className="flex items-center">
+                        <h3 className="text-base font-semibold text-blue-600">Links</h3>
+                        <span className="ml-2 text-xs text-slate-500">
                           {buildPreviewLinks().length ? `${buildPreviewLinks().length} added` : 'Optional'}
                         </span>
                       </div>
@@ -842,8 +1135,8 @@ export default function EditProfilePage() {
                       ) : null}
                     </div>
 
-                    <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white/70 text-slate-700 transition">
-                      <span className={`text-base transition-transform ${linksOpen ? 'rotate-180' : ''}`}>⌄</span>
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white/70 text-slate-700 transition">
+                      <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${linksOpen ? 'rotate-180' : ''}`} />
                     </div>
                   </div>
                 </button>
@@ -946,13 +1239,157 @@ export default function EditProfilePage() {
                       />
                     </div>
                   </div>
+
+                  <div className="col-span-full border-t border-slate-200 pt-4">
+                    <h4 className="text-xs font-semibold text-slate-800">Google Business (optional)</h4>
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Link your Google business listing from Google to strengthen your profile credibility.
+                    </p>
+                    <div className="mt-3 space-y-3">
+                      {googleLookupMode ? (
+                        <div className="space-y-2" ref={googleSearchWrapRef}>
+                          <Label htmlFor="google_business_search" className="text-sm font-medium text-slate-800">
+                            Search Google business listing
+                          </Label>
+                          <div className="relative">
+                            <Input
+                              id="google_business_search"
+                              value={googleSearchQuery}
+                              onChange={(e) => {
+                                setGoogleSearchQuery(e.target.value);
+                                if (!googleDropdownOpen) setGoogleDropdownOpen(true);
+                              }}
+                              onFocus={() => {
+                                if (googleSearchQuery.trim().length >= 2) setGoogleDropdownOpen(true);
+                              }}
+                              onKeyDown={handleGoogleSearchKeyDown}
+                              aria-expanded={canShowGoogleDropdown}
+                              aria-controls="google-business-results"
+                              placeholder="Search your business name and suburb..."
+                              className={`mt-1 pr-9 ${inputClass}`}
+                              autoComplete="off"
+                            />
+                            {googleSearchLoading || googleSelectionLoading ? (
+                              <Loader2 className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-slate-400" />
+                            ) : (
+                              <MapPin className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                            )}
+                          </div>
+                          {googleSearchQuery.trim().length < 2 ? (
+                            <p className="text-[11px] text-slate-500">
+                              Start typing to find your business on Google. Select the correct listing to link it to your profile.
+                            </p>
+                          ) : null}
+
+                          {canShowGoogleDropdown ? (
+                            <div
+                              id="google-business-results"
+                              role="listbox"
+                              className="max-h-64 overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm"
+                            >
+                              {googleSearchLoading ? (
+                                <p className="px-3 py-2 text-sm text-slate-500">Searching Google listings...</p>
+                              ) : googleSearchError ? (
+                                <p className="px-3 py-2 text-sm text-slate-600">Could not load Google business results right now</p>
+                              ) : googleSearchResults.length === 0 ? (
+                                <p className="px-3 py-2 text-sm text-slate-500">No businesses found</p>
+                              ) : (
+                                googleSearchResults.map((r, index) => (
+                                  <button
+                                    key={r.placeId}
+                                    type="button"
+                                    role="option"
+                                    aria-selected={googleHighlightedIndex === index}
+                                    onMouseEnter={() => setGoogleHighlightedIndex(index)}
+                                    onClick={() => handleSelectGoogleBusiness(r)}
+                                    className={`flex w-full items-start gap-2 border-b border-slate-100 px-3 py-2 text-left last:border-b-0 ${
+                                      googleHighlightedIndex === index ? 'bg-slate-100/80' : 'hover:bg-slate-50'
+                                    }`}
+                                    disabled={googleSelectionLoading}
+                                  >
+                                    <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
+                                    <span className="text-sm text-slate-800">{r.description}</span>
+                                  </button>
+                                ))
+                              )}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-slate-900 md:text-base">
+                                {googleBusinessName || 'Google listing linked'}
+                              </p>
+                              <p className="text-xs text-slate-600">{googleBusinessAddress || 'Address unavailable'}</p>
+                              <p className="mt-1 inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600">Linked from Google</p>
+                              {(googleRating.trim() || googleReviewCount.trim()) ? (
+                                <p className="mt-2 inline-flex items-center gap-1 text-xs text-slate-700">
+                                  <Star className="h-3.5 w-3.5 text-amber-500" />
+                                  {googleRating.trim() ? `${Number(googleRating).toFixed(1)}` : '—'}
+                                  {googleReviewCount.trim() ? ` (${googleReviewCount} reviews)` : ''}
+                                </p>
+                              ) : null}
+                              {googleBusinessUrl.trim() ? (
+                                <a
+                                  href={googleBusinessUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-slate-700 underline-offset-4 hover:underline"
+                                >
+                                  Open Google Maps
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                </a>
+                              ) : null}
+                            </div>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setGoogleLookupMode(true)}
+                              disabled={googleSelectionLoading}
+                            >
+                              Change listing
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={handleRemoveGoogleBusiness}
+                              className="text-red-700 hover:bg-red-50 hover:text-red-800"
+                              disabled={googleSelectionLoading}
+                            >
+                              Remove listing
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      {googleLookupMode ? (
+                        <p className="text-xs text-slate-500">No Google business linked yet</p>
+                      ) : (
+                        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700">
+                          <span className="font-medium">
+                            {String(googleListingVerificationStatus).toUpperCase() === 'SELF_CONFIRMED'
+                              ? 'Self-confirmed'
+                              : getGoogleBusinessStatusLabel({ google_listing_verification_status: googleListingVerificationStatus })}
+                          </span>
+                        </div>
+                      )}
+                      {String(googleListingVerificationStatus).toUpperCase() === 'REJECTED' && googleListingRejectionReason.trim() ? (
+                        <p className="text-xs text-slate-500">{googleListingRejectionReason.trim()}</p>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="mt-4">
                   <div className="text-xs font-semibold text-slate-700">Preview</div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {buildPreviewLinks().length === 0 ? (
-                      <span className="text-xs text-slate-500">No links added yet.</span>
+                      <span className="text-xs text-slate-500">Add website or social links above to preview them here.</span>
                     ) : (
                       buildPreviewLinks().map((l) => (
                         <a
@@ -1260,36 +1697,41 @@ export default function EditProfilePage() {
             </div>
             <div className="space-y-3">
               {/* Primary / base location */}
-              {(() => {
-                const locationLabel =
-                  typeof currentUser?.location === 'string' && currentUser.location.trim().length > 0
-                    ? currentUser.location.trim()
-                    : null;
-                return (
-                  <div className={`${innerBubbleClass} flex items-center justify-between gap-4`}>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-900">
-                        {locationLabel ?? 'Location not set'}
-                        {currentUser.postcode ? `, ${currentUser.postcode}` : ''}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-600">
-                        {locationLabel
-                          ? 'Primary location (set during signup).'
-                          : 'Set your base suburb to improve local matching.'}
-                      </p>
-                    </div>
-                    <div className="flex items-center justify-center h-10 w-10 shrink-0 rounded-full bg-slate-100 border border-slate-200">
-                      <MapPin className="h-5 w-5 text-slate-500" />
-                    </div>
+              <div className={`${innerBubbleClass} space-y-3`}>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-900">Primary location</p>
+                    <p className="mt-1 text-xs text-slate-600">
+                      Used as your discovery center. Select a suburb suggestion to save map coordinates.
+                    </p>
                   </div>
-                );
-              })()}
+                  <div className="flex items-center justify-center h-10 w-10 shrink-0 rounded-full bg-slate-100 border border-slate-200">
+                    <MapPin className="h-5 w-5 text-slate-500" />
+                  </div>
+                </div>
+                <SuburbAutocomplete
+                  value={location}
+                  postcode={postcode}
+                  onSuburbChange={setLocation}
+                  onPostcodeChange={setPostcode}
+                  onLatLngChange={(lat, lng) => {
+                    setLocationLat(lat);
+                    setLocationLng(lng);
+                  }}
+                  disabled={!canEditPrimaryLocation}
+                />
+                {!canEditPrimaryLocation && (
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-slate-700">
+                    <Lock className="h-3.5 w-3.5" />
+                    Primary location is locked on Free plans
+                  </p>
+                )}
+              </div>
 
-              {/* Premium upsell for free users: additional locations */}
               {!canAddLocations && (
                 <PremiumUpsellBar
-                  title="Add more service locations with Premium"
-                  description="Premium lets you expand your service area by adding additional locations."
+                  title="Manage your service area with Premium"
+                  description="Upgrade to Premium to update your primary location and add multiple service areas to expand your reach."
                   ctaLabel="See Premium"
                   href="/pricing"
                   className="mt-4"
@@ -1406,7 +1848,7 @@ export default function EditProfilePage() {
             <div className="mb-4">
               <div className="text-sm font-semibold text-slate-900">Verification</div>
               <div className="text-xs text-slate-600">
-                ABN is only required for posting jobs and tendering. You can verify anytime.
+                ABN is only required for posting jobs and applying to jobs posted by others. You can verify anytime.
               </div>
             </div>
 
@@ -1459,7 +1901,7 @@ export default function EditProfilePage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => updateUser({ showAbnOnProfile: !showAbnOnProfile })}
+                    onClick={() => setShowAbnOnProfile((prev) => !prev)}
                     className={[
                       'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
                       showAbnOnProfile ? 'bg-blue-600' : 'bg-slate-300',
@@ -1482,7 +1924,7 @@ export default function EditProfilePage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => updateUser({ showBusinessNameOnProfile: !showBusinessNameOnProfile })}
+                    onClick={() => setShowBusinessNameOnProfile((prev) => !prev)}
                     className={[
                       'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
                       showBusinessNameOnProfile ? 'bg-blue-600' : 'bg-slate-300',
@@ -1506,7 +1948,7 @@ export default function EditProfilePage() {
               <div>
                 <h2 className="text-sm font-semibold text-red-900">Delete account</h2>
                 <p className="mt-1 text-xs text-red-900/80">
-                  This will remove your profile info, avatar/cover, and soft-delete your jobs and tenders.
+                  This will remove your profile info, avatar/cover, and soft-delete your jobs.
                   For security, you&apos;ll need to confirm your password.
                 </p>
               </div>
@@ -1538,7 +1980,7 @@ export default function EditProfilePage() {
                   </p>
                   <p className="mt-1 text-sm text-red-600">
                     Your account and all associated data — including profile information,
-                    messages, jobs, tenders, and reviews — will be permanently deleted.
+                    messages, jobs, and reviews — will be permanently deleted.
                     This cannot be undone.
                   </p>
                 </div>

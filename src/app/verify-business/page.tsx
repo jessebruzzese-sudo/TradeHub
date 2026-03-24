@@ -223,7 +223,7 @@ export default function VerifyBusinessPage() {
           </h2>
 
           <p className="text-center text-sm text-gray-600 mb-4">
-            Verify your ABN to unlock business features such as posting jobs and applying for tenders.
+            Verify your ABN to unlock business features such as posting jobs and applying for work.
           </p>
 
           {/* Current status */}
