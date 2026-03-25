@@ -2,7 +2,10 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 
+import { assertEnv } from '@/lib/env-check';
 import { AuthProvider } from '@/lib/auth';
+
+assertEnv();
 import { DevUnreadProvider } from '@/lib/dev-unread-context';
 import { NotificationsUnreadProvider } from '@/lib/notifications-unread-context';
 import { BillingSimulationBanner } from '@/components/billing-simulation-banner';
