@@ -8,6 +8,7 @@ export type JobStatus = 'open' | 'accepted' | 'confirmed' | 'completed' | 'cance
 
 export type ApplicationStatus = 'applied' | 'selected' | 'accepted' | 'declined' | 'confirmed' | 'completed';
 
+/** Job compensation model. `quote_required` is a legacy DB value; UI shows “Rate to be agreed”. */
 export type PayType = 'fixed' | 'hourly' | 'day_rate' | 'quote_required';
 
 export type SubcontractorPlan = 'NONE' | 'PRO_10';
@@ -90,7 +91,9 @@ export interface User {
 
   subcontractorAvailabilityBroadcastEnabled?: boolean;
 
-  /** Optional public pricing. Only shown when user enables visibility. */
+  /**
+   * Optional public pricing. `quote_on_request` is stored as-is for DB compatibility; UI shows “Pricing on enquiry”.
+   */
   pricingType?: 'hourly' | 'day' | 'from_hourly' | 'quote_on_request' | null;
   pricingAmount?: number | null;
   showPricingOnProfile?: boolean;

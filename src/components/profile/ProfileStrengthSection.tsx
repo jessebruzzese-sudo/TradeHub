@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { ArrowRight, CheckCircle2 } from 'lucide-react';
 import type { ProfileStrengthCalc } from '@/lib/profile-strength-types';
+import { hasValidABN } from '@/lib/abn-utils';
 import { getActivityPoints, getActivityWarning, getInactiveDays } from '@/lib/profile-strength/activity-score';
 import {
   getBandPillClassName,
@@ -46,7 +47,10 @@ function toBreakdown(strengthCalc: ProfileStrengthCalc | null, profile: Record<s
   const rawScore = Number(strengthCalc?.total ?? profile?.profile_strength_score ?? 0);
   const score = rawScore > 0 ? rawScore : computedScoreFromCalc;
   const band = normalizeProfileStrengthBand(strengthCalc?.band ?? profile?.profile_strength_band ?? 'LOW');
-  const abnVerified = profile?.abn_verified === true || profile?.abnVerified === true || profile?.abn_status === 'verified';
+  const abnVerified = hasValidABN({
+    abn: profile?.abn,
+    abn_status: profile?.abn_status ?? profile?.abnStatus,
+  });
 
   if (strengthCalc) {
     return {

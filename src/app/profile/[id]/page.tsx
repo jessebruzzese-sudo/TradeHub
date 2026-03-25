@@ -5,6 +5,7 @@ import { ProfileView } from '@/components/profile/profile-view';
 import { isLikelyTestAccount } from '@/lib/test-account';
 import { parseProfileStrengthRpcResult } from '@/lib/profile-strength';
 import { createServiceSupabase } from '@/lib/supabase-server';
+import { normalizeTrade, normalizeTradesList } from '@/lib/trades/normalizeTrade';
 
 function getSupabaseServer() {
   const cookieStore = cookies();
@@ -96,12 +97,21 @@ export default async function PublicProfilePage({
       .order('is_primary', { ascending: false })
       .order('created_at', { ascending: true });
     if (utRows && utRows.length > 0) {
-      const trades = utRows.map((r: { trade: string }) => r.trade).filter(Boolean);
-      const primary = utRows.find((r: { is_primary: boolean }) => r.is_primary)?.trade ?? utRows[0]?.trade;
+      const trades = normalizeTradesList(utRows.map((r: { trade: string }) => r.trade));
+      const primaryRow =
+        utRows.find((r: { is_primary: boolean }) => r.is_primary) ?? utRows[0];
+      const primaryNorm = primaryRow?.trade ? normalizeTrade(primaryRow.trade) : null;
+      const fallbackPrimary = (data as { primary_trade?: string | null }).primary_trade;
       profileData = {
         ...data,
         trades,
-        primary_trade: primary ?? (data as any).primary_trade,
+        primary_trade: primaryNorm ?? (fallbackPrimary ? normalizeTrade(fallbackPrimary) : null),
+      } as typeof profileData;
+    } else if (Array.isArray((data as { trades?: unknown }).trades)) {
+      const raw = (data as { trades: unknown[] }).trades;
+      profileData = {
+        ...data,
+        trades: normalizeTradesList(raw.map(String)),
       } as typeof profileData;
     }
   } catch {

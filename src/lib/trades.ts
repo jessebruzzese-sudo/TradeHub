@@ -1,10 +1,10 @@
 // TradeHub trade categories – shared constant for discovery, signup, profile, and AI helpers
 
-export const TRADE_CATEGORIES: string[] = [
-  'Building',
+/** Single source of truth for allowed trade labels (UI, API validation, discovery). */
+export const TRADES = [
+  'Builder/Contractor',
   'Carpentry',
   'Plumbing',
-  'Roof plumbing / stormwater',
   'Electrical',
   'Concreting',
   'Bricklaying',
@@ -19,9 +19,11 @@ export const TRADE_CATEGORIES: string[] = [
   'HVAC / Air Conditioning',
   'Demolition',
   'Labouring',
-];
+] as const;
 
-export type TradeCategory = (typeof TRADE_CATEGORIES)[number];
+export const TRADE_CATEGORIES: string[] = [...TRADES];
+
+export type TradeCategory = (typeof TRADES)[number];
 
 /** Structured trade option for forms, filters, and AI validation. */
 export type TradeOption = {
@@ -52,18 +54,20 @@ export const TRADE_ALIASES: Record<string, string> = {
   'painting and decorating': 'Painting & Decorating',
   joinery: 'Cabinet Making / Joinery',
   'cabinet making': 'Cabinet Making / Joinery',
-  stormwater: 'Roof plumbing / stormwater',
-  'roof plumbing': 'Roof plumbing / stormwater',
+  stormwater: 'Plumbing',
+  'roof plumbing': 'Plumbing',
+  'roof plumbing / stormwater': 'Plumbing',
   hvac: 'HVAC / Air Conditioning',
   'air conditioning': 'HVAC / Air Conditioning',
   fencing: 'Landscaping',
   'driveways / paving': 'Landscaping',
   paving: 'Landscaping',
-  glazing: 'Building',
-  'metalwork / structural steel': 'Building',
-  'structural steel': 'Building',
-  metalwork: 'Building',
-  insulation: 'Building',
+  glazing: 'Builder/Contractor',
+  'metalwork / structural steel': 'Builder/Contractor',
+  'structural steel': 'Builder/Contractor',
+  metalwork: 'Builder/Contractor',
+  insulation: 'Builder/Contractor',
+  building: 'Builder/Contractor',
   masonry: 'Bricklaying',
   'bricklaying / masonry': 'Bricklaying',
 };

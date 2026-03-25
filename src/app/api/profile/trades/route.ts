@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase-server';
 import { hasSubcontractorPremium, hasBuilderPremium, hasContractorPremium, canChangePrimaryTrade } from '@/lib/capability-utils';
 import { TRADE_CATEGORIES } from '@/lib/trades';
+import { normalizeTrade, normalizeTradesList } from '@/lib/trades/normalizeTrade';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,7 +32,11 @@ export async function GET() {
 
   if (rows && rows.length > 0) {
     return NextResponse.json({
-      trades: rows.map((r: { id: string | null; trade: string; is_primary: boolean }) => ({ id: r.id, trade: r.trade, is_primary: r.is_primary })),
+      trades: rows.map((r: { id: string | null; trade: string; is_primary: boolean }) => ({
+        id: r.id,
+        trade: normalizeTrade(r.trade),
+        is_primary: r.is_primary,
+      })),
     });
   }
 
@@ -45,7 +50,7 @@ export async function GET() {
   const pt = profile?.primary_trade?.trim();
   if (pt) {
     return NextResponse.json({
-      trades: [{ id: null, trade: pt, is_primary: true }],
+      trades: [{ id: null, trade: normalizeTrade(pt), is_primary: true }],
     });
   }
 
@@ -65,21 +70,25 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json().catch(() => ({}));
-  const primaryTrade = typeof body?.primaryTrade === 'string' ? body.primaryTrade.trim() : '';
+  const primaryTradeRaw = typeof body?.primaryTrade === 'string' ? body.primaryTrade.trim() : '';
+  const primaryTrade = primaryTradeRaw ? normalizeTrade(primaryTradeRaw) : '';
   const tradesRaw = body?.trades;
   const trades: string[] = Array.isArray(tradesRaw)
-    ? tradesRaw
-        .map((t) => (typeof t === 'string' ? t.trim() : ''))
-        .filter(Boolean)
+    ? normalizeTradesList(
+        tradesRaw.map((t) => (typeof t === 'string' ? t.trim() : '')).filter(Boolean) as string[]
+      )
     : [];
 
   if (!primaryTrade && trades.length === 0) {
     return NextResponse.json({ error: 'At least one trade is required' }, { status: 400 });
   }
 
-  const effectiveTrades = trades.length > 0
-    ? (primaryTrade && !trades.includes(primaryTrade) ? [primaryTrade, ...trades] : trades)
-    : [primaryTrade];
+  const effectiveTrades =
+    trades.length > 0
+      ? primaryTrade && !trades.includes(primaryTrade)
+        ? normalizeTradesList([primaryTrade, ...trades])
+        : trades
+      : normalizeTradesList([primaryTrade]);
 
   const validTrades = TRADE_CATEGORIES;
   const invalid = effectiveTrades.filter((t) => !validTrades.includes(t));
@@ -106,7 +115,7 @@ export async function POST(request: NextRequest) {
 
   // Free users: primary trade is locked after signup. Reject any change.
   if (!canChange) {
-    const currentPrimary = (profile?.primary_trade ?? '').trim();
+    const currentPrimary = normalizeTrade((profile?.primary_trade ?? '').trim());
     const requestedPrimary = primaryTrade || effectiveTrades[0] || '';
     if (requestedPrimary !== currentPrimary) {
       return NextResponse.json(
@@ -117,9 +126,11 @@ export async function POST(request: NextRequest) {
     // Same primary - allow no-op (e.g. saving other profile fields). RPC will succeed.
   }
 
+  const rpcPrimary = primaryTrade || effectiveTrades[0] || '';
+
   const { error: rpcErr } = await (supabase as any).rpc('update_user_trades', {
     p_user_id: user.id,
-    p_primary_trade: primaryTrade || effectiveTrades[0],
+    p_primary_trade: rpcPrimary,
     p_trades: effectiveTrades,
   });
 

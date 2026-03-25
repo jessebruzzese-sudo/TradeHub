@@ -13,9 +13,7 @@ import type { BuildingElements } from '@/lib/ai/plan-room-detection';
  */
 export const TRADE_SCOPE_FALLBACKS: Record<string, string> = {
   Plumbing:
-    'Supply and install sanitary plumbing, drainage, floor wastes and hot water service to bathrooms, ensuite, kitchen and laundry as per plans.',
-  'Roof plumbing / stormwater':
-    'Installation of gutters, downpipes and stormwater drainage to legal point of discharge as per plans.',
+    'Supply and install sanitary plumbing, drainage, floor wastes and hot water service to bathrooms, ensuite, kitchen and laundry; gutters, downpipes and stormwater to legal point of discharge as per plans.',
   Electrical:
     'Electrical rough-in and fit-off including lighting, power, smoke alarms and data points throughout the dwelling as per electrical layout.',
   Carpentry:
@@ -46,7 +44,7 @@ export const TRADE_SCOPE_FALLBACKS: Record<string, string> = {
     'Strip-out and demolition works as per scope.',
   Labouring:
     'Labour and site support services as required.',
-  Building:
+  'Builder/Contractor':
     'Building coordination and works as per plans.',
   Fencing:
     'Supply and install boundary and pool fencing as per plans.',
@@ -121,8 +119,6 @@ function getMultiDwellingFallback(
       return `Electrical rough-in and fit-off ${dwellingsPhrase} including lighting, power, smoke alarms and data points throughout as per electrical layout.`;
     case 'Carpentry':
       return `Timber framing and associated carpentry works ${dwellingsPhrase} including wall framing, roof framing and structural members.`;
-    case 'Roof plumbing / stormwater':
-      return `Install gutters, downpipes and stormwater drainage ${dwellingsPhrase} to legal point of discharge as per plans.`;
     case 'Waterproofing':
       return `Waterproof membrane installation to wet areas ${dwellingsPhrase} prior to tiling.`;
     case 'Tiling':

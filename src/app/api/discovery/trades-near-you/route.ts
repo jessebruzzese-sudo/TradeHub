@@ -9,6 +9,7 @@ import {
   isPremiumCandidate,
 } from '@/lib/discovery';
 import { applyExcludeTestAccountsFilters } from '@/lib/test-account';
+import { normalizeTrade as canonicalTradeLabel, normalizeTradesList } from '@/lib/trades/normalizeTrade';
 
 type UserRow = {
   id: string;
@@ -42,7 +43,7 @@ function getCandidateCoords(row: UserRow): { lat: number; lng: number } | null {
 function getTradesFromRow(row: UserRow, userTradesMap?: Map<string, string[]>): string[] {
   const fromUserTrades = userTradesMap?.get(row.id);
   if (fromUserTrades && fromUserTrades.length > 0) {
-    return fromUserTrades;
+    return normalizeTradesList(fromUserTrades);
   }
   const primary = row.primary_trade ? [row.primary_trade] : [];
   let additional: string[] = [];
@@ -62,8 +63,7 @@ function getTradesFromRow(row: UserRow, userTradesMap?: Map<string, string[]>): 
   } else if (typeof tradesJson === 'string') {
     extra = tradesJson.split(',').map((s) => s.trim()).filter(Boolean);
   }
-  const set = new Set<string>([...primary, ...additional, ...extra]);
-  return Array.from(set).filter(Boolean);
+  return normalizeTradesList([...primary, ...additional, ...extra]);
 }
 
 export const dynamic = 'force-dynamic';
@@ -158,8 +158,9 @@ export async function GET() {
           for (const r of utRows) {
             const uid = (r as { user_id: string }).user_id;
             const arr = map.get(uid) ?? [];
-            if (!arr.includes((r as { trade: string }).trade)) {
-              arr.push((r as { trade: string }).trade);
+            const label = canonicalTradeLabel((r as { trade: string }).trade);
+            if (!arr.includes(label)) {
+              arr.push(label);
             }
             map.set(uid, arr);
           }

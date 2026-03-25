@@ -29,8 +29,9 @@ describe('google business verification helpers', () => {
       google_listing_verification_status: 'VERIFIED',
       google_rating: 4.2,
       google_review_count: 5,
+      abn: '12345678901',
       abn_status: 'UNVERIFIED',
-    } as any);
+    });
     expect(tier).toBe('blue');
   });
 
@@ -40,9 +41,9 @@ describe('google business verification helpers', () => {
       google_listing_verification_status: 'VERIFIED',
       google_rating: 4.8,
       google_review_count: 28,
-      abn_verified: true,
+      abn: '12345678901',
       abn_status: 'VERIFIED',
-    } as any);
+    });
     expect(tier).toBe('gold');
   });
 

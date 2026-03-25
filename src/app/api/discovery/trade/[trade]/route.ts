@@ -10,6 +10,7 @@ import {
 import { getTier } from '@/lib/plan-limits';
 import { hasValidABN } from '@/lib/abn-utils';
 import { applyExcludeTestAccountsFilters } from '@/lib/test-account';
+import { normalizeTrade as canonicalTradeLabel, normalizeTradesList } from '@/lib/trades/normalizeTrade';
 
 type UserRow = {
   id: string;
@@ -28,6 +29,7 @@ type UserRow = {
   base_suburb?: string | null;
   location?: string | null;
   postcode?: string | null;
+  abn?: string | null;
   abn_status?: string | null;
   avatar?: string | null;
   is_premium?: boolean | null;
@@ -37,7 +39,7 @@ type UserRow = {
   subcontractor_sub_status?: string | null;
 };
 
-function normalizeTrade(s: string): string {
+function tradeMatchKey(s: string): string {
   return s.trim().toLowerCase();
 }
 
@@ -54,7 +56,7 @@ function getCandidateCoords(row: UserRow): { lat: number; lng: number } | null {
 function getTradesFromRow(row: UserRow, userTradesMap?: Map<string, string[]>): string[] {
   const fromUserTrades = userTradesMap?.get(row.id);
   if (fromUserTrades && fromUserTrades.length > 0) {
-    return fromUserTrades;
+    return normalizeTradesList(fromUserTrades);
   }
   const primary = row.primary_trade ? [row.primary_trade] : [];
   let additional: string[] = [];
@@ -74,14 +76,13 @@ function getTradesFromRow(row: UserRow, userTradesMap?: Map<string, string[]>): 
   } else if (typeof tradesJson === 'string') {
     extra = tradesJson.split(',').map((s) => s.trim()).filter(Boolean);
   }
-  const set = new Set<string>([...primary, ...additional, ...extra]);
-  return Array.from(set).filter(Boolean);
+  return normalizeTradesList([...primary, ...additional, ...extra]);
 }
 
 function matchesTrade(row: UserRow, tradeParam: string, userTradesMap?: Map<string, string[]>): boolean {
   const trades = getTradesFromRow(row, userTradesMap);
-  const target = normalizeTrade(tradeParam);
-  return trades.some((t) => normalizeTrade(t) === target);
+  const target = tradeMatchKey(tradeParam);
+  return trades.some((t) => tradeMatchKey(t) === target);
 }
 
 function mapToCard(
@@ -197,7 +198,7 @@ export async function GET(
     let query = (supabase as any)
       .from('users')
       .select(
-        'id,plan,location_lat,location_lng,base_lat,base_lng,primary_trade,additional_trades,trades,business_name,name,base_suburb,location,postcode,abn_status,avatar,is_premium,active_plan,subscription_status,subcontractor_plan,subcontractor_sub_status'
+        'id,plan,location_lat,location_lng,base_lat,base_lng,primary_trade,additional_trades,trades,business_name,name,base_suburb,location,postcode,abn,abn_status,avatar,is_premium,active_plan,subscription_status,subcontractor_plan,subcontractor_sub_status'
       )
       .eq('is_public_profile', true)
       .neq('id', user.id)
@@ -234,8 +235,9 @@ export async function GET(
           for (const r of utRows) {
             const uid = (r as { user_id: string }).user_id;
             const arr = map.get(uid) ?? [];
-            if (!arr.includes((r as { trade: string }).trade)) {
-              arr.push((r as { trade: string }).trade);
+            const label = canonicalTradeLabel((r as { trade: string }).trade);
+            if (!arr.includes(label)) {
+              arr.push(label);
             }
             map.set(uid, arr);
           }

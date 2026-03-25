@@ -16,6 +16,7 @@ import { hasValidABN } from '@/lib/abn-utils';
 import { TRADE_CATEGORIES } from '@/lib/trades';
 import { MapPin, Search as SearchIcon, MessageSquare, Crown } from 'lucide-react';
 import ProfileSummaryTrustBar from '@/components/profile/ProfileSummaryTrustBar';
+import { formatProfilePricingTypeLabel } from '@/lib/job-pay-labels';
 
 type DirectoryUser = {
   id: string;
@@ -569,7 +570,7 @@ export default function SearchDirectoryPage() {
                               else if (pt === 'from_hourly' && pa != null && pa > 0) label = `From $${pa}/hr`;
                               else if (pt === 'day' && pa != null && pa > 0) label = `$${pa}/day`;
                               else if (pt === 'day') label = 'Day rate';
-                              else if (pt === 'quote_on_request') label = 'Quote on request';
+                              else if (pt === 'quote_on_request') label = formatProfilePricingTypeLabel('quote_on_request');
                               if (!label) return null;
                               return (
                                 <span className="text-xs text-slate-600">

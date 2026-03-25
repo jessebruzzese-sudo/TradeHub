@@ -1,3 +1,7 @@
+/**
+ * Legacy tender/quote DB objects (if any) are documented for manual cleanup — see
+ * docs/SUPABASE_JOBS_ONLY_DB_CLEANUP.md. The app does not reference tender tables at runtime.
+ */
 import { cookies } from 'next/headers';
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';

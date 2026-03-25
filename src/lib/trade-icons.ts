@@ -24,13 +24,12 @@ import {
 /** Canonical trade → Lucide icon. Keys are lowercase canonical labels from TRADE_CATEGORIES. */
 const tradeIconMap: Record<string, LucideIcon> = {
   building: Building2,
+  'builder/contractor': Building2,
   carpentry: Hammer,
   carpenter: Hammer,
   plumbing: Wrench,
   plumber: Wrench,
-  'roof plumbing / stormwater': Droplet,
-  'roof plumbing': Droplet,
-  stormwater: Droplet,
+  stormwater: Wrench,
   electrical: Zap,
   electrician: Zap,
   concreting: Square,

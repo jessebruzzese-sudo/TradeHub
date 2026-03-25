@@ -1,3 +1,5 @@
+import { hasValidABN } from '@/lib/abn-utils';
+
 export type GoogleListingVerificationStatus =
   | 'UNVERIFIED'
   | 'SELF_CONFIRMED'
@@ -15,6 +17,10 @@ type GoogleBusinessLike = {
   google_review_count?: number | null;
   google_listing_verification_status?: string | null;
   google_listing_claimed_by_user?: boolean | null;
+  /** Optional — used with `hasValidABN` for gold-tier trust (same rules as job gating). */
+  abn?: string | null;
+  abn_status?: string | null;
+  abnStatus?: string | null;
 };
 
 export function normalizeGoogleListingVerificationStatus(
@@ -40,13 +46,7 @@ export function getGoogleBusinessBadgeTier(user: GoogleBusinessLike): GoogleBusi
   const rating = typeof user.google_rating === 'number' ? user.google_rating : Number(user.google_rating);
   const reviews =
     typeof user.google_review_count === 'number' ? user.google_review_count : Number(user.google_review_count);
-  const abnVerified =
-    (user as any)?.abn_verified === true ||
-    (user as any)?.abnVerified === true ||
-    String((user as any)?.abn_status || (user as any)?.abnStatus || '')
-      .trim()
-      .toUpperCase() === 'VERIFIED';
-  if (abnVerified && Number.isFinite(rating) && rating >= 4.5 && Number.isFinite(reviews) && reviews >= 10) {
+  if (hasValidABN(user) && Number.isFinite(rating) && rating >= 4.5 && Number.isFinite(reviews) && reviews >= 10) {
     return 'gold';
   }
   return 'blue';

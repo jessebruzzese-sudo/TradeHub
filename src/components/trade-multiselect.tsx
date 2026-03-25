@@ -16,9 +16,6 @@ export type TradeMultiSelectProps = {
   /** Show validation error below the grid */
   error?: string;
 };
-const BUILDER_INTERNAL_VALUE = 'Building';
-const BUILDER_DISPLAY_LABEL = 'Builder/Contractor';
-
 export function TradeMultiSelect({
   value,
   onChange,
@@ -46,15 +43,12 @@ export function TradeMultiSelect({
   const wouldExceedFree = !isPremium && value.length >= 1;
 
   useEffect(() => {
-    const hasBuilder = value.includes(BUILDER_INTERNAL_VALUE);
+    const hasBuilder = value.includes('Builder/Contractor');
     if (hasBuilder && !hadBuilderSelectedRef.current) {
       setShowBuilderPrompt(true);
     }
     hadBuilderSelectedRef.current = hasBuilder;
   }, [value]);
-
-  const getTradeDisplayLabel = (trade: string) =>
-    trade === BUILDER_INTERNAL_VALUE ? BUILDER_DISPLAY_LABEL : trade;
 
   return (
     <div className="space-y-3">
@@ -90,7 +84,7 @@ export function TradeMultiSelect({
               htmlFor={`trade-${trade}`}
               className="cursor-pointer font-normal text-sm"
             >
-              {getTradeDisplayLabel(trade)}
+              {trade}
             </Label>
           </div>
         ))}

@@ -5,6 +5,7 @@ import { UserAvatar } from '@/components/user-avatar';
 import { Calendar, Clock, DollarSign, MapPin, AlertCircle, Star } from 'lucide-react';
 import { format } from 'date-fns';
 import { isJobExpired, isPastStartDate } from '@/lib/job-lifecycle';
+import { formatJobPriceDisplay } from '@/lib/job-pay-labels';
 
 function getPosterName(p: any): string {
   return (
@@ -165,16 +166,7 @@ export function JobCard({ job, showStatus = true, extraActions }: JobCardProps) 
             )}
             <div className="flex items-center gap-1.5 min-w-0">
               <DollarSign className="w-4 h-4 flex-shrink-0 text-emerald-600" />
-              <span className="truncate">
-                {job.rate != null && Number(job.rate) > 0 ? (
-                  <>
-                    ${job.rate}
-                    {job.payType === 'hourly' ? '/hr' : job.payType === 'day_rate' ? '/day' : ''}
-                  </>
-                ) : (
-                  'Price not specified'
-                )}
-              </span>
+              <span className="truncate">{formatJobPriceDisplay(job, 'short')}</span>
             </div>
           </div>
         </div>

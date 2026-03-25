@@ -43,15 +43,15 @@ describe('validateTradeName', () => {
     expect(validateTradeName('plasterboard')).toBe('Plastering / Gyprock');
     expect(validateTradeName('floor tiling')).toBe('Tiling');
     expect(validateTradeName('fencing')).toBe('Landscaping');
-    expect(validateTradeName('metalwork')).toBe('Building');
+    expect(validateTradeName('metalwork')).toBe('Builder/Contractor');
     expect(validateTradeName('masonry')).toBe('Bricklaying');
   });
 
   it('does not fuzzy-match (rejects near-matches)', () => {
     expect(validateTradeName('Plumber')).toBeNull();
     expect(validateTradeName('Tile')).toBeNull();
-    expect(validateTradeName('Roof plumbing')).toBe('Roof plumbing / stormwater'); // alias
-    expect(validateTradeName('Roof Plumbing')).toBe('Roof plumbing / stormwater'); // alias
+    expect(validateTradeName('Roof plumbing')).toBe('Plumbing');
+    expect(validateTradeName('Roof Plumbing')).toBe('Plumbing');
   });
 });
 

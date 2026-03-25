@@ -452,7 +452,7 @@ export function ProfileView({
     if (pricingType === 'from_hourly' && pricingAmount != null && pricingAmount > 0) return `From $${pricingAmount}/hr`;
     if (pricingType === 'day' && pricingAmount != null && pricingAmount > 0) return `$${pricingAmount}/day`;
     if (pricingType === 'day') return 'Day rate available';
-    if (pricingType === 'quote_on_request') return 'Quote on request';
+    if (pricingType === 'quote_on_request') return 'Pricing on enquiry';
     return null;
   })();
   const isVerified = hasValidABN(p);
@@ -861,7 +861,8 @@ export function ProfileView({
                           : null
                     }
                     googleListingVerificationStatus={p?.google_listing_verification_status ?? p?.googleListingVerificationStatus}
-                    abnVerified={isVerified}
+                    abn={p?.abn ?? null}
+                    abnStatus={p?.abn_status ?? p?.abnStatus ?? null}
                   />
                 </div>
 

@@ -15,6 +15,7 @@ import { ArrowLeft, Lock, MapPin, Calendar, DollarSign } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { buildJobTimeline, createAuditLog } from '@/lib/admin-utils';
+import { formatJobPayTypeLabel, formatJobPriceDisplay } from '@/lib/job-pay-labels';
 import { useEffect } from 'react';
 
 export default function AdminJobDetailPage() {
@@ -109,7 +110,7 @@ export default function AdminJobDetailPage() {
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 uppercase mb-1">Pay Type</p>
-                  <p className="text-sm text-gray-900 capitalize">{job.payType.replace('_', ' ')}</p>
+                  <p className="text-sm text-gray-900">{formatJobPayTypeLabel(job.payType)}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -118,20 +119,7 @@ export default function AdminJobDetailPage() {
               </div>
               <div className="flex items-center gap-2 text-sm text-gray-600">
                 <DollarSign className="w-4 h-4" />
-                {job.rate != null && Number(job.rate) > 0 ? (
-                  <>
-                    ${job.rate}{' '}
-                    {job.payType === 'hourly'
-                      ? '/ hour'
-                      : job.payType === 'day_rate'
-                        ? '/ day'
-                        : job.payType === 'fixed'
-                          ? 'fixed price'
-                          : ''}
-                  </>
-                ) : (
-                  'Price not specified'
-                )}
+                {formatJobPriceDisplay(job, 'long')}
               </div>
               {job.dates && job.dates.length > 0 && (
                 <div>

@@ -17,6 +17,8 @@ const TRADE_KEYWORDS: Record<string, string[]> = {
     'toilet', 'wc', 'vanity', 'basin', 'shower', 'floor waste', 'hot water', 'sewer', 'stormwater',
     'drain', 'sanitary', 'stack', 'plumbing', 'water supply', 'sewerage', 'gpo', 'tap', 'mixer',
     'hws', 'hot water unit', 'cold water', 'waste pipe', 'vent', 'trap',
+    'dp', 'downpipe', 'storm water', 'gutter', 'rainwater', 'rain head', 'rainwater head', 'lpod',
+    'legal point of discharge',
   ],
   Electrical: [
     'gpo', 'switch', 'lighting', 'downlight', 'smoke alarm', 'data point', 'nbn', 'exhaust fan',
@@ -32,10 +34,6 @@ const TRADE_KEYWORDS: Record<string, string[]> = {
     'roof', 'flashing', 'gutter', 'downpipe', 'ridge', 'cladding', 'roof sheet',
     'roofing', 'metal roof', 'tile roof', 'sarking', 'ridge capping', 'valley',
     'eaves', 'fascia', 'soffit',
-  ],
-  'Roof plumbing / stormwater': [
-    'dp', 'downpipe', 'stormwater', 'storm water', 'gutter', 'rainwater',
-    'rain head', 'rainwater head', 'lpod', 'legal point of discharge',
   ],
   Concreting: [
     'slab', 'footing', 'footing system', 'concrete', 'garage slab', 'porch slab',
@@ -62,7 +60,7 @@ const TRADE_KEYWORDS: Record<string, string[]> = {
     'paint finish', 'coating', 'internal finish', 'painting', 'paint', 'primer',
     'undercoat', 'top coat', '2 coat', 'ceiling paint', 'wall paint',
   ],
-  Building: [
+  'Builder/Contractor': [
     'construction', 'build', 'residential', 'dwelling', 'extension', 'alteration',
     'new build', 'renovation', 'structural', 'load bearing',
   ],

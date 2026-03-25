@@ -112,7 +112,7 @@ test.describe('TradeHub E2E', () => {
       await expect(page.locator('input[placeholder="$"], input[inputmode="numeric"]').first()).toBeVisible()
       await page.locator('select').first().selectOption({ label: 'Set day rate' })
       await expect(page.locator('input[placeholder="$"], input[inputmode="numeric"]').first()).toBeVisible()
-      await page.locator('select').first().selectOption({ label: 'Quote on request' })
+      await page.locator('select').first().selectOption({ label: 'Pricing on enquiry' })
     } else {
       await pricingTrigger.click()
       await page.getByRole('option', { name: /set hourly rate/i }).click()
@@ -121,7 +121,7 @@ test.describe('TradeHub E2E', () => {
       await page.getByRole('option', { name: /set day rate/i }).click()
       await expect(page.locator('input[placeholder="$"], input[inputmode="numeric"]').first()).toBeVisible()
       await pricingTrigger.click()
-      await page.getByRole('option', { name: /quote on request/i }).click()
+      await page.getByRole('option', { name: /pricing on enquiry/i }).click()
     }
 
     const amountInput = page.locator('input[placeholder="$"], input[inputmode="numeric"]').first()

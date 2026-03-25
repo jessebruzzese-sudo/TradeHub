@@ -105,9 +105,15 @@ export function buildDetectedSignals(input: DetectedSignalsInput): string[] {
 
   for (const t of inferredTrades.slice(0, 4)) {
     const label = t.trade;
-    if (label === 'Roof plumbing / stormwater') add('Roof drainage');
-    else if (label === 'Electrical' && !seen.has('lighting plan')) add('Lighting plan');
+    if (label === 'Electrical' && !seen.has('lighting plan')) add('Lighting plan');
     else if (label === 'Roofing' && !seen.has('roof plan')) add('Roof plan');
+  }
+
+  if (
+    inferredTrades.slice(0, 4).some((t) => t.trade === 'Plumbing') &&
+    (drainage.hasStormwater || drainage.hasDownpipes || drainage.hasGutters)
+  ) {
+    add('Roof drainage');
   }
 
   return signals;

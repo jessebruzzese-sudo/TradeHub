@@ -5,6 +5,7 @@
  */
 
 import { TRADE_CATEGORIES, TRADE_ALIASES } from './trades';
+import { normalizeTrade } from './trades/normalizeTrade';
 
 /** Fast lookup: lowercase trimmed label → canonical label */
 const VALID_TRADE_MAP = new Map<string, string>(
@@ -28,7 +29,8 @@ export function validateTradeName(aiTradeName: string): string | null {
   const t = String(aiTradeName ?? '').trim();
   if (!t) return null;
 
-  const key = t.toLowerCase();
+  const normalized = normalizeTrade(t);
+  const key = normalized.toLowerCase();
   return VALID_TRADE_MAP.get(key) ?? null;
 }
 

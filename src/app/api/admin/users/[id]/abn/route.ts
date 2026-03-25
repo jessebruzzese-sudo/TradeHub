@@ -43,14 +43,17 @@ export async function POST(
       updateData.abn_verified_at = new Date().toISOString();
       updateData.abn_verified_by = userId;
       updateData.abn_rejection_reason = null;
+      updateData.abn_verified = true;
     } else if (abn_status === "REJECTED") {
       updateData.abn_rejection_reason = reason ?? null;
       updateData.abn_verified_at = null;
       updateData.abn_verified_by = null;
+      updateData.abn_verified = false;
     } else {
       updateData.abn_rejection_reason = null;
       updateData.abn_verified_at = null;
       updateData.abn_verified_by = null;
+      updateData.abn_verified = false;
     }
 
     const { data: beforeUser } = await supabase

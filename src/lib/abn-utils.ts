@@ -1,6 +1,9 @@
 const DEFAULT_RETURN_URL = '/dashboard';
 
-/** Structural type covering both User (types.ts) and CurrentUser (auth-context). */
+/**
+ * Profile/auth shapes that carry ABN fields.
+ * For gating, use `hasValidABN` only — `abn_verified_at` / `abn_verified` are supporting audit/UI fields, not proof of verification.
+ */
 export type ABNUser = {
   abn?: string | null;
   abnStatus?: string | null;
@@ -13,7 +16,19 @@ export type ABNUser = {
   abn_rejection_reason?: string | null;
 };
 
-/** Alias for hasValidABN — use for "is this user ABN verified?" checks. */
+/**
+ * App-wide ABN verification for gating (post job, apply, etc.).
+ * ABN verification source of truth: non-empty ABN + status VERIFIED only. Do not infer verification from timestamps or booleans alone.
+ */
+export function hasValidABN(user: ABNUser | null): boolean {
+  if (!user) return false;
+  const abn = user.abn ?? '';
+  if (!abn || String(abn).trim().length === 0) return false;
+  const status = String(user.abnStatus ?? user.abn_status ?? '').trim().toUpperCase();
+  return status === 'VERIFIED';
+}
+
+/** Alias for `hasValidABN` — use for "is this user ABN verified?" gating checks. */
 export function isAbnVerified(user: ABNUser | null): boolean {
   return hasValidABN(user);
 }
@@ -62,26 +77,14 @@ export function sanitizeReturnUrl(url: string | null | undefined): string {
   }
 }
 
-export function hasValidABN(user: ABNUser | null): boolean {
-  if (!user) return false;
-  const abn = user.abn ?? '';
-  if (!abn || String(abn).trim().length === 0) return false;
-  const status = String(user.abnStatus ?? user.abn_status ?? '').trim().toUpperCase();
-  if (status === 'VERIFIED') return true;
-  if (user.abn_verified_at ?? user.abnVerifiedAt) return true;
-  if (user.abn_verified === true || user.abnVerified === true) return true;
-  return false;
-}
-
 export function hasABNButNotVerified(user: ABNUser | null): boolean {
   if (!user) return false;
   const abn = user.abn ?? '';
   if (!abn || String(abn).trim().length === 0) return false;
-  const status = String(user.abnStatus ?? user.abn_status ?? '').trim().toUpperCase();
-  return status !== 'VERIFIED' && !(user.abn_verified_at ?? user.abnVerifiedAt) && !(user.abn_verified === true || user.abnVerified === true);
+  return !hasValidABN(user);
 }
 
-/** Returns normalized ABN status (VERIFIED, PENDING, REJECTED, UNVERIFIED). */
+/** Returns normalized ABN status (VERIFIED, PENDING, REJECTED, UNVERIFIED). For display/routing only — not a substitute for `hasValidABN`. */
 export function getABNStatus(user: ABNUser | null): string {
   if (!user) return '';
   return String(user.abnStatus ?? user.abn_status ?? '').trim().toUpperCase() || 'UNVERIFIED';

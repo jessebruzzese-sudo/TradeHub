@@ -16,8 +16,10 @@ import { TradeMultiSelect } from '@/components/trade-multiselect';
 import { SuburbAutocomplete } from '@/components/suburb-autocomplete';
 
 import { getSafeReturnUrl, safeRouterReplace } from '@/lib/safe-nav';
+import { normalizeTradesList } from '@/lib/trades/normalizeTrade';
 import { getBrowserSupabase } from '@/lib/supabase-client';
 import { toast } from 'sonner';
+import { normalizeAbnForDb } from '@/lib/abn-normalize';
 
 import {
   AlertCircle,
@@ -31,10 +33,6 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 
-const BUILDER_INTERNAL_VALUE = 'Building';
-const BUILDER_DISPLAY_LABEL = 'Builder/Contractor';
-const toTradeDisplayLabel = (trade: string) =>
-  trade === BUILDER_INTERNAL_VALUE ? BUILDER_DISPLAY_LABEL : trade;
 const hasValidCoordPair = (lat: number | null, lng: number | null) =>
   typeof lat === 'number' &&
   Number.isFinite(lat) &&
@@ -101,13 +99,16 @@ async function persistAbnVerification(params: {
 
   const userId = userRes.user.id;
   const nowIso = new Date().toISOString();
+  const abnDigits = normalizeAbnForDb(params.abn);
+  if (!abnDigits) throw new Error('PERSIST_FAILED');
 
   if (params.verified) {
     const { error } = await supabase
       .from('users')
       .update({
-        abn: params.abn,
+        abn: abnDigits,
         abn_status: 'VERIFIED',
+        abn_verified: true,
         abn_verified_at: nowIso,
         business_name: params.entityName ?? null,
       })
@@ -123,8 +124,9 @@ async function persistAbnVerification(params: {
   const { error } = await supabase
     .from('users')
     .update({
-      abn: params.abn,
+      abn: abnDigits,
       abn_status: 'UNVERIFIED',
+      abn_verified: false,
       abn_verified_at: null,
     })
     .eq('id', userId);
@@ -393,8 +395,9 @@ export default function SignupPage() {
 
     try {
       // Backward compat: backend expects primary_trade (single). TODO: migrate fully to trade_categories.
-      const primaryTrade = tradeCategories[0] ?? null;
-      const normalizedTrades = tradeCategories.length > 0 ? [...new Set(tradeCategories)] : primaryTrade ? [primaryTrade] : [];
+      const normalizedTrades =
+        tradeCategories.length > 0 ? normalizeTradesList(tradeCategories) : [];
+      const primaryTrade = normalizedTrades[0] ?? null;
 
       await signup(visibleName?.trim() || '', email, password, primaryTrade ?? '', {
         businessName,
@@ -892,7 +895,7 @@ export default function SignupPage() {
                     <div className="font-medium text-slate-900">Trade(s)</div>
                     <div className="text-slate-600 break-words">
                       {tradeCategories.length > 0
-                        ? tradeCategories.map(toTradeDisplayLabel).join(', ')
+                        ? tradeCategories.join(', ')
                         : '—'}
                     </div>
                   </div>

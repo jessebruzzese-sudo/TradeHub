@@ -2,7 +2,7 @@
  * Notifications tests.
  * - Notification badge
  * - Notifications page
- * - Quote request notifications
+ * - In-app notifications list / bell
  */
 import { test, expect } from '@playwright/test';
 import { waitStable } from './helpers';

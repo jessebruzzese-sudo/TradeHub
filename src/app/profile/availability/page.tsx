@@ -328,7 +328,7 @@ export default function AvailabilityPage() {
                         <SelectItem value="none">—</SelectItem>
                         <SelectItem value="hourly">Set hourly rate</SelectItem>
                         <SelectItem value="day">Set day rate</SelectItem>
-                        <SelectItem value="quote_on_request">Quote on request</SelectItem>
+                        <SelectItem value="quote_on_request">Pricing on enquiry</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

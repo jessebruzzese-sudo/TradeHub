@@ -13,6 +13,7 @@ import { AppLayout } from '@/components/app-nav';
 import { useAuth } from '@/lib/auth';
 import { getStore } from '@/lib/store';
 import type { PayType, JobStatus, User, UserRole, TrustStatus } from '@/lib/types';
+import { formatJobPriceDisplay } from '@/lib/job-pay-labels';
 import StatusPill from '@/components/status-pill';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
@@ -1184,20 +1185,7 @@ export default function JobDetailPage() {
               )}
               <div className="flex items-center gap-2 text-gray-700">
                 <DollarSign className="w-5 h-5 text-emerald-600" />
-                <span>
-                  {job.rate != null && Number(job.rate) > 0 ? (
-                    <>
-                      ${job.rate}{' '}
-                      {job.payType === 'hourly'
-                        ? 'per hour'
-                        : job.payType === 'day_rate'
-                          ? 'per day'
-                          : 'fixed price'}
-                    </>
-                  ) : (
-                    'Price not specified'
-                  )}
-                </span>
+                <span>{formatJobPriceDisplay(job, 'long')}</span>
               </div>
             </div>
 

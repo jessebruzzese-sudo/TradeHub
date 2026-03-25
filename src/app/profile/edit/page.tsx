@@ -27,9 +27,11 @@ import { useAuth } from '@/lib/auth';
 import { getBrowserSupabase } from '@/lib/supabase-client';
 import { isAdmin } from '@/lib/is-admin';
 import { TRADE_CATEGORIES } from '@/lib/trades';
+import { normalizeTrade, normalizeTradesList } from '@/lib/trades/normalizeTrade';
 import { cn } from '@/lib/utils';
 import { canCustomSearchLocation, canMultiTrade, canChangePrimaryTrade } from '@/lib/capability-utils';
 import { hasValidABN } from '@/lib/abn-utils';
+import { normalizeAbnForDb } from '@/lib/abn-normalize';
 import { MVP_FREE_MODE } from '@/lib/feature-flags';
 import { getGoogleBusinessStatusLabel } from '@/lib/google-business';
 
@@ -790,13 +792,15 @@ export default function EditProfilePage() {
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    const effectivePrimary = primaryTrade?.trim() || selectedTrades[0] || '';
+    const normalizedTrades = normalizeTradesList(selectedTrades);
+    const effectivePrimary =
+      normalizeTrade(primaryTrade?.trim() || '') || normalizedTrades[0] || '';
     if (!effectivePrimary && !isAdmin(currentUser)) {
       toast.error('Please select your primary trade');
       return;
     }
 
-    const tradesToSave = selectedTrades.length > 0 ? selectedTrades : [effectivePrimary];
+    const tradesToSave = normalizedTrades.length > 0 ? normalizedTrades : [effectivePrimary];
     if (tradesToSave.length > 1 && !isMultiTradeEnabled) {
       toast.error('Multiple trades require Premium');
       return;
@@ -823,7 +827,7 @@ export default function EditProfilePage() {
         }
       }
 
-      const cleanedAbn = String(abnNumber || '').replace(/\s+/g, '');
+      const cleanedAbn = normalizeAbnForDb(abnNumber || '') ?? '';
       const enteredAbn = cleanedAbn.length > 0;
 
       const payload: Record<string, unknown> = {
@@ -878,7 +882,7 @@ export default function EditProfilePage() {
         abn: enteredAbn ? cleanedAbn : null,
       };
 
-      // Strip ABN verification state — DB trigger handles abn_verified / abn_verified_at when abn updates
+      // Strip ABN verification state — only verify-business / admin / explicit flows set verified flags
       delete (payload as any).abn_verified;
       delete (payload as any).abnVerified;
       delete (payload as any).abn_verified_at;
@@ -1467,7 +1471,7 @@ export default function EditProfilePage() {
                     <SelectItem value="hourly">Typical rate: $/hr</SelectItem>
                     <SelectItem value="from_hourly">From $/hr</SelectItem>
                     <SelectItem value="day">Day rate available</SelectItem>
-                    <SelectItem value="quote_on_request">Quote on request</SelectItem>
+                    <SelectItem value="quote_on_request">Pricing on enquiry</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

@@ -11,6 +11,7 @@ import { useAuth } from '@/lib/auth';
 import { getBrowserSupabase } from '@/lib/supabase-client';
 import { getSafeReturnUrl, safeRouterPush } from '@/lib/safe-nav';
 import { hasValidABN } from '@/lib/abn-utils';
+import { normalizeAbnForDb } from '@/lib/abn-normalize';
 import { toast } from 'sonner';
 
 import { UnauthorizedAccess } from '@/components/unauthorized-access';
@@ -34,13 +35,16 @@ async function persistAbnVerification(params: {
 
   const userId = userRes.user.id;
   const nowIso = new Date().toISOString();
+  const abnDigits = normalizeAbnForDb(params.abn);
+  if (!abnDigits) throw new Error('PERSIST_FAILED');
 
   if (params.verified) {
     const { error } = await supabase
       .from('users')
       .update({
-        abn: params.abn,
+        abn: abnDigits,
         abn_status: 'VERIFIED',
+        abn_verified: true,
         abn_verified_at: nowIso,
         business_name: params.entityName ?? null,
       })
@@ -56,8 +60,9 @@ async function persistAbnVerification(params: {
   const { error } = await supabase
     .from('users')
     .update({
-      abn: params.abn,
+      abn: abnDigits,
       abn_status: 'UNVERIFIED',
+      abn_verified: false,
       abn_verified_at: null,
     })
     .eq('id', userId);

@@ -10,6 +10,9 @@ export function isLastActiveStale(lastActiveAt: string | null | undefined, now =
 export async function touchLastActiveIfStale(supabase: any, userId: string): Promise<boolean> {
   const { data, error } = await supabase.rpc('touch_last_active_if_stale', { p_user_id: userId });
   if (error) {
+    if (error.code === '42703') {
+      return false;
+    }
     console.warn('[activity] touch_last_active_if_stale RPC failed', error);
     return false;
   }

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { isAdmin } from '@/lib/is-admin';
 import { TRADE_CATEGORIES } from '@/lib/trades';
+import { normalizeTrade } from '@/lib/trades/normalizeTrade';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -13,9 +14,6 @@ import { AlertCircle, ArrowLeft } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Link from 'next/link';
-
-const BUILDER_INTERNAL_VALUE = 'Building';
-const BUILDER_DISPLAY_LABEL = 'Builder/Contractor';
 
 export default function TradeOnboardingPage() {
   const { currentUser, updateUser } = useAuth();
@@ -27,7 +25,7 @@ export default function TradeOnboardingPage() {
   const hadBuilderSelectedRef = useRef(false);
 
   useEffect(() => {
-    const hasBuilder = selectedTrade === BUILDER_INTERNAL_VALUE;
+    const hasBuilder = selectedTrade === 'Builder/Contractor';
     if (hasBuilder && !hadBuilderSelectedRef.current) {
       setShowBuilderPrompt(true);
     }
@@ -44,7 +42,7 @@ export default function TradeOnboardingPage() {
     setError('');
 
     try {
-      await updateUser({ primaryTrade: selectedTrade });
+      await updateUser({ primaryTrade: normalizeTrade(selectedTrade) });
 
       // Role used for UI routing only, not permissions
       if (isAdmin(currentUser)) {
@@ -66,9 +64,6 @@ export default function TradeOnboardingPage() {
     if (isAdmin(currentUser)) return '/admin';
     return '/dashboard';
   };
-
-  const getTradeDisplayLabel = (trade: string) =>
-    trade === BUILDER_INTERNAL_VALUE ? BUILDER_DISPLAY_LABEL : trade;
 
   return (
     <div className="min-h-screen w-full bg-slate-50 flex items-center justify-center py-8 pb-8">
@@ -105,7 +100,7 @@ export default function TradeOnboardingPage() {
                 <div key={trade} className="flex items-center space-x-2 border rounded-lg p-3 hover:bg-slate-50 transition-colors">
                   <RadioGroupItem value={trade} id={trade} />
                   <Label htmlFor={trade} className="flex-1 cursor-pointer font-normal">
-                    {getTradeDisplayLabel(trade)}
+                    {trade}
                   </Label>
                 </div>
               ))}

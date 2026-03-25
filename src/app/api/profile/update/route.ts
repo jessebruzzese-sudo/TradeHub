@@ -6,6 +6,7 @@ import {
   normalizeGoogleListingVerificationStatus,
   shouldResetGoogleVerification,
 } from '@/lib/google-business';
+import { normalizeAbnForDb } from '@/lib/abn-normalize';
 
 export const dynamic = 'force-dynamic';
 
@@ -166,6 +167,16 @@ export async function POST(request: Request) {
     patch.google_listing_verification_method = null;
     patch.google_listing_rejection_reason = null;
     patch.google_listing_claimed_by_user = true;
+  }
+
+  if ('abn' in patch) {
+    const normalized = normalizeAbnForDb(patch.abn as string | null | undefined);
+    patch.abn = normalized;
+    if (normalized == null) {
+      patch.abn_status = 'UNVERIFIED';
+      patch.abn_verified = false;
+      patch.abn_verified_at = null;
+    }
   }
 
   const { error: updateError } = await (supabase as any).from('users').update(patch).eq('id', user.id);

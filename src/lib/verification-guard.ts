@@ -6,7 +6,12 @@ import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.
 import { hasValidABN, getABNGateUrl } from '@/lib/abn-utils';
 import { safeRouterReplace } from '@/lib/safe-nav';
 
-type UserLike = { id?: string; abnStatus?: string | null; abn_status?: string | null } | null;
+type UserLike = {
+  id?: string;
+  abn?: string | null;
+  abnStatus?: string | null;
+  abn_status?: string | null;
+} | null;
 
 export function needsBusinessVerification(currentUser: UserLike): boolean {
   // If user data hasn't loaded yet, don't gate here—pages should wait for isLoading/currentUser.

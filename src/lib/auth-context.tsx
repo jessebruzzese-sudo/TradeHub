@@ -19,13 +19,33 @@ import {
   canChangePrimaryTrade,
 } from '@/lib/capability-utils';
 import { normalizeGoogleListingVerificationStatus } from '@/lib/google-business';
+import { normalizeTrade, normalizeTradesList } from '@/lib/trades/normalizeTrade';
+import {
+  normalizeAbnForDb,
+  userMetadataIndicatesAbrVerified,
+  abrVerifiedAtFromUserMetadata,
+} from '@/lib/abn-normalize';
+import { hasValidABN } from '@/lib/abn-utils';
 
 export async function ensureProfileRow(supabase: any, user: any) {
   if (!user?.id) return;
 
+  const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+  const metaAbn = normalizeAbnForDb(meta.abn != null ? String(meta.abn) : '');
+  const metaAbr = userMetadataIndicatesAbrVerified(meta);
+  const metaVerifiedAt = abrVerifiedAtFromUserMetadata(meta);
+  const metaBiz =
+    String(meta.business_name ?? meta.businessName ?? '')
+      .trim() || null;
+  const metaEntity =
+    String(meta.abn_entity_name ?? meta.abnEntityName ?? '')
+      .trim() || null;
+
   const { data: existing, error: fetchError } = await supabase
     .from('users')
-    .select('id, location, postcode, location_lat, location_lng, base_lat, base_lng, primary_trade, trades, abn, abn_status, abn_verified_at, business_name, is_public_profile')
+    .select(
+      'id, location, postcode, location_lat, location_lng, base_lat, base_lng, primary_trade, trades, abn, abn_status, abn_verified, abn_verified_at, business_name, is_public_profile'
+    )
     .eq('id', user.id)
     .maybeSingle();
 
@@ -33,8 +53,6 @@ export async function ensureProfileRow(supabase: any, user: any) {
     console.error('ensureProfileRow fetch error', fetchError);
     return;
   }
-
-  const meta = user.user_metadata ?? {};
   const metaLocation = String(meta.location ?? '').trim() || null;
   const metaPostcode = String(meta.postcode ?? '').trim() || null;
   const metaLocationLatRaw = meta.locationLat ?? meta.location_lat;
@@ -63,7 +81,7 @@ export async function ensureProfileRow(supabase: any, user: any) {
 
   // Create row only if missing
   if (!existing?.id) {
-    const { error: insertError } = await supabase.from('users').insert({
+    const insertRow: Record<string, unknown> = {
       id: user.id,
       email: emailFallback,
       name: nameFallback,
@@ -85,7 +103,25 @@ export async function ensureProfileRow(supabase: any, user: any) {
           : meta.primaryTrade
             ? [meta.primaryTrade]
             : [],
-    });
+      business_name: metaBiz,
+    };
+
+    if (metaAbn) {
+      insertRow.abn = metaAbn;
+      if (metaAbr) {
+        insertRow.abn_status = 'VERIFIED';
+        insertRow.abn_verified = true;
+        insertRow.abn_verified_at = metaVerifiedAt ?? new Date().toISOString();
+        if (metaEntity) insertRow.business_name = metaEntity;
+        else if (metaBiz) insertRow.business_name = metaBiz;
+      } else {
+        insertRow.abn_status = 'UNVERIFIED';
+        insertRow.abn_verified = false;
+        insertRow.abn_verified_at = null;
+      }
+    }
+
+    const { error: insertError } = await supabase.from('users').insert(insertRow);
 
     if (insertError) {
       // If row was created elsewhere between fetch and insert, continue to ABN backfill.
@@ -97,25 +133,12 @@ export async function ensureProfileRow(supabase: any, user: any) {
   }
 
   // --- ABN Persistence / Backfill (runs even if row already existed) ---
-  const normalizeAbnLocal = (input?: string) => (input || '').replace(/\s+/g, '');
-  const metaAbn = normalizeAbnLocal(meta.abn);
-
-  const metaVerifiedRaw = meta.abnVerified ?? meta.abn_verified ?? meta.abn_status ?? meta.abnStatus;
-  const metaVerified =
-    metaVerifiedRaw === true ||
-    String(metaVerifiedRaw || '').toUpperCase() === 'TRUE' ||
-    String(metaVerifiedRaw || '').toUpperCase() === 'VERIFIED';
-
-  const metaEntityName =
-    meta.abnEntityName ??
-    meta.abn_entity_name ??
-    meta.businessName ??
-    null;
-
   // Fetch latest row state before deciding if we need to backfill
   const { data: rowNow } = await supabase
     .from('users')
-    .select('id, location, postcode, location_lat, location_lng, base_lat, base_lng, primary_trade, trades, abn, abn_status, abn_verified_at, business_name, is_public_profile')
+    .select(
+      'id, location, postcode, location_lat, location_lng, base_lat, base_lng, primary_trade, trades, abn, abn_status, abn_verified, abn_verified_at, business_name, is_public_profile'
+    )
     .eq('id', user.id)
     .maybeSingle();
 
@@ -163,30 +186,46 @@ export async function ensureProfileRow(supabase: any, user: any) {
     if (locBackfillErr) console.error('ensureProfileRow location backfill error', locBackfillErr);
   }
 
-  const dbStatus = String(rowNow?.abn_status || '').toUpperCase();
-  const dbVerified = dbStatus === 'VERIFIED' && !!rowNow?.abn_verified_at;
-
-  // If metadata indicates VERIFIED, ensure DB is VERIFIED too (this is the bug you're seeing)
-  if (metaAbn && metaVerified && !dbVerified) {
-    const abnUpdate: Record<string, unknown> = {
-      abn: metaAbn || null,
-      abn_status: 'VERIFIED',
-      abn_verified_at: new Date().toISOString(),
-    };
-    if (metaEntityName) abnUpdate.business_name = metaEntityName;
-    const { error: upErr } = await supabase.from('users').update(abnUpdate).eq('id', user.id);
-    if (upErr) console.error('ensureProfileRow ABN verified backfill error', upErr);
+  if (!metaAbn) {
     return;
   }
 
-  // If metadata has an ABN but not verified, keep DB consistent (only if DB has no status yet)
-  if (metaAbn && !metaVerified && !dbStatus) {
+  const dbStatus = String(rowNow?.abn_status || '').toUpperCase();
+  const dbAbn = normalizeAbnForDb(rowNow?.abn as string | undefined);
+  const dbLooksVerified = hasValidABN({
+    abn: rowNow?.abn,
+    abn_status: rowNow?.abn_status,
+  });
+
+  if (dbAbn && dbAbn !== metaAbn) {
+    return;
+  }
+
+  if (metaAbr) {
+    const blockMetaVerify = dbStatus === 'REJECTED' || dbStatus === 'PENDING';
+    if (!dbLooksVerified && !blockMetaVerify) {
+      const abnUpdate: Record<string, unknown> = {
+        abn: metaAbn,
+        abn_status: 'VERIFIED',
+        abn_verified: true,
+        abn_verified_at: metaVerifiedAt ?? new Date().toISOString(),
+      };
+      if (metaEntity) abnUpdate.business_name = metaEntity;
+      else if (metaBiz && !rowNow?.business_name) abnUpdate.business_name = metaBiz;
+      const { error: upErr } = await supabase.from('users').update(abnUpdate).eq('id', user.id);
+      if (upErr) console.error('ensureProfileRow ABN verified backfill error', upErr);
+    }
+    return;
+  }
+
+  if (!dbAbn) {
     const abnUpdate: Record<string, unknown> = {
-      abn: metaAbn || null,
+      abn: metaAbn,
       abn_status: 'UNVERIFIED',
+      abn_verified: false,
       abn_verified_at: null,
     };
-    if (metaEntityName && !rowNow?.business_name) abnUpdate.business_name = metaEntityName;
+    if (metaBiz && !rowNow?.business_name) abnUpdate.business_name = metaBiz;
     const { error: upErr } = await supabase.from('users').update(abnUpdate).eq('id', user.id);
     if (upErr) console.error('ensureProfileRow ABN unverified persist error', upErr);
   }
@@ -227,6 +266,7 @@ type DbUserRow = {
   abn?: string | null;
   abn_status?: string | null;
   abn_verified_at?: string | null;
+  abn_verified?: boolean | null;
   show_abn_on_profile?: boolean | null;
   show_business_name_on_profile?: boolean | null;
   trades?: any;
@@ -476,10 +516,6 @@ type AuthCtx = {
 
 const AuthContext = createContext<AuthCtx | null>(null);
 
-function normalizeAbn(input?: string) {
-  return (input || '').replace(/\s+/g, '');
-}
-
 function normalizeSubscriptionStatus(s?: string | null): string | null {
   const v = (s || '').trim().toUpperCase();
   if (!v) return null;
@@ -511,7 +547,7 @@ function mapDbToUi(row: DbUserRow): CurrentUser {
     rating: row.rating ?? null,
     reliabilityRating: row.reliability_rating ?? null,
 
-    primaryTrade: row.primary_trade ?? null,
+    primaryTrade: row.primary_trade ? normalizeTrade(row.primary_trade) : null,
     location: (row as any).location ?? null,
     postcode: (row as any).postcode ?? null,
     lat: (row as any).location_lat != null ? Number((row as any).location_lat) : (row.search_lat != null ? Number(row.search_lat) : null),
@@ -519,17 +555,20 @@ function mapDbToUi(row: DbUserRow): CurrentUser {
     abn: row.abn ?? null,
     businessName: row.business_name ?? null,
     abnStatus: (row.abn_status ? (String(row.abn_status).toUpperCase() as CurrentUser['abnStatus']) : null),
-    abnVerified:
-      String(row.abn_status || '').toUpperCase() === 'VERIFIED' ||
-      !!row.abn_verified_at,
+    abnVerified: hasValidABN({
+      abn: row.abn,
+      abn_status: row.abn_status,
+    }),
     abnVerifiedAt: row.abn_verified_at ?? null,
     abnEntityName: row.business_name ?? null,
     showAbnOnProfile: row.show_abn_on_profile ?? false,
     showBusinessNameOnProfile: row.show_business_name_on_profile ?? false,
     trades: Array.isArray(row.trades)
-      ? (row.trades as any[]).map(String)
-      : (row.trades ? (row.trades as any[]).map?.(String) : undefined),
-    additionalTrades: Array.isArray((row as any).additional_trades) ? ((row as any).additional_trades as string[]) : undefined,
+      ? normalizeTradesList((row.trades as unknown[]).map(String))
+      : undefined,
+    additionalTrades: Array.isArray((row as any).additional_trades)
+      ? normalizeTradesList((row as any).additional_trades as string[])
+      : undefined,
     completedJobs: null,
     memberSince: null,
     createdAt: null,
@@ -619,14 +658,20 @@ function buildFallbackCurrentUser(user: Pick<User, 'id' | 'email' | 'user_metada
     (meta.primaryTrade as string | undefined) ??
     (meta.primary_trade as string | undefined) ??
     null;
-  const trades = Array.isArray(meta.trade_categories)
-    ? (meta.trade_categories as unknown[]).map(String).filter(Boolean)
-    : Array.isArray(meta.trades)
-      ? (meta.trades as unknown[]).map(String).filter(Boolean)
-      : primaryTradeFromMeta
-        ? [primaryTradeFromMeta]
-        : [];
-  const primaryTrade = primaryTradeFromMeta ?? trades[0] ?? null;
+  const trades = normalizeTradesList(
+    Array.isArray(meta.trade_categories)
+      ? (meta.trade_categories as unknown[]).map(String).filter(Boolean)
+      : Array.isArray(meta.trades)
+        ? (meta.trades as unknown[]).map(String).filter(Boolean)
+        : primaryTradeFromMeta
+          ? [primaryTradeFromMeta]
+          : []
+  );
+  const primaryTrade =
+    (primaryTradeFromMeta ? normalizeTrade(primaryTradeFromMeta) : null) ?? trades[0] ?? null;
+
+  const fallbackAbn = normalizeAbnForDb(meta.abn != null ? String(meta.abn) : '');
+  const fallbackAbr = userMetadataIndicatesAbrVerified(meta);
 
   return {
     id: user.id,
@@ -638,7 +683,12 @@ function buildFallbackCurrentUser(user: Pick<User, 'id' | 'email' | 'user_metada
     trades,
     additionalTrades: [],
     additionalTradesUnlocked: false,
-    abn: typeof meta.abn === 'string' ? normalizeAbn(meta.abn) : null,
+    abn: fallbackAbn,
+    abnStatus: fallbackAbn ? (fallbackAbr ? 'VERIFIED' : 'UNVERIFIED') : null,
+    abnVerified: hasValidABN({
+      abn: fallbackAbn,
+      abnStatus: fallbackAbn ? (fallbackAbr ? 'VERIFIED' : 'UNVERIFIED') : null,
+    }),
     businessName:
       (meta.businessName as string | undefined) ??
       (meta.business_name as string | undefined) ??
@@ -663,7 +713,9 @@ function mapUiPatchToDb(patch: UpdateUserInput): Partial<DbUserRow> {
   if (patch.coverUrl !== undefined) out.cover_url = patch.coverUrl ?? null;
   if (patch.primaryTrade !== undefined) out.primary_trade = patch.primaryTrade ?? null;
   if (patch.businessName !== undefined) out.business_name = patch.businessName ?? null;
-  if (patch.abn !== undefined) out.abn = patch.abn ?? null;
+  if (patch.abn !== undefined) {
+    out.abn = patch.abn ? normalizeAbnForDb(String(patch.abn)) : null;
+  }
   if (patch.abnStatus !== undefined) out.abn_status = patch.abnStatus ?? null;
   if (patch.showAbnOnProfile !== undefined) out.show_abn_on_profile = !!patch.showAbnOnProfile;
   if (patch.showBusinessNameOnProfile !== undefined)
@@ -731,7 +783,6 @@ function mapUiPatchToDb(patch: UpdateUserInput): Partial<DbUserRow> {
   if (showEmail !== undefined) out.show_email_on_profile = !!showEmail;
   if ((patch as any).receiveTradeAlerts !== undefined)
     (out as any).subcontractor_work_alerts_enabled = !!(patch as any).receiveTradeAlerts;
-  // Do NOT persist abn_verified / abn_verified_at — DB trigger sets them when abn updates
   return out;
 }
 
@@ -786,6 +837,7 @@ function dbPatchAffectsProfileStrength(dbPatch: Partial<DbUserRow>): boolean {
     'is_public_profile',
     'abn',
     'abn_status',
+    'abn_verified',
     'show_abn_on_profile',
     'show_business_name_on_profile',
     'phone',
@@ -816,7 +868,7 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
         // show_abn_on_profile, show_business_name_on_profile, pricing_type, pricing_amount,
         // show_pricing_on_profile, show_pricing_in_listings (may not exist in older DBs)
         const baseSelectNoProfileStrength =
-          'id,email,name,role,trust_status,avatar,cover_url,bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,abn_verified_at,show_abn_on_profile,show_business_name_on_profile,trades,additional_trades,website,instagram,facebook,linkedin,tiktok,youtube,' +
+          'id,email,name,role,trust_status,avatar,cover_url,bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,abn_verified,abn_verified_at,show_abn_on_profile,show_business_name_on_profile,trades,additional_trades,website,instagram,facebook,linkedin,tiktok,youtube,' +
           'location,postcode,location_lat,location_lng,' +
           'is_premium,active_plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,' +
           'complimentary_premium_until,premium_until,additional_trades_unlocked,search_location,search_postcode,search_lat,search_lng,' +
@@ -831,8 +883,14 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
 
         const minimalSelect =
           'id,email,name,role,trust_status,primary_trade,trades,is_public_profile,show_abn_on_profile,show_business_name_on_profile';
+        const isUndefinedColumnError = (err: unknown) => {
+          const code = String((err as { code?: unknown })?.code ?? '');
+          if (code === '42703') return true;
+          const msg = String((err as { message?: unknown })?.message ?? '').toLowerCase();
+          return msg.includes('column') && msg.includes('does not exist');
+        };
         let { data: profile, error } = await loadWithSelect(baseSelect);
-        if (error && (error as any)?.code === '42703') {
+        if (error && isUndefinedColumnError(error)) {
           // Backward compatibility: handle schema drift across environments.
           const msg = String((error as any)?.message || '').toLowerCase();
           if (
@@ -852,6 +910,13 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
             const minimalRes = await loadWithSelect(minimalSelect);
             profile = minimalRes.data;
             error = minimalRes.error;
+            if (error && isUndefinedColumnError(error)) {
+              const ultraRes = await loadWithSelect(
+                'id,email,name,role,trust_status,primary_trade,trades'
+              );
+              profile = ultraRes.data;
+              error = ultraRes.error;
+            }
           }
         }
 
@@ -889,6 +954,7 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
         // Provide defaults for columns not in safe select (may not exist in DB)
         (profile as any).show_abn_on_profile ??= false;
         (profile as any).show_business_name_on_profile ??= false;
+        (profile as any).abn_verified ??= false;
         (profile as any).is_public_profile ??= true;
         (profile as any).pricing_type ??= null;
         (profile as any).pricing_amount ??= null;
@@ -1082,7 +1148,7 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
     async (name, email, password, primaryTrade, extras = {}) => {
       setIsLoading(true);
       try {
-        const cleanedAbn = extras.abn ? normalizeAbn(extras.abn) : '';
+        const cleanedAbn = normalizeAbnForDb(extras.abn) ?? '';
 
         const signupLat = isValidDiscoveryCoord(extras.locationLat) ? extras.locationLat : null;
         const signupLng = isValidDiscoveryCoord(extras.locationLng) ? extras.locationLng : null;
@@ -1101,9 +1167,16 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
               businessName: extras.businessName ?? null,
               business_name: extras.businessName ?? null,
               abn: cleanedAbn || null,
+              abn_entity_name: extras.abnEntityName ?? null,
               abnEntityName: extras.abnEntityName ?? null,
               abnEntityType: extras.abnEntityType ?? null,
-              abnVerified: extras.abnVerified ?? false,
+              ...(extras.abnVerified === true
+                ? {
+                    abn_abr_verified: true,
+                    abn_verified_at: new Date().toISOString(),
+                    abnVerified: true,
+                  }
+                : {}),
               location: extras.location ?? null,
               postcode: extras.postcode ?? null,
               // Persist both camel/snake keys for compatibility and future backfills.
@@ -1286,7 +1359,7 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
       setCurrentUser((prev) => {
         if (!prev) return prev;
         const merged: CurrentUser = { ...prev, ...patch };
-        if (patch.abn !== undefined) merged.abn = patch.abn ? normalizeAbn(patch.abn) : null;
+        if (patch.abn !== undefined) merged.abn = patch.abn ? normalizeAbnForDb(String(patch.abn)) : null;
 
         /**
          * IMPORTANT:

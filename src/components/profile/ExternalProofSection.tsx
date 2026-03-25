@@ -15,7 +15,9 @@ type Props = {
   googleRating?: number | null;
   googleReviewCount?: number | null;
   googleListingVerificationStatus?: string | null;
-  abnVerified?: boolean | null;
+  /** Same fields as job gating — badge tier uses `hasValidABN` internally. */
+  abn?: string | null;
+  abnStatus?: string | null;
 };
 
 export default function ExternalProofSection({
@@ -29,7 +31,8 @@ export default function ExternalProofSection({
   googleRating,
   googleReviewCount,
   googleListingVerificationStatus,
-  abnVerified,
+  abn,
+  abnStatus,
 }: Props) {
   const hasAny =
     websiteUrl || instagramUrl || facebookUrl || linkedinUrl || googleBusinessUrl;
@@ -41,17 +44,17 @@ export default function ExternalProofSection({
     google_rating: googleRating,
     google_review_count: googleReviewCount,
     google_listing_verification_status: googleListingVerificationStatus,
-    abn_verified: abnVerified,
-    abn_status: abnVerified ? 'VERIFIED' : null,
-  } as any);
+    abn,
+    abn_status: abnStatus,
+  });
   const googleBadgeLabel = getGoogleBusinessBadgeLabel({
     google_business_url: googleBusinessUrl,
     google_rating: googleRating,
     google_review_count: googleReviewCount,
     google_listing_verification_status: googleListingVerificationStatus,
-    abn_verified: abnVerified,
-    abn_status: abnVerified ? 'VERIFIED' : null,
-  } as any);
+    abn,
+    abn_status: abnStatus,
+  });
   const googleStatusLabel = getGoogleBusinessStatusLabel({
     google_listing_verification_status: googleListingVerificationStatus,
   });
