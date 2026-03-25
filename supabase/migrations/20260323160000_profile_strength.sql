@@ -107,6 +107,11 @@ CREATE TRIGGER trg_profile_likes_sync_count
   EXECUTE FUNCTION public.sync_profile_likes_count();
 
 -- 4) Core computation (returns jsonb breakdown)
+-- CREATE OR REPLACE cannot change the return type of an existing function. Some environments
+-- still have calculate_profile_strength(uuid) -> int from older SQL; drop dependents first.
+DROP FUNCTION IF EXISTS public.refresh_profile_strength(uuid);
+DROP FUNCTION IF EXISTS public.calculate_profile_strength(uuid);
+
 CREATE OR REPLACE FUNCTION public.calculate_profile_strength(p_user_id uuid)
 RETURNS jsonb
 LANGUAGE plpgsql

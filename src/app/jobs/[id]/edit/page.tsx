@@ -31,6 +31,7 @@ import { format as formatDate } from 'date-fns';
 import { Calendar as CalendarIcon, X, Upload, FileText, Image as ImageIcon } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { getBrowserSupabase } from '@/lib/supabase-client';
+import { TRADES } from '@/lib/trades';
 
 type JobAttachment = {
   name: string;
@@ -130,7 +131,7 @@ export default function EditJobPage() {
     return out;
   }, [currentUser]);
 
-  const tradeOptions = isPremium ? TRADE_CATEGORIES : posterTrades;
+  const tradeOptions = isPremium ? [...TRADES] : posterTrades;
 
   // Hydrate form when job becomes available (handles async store population).
   useEffect(() => {

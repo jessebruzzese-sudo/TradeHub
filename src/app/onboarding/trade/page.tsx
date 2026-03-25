@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { isAdmin } from '@/lib/is-admin';
-import { TRADE_CATEGORIES } from '@/lib/trades';
+import { TRADES } from '@/lib/trades';
 import { normalizeTrade } from '@/lib/trades/normalizeTrade';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -96,7 +96,7 @@ export default function TradeOnboardingPage() {
 
           <RadioGroup value={selectedTrade} onValueChange={setSelectedTrade}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-96 overflow-y-auto p-1">
-              {TRADE_CATEGORIES.map((trade) => (
+              {TRADES.map((trade) => (
                 <div key={trade} className="flex items-center space-x-2 border rounded-lg p-3 hover:bg-slate-50 transition-colors">
                   <RadioGroupItem value={trade} id={trade} />
                   <Label htmlFor={trade} className="flex-1 cursor-pointer font-normal">

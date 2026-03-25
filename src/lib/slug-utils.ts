@@ -1,4 +1,4 @@
-import { TRADE_CATEGORIES } from './trades';
+import { TRADES } from './trades';
 
 export function parseTradeSuburbSlug(slug: string): { trade: string; suburb: string } | null {
   const parts = slug.split('-');
@@ -8,7 +8,7 @@ export function parseTradeSuburbSlug(slug: string): { trade: string; suburb: str
   for (let i = 0; i < parts.length; i++) {
     const potentialTrade = parts.slice(0, i + 1).join(' ');
 
-    const matchingTrade = TRADE_CATEGORIES.find(
+    const matchingTrade = TRADES.find(
       t => t.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ') ===
            potentialTrade.toLowerCase()
     );

@@ -1,25 +1,14 @@
 /**
- * Maps legacy / deprecated trade labels to current canonical values.
- * Use on read paths and before persisting so stored data stays consistent.
+ * Read-path normalization: map user/DB strings to canonical labels when possible.
+ * Unknown values pass through unchanged (display / legacy rows).
  */
+
+import { normalizeTrade as resolveCanonical } from '@/lib/constants/trades';
+
 export function normalizeTrade(trade: string): string {
-  if (!trade) return trade;
-
-  const t = trade.toLowerCase().trim();
-
-  if (
-    t === 'roof plumbing / stormwater' ||
-    t === 'roof plumbing' ||
-    t === 'stormwater'
-  ) {
-    return 'Plumbing';
-  }
-
-  if (t === 'building') {
-    return 'Builder/Contractor';
-  }
-
-  return trade;
+  const t = String(trade ?? '').trim();
+  if (!t) return '';
+  return resolveCanonical(t) ?? t;
 }
 
 /** Normalize each trade, drop empties, remove duplicates (order preserved). */

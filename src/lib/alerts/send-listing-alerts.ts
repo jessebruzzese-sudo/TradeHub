@@ -6,6 +6,7 @@ import { createServiceSupabase } from '@/lib/supabase-server';
 import { getTier } from '@/lib/plan-limits';
 import { createEmailEvent } from '@/lib/email/create-email-event';
 import { shouldSendEmailNow } from '@/lib/email/rollout';
+import { getDisplayTradeListFromUserRow } from '@/lib/trades/user-trades';
 
 export type SendListingAlertsResult = {
   listingId: string;
@@ -108,7 +109,7 @@ async function getEligibleRecipients(
   const { data: users, error } = await supabase
     .from('users')
     .select(
-      'id, email, name, primary_trade, trades, additional_trades, subcontractor_work_alerts_enabled, deleted_at, is_premium, subscription_status, active_plan, subcontractor_plan, subcontractor_sub_status, complimentary_premium_until, premium_until'
+      'id, email, name, primary_trade, additional_trades, subcontractor_work_alerts_enabled, deleted_at, is_premium, subscription_status, active_plan, subcontractor_plan, subcontractor_sub_status, complimentary_premium_until, premium_until'
     )
     .eq('subcontractor_work_alerts_enabled', true)
     .neq('id', excludeOwnerId)
@@ -137,48 +138,21 @@ async function getEligibleRecipients(
     }
   }
 
-  let userTradesMap = new Map<string, string[]>();
-  if (ids.length > 0) {
-    try {
-      const { data: utRows } = await (supabase as any)
-        .from('user_trades')
-        .select('user_id, trade, is_primary')
-        .in('user_id', ids)
-        .order('is_primary', { ascending: false });
-      if (utRows && utRows.length > 0) {
-        for (const r of utRows as { user_id: string; trade: string }[]) {
-          const arr = userTradesMap.get(r.user_id) ?? [];
-          if (!arr.includes(r.trade)) arr.push(r.trade);
-          userTradesMap.set(r.user_id, arr);
-        }
-      }
-    } catch {
-      // user_trades may not exist
-    }
-  }
-
   const recipients: Recipient[] = [];
   type UserRow = {
     id: string;
     email?: string;
     name?: string | null;
     primary_trade?: string;
-    trades?: string[];
     additional_trades?: string[];
   };
+
   for (const u of users as UserRow[]) {
     if (!validAuthIds.has(u.id)) continue;
     if (!u.email?.trim()) continue;
     if (getTier(u) !== 'premium') continue;
 
-    let userTrades: string[] = userTradesMap.get(u.id) ?? [];
-    if (userTrades.length === 0) {
-      userTrades = [
-        u.primary_trade,
-        ...(Array.isArray(u.trades) ? u.trades : []),
-        ...(Array.isArray(u.additional_trades) ? u.additional_trades : []),
-      ].filter((x): x is string => Boolean(x));
-    }
+    const userTrades = getDisplayTradeListFromUserRow(u);
 
     if (!tradesMatch(userTrades, listingTrades)) continue;
 

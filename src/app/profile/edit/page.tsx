@@ -26,7 +26,7 @@ import { SuburbAutocomplete } from '@/components/suburb-autocomplete';
 import { useAuth } from '@/lib/auth';
 import { getBrowserSupabase } from '@/lib/supabase-client';
 import { isAdmin } from '@/lib/is-admin';
-import { TRADE_CATEGORIES } from '@/lib/trades';
+import { TRADES } from '@/lib/trades';
 import { normalizeTrade, normalizeTradesList } from '@/lib/trades/normalizeTrade';
 import { cn } from '@/lib/utils';
 import { canCustomSearchLocation, canMultiTrade, canChangePrimaryTrade } from '@/lib/capability-utils';
@@ -582,7 +582,7 @@ export default function EditProfilePage() {
 
   const selectedTrades = useMemo(() => userTrades.map((t) => t.trade), [userTrades]);
   const availableTradeOptions = useMemo(
-    () => TRADE_CATEGORIES.filter((t) => !selectedTrades.includes(t)),
+    () => TRADES.filter((t) => !selectedTrades.includes(t)),
     [selectedTrades]
   );
 
@@ -1555,7 +1555,7 @@ export default function EditProfilePage() {
                         <SelectValue placeholder="Select your primary trade" />
                       </SelectTrigger>
                       <SelectContent>
-                        {TRADE_CATEGORIES.map((t) => (
+                        {TRADES.map((t) => (
                           <SelectItem key={t} value={t}>
                             {t}
                           </SelectItem>

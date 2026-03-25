@@ -45,7 +45,7 @@ test.describe('Jobs', () => {
         test.skip(true, 'Job not found — ensure PW_EMAIL=pw-free@tradehub.test, run qa:seed');
       }
       if (await tradeMismatch.isVisible().catch(() => false)) {
-        test.skip(true, 'Trade mismatch — pw-free must have Electrical in user_trades/primary_trade');
+        test.skip(true, 'Trade mismatch — pw-free must list Electrical in primary_trade / additional_trades');
       }
       await expect(title).toBeVisible({ timeout: 15_000 });
     }

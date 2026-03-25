@@ -16,6 +16,7 @@ export function TradeGate({ children }: { children: React.ReactNode }) {
     !!(
       user?.primaryTrade ||
       (user as any)?.primary_trade ||
+      ((user?.additionalTrades?.length ?? 0) > 0) ||
       (Array.isArray((user as any)?.trades) ? (user as any).trades[0] : null) ||
       (Array.isArray((user as any)?.trade_categories) ? (user as any).trade_categories[0] : null)
     );

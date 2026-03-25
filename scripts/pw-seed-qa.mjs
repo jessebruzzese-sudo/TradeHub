@@ -206,13 +206,6 @@ async function ensureUser(acc) {
   );
   if (error) throw error;
 
-  // Populate user_trades for discovery RPCs (get_jobs_visible_to_viewer)
-  if (acc.primary_trade) {
-    await admin.from('user_trades').upsert(
-      { user_id: userId, trade: acc.primary_trade, is_primary: true, updated_at: NOW },
-      { onConflict: 'user_id,trade' }
-    );
-  }
   return userId;
 }
 

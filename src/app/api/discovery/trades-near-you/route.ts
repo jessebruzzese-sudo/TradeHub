@@ -9,7 +9,7 @@ import {
   isPremiumCandidate,
 } from '@/lib/discovery';
 import { applyExcludeTestAccountsFilters } from '@/lib/test-account';
-import { normalizeTrade as canonicalTradeLabel, normalizeTradesList } from '@/lib/trades/normalizeTrade';
+import { getDisplayTradeListFromUserRow } from '@/lib/trades/user-trades';
 
 type UserRow = {
   id: string;
@@ -22,7 +22,6 @@ type UserRow = {
   search_lng?: number | null;
   primary_trade?: string | null;
   additional_trades?: string[] | string | null;
-  trades?: unknown;
   is_premium?: boolean | null;
   active_plan?: string | null;
   subscription_status?: string | null;
@@ -40,30 +39,8 @@ function getCandidateCoords(row: UserRow): { lat: number; lng: number } | null {
   return null;
 }
 
-function getTradesFromRow(row: UserRow, userTradesMap?: Map<string, string[]>): string[] {
-  const fromUserTrades = userTradesMap?.get(row.id);
-  if (fromUserTrades && fromUserTrades.length > 0) {
-    return normalizeTradesList(fromUserTrades);
-  }
-  const primary = row.primary_trade ? [row.primary_trade] : [];
-  let additional: string[] = [];
-  const at = row.additional_trades as string[] | string | null | undefined;
-  if (Array.isArray(at)) {
-    additional = at.filter((x): x is string => typeof x === 'string').map((s) => s.trim()).filter(Boolean);
-  } else if (typeof at === 'string') {
-    additional = at.split(',').map((s) => s.trim()).filter(Boolean);
-  }
-  const tradesJson = row.trades;
-  let extra: string[] = [];
-  if (Array.isArray(tradesJson)) {
-    extra = tradesJson
-      .filter((x): x is string => typeof x === 'string')
-      .map((s) => s.trim())
-      .filter(Boolean);
-  } else if (typeof tradesJson === 'string') {
-    extra = tradesJson.split(',').map((s) => s.trim()).filter(Boolean);
-  }
-  return normalizeTradesList([...primary, ...additional, ...extra]);
+function getTradesFromRow(row: UserRow): string[] {
+  return getDisplayTradeListFromUserRow(row);
 }
 
 export const dynamic = 'force-dynamic';
@@ -116,7 +93,7 @@ export async function GET() {
     let query = (supabase as any)
       .from('users')
       .select(
-        'id,plan,location_lat,location_lng,base_lat,base_lng,primary_trade,additional_trades,trades,is_premium,active_plan,subscription_status,subcontractor_plan,subcontractor_sub_status'
+        'id,plan,location_lat,location_lng,base_lat,base_lng,primary_trade,additional_trades,is_premium,active_plan,subscription_status,subcontractor_plan,subcontractor_sub_status'
       )
       .eq('is_public_profile', true)
       .neq('id', user.id)
@@ -142,34 +119,6 @@ export async function GET() {
     }
 
     const rows = (candidates ?? []) as UserRow[];
-    const ids = rows.map((r) => r.id).filter(Boolean);
-
-    let userTradesMap = new Map<string, string[]>();
-    if (ids.length > 0) {
-      try {
-        const { data: utRows } = await (supabase as any)
-          .from('user_trades')
-          .select('user_id, trade, is_primary')
-          .in('user_id', ids)
-          .order('is_primary', { ascending: false })
-          .order('created_at', { ascending: true });
-        if (utRows && utRows.length > 0) {
-          const map = new Map<string, string[]>();
-          for (const r of utRows) {
-            const uid = (r as { user_id: string }).user_id;
-            const arr = map.get(uid) ?? [];
-            const label = canonicalTradeLabel((r as { trade: string }).trade);
-            if (!arr.includes(label)) {
-              arr.push(label);
-            }
-            map.set(uid, arr);
-          }
-          userTradesMap = map;
-        }
-      } catch {
-        // user_trades may not exist
-      }
-    }
 
     const tradeCounts: Record<string, number> = {};
 
@@ -197,7 +146,7 @@ export async function GET() {
     );
 
     for (const { row } of candidatesWithMeta) {
-      for (const t of getTradesFromRow(row, userTradesMap)) {
+      for (const t of getTradesFromRow(row)) {
         const key = t.trim();
         if (key) tradeCounts[key] = (tradeCounts[key] ?? 0) + 1;
       }

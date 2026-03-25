@@ -5,7 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { TRADE_CATEGORIES } from '@/lib/trades';
+import { TRADES } from '@/lib/trades';
 import { cn } from '@/lib/utils';
 
 export type TradeMultiSelectProps = {
@@ -68,7 +68,7 @@ export function TradeMultiSelect({
         role="group"
         aria-label={label}
       >
-        {TRADE_CATEGORIES.map((trade) => (
+        {TRADES.map((trade) => (
           <div
             key={trade}
             className="flex items-center gap-2"

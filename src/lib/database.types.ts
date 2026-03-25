@@ -1997,62 +1997,6 @@ export type Database = {
           },
         ]
       }
-      user_trades: {
-        Row: {
-          created_at: string
-          id: string
-          is_primary: boolean
-          trade: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          is_primary?: boolean
-          trade: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          is_primary?: boolean
-          trade?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_trades_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "public_profile_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_trades_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "public_profile_directory_with_ratings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_trades_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_trades_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users_with_ratings"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       users: {
         Row: {
           abn: string | null
@@ -2160,7 +2104,6 @@ export type Database = {
           subscription_status: string | null
           suspension_ends_at: string | null
           tiktok: string | null
-          trades: Json | null
           trust_status: string
           updated_at: string | null
           website: string | null
@@ -2299,7 +2242,6 @@ export type Database = {
           subscription_status?: string | null
           suspension_ends_at?: string | null
           tiktok?: string | null
-          trades?: Json | null
           trust_status?: string
           updated_at?: string | null
           website?: string | null
@@ -2426,7 +2368,6 @@ export type Database = {
           subscription_status?: string | null
           suspension_ends_at?: string | null
           tiktok?: string | null
-          trades?: Json | null
           trust_status?: string
           updated_at?: string | null
           website?: string | null
@@ -2485,9 +2426,11 @@ export type Database = {
             | null
           subscription_status: string | null
           tiktok: string | null
-          trades: Json | null
           website: string | null
           youtube: string | null
+          pricing_type: string | null
+          pricing_amount: number | null
+          show_pricing_on_profile: boolean | null
         }
         Insert: {
           abn?: never
@@ -2522,9 +2465,11 @@ export type Database = {
             | null
           subscription_status?: string | null
           tiktok?: string | null
-          trades?: Json | null
           website?: string | null
           youtube?: string | null
+          pricing_type?: never
+          pricing_amount?: never
+          show_pricing_on_profile?: never
         }
         Update: {
           abn?: never
@@ -2559,9 +2504,11 @@ export type Database = {
             | null
           subscription_status?: string | null
           tiktok?: string | null
-          trades?: Json | null
           website?: string | null
           youtube?: string | null
+          pricing_type?: never
+          pricing_amount?: never
+          show_pricing_on_profile?: never
         }
         Relationships: []
       }
@@ -2602,10 +2549,12 @@ export type Database = {
             | null
           subscription_status: string | null
           tiktok: string | null
-          trades: Json | null
           up_count: number | null
           website: string | null
           youtube: string | null
+          pricing_type: string | null
+          pricing_amount: number | null
+          show_pricing_on_profile: boolean | null
         }
         Relationships: []
       }
@@ -2750,7 +2699,6 @@ export type Database = {
           subscription_status: string | null
           suspension_ends_at: string | null
           tiktok: string | null
-          trades: Json | null
           trust_status: string | null
           up_count: number | null
           updated_at: string | null
@@ -2803,10 +2751,6 @@ export type Database = {
       km_distance: {
         Args: { lat1: number; lat2: number; lng1: number; lng2: number }
         Returns: number
-      }
-      update_user_trades: {
-        Args: { p_primary_trade: string; p_trades: string[]; p_user_id: string }
-        Returns: undefined
       }
     }
     Enums: {

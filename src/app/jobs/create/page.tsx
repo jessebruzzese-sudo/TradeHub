@@ -36,7 +36,7 @@ import { useAuth } from '@/lib/auth';
 import { isPremiumForDiscovery } from '@/lib/discovery';
 import { getBrowserSupabase } from '@/lib/supabase-client';
 import { getABNStatus, getABNStatusMessage, hasABNButNotVerified } from '@/lib/abn-utils';
-import { TRADE_CATEGORIES } from '@/lib/trades';
+import { TRADES } from '@/lib/trades';
 import { safeRouterPush } from '@/lib/safe-nav';
 import { needsBusinessVerification, redirectToVerifyBusiness, getVerifyBusinessUrl } from '@/lib/verification-guard';
 import { MVP_FREE_MODE } from '@/lib/feature-flags';
@@ -148,7 +148,7 @@ export default function CreateJobPage() {
     return out;
   }, [currentUser]);
 
-  const tradeOptions = isPremium ? TRADE_CATEGORIES : posterTrades;
+  const tradeOptions = isPremium ? [...TRADES] : posterTrades;
 
   useEffect(() => {
     if (!tradeCategory && posterTrades.length > 0) {

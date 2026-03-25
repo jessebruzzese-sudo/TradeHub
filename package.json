@@ -34,7 +34,9 @@
     "test:platform:full": "playwright test playwright/platform-full-regression.spec.ts --project=chromium",
     "test:lib:enforcement": "vitest run src/lib/enforcement-sweep.test.ts src/lib/plan-limits.test.ts src/lib/trade-lock.test.ts src/lib/trade-validation.test.ts",
     "test:ci:full": "npm run lint && npm run typecheck && npm run test:lib:enforcement && npm run test:api:major && npm run test:platform:full && playwright test playwright/supabase-guardrails.spec.ts --project=chromium",
-    "db:gen-types": "supabase gen types typescript --project-id jkcaukvywhmlnqfeovuv > src/lib/database.types.ts"
+    "db:gen-types": "supabase gen types typescript --project-id jkcaukvywhmlnqfeovuv > src/lib/database.types.ts",
+    "trade:audit": "tsx scripts/audit-trades.ts",
+    "trade:audit:fix": "tsx scripts/audit-trades.ts --fix"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -121,6 +123,7 @@
     "dotenv": "^17.3.1",
     "rimraf": "^6.1.2",
     "sharp": "^0.34.5",
+    "tsx": "^4.19.4",
     "vitest": "^4.0.18"
   }
 }

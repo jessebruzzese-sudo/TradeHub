@@ -4,18 +4,19 @@
  * No fuzzy matching – exact match, trimmed whitespace, case-insensitive, or explicit alias only.
  */
 
-import { TRADE_CATEGORIES, TRADE_ALIASES } from './trades';
-import { normalizeTrade } from './trades/normalizeTrade';
+import { TRADES, TRADE_ALIASES, normalizeTrade } from './constants/trades';
+
+const TRADES_LIST = TRADES as readonly string[];
 
 /** Fast lookup: lowercase trimmed label → canonical label */
 const VALID_TRADE_MAP = new Map<string, string>(
-  TRADE_CATEGORIES.map((label) => [label.trim().toLowerCase(), label])
+  TRADES.map((label) => [label.trim().toLowerCase(), label])
 );
 
 /** Add aliases to the map (alias key → canonical label) */
 for (const [alias, canonical] of Object.entries(TRADE_ALIASES)) {
   const key = alias.trim().toLowerCase();
-  if (!VALID_TRADE_MAP.has(key) && TRADE_CATEGORIES.includes(canonical)) {
+  if (!VALID_TRADE_MAP.has(key) && TRADES_LIST.includes(canonical)) {
     VALID_TRADE_MAP.set(key, canonical);
   }
 }
@@ -29,9 +30,7 @@ export function validateTradeName(aiTradeName: string): string | null {
   const t = String(aiTradeName ?? '').trim();
   if (!t) return null;
 
-  const normalized = normalizeTrade(t);
-  const key = normalized.toLowerCase();
-  return VALID_TRADE_MAP.get(key) ?? null;
+  return normalizeTrade(t) ?? VALID_TRADE_MAP.get(t.toLowerCase()) ?? null;
 }
 
 /**

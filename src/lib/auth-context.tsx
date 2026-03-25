@@ -20,6 +20,7 @@ import {
 } from '@/lib/capability-utils';
 import { normalizeGoogleListingVerificationStatus } from '@/lib/google-business';
 import { normalizeTrade, normalizeTradesList } from '@/lib/trades/normalizeTrade';
+import { getDisplayTradeListFromUserRow, splitSelectedTrades } from '@/lib/trades/user-trades';
 import {
   normalizeAbnForDb,
   userMetadataIndicatesAbrVerified,
@@ -44,7 +45,7 @@ export async function ensureProfileRow(supabase: any, user: any) {
   const { data: existing, error: fetchError } = await supabase
     .from('users')
     .select(
-      'id, location, postcode, location_lat, location_lng, base_lat, base_lng, primary_trade, trades, abn, abn_status, abn_verified, abn_verified_at, business_name, is_public_profile'
+      'id, location, postcode, location_lat, location_lng, base_lat, base_lng, primary_trade, additional_trades, abn, abn_status, abn_verified, abn_verified_at, business_name, is_public_profile'
     )
     .eq('id', user.id)
     .maybeSingle();
@@ -95,14 +96,20 @@ export async function ensureProfileRow(supabase: any, user: any) {
       location_lng: metaHasValidCoords ? metaLocationLng : null,
       base_lat: metaHasValidCoords ? metaLocationLat : null,
       base_lng: metaHasValidCoords ? metaLocationLng : null,
-      primary_trade: meta.primaryTrade ?? meta.primary_trade ?? null,
-      trades: Array.isArray(meta.trade_categories)
-        ? [meta.trade_categories[0]].filter(Boolean)
-        : Array.isArray(meta.trades)
-          ? meta.trades
-          : meta.primaryTrade
-            ? [meta.primaryTrade]
-            : [],
+      ...(() => {
+        const list = Array.isArray(meta.trade_categories)
+          ? (meta.trade_categories as unknown[]).map(String).map((t) => t.trim()).filter(Boolean)
+          : Array.isArray(meta.trades)
+            ? (meta.trades as unknown[]).map(String).map((t) => t.trim()).filter(Boolean)
+            : meta.primaryTrade || meta.primary_trade
+              ? [String(meta.primaryTrade ?? meta.primary_trade).trim()].filter(Boolean)
+              : [];
+        const s = splitSelectedTrades(list, true);
+        return {
+          primary_trade: s.primary_trade,
+          additional_trades: s.additional_trades,
+        };
+      })(),
       business_name: metaBiz,
     };
 
@@ -137,7 +144,7 @@ export async function ensureProfileRow(supabase: any, user: any) {
   const { data: rowNow } = await supabase
     .from('users')
     .select(
-      'id, location, postcode, location_lat, location_lng, base_lat, base_lng, primary_trade, trades, abn, abn_status, abn_verified, abn_verified_at, business_name, is_public_profile'
+      'id, location, postcode, location_lat, location_lng, base_lat, base_lng, primary_trade, additional_trades, abn, abn_status, abn_verified, abn_verified_at, business_name, is_public_profile'
     )
     .eq('id', user.id)
     .maybeSingle();
@@ -157,13 +164,17 @@ export async function ensureProfileRow(supabase: any, user: any) {
 
   // Backfill trade fields when trigger-created row missed them (e.g. metadata key mismatch during signup).
   const rowPrimaryTrade = String((rowNow as any)?.primary_trade ?? '').trim();
-  const rowTrades = Array.isArray((rowNow as any)?.trades)
-    ? ((rowNow as any).trades as unknown[]).map(String).map((t) => t.trim()).filter(Boolean)
+  const rowAdditional = Array.isArray((rowNow as any)?.additional_trades)
+    ? ((rowNow as any).additional_trades as unknown[]).map(String).map((t) => t.trim()).filter(Boolean)
     : [];
-  if ((!rowPrimaryTrade && metaPrimaryTrade) || (rowTrades.length === 0 && metaTrades.length > 0)) {
-    const tradeUpdate: Record<string, unknown> = {};
-    if (!rowPrimaryTrade && metaPrimaryTrade) tradeUpdate.primary_trade = metaPrimaryTrade;
-    if (rowTrades.length === 0 && metaTrades.length > 0) tradeUpdate.trades = metaTrades;
+  const rowHasCanonicalTrade = Boolean(rowPrimaryTrade) || rowAdditional.length > 0;
+  if ((!rowPrimaryTrade && metaPrimaryTrade) || (!rowHasCanonicalTrade && metaTrades.length > 0)) {
+    const list = metaTrades.length > 0 ? metaTrades : metaPrimaryTrade ? [metaPrimaryTrade] : [];
+    const s = splitSelectedTrades(list, true);
+    const tradeUpdate: Record<string, unknown> = {
+      primary_trade: s.primary_trade,
+      additional_trades: s.additional_trades,
+    };
     const { error: tradeBackfillErr } = await supabase.from('users').update(tradeUpdate).eq('id', user.id);
     if (tradeBackfillErr) console.error('ensureProfileRow trade backfill error', tradeBackfillErr);
   }
@@ -269,6 +280,7 @@ type DbUserRow = {
   abn_verified?: boolean | null;
   show_abn_on_profile?: boolean | null;
   show_business_name_on_profile?: boolean | null;
+  /** Legacy jsonb column; app reads via getDisplayTradeListFromUserRow fallback only. */
   trades?: any;
   // Subscription / premium (from users table)
   is_premium?: boolean | null;
@@ -563,9 +575,7 @@ function mapDbToUi(row: DbUserRow): CurrentUser {
     abnEntityName: row.business_name ?? null,
     showAbnOnProfile: row.show_abn_on_profile ?? false,
     showBusinessNameOnProfile: row.show_business_name_on_profile ?? false,
-    trades: Array.isArray(row.trades)
-      ? normalizeTradesList((row.trades as unknown[]).map(String))
-      : undefined,
+    trades: getDisplayTradeListFromUserRow(row as any),
     additionalTrades: Array.isArray((row as any).additional_trades)
       ? normalizeTradesList((row as any).additional_trades as string[])
       : undefined,
@@ -672,6 +682,15 @@ function buildFallbackCurrentUser(user: Pick<User, 'id' | 'email' | 'user_metada
 
   const fallbackAbn = normalizeAbnForDb(meta.abn != null ? String(meta.abn) : '');
   const fallbackAbr = userMetadataIndicatesAbrVerified(meta);
+  const fallbackLocation = String(meta.location ?? '').trim() || null;
+  const fallbackPostcode = String(meta.postcode ?? '').trim() || null;
+  const latRaw = meta.locationLat ?? meta.location_lat;
+  const lngRaw = meta.locationLng ?? meta.location_lng;
+  const fallbackLat =
+    typeof latRaw === 'number' && Number.isFinite(latRaw) ? latRaw : null;
+  const fallbackLng =
+    typeof lngRaw === 'number' && Number.isFinite(lngRaw) ? lngRaw : null;
+  const fallbackCoordsOk = hasValidCoordinatePair(fallbackLat, fallbackLng);
 
   return {
     id: user.id,
@@ -693,6 +712,10 @@ function buildFallbackCurrentUser(user: Pick<User, 'id' | 'email' | 'user_metada
       (meta.businessName as string | undefined) ??
       (meta.business_name as string | undefined) ??
       null,
+    location: fallbackLocation,
+    postcode: fallbackPostcode,
+    lat: fallbackCoordsOk ? fallbackLat : null,
+    lng: fallbackCoordsOk ? fallbackLng : null,
     isPublicProfile: true,
     is_public_profile: true,
     plan: null,
@@ -868,7 +891,7 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
         // show_abn_on_profile, show_business_name_on_profile, pricing_type, pricing_amount,
         // show_pricing_on_profile, show_pricing_in_listings (may not exist in older DBs)
         const baseSelectNoProfileStrength =
-          'id,email,name,role,trust_status,avatar,cover_url,bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,abn_verified,abn_verified_at,show_abn_on_profile,show_business_name_on_profile,trades,additional_trades,website,instagram,facebook,linkedin,tiktok,youtube,' +
+          'id,email,name,role,trust_status,avatar,cover_url,bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,abn_verified,abn_verified_at,show_abn_on_profile,show_business_name_on_profile,additional_trades,website,instagram,facebook,linkedin,tiktok,youtube,' +
           'location,postcode,location_lat,location_lng,' +
           'is_premium,active_plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,' +
           'complimentary_premium_until,premium_until,additional_trades_unlocked,search_location,search_postcode,search_lat,search_lng,' +
@@ -877,46 +900,57 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
           baseSelectNoProfileStrength +
           ',profile_strength_score,profile_strength_band,website_url,instagram_url,facebook_url,linkedin_url,' +
           'google_business_url,google_business_name,google_business_address,google_place_id,google_rating,google_review_count,google_business_rating,google_business_review_count,google_listing_claimed_by_user,google_listing_verification_status,google_listing_verified_at,google_listing_verification_method,google_listing_verified_by,google_listing_rejection_reason';
-        const legacyCoordsSelect = baseSelect.replace('location_lat,location_lng,', 'lat,lng,');
+        // Legacy DBs used lat/lng instead of location_lat/location_lng — only swap coords on the
+        // "no Google/extra columns" select so we do not re-request missing extended columns.
+        const legacyCoordsSafe = baseSelectNoProfileStrength.replace(
+          'location_lat,location_lng,',
+          'lat,lng,'
+        );
         const loadWithSelect = (selectClause: string) =>
           (supabase.from('users') as any).select(selectClause).eq('id', userId).maybeSingle();
 
-        const minimalSelect =
-          'id,email,name,role,trust_status,primary_trade,trades,is_public_profile,show_abn_on_profile,show_business_name_on_profile';
-        const isUndefinedColumnError = (err: unknown) => {
+        /** Postgres 42703 + PostgREST PGRST204 ("schema cache") when a selected column is absent. */
+        const isSchemaColumnError = (err: unknown) => {
           const code = String((err as { code?: unknown })?.code ?? '');
-          if (code === '42703') return true;
+          if (code === '42703' || code === 'PGRST204' || code === 'PGRST205') return true;
           const msg = String((err as { message?: unknown })?.message ?? '').toLowerCase();
-          return msg.includes('column') && msg.includes('does not exist');
+          if (msg.includes('column') && msg.includes('does not exist')) return true;
+          if (msg.includes('schema cache')) return true;
+          if (msg.includes('could not find') && msg.includes('column')) return true;
+          return false;
         };
+
+        // If this fails, we must not fall back to a row missing abn/location (empty profile edit UI).
+        const minimalSelectWithCore =
+          'id,email,name,role,trust_status,avatar,cover_url,bio,primary_trade,business_name,abn,abn_status,abn_verified,abn_verified_at,show_abn_on_profile,show_business_name_on_profile,additional_trades,location,postcode,location_lat,location_lng,is_public_profile';
+
         let { data: profile, error } = await loadWithSelect(baseSelect);
-        if (error && isUndefinedColumnError(error)) {
-          // Backward compatibility: handle schema drift across environments.
+
+        if (error && isSchemaColumnError(error)) {
+          const resPs = await loadWithSelect(baseSelectNoProfileStrength);
+          profile = resPs.data;
+          error = resPs.error;
+        }
+
+        if (error && isSchemaColumnError(error)) {
           const msg = String((error as any)?.message || '').toLowerCase();
-          if (
-            msg.includes('profile_strength') ||
-            msg.includes('website_url') ||
-            msg.includes('google_business')
-          ) {
-            const resPs = await loadWithSelect(baseSelectNoProfileStrength);
-            profile = resPs.data;
-            error = resPs.error;
-          } else if (msg.includes('location_lat') || msg.includes('location_lng')) {
-            const legacyRes = await loadWithSelect(legacyCoordsSelect);
+          if (msg.includes('location_lat') || msg.includes('location_lng')) {
+            const legacyRes = await loadWithSelect(legacyCoordsSafe);
             profile = legacyRes.data;
             error = legacyRes.error;
           }
-          if (error) {
-            const minimalRes = await loadWithSelect(minimalSelect);
-            profile = minimalRes.data;
-            error = minimalRes.error;
-            if (error && isUndefinedColumnError(error)) {
-              const ultraRes = await loadWithSelect(
-                'id,email,name,role,trust_status,primary_trade,trades'
-              );
-              profile = ultraRes.data;
-              error = ultraRes.error;
-            }
+        }
+
+        if (error && isSchemaColumnError(error)) {
+          const minimalRes = await loadWithSelect(minimalSelectWithCore);
+          profile = minimalRes.data;
+          error = minimalRes.error;
+          if (error && isSchemaColumnError(error)) {
+            const ultraRes = await loadWithSelect(
+              'id,email,name,role,trust_status,primary_trade,additional_trades'
+            );
+            profile = ultraRes.data;
+            error = ultraRes.error;
           }
         }
 
@@ -926,30 +960,7 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
         }
         if (!profile) return null;
 
-        // Fetch user_trades if available (Premium multi-trade) — non-blocking with timeout
-        try {
-          const timeout = 3000;
-          const userTradesPromise = (supabase.from('user_trades') as any)
-            .select('trade, is_primary')
-            .eq('user_id', userId)
-            .order('is_primary', { ascending: false })
-            .order('created_at', { ascending: true });
-          const userTradesRes = await Promise.race([
-            userTradesPromise,
-            new Promise<{ data: null }>((_, reject) =>
-              setTimeout(() => reject(new Error('user_trades timeout')), timeout)
-            ),
-          ]) as { data?: { trade: string; is_primary: boolean }[] };
-          const userTrades = userTradesRes?.data;
-
-          if (userTrades && userTrades.length > 0) {
-            (profile as any).primary_trade = userTrades.find((r: any) => r.is_primary)?.trade ?? userTrades[0]?.trade ?? null;
-            (profile as any).trades = userTrades.map((r: any) => r.trade).filter(Boolean);
-            (profile as any).additional_trades = null;
-          }
-        } catch {
-          // user_trades table may not exist, or timeout — continue with legacy profile
-        }
+        // Canonical trades: users.primary_trade + users.additional_trades (see getDisplayTradeListFromUserRow).
 
         // Provide defaults for columns not in safe select (may not exist in DB)
         (profile as any).show_abn_on_profile ??= false;
@@ -1216,7 +1227,11 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
 
           const lat = hasSignupCoords ? signupLat : null;
           const lng = hasSignupCoords ? signupLng : null;
-          const coordsUpdate: Record<string, unknown> = { trades: normalizedTrades };
+          const tradeSplit = splitSelectedTrades(normalizedTrades, normalizedTrades.length > 1);
+          const coordsUpdate: Record<string, unknown> = {
+            primary_trade: tradeSplit.primary_trade,
+            additional_trades: tradeSplit.additional_trades,
+          };
           if (hasSignupCoords && lat != null && lng != null) {
             coordsUpdate.location_lat = lat;
             coordsUpdate.location_lng = lng;
@@ -1336,7 +1351,10 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
       let dbPatch = mapUiPatchToDb(patch);
       // Free users: block changing primary_trade after it's set. Allow initial set (onboarding).
       const canChange = currentUser ? canChangePrimaryTrade(currentUser) : false;
-      const hasExistingTrade = !!(currentUser?.primaryTrade ?? (currentUser as any)?.primary_trade ?? (currentUser as any)?.trades?.[0]);
+      const hasExistingTrade = !!(
+        currentUser?.primaryTrade ??
+        (currentUser?.additionalTrades && currentUser.additionalTrades.length > 0)
+      );
       if (!canChange && hasExistingTrade) {
         if ('primary_trade' in dbPatch) delete (dbPatch as any).primary_trade;
         if ('trades' in dbPatch) delete (dbPatch as any).trades;

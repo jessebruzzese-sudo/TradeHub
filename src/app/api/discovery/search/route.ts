@@ -10,7 +10,7 @@ import {
 import { getTier } from '@/lib/plan-limits';
 import { hasValidABN } from '@/lib/abn-utils';
 import { applyExcludeTestAccountsFilters } from '@/lib/test-account';
-import { normalizeTrade as canonicalTradeLabel, normalizeTradesList } from '@/lib/trades/normalizeTrade';
+import { getDisplayTradeListFromUserRow } from '@/lib/trades/user-trades';
 
 type UserRow = {
   id: string;
@@ -21,7 +21,6 @@ type UserRow = {
   base_lng?: number | null;
   primary_trade?: string | null;
   additional_trades?: string[] | string | null;
-  trades?: unknown;
   business_name?: string | null;
   name?: string | null;
   base_suburb?: string | null;
@@ -55,31 +54,12 @@ function getCandidateCoords(row: UserRow): { lat: number; lng: number } | null {
   return null;
 }
 
-function getTradesFromRow(row: UserRow, userTradesMap?: Map<string, string[]>): string[] {
-  const fromUserTrades = userTradesMap?.get(row.id);
-  if (fromUserTrades && fromUserTrades.length > 0) {
-    return normalizeTradesList(fromUserTrades);
-  }
-  const primary = row.primary_trade ? [row.primary_trade] : [];
-  let additional: string[] = [];
-  const at = row.additional_trades as string[] | string | null | undefined;
-  if (Array.isArray(at)) {
-    additional = at.filter((x): x is string => typeof x === 'string').map((s) => s.trim()).filter(Boolean);
-  } else if (typeof at === 'string') {
-    additional = at.split(',').map((s) => s.trim()).filter(Boolean);
-  }
-  const tradesJson = row.trades;
-  let extra: string[] = [];
-  if (Array.isArray(tradesJson)) {
-    extra = (tradesJson as string[]).filter((x): x is string => typeof x === 'string').map((s) => s.trim()).filter(Boolean);
-  } else if (typeof tradesJson === 'string') {
-    extra = tradesJson.split(',').map((s) => s.trim()).filter(Boolean);
-  }
-  return normalizeTradesList([...primary, ...additional, ...extra]);
+function getTradesFromRow(row: UserRow): string[] {
+  return getDisplayTradeListFromUserRow(row);
 }
 
-function matchesTrade(row: UserRow, tradeParam: string, userTradesMap?: Map<string, string[]>): boolean {
-  const trades = getTradesFromRow(row, userTradesMap);
+function matchesTrade(row: UserRow, tradeParam: string): boolean {
+  const trades = getTradesFromRow(row);
   const target = tradeMatchKey(tradeParam);
   return trades.some((t) => tradeMatchKey(t) === target);
 }
@@ -99,12 +79,12 @@ function reliabilityToPercent(r: number | null | undefined): number | null {
   return Math.round(Math.min(100, v));
 }
 
-function matchesText(row: UserRow, queryText: string, userTradesMap?: Map<string, string[]>): boolean {
+function matchesText(row: UserRow, queryText: string): boolean {
   if (!queryText) return true;
   const name = norm(row.business_name || row.name);
   const loc = norm(row.location || '');
   const postcode = norm(row.postcode || '');
-  const tradesNorm = getTradesFromRow(row, userTradesMap).map((t) => norm(t));
+  const tradesNorm = getTradesFromRow(row).map((t) => norm(t));
   return (
     name.includes(queryText) ||
     loc.includes(queryText) ||
@@ -173,7 +153,7 @@ export async function GET(request: NextRequest) {
     let candidatesQuery = (supabase as any)
       .from('users')
       .select(
-        'id,plan,location_lat,location_lng,base_lat,base_lng,primary_trade,additional_trades,trades,business_name,name,base_suburb,location,postcode,abn,abn_status,abn_verified_at,avatar,cover_url,mini_bio,role,is_premium,reliability_rating,profile_strength_score,completed_jobs'
+        'id,plan,location_lat,location_lng,base_lat,base_lng,primary_trade,additional_trades,business_name,name,base_suburb,location,postcode,abn,abn_status,abn_verified_at,avatar,cover_url,mini_bio,role,is_premium,reliability_rating,profile_strength_score,completed_jobs'
       )
       .eq('is_public_profile', true)
       .neq('id', user.id)
@@ -196,31 +176,6 @@ export async function GET(request: NextRequest) {
 
     const rows = (candidates ?? []) as UserRow[];
     const ids = rows.map((r) => r.id).filter(Boolean);
-
-    let userTradesMap = new Map<string, string[]>();
-    if (ids.length > 0) {
-      try {
-        const { data: utRows } = await (supabase as any)
-          .from('user_trades')
-          .select('user_id, trade, is_primary')
-          .in('user_id', ids)
-          .order('is_primary', { ascending: false })
-          .order('created_at', { ascending: true });
-        if (utRows && utRows.length > 0) {
-          for (const r of utRows) {
-            const uid = (r as { user_id: string }).user_id;
-            const arr = userTradesMap.get(uid) ?? [];
-            const label = canonicalTradeLabel((r as { trade: string }).trade);
-            if (!arr.includes(label)) {
-              arr.push(label);
-            }
-            userTradesMap.set(uid, arr);
-          }
-        }
-      } catch {
-        // user_trades may not exist
-      }
-    }
 
     let ratingsMap = new Map<string, { rating_avg: number; rating_count: number; up_count: number; down_count: number }>();
     if (ids.length > 0) {
@@ -249,8 +204,8 @@ export async function GET(request: NextRequest) {
 
     for (const row of rows) {
       if (verifiedOnly && !isVerified(row)) continue;
-      if (tradeNorm && !matchesTrade(row, trade, userTradesMap)) continue;
-      if (q && !matchesText(row, q, userTradesMap)) continue;
+      if (tradeNorm && !matchesTrade(row, trade)) continue;
+      if (q && !matchesText(row, q)) continue;
 
       const coords = getCandidateCoords(row);
       if (!coords) continue;
@@ -272,7 +227,7 @@ export async function GET(request: NextRequest) {
             name: c.row.name ?? null,
             business_name: c.row.business_name ?? null,
             role: c.row.role ?? null,
-            trades: getTradesFromRow(c.row, userTradesMap),
+            trades: getTradesFromRow(c.row),
             location: c.row.location ?? c.row.base_suburb ?? null,
             postcode: c.row.postcode ?? null,
             avatar: c.row.avatar ?? null,
@@ -315,7 +270,7 @@ export async function GET(request: NextRequest) {
           name: c.row.name ?? null,
           business_name: c.row.business_name ?? null,
           role: c.row.role ?? null,
-          trades: getTradesFromRow(c.row, userTradesMap),
+          trades: getTradesFromRow(c.row),
           location: c.row.location ?? c.row.base_suburb ?? null,
           postcode: c.row.postcode ?? null,
           avatar: c.row.avatar ?? null,

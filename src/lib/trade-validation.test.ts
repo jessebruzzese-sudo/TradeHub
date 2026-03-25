@@ -8,11 +8,11 @@ import {
   filterValidTradesWithScope,
   isValidTrade,
 } from './trade-validation';
-import { TRADE_CATEGORIES } from './trades';
+import { TRADES } from './trades';
 
 describe('validateTradeName', () => {
   it('keeps valid TradeHub trades (exact match)', () => {
-    for (const trade of TRADE_CATEGORIES) {
+    for (const trade of TRADES) {
       expect(validateTradeName(trade)).toBe(trade);
     }
   });

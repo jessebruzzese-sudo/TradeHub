@@ -1,4 +1,3 @@
-import { TRADE_CATEGORIES } from '@/lib/trades';
 import { validateTradeName } from '@/lib/trade-validation';
 import type { RoomCounts } from '@/lib/ai/plan-room-detection';
 import type { BuildingElements } from '@/lib/ai/plan-room-detection';

@@ -153,7 +153,7 @@ Deno.serve(async (req: Request) => {
               .update({
                 name: account.name,
                 primary_trade: account.primaryTrade,
-                trades: account.trades,
+                additional_trades: account.trades,
                 bio: account.bio,
               })
               .eq('id', userId);
@@ -196,7 +196,7 @@ Deno.serve(async (req: Request) => {
             role: 'subcontractor',
             trust_status: 'verified',
             primary_trade: account.primaryTrade,
-            trades: account.trades,
+            additional_trades: account.trades,
             location: 'Melbourne',
             radius: 50,
             rating: 4.8,

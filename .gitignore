@@ -16,3 +16,6 @@ playwright/seed-ids.json
 pw-creds.json
 test-results/
 .vercel
+
+# Local script output (trade audit manual review)
+tmp/

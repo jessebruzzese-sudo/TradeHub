@@ -13,6 +13,7 @@ import { AppLayout } from '@/components/app-nav';
 import { useAuth } from '@/lib/auth';
 import { getStore } from '@/lib/store';
 import type { PayType, JobStatus, User, UserRole, TrustStatus } from '@/lib/types';
+import { getDisplayTradeListFromUserRow } from '@/lib/trades/user-trades';
 import { formatJobPriceDisplay } from '@/lib/job-pay-labels';
 import StatusPill from '@/components/status-pill';
 import { Button } from '@/components/ui/button';
@@ -446,7 +447,10 @@ export default function JobDetailPage() {
                   businessName: userData.business_name ?? undefined,
                   abn: userData.abn ?? undefined,
                   bio: userData.bio ?? undefined,
-                  trades: (userData.trades as string[] | null) ?? undefined,
+                  trades: getDisplayTradeListFromUserRow({
+                    primary_trade: userData.primary_trade,
+                    additional_trades: userData.additional_trades as string[] | null,
+                  }),
                   location: userData.location ?? undefined,
                   postcode: userData.postcode ?? undefined,
                   radius: userData.radius ?? undefined,

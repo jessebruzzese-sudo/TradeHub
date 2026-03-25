@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceSupabase } from '@/lib/supabase-server';
 import { createEmailEvent } from '@/lib/email/create-email-event';
 import { shouldSendEmailNow } from '@/lib/email/rollout';
+import { getDisplayTradeListFromUserRow } from '@/lib/trades/user-trades';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -45,7 +46,7 @@ async function runDigest(request: NextRequest) {
 
   const { data: users, error: usersErr } = await svc
     .from('users')
-    .select('id, email, name, primary_trade, trades, additional_trades, subcontractor_work_alerts_enabled, deleted_at')
+    .select('id, email, name, primary_trade, additional_trades, subcontractor_work_alerts_enabled, deleted_at')
     .eq('subcontractor_work_alerts_enabled', true)
     .is('deleted_at', null);
 
@@ -78,13 +79,7 @@ async function runDigest(request: NextRequest) {
 
   for (const u of scopedUsers as any[]) {
     const toEmail = String(u.email).trim().toLowerCase();
-    const userTrades = [
-      u.primary_trade,
-      ...(Array.isArray(u.trades) ? u.trades : []),
-      ...(Array.isArray(u.additional_trades) ? u.additional_trades : []),
-    ]
-      .filter((x): x is string => Boolean(x))
-      .map(normalizeTrade);
+    const userTrades = getDisplayTradeListFromUserRow(u).map(normalizeTrade);
 
     if (userTrades.length === 0) continue;
 

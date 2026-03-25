@@ -13,7 +13,7 @@ import { useAuth } from '@/lib/auth';
 import { getStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { hasValidABN } from '@/lib/abn-utils';
-import { TRADE_CATEGORIES } from '@/lib/trades';
+import { TRADES } from '@/lib/trades';
 import { MapPin, Search as SearchIcon, MessageSquare, Crown } from 'lucide-react';
 import ProfileSummaryTrustBar from '@/components/profile/ProfileSummaryTrustBar';
 import { formatProfilePricingTypeLabel } from '@/lib/job-pay-labels';
@@ -193,7 +193,7 @@ export default function SearchDirectoryPage() {
   }, [retryKey, q, trade, verifiedOnly]);
 
   const allTrades = useMemo(() => {
-    return ['all', ...TRADE_CATEGORIES];
+    return ['all', ...TRADES];
   }, []);
 
   const filtered = useMemo(() => {

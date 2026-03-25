@@ -10,7 +10,7 @@ import {
 import { getTier } from '@/lib/plan-limits';
 import { hasValidABN } from '@/lib/abn-utils';
 import { applyExcludeTestAccountsFilters } from '@/lib/test-account';
-import { normalizeTrade as canonicalTradeLabel, normalizeTradesList } from '@/lib/trades/normalizeTrade';
+import { getDisplayTradeListFromUserRow } from '@/lib/trades/user-trades';
 
 type UserRow = {
   id: string;
@@ -23,7 +23,6 @@ type UserRow = {
   search_lng?: number | null;
   primary_trade?: string | null;
   additional_trades?: string[] | string | null;
-  trades?: unknown;
   business_name?: string | null;
   name?: string | null;
   base_suburb?: string | null;
@@ -53,42 +52,19 @@ function getCandidateCoords(row: UserRow): { lat: number; lng: number } | null {
   return null;
 }
 
-function getTradesFromRow(row: UserRow, userTradesMap?: Map<string, string[]>): string[] {
-  const fromUserTrades = userTradesMap?.get(row.id);
-  if (fromUserTrades && fromUserTrades.length > 0) {
-    return normalizeTradesList(fromUserTrades);
-  }
-  const primary = row.primary_trade ? [row.primary_trade] : [];
-  let additional: string[] = [];
-  const at = row.additional_trades as string[] | string | null | undefined;
-  if (Array.isArray(at)) {
-    additional = at.filter((x): x is string => typeof x === 'string').map((s) => s.trim()).filter(Boolean);
-  } else if (typeof at === 'string') {
-    additional = at.split(',').map((s) => s.trim()).filter(Boolean);
-  }
-  const tradesJson = row.trades;
-  let extra: string[] = [];
-  if (Array.isArray(tradesJson)) {
-    extra = tradesJson
-      .filter((x): x is string => typeof x === 'string')
-      .map((s) => s.trim())
-      .filter(Boolean);
-  } else if (typeof tradesJson === 'string') {
-    extra = tradesJson.split(',').map((s) => s.trim()).filter(Boolean);
-  }
-  return normalizeTradesList([...primary, ...additional, ...extra]);
+function getTradesFromRow(row: UserRow): string[] {
+  return getDisplayTradeListFromUserRow(row);
 }
 
-function matchesTrade(row: UserRow, tradeParam: string, userTradesMap?: Map<string, string[]>): boolean {
-  const trades = getTradesFromRow(row, userTradesMap);
+function matchesTrade(row: UserRow, tradeParam: string): boolean {
+  const trades = getTradesFromRow(row);
   const target = tradeMatchKey(tradeParam);
   return trades.some((t) => tradeMatchKey(t) === target);
 }
 
 function mapToCard(
   row: UserRow,
-  isPremium: boolean,
-  userTradesMap?: Map<string, string[]>
+  isPremium: boolean
 ): {
   id: string;
   display_name: string;
@@ -117,7 +93,7 @@ function mapToCard(
 
   const verified = hasValidABN(row);
 
-  const tradeCategories = getTradesFromRow(row, userTradesMap);
+  const tradeCategories = getTradesFromRow(row);
 
   let avatarUrl: string | null = row.avatar ?? null;
   if (avatarUrl && !avatarUrl.startsWith('http')) {
@@ -198,7 +174,7 @@ export async function GET(
     let query = (supabase as any)
       .from('users')
       .select(
-        'id,plan,location_lat,location_lng,base_lat,base_lng,primary_trade,additional_trades,trades,business_name,name,base_suburb,location,postcode,abn,abn_status,avatar,is_premium,active_plan,subscription_status,subcontractor_plan,subcontractor_sub_status'
+        'id,plan,location_lat,location_lng,base_lat,base_lng,primary_trade,additional_trades,business_name,name,base_suburb,location,postcode,abn,abn_status,avatar,is_premium,active_plan,subscription_status,subcontractor_plan,subcontractor_sub_status'
       )
       .eq('is_public_profile', true)
       .neq('id', user.id)
@@ -219,34 +195,6 @@ export async function GET(
     }
 
     const rows = (candidates ?? []) as UserRow[];
-    const ids = rows.map((r) => r.id).filter(Boolean);
-
-    let userTradesMap = new Map<string, string[]>();
-    if (ids.length > 0) {
-      try {
-        const { data: utRows } = await (supabase as any)
-          .from('user_trades')
-          .select('user_id, trade, is_primary')
-          .in('user_id', ids)
-          .order('is_primary', { ascending: false })
-          .order('created_at', { ascending: true });
-        if (utRows && utRows.length > 0) {
-          const map = new Map<string, string[]>();
-          for (const r of utRows) {
-            const uid = (r as { user_id: string }).user_id;
-            const arr = map.get(uid) ?? [];
-            const label = canonicalTradeLabel((r as { trade: string }).trade);
-            if (!arr.includes(label)) {
-              arr.push(label);
-            }
-            map.set(uid, arr);
-          }
-          userTradesMap = map;
-        }
-      } catch {
-        // user_trades may not exist
-      }
-    }
 
     const tradeParamNorm = tradeParam.trim().toLowerCase();
     const matchAllTrades = tradeParamNorm === 'all';
@@ -254,7 +202,7 @@ export async function GET(
     const allMatchingWithDistance: { row: UserRow; distanceKm: number; isPremium: boolean }[] = [];
 
     for (const row of rows) {
-      if (!matchAllTrades && !matchesTrade(row, tradeParam, userTradesMap)) continue;
+      if (!matchAllTrades && !matchesTrade(row, tradeParam)) continue;
       const coords = getCandidateCoords(row);
       if (!coords) continue;
       const distanceKm = haversineKm(
@@ -280,7 +228,7 @@ export async function GET(
     );
 
     const cards = withinRadius.map((c) =>
-      mapToCard(c.row, c.isPremium, userTradesMap)
+      mapToCard(c.row, c.isPremium)
     );
 
     return NextResponse.json({

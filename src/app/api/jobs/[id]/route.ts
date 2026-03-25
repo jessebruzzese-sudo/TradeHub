@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase, createServiceSupabase } from '@/lib/supabase-server';
-import { TRADE_CATEGORIES } from '@/lib/trades';
+import { TRADES } from '@/lib/trades';
 import { getTier } from '@/lib/plan-limits';
 import { needsBusinessVerification } from '@/lib/verification-guard';
 import { isAdmin } from '@/lib/is-admin';
 import { refreshProfileStrength } from '@/lib/profile-strength';
+import { getListedTradesForJobEligibility } from '@/lib/trades/user-trades';
 
 export const dynamic = 'force-dynamic';
 
@@ -186,9 +187,9 @@ export async function PATCH(
         return NextResponse.json({ error: 'Trade category cannot be empty' }, { status: 400 });
       }
 
-      if (!TRADE_CATEGORIES.includes(tradeCategory)) {
+      if (!(TRADES as readonly string[]).includes(tradeCategory)) {
         return NextResponse.json(
-          { error: `Invalid trade category. Must be one of: ${TRADE_CATEGORIES.join(', ')}` },
+          { error: `Invalid trade category. Must be one of: ${TRADES.join(', ')}` },
           { status: 400 }
         );
       }
@@ -210,22 +211,7 @@ export async function PATCH(
       const isPremium = getTier(profile) === 'premium';
 
       if (!isPremium) {
-        let userTrades: string[] = [];
-        const { data: utRows } = await (supabase as any)
-          .from('user_trades')
-          .select('trade')
-          .eq('user_id', user.id);
-        if (utRows && utRows.length > 0) {
-          userTrades = utRows.map((r: { trade: string }) => r.trade).filter(Boolean);
-        }
-        if (userTrades.length === 0) {
-          const pt = (profile as any).primary_trade?.trim();
-          const at = (profile as any).additional_trades;
-          userTrades = pt ? [pt] : [];
-          if (Array.isArray(at)) {
-            userTrades = [...new Set([...userTrades, ...at.map((t: string) => String(t).trim()).filter(Boolean)])];
-          }
-        }
+        const userTrades = getListedTradesForJobEligibility(profile as any);
         if (!userTrades.includes(tradeCategory)) {
           return NextResponse.json(
             { error: 'Free accounts can only post jobs in their listed trade(s). Upgrade to Premium to post in any trade.' },

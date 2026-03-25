@@ -21,7 +21,7 @@ import {
   User,
 } from 'lucide-react';
 
-/** Canonical trade → Lucide icon. Keys are lowercase canonical labels from TRADE_CATEGORIES. */
+/** Canonical trade → Lucide icon. Keys are lowercase canonical labels from TRADES. */
 const tradeIconMap: Record<string, LucideIcon> = {
   building: Building2,
   'builder/contractor': Building2,

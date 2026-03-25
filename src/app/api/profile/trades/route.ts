@@ -1,12 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase-server';
-import { hasSubcontractorPremium, hasBuilderPremium, hasContractorPremium, canChangePrimaryTrade } from '@/lib/capability-utils';
-import { TRADE_CATEGORIES } from '@/lib/trades';
+import {
+  hasSubcontractorPremium,
+  hasBuilderPremium,
+  hasContractorPremium,
+  canChangePrimaryTrade,
+} from '@/lib/capability-utils';
+import { TRADES } from '@/lib/trades';
 import { normalizeTrade, normalizeTradesList } from '@/lib/trades/normalizeTrade';
+import { getDisplayTradeListFromUserRow, splitSelectedTrades } from '@/lib/trades/user-trades';
 
 export const dynamic = 'force-dynamic';
 
-/** GET: List user's trades from user_trades, fallback to primary_trade if empty */
+// Canonical: users.primary_trade + users.additional_trades only.
+// Canonical model is users.primary_trade + users.additional_trades (+ additional_trades_unlocked).
+
+/** GET: trades derived from users.primary_trade + users.additional_trades (API shape unchanged for clients). */
 export async function GET() {
   const supabase = createServerSupabase();
   const {
@@ -18,46 +27,35 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { data: rows, error } = await (supabase as any)
-    .from('user_trades')
-    .select('id, trade, is_primary')
-    .eq('user_id', user.id)
-    .order('is_primary', { ascending: false })
-    .order('created_at', { ascending: true });
+  const { data: profile, error } = await supabase
+    .from('users')
+    .select('primary_trade, additional_trades')
+    .eq('id', user.id)
+    .maybeSingle();
 
   if (error) {
     console.error('[profile/trades] GET error:', error);
     return NextResponse.json({ error: 'Failed to load trades' }, { status: 500 });
   }
 
-  if (rows && rows.length > 0) {
-    return NextResponse.json({
-      trades: rows.map((r: { id: string | null; trade: string; is_primary: boolean }) => ({
-        id: r.id,
-        trade: normalizeTrade(r.trade),
-        is_primary: r.is_primary,
-      })),
-    });
+  const list = getDisplayTradeListFromUserRow(profile ?? {});
+  if (list.length === 0) {
+    return NextResponse.json({ trades: [] });
   }
 
-  // Fallback: legacy user with only primary_trade
-  const { data: profile } = await supabase
-    .from('users')
-    .select('primary_trade')
-    .eq('id', user.id)
-    .maybeSingle();
+  const primaryCanonical = profile?.primary_trade?.trim()
+    ? normalizeTrade(profile.primary_trade.trim())
+    : list[0];
+  const trades = list.map((trade) => ({
+    id: null as string | null,
+    trade: normalizeTrade(trade),
+    is_primary: normalizeTrade(trade) === primaryCanonical,
+  }));
 
-  const pt = profile?.primary_trade?.trim();
-  if (pt) {
-    return NextResponse.json({
-      trades: [{ id: null, trade: normalizeTrade(pt), is_primary: true }],
-    });
-  }
-
-  return NextResponse.json({ trades: [] });
+  return NextResponse.json({ trades });
 }
 
-/** POST: Sync trades via RPC (validates premium, enforces rules) */
+/** POST: persist canonical columns only. */
 export async function POST(request: NextRequest) {
   const supabase = createServerSupabase();
   const {
@@ -90,7 +88,7 @@ export async function POST(request: NextRequest) {
         : trades
       : normalizeTradesList([primaryTrade]);
 
-  const validTrades = TRADE_CATEGORIES;
+  const validTrades = TRADES as readonly string[];
   const invalid = effectiveTrades.filter((t) => !validTrades.includes(t));
   if (invalid.length > 0) {
     return NextResponse.json({
@@ -105,7 +103,7 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   const isPremium = profile
-    ? (hasSubcontractorPremium(profile) || hasBuilderPremium(profile) || hasContractorPremium(profile))
+    ? hasSubcontractorPremium(profile) || hasBuilderPremium(profile) || hasContractorPremium(profile)
     : false;
   const canChange = profile ? canChangePrimaryTrade(profile) : false;
 
@@ -113,7 +111,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Multiple trades require Premium' }, { status: 403 });
   }
 
-  // Free users: primary trade is locked after signup. Reject any change.
   if (!canChange) {
     const currentPrimary = normalizeTrade((profile?.primary_trade ?? '').trim());
     const requestedPrimary = primaryTrade || effectiveTrades[0] || '';
@@ -123,23 +120,21 @@ export async function POST(request: NextRequest) {
         { status: 403 }
       );
     }
-    // Same primary - allow no-op (e.g. saving other profile fields). RPC will succeed.
   }
 
-  const rpcPrimary = primaryTrade || effectiveTrades[0] || '';
+  const split = splitSelectedTrades(effectiveTrades, effectiveTrades.length > 1);
 
-  const { error: rpcErr } = await (supabase as any).rpc('update_user_trades', {
-    p_user_id: user.id,
-    p_primary_trade: rpcPrimary,
-    p_trades: effectiveTrades,
-  });
+  const { error: upErr } = await (supabase as any)
+    .from('users')
+    .update({
+      primary_trade: split.primary_trade,
+      additional_trades: split.additional_trades,
+    })
+    .eq('id', user.id);
 
-  if (rpcErr) {
-    console.error('[profile/trades] RPC error:', rpcErr);
-    if (rpcErr.message?.includes('Multiple trades require Premium')) {
-      return NextResponse.json({ error: 'Multiple trades require Premium' }, { status: 403 });
-    }
-    return NextResponse.json({ error: rpcErr.message || 'Failed to save trades' }, { status: 500 });
+  if (upErr) {
+    console.error('[profile/trades] update error:', upErr);
+    return NextResponse.json({ error: upErr.message || 'Failed to save trades' }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });

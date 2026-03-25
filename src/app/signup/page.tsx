@@ -415,16 +415,6 @@ export default function SignupPage() {
         legal_name: fullName,
       });
 
-      const supabase = getBrowserSupabase();
-      const { data: authed } = await supabase.auth.getUser();
-
-      if (authed?.user?.id && normalizedTrades.length > 0) {
-        await supabase
-          .from('users')
-          .update({ trades: normalizedTrades })
-          .eq('id', authed.user.id);
-      }
-
       router.push('/profile/edit');
     } catch (err: any) {
       console.error('[Signup] Signup error:', err);

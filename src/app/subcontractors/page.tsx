@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Search, Lightbulb, Users, ArrowLeft, MapPin, BadgeCheck, Crown, ArrowRight, Calendar } from 'lucide-react';
 import { UserAvatar } from '@/components/user-avatar';
 import { UnauthorizedAccess } from '@/components/unauthorized-access';
-import { TRADE_CATEGORIES } from '@/lib/trades';
+import { TRADES } from '@/lib/trades';
 import { getBrowserSupabase } from '@/lib/supabase-client';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -411,7 +411,7 @@ export default function SubcontractorsPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Trades</SelectItem>
-                      {TRADE_CATEGORIES.map((trade) => (
+                      {TRADES.map((trade) => (
                         <SelectItem key={trade} value={trade}>{trade}</SelectItem>
                       ))}
                     </SelectContent>

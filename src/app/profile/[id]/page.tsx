@@ -5,7 +5,7 @@ import { ProfileView } from '@/components/profile/profile-view';
 import { isLikelyTestAccount } from '@/lib/test-account';
 import { parseProfileStrengthRpcResult } from '@/lib/profile-strength';
 import { createServiceSupabase } from '@/lib/supabase-server';
-import { normalizeTrade, normalizeTradesList } from '@/lib/trades/normalizeTrade';
+import { getDisplayTradeListFromUserRow } from '@/lib/trades/user-trades';
 
 function getSupabaseServer() {
   const cookieStore = cookies();
@@ -50,7 +50,6 @@ export default async function PublicProfilePage({
        business_name,
        avatar,
        cover_url,
-       trades,
        location,
        postcode,
        mini_bio,
@@ -87,35 +86,24 @@ export default async function PublicProfilePage({
     return notFound();
   }
 
-  // Fetch user_trades for multi-trade display (when available)
-  let profileData = { ...data };
+  // Canonical trades from users row (public directory may omit columns).
+  let profileData: Record<string, unknown> = { ...data };
   try {
-    const { data: utRows } = await (supabase as any)
-      .from('user_trades')
-      .select('trade, is_primary')
-      .eq('user_id', profileId)
-      .order('is_primary', { ascending: false })
-      .order('created_at', { ascending: true });
-    if (utRows && utRows.length > 0) {
-      const trades = normalizeTradesList(utRows.map((r: { trade: string }) => r.trade));
-      const primaryRow =
-        utRows.find((r: { is_primary: boolean }) => r.is_primary) ?? utRows[0];
-      const primaryNorm = primaryRow?.trade ? normalizeTrade(primaryRow.trade) : null;
-      const fallbackPrimary = (data as { primary_trade?: string | null }).primary_trade;
+    const { data: tradeRow } = await (supabase as any)
+      .from('users')
+      .select('primary_trade, additional_trades')
+      .eq('id', profileId)
+      .maybeSingle();
+    if (tradeRow) {
+      const tradesList = getDisplayTradeListFromUserRow(tradeRow);
       profileData = {
         ...data,
-        trades,
-        primary_trade: primaryNorm ?? (fallbackPrimary ? normalizeTrade(fallbackPrimary) : null),
-      } as typeof profileData;
-    } else if (Array.isArray((data as { trades?: unknown }).trades)) {
-      const raw = (data as { trades: unknown[] }).trades;
-      profileData = {
-        ...data,
-        trades: normalizeTradesList(raw.map(String)),
-      } as typeof profileData;
+        trades: tradesList,
+        primary_trade: tradeRow.primary_trade ?? (profileData as { primary_trade?: string }).primary_trade,
+      };
     }
   } catch {
-    // user_trades may not exist
+    // non-blocking
   }
 
   const { data: currentUserData } = await supabase.auth.getUser();

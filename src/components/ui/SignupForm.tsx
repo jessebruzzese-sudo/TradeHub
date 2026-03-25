@@ -7,7 +7,7 @@ import Image from 'next/image';
 
 import { useAuth } from '@/lib/auth';
 import { UserRole } from '@/lib/types';
-import { TRADE_CATEGORIES } from '@/lib/trades';
+import { TRADES } from '@/lib/trades';
 import { getSafeReturnUrl, safeRouterReplace } from '@/lib/safe-nav';
 
 import { Button } from '@/components/ui/button';
@@ -359,7 +359,7 @@ export default function SignupForm({ role }: Props) {
                       <SelectValue placeholder="Select your primary trade" />
                     </SelectTrigger>
                     <SelectContent>
-                      {TRADE_CATEGORIES.map((trade) => (
+                      {TRADES.map((trade) => (
                         <SelectItem key={trade} value={trade}>
                           {trade}
                         </SelectItem>
