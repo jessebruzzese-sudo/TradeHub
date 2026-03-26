@@ -63,7 +63,6 @@ import type { ProfileStrengthCalc } from '@/lib/profile-strength-types';
 import ProfileSummaryTrustBar from '@/components/profile/ProfileSummaryTrustBar';
 import ProfileStrengthSection from '@/components/profile/ProfileStrengthSection';
 import LikeProfileButton from '@/components/profile/LikeProfileButton';
-import ExternalProofSection from '@/components/profile/ExternalProofSection';
 
 type ProfileViewMode = 'self' | 'public';
 
@@ -160,6 +159,27 @@ function toUrl(platform: string, raw: string) {
       return `https://youtube.com/@${handle}`;
     default:
       return null;
+  }
+}
+
+function linkChipClass(platform: string) {
+  const base =
+    'inline-flex h-10 w-10 items-center justify-center rounded-full border shadow-sm transition-all duration-200 hover:-translate-y-[1px]';
+  switch (platform) {
+    case 'website':
+      return cn(base, 'border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100');
+    case 'linkedin':
+      return cn(base, 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100');
+    case 'instagram':
+      return cn(base, 'border-pink-200 bg-pink-50 text-pink-600 hover:bg-pink-100');
+    case 'facebook':
+      return cn(base, 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100');
+    case 'youtube':
+      return cn(base, 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100');
+    case 'tiktok':
+      return cn(base, 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100');
+    default:
+      return cn(base, 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50');
   }
 }
 
@@ -838,32 +858,6 @@ export function ProfileView({
 
                 <div className="mt-6 space-y-4">
                   <ProfileStrengthSection strengthCalc={strengthCalc} profile={p} />
-                  <ExternalProofSection
-                    websiteUrl={proofHrefWebsite(p?.website_url ?? p?.website)}
-                    instagramUrl={proofHrefInstagram(p?.instagram_url ?? p?.instagram)}
-                    facebookUrl={proofHrefFacebook(p?.facebook_url ?? p?.facebook)}
-                    linkedinUrl={proofHrefLinkedin(p?.linkedin_url ?? p?.linkedin)}
-                    googleBusinessUrl={proofHrefGoogleBusiness(p?.google_business_url)}
-                    googleBusinessName={p?.google_business_name ?? null}
-                    googleBusinessAddress={p?.google_business_address ?? null}
-                    googleRating={
-                      p?.google_business_rating != null
-                        ? Number(p.google_business_rating)
-                        : p?.google_rating != null
-                          ? Number(p.google_rating)
-                          : null
-                    }
-                    googleReviewCount={
-                      p?.google_business_review_count != null
-                        ? Number(p.google_business_review_count)
-                        : p?.google_review_count != null
-                          ? Number(p.google_review_count)
-                          : null
-                    }
-                    googleListingVerificationStatus={p?.google_listing_verification_status ?? p?.googleListingVerificationStatus}
-                    abn={p?.abn ?? null}
-                    abnStatus={p?.abn_status ?? p?.abnStatus ?? null}
-                  />
                 </div>
 
                 {hasAnyLinks && (
@@ -884,7 +878,7 @@ export function ProfileView({
                             rel="noreferrer"
                             aria-label={label}
                             title={label}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:-translate-y-[1px] hover:border-slate-300 hover:bg-slate-50"
+                            className={linkChipClass(key)}
                           >
                             <Icon className="h-4 w-4" />
                           </a>
@@ -901,7 +895,7 @@ export function ProfileView({
                                 rel="noreferrer"
                                 aria-label="TikTok"
                                 title="TikTok"
-                                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:-translate-y-[1px] hover:border-slate-300 hover:bg-slate-50"
+                                className={linkChipClass('tiktok')}
                               >
                                 <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
                                   <path d="M21 8.5c-1.8.1-3.5-.5-4.8-1.6-1.2-1-2-2.5-2.2-4.1h-3.7v13.2c0 1.5-1.2 2.7-2.7 2.7S5 17.5 5 16s1.2-2.7 2.7-2.7c.3 0 .6 0 .9.1V9.7c-.3 0-.6-.1-.9-.1C4.6 9.6 2 12.2 2 15.4S4.6 21.2 7.7 21.2s5.7-2.6 5.7-5.8V10.5c1.7 1.2 3.8 1.9 6 1.8V8.5z" />

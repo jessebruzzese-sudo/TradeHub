@@ -15,8 +15,8 @@ test.describe('Messaging', () => {
     await page.goto(`${BASE_URL}/messages`);
     await waitStable(page);
     await expect(page).toHaveURL(/\/messages/);
-    const heading = page.getByRole('heading', { name: /messages|conversations/i });
-    await expect(heading).toBeVisible();
+    const pageTitle = page.getByRole('heading', { name: /^messages$/i, level: 1 });
+    await expect(pageTitle).toBeVisible();
   });
 
   test('messages page shows empty state or conversation list', async ({ page }) => {
