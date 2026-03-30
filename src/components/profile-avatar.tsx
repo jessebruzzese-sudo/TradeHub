@@ -14,7 +14,7 @@ interface ProfileAvatarProps {
   userId: string;
   currentAvatarUrl?: string;
   userName: string;
-  onAvatarUpdate: (newAvatarUrl: string) => void;
+  onAvatarUpdate: (newAvatarUrl: string) => void | Promise<void>;
   editable?: boolean;
   /** Pixel size (width/height). Default 96. Use e.g. 116 for ~20% larger on profile header. */
   size?: number;
@@ -22,6 +22,7 @@ interface ProfileAvatarProps {
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+const HEIC_TYPES = ['image/heic', 'image/heif'];
 
 export function ProfileAvatar({
   userId,
@@ -40,6 +41,16 @@ export function ProfileAvatar({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isAutoCenteringRef = useRef(false);
   const supabase = getBrowserSupabase();
+  const formatSbError = (err: unknown): string => {
+    if (!err) return '';
+    if (typeof err === 'string') return err;
+    if (err instanceof Error) return err.message;
+    const anyErr = err as any;
+    const msg = typeof anyErr?.message === 'string' ? anyErr.message : '';
+    const code = anyErr?.code != null ? String(anyErr.code) : '';
+    if (msg && code && !msg.includes(code)) return `${msg} (${code})`;
+    return msg || '';
+  };
 
   const onCropComplete = (_: Area, cropped: Area) => {
     setCroppedAreaPixels(cropped);
@@ -61,13 +72,40 @@ export function ProfileAvatar({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const fileName = String(file.name ?? '');
+    const lowerName = fileName.toLowerCase();
+    const isHeicByName = lowerName.endsWith('.heic') || lowerName.endsWith('.heif');
+    const isHeicByType = HEIC_TYPES.includes(file.type);
+
+    if (isHeicByType || isHeicByName) {
+      console.warn('[ProfileAvatar] unsupported HEIC/HEIF selected', {
+        userId,
+        name: fileName,
+        type: file.type,
+        size: file.size,
+      });
+      toast.error(
+        "This photo format (HEIC) isn't supported yet. On iPhone, try Camera Settings → Formats → Most Compatible, or choose a different image."
+      );
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
     if (!ALLOWED_TYPES.includes(file.type)) {
+      console.warn('[ProfileAvatar] unsupported image type selected', {
+        userId,
+        name: fileName,
+        type: file.type,
+        size: file.size,
+      });
       toast.error('Please upload a valid image file (JPEG, PNG, GIF, or WebP)');
+      if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
 
     if (file.size > MAX_FILE_SIZE) {
       toast.error('File size must be less than 5MB');
+      if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
 
@@ -103,14 +141,31 @@ export function ProfileAvatar({
 
     const bucket = 'avatars';
     const filePath = `${userId}/avatar.jpg`;
+    let lastOp:
+      | 'auth.getSession'
+      | 'crop.getBlob'
+      | 'storage.upload'
+      | 'storage.getPublicUrl'
+      | 'db.updateUser'
+      | 'done'
+      | null = null;
 
     try {
+      lastOp = 'auth.getSession';
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!sessionData?.session?.user?.id) {
+        throw new Error('Please log in again to upload your profile photo.');
+      }
+
+      lastOp = 'crop.getBlob';
       const blob = await getCroppedImageBlob(imageSrc, croppedAreaPixels, 512, {
         background: '#FFFFFF',
         mimeType: 'image/jpeg',
         quality: 0.92,
       });
 
+      lastOp = 'storage.upload';
       const { error: uploadError } = await supabase.storage
         .from(bucket)
         .upload(filePath, blob, {
@@ -121,10 +176,13 @@ export function ProfileAvatar({
 
       if (uploadError) throw uploadError;
 
+      lastOp = 'storage.getPublicUrl';
       const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
       const freshUrl = `${data.publicUrl}?v=${Date.now()}`;
 
-      onAvatarUpdate(freshUrl);
+      lastOp = 'db.updateUser';
+      await onAvatarUpdate(freshUrl);
+      lastOp = 'done';
       toast.success('Profile photo updated successfully');
 
       setCropOpen(false);
@@ -134,10 +192,17 @@ export function ProfileAvatar({
         userId,
         bucket,
         path: filePath,
+        lastOp,
         error,
       });
-      const message = error instanceof Error ? error.message : 'Upload failed';
-      toast.error(message || 'Failed to upload profile photo. Please try again.');
+      const message = formatSbError(error);
+      const friendlyStage =
+        lastOp === 'storage.upload'
+          ? 'Upload failed'
+          : lastOp === 'db.updateUser'
+            ? 'Saved upload but could not update profile'
+            : 'Profile photo update failed';
+      toast.error(message ? `${friendlyStage}: ${message}` : friendlyStage);
     } finally {
       setIsUploading(false);
     }
@@ -272,7 +337,7 @@ export function ProfileAvatar({
         <input
           ref={fileInputRef}
           type="file"
-          accept={ALLOWED_TYPES.join(',')}
+          accept="image/*"
           onChange={handleFileSelect}
           className="hidden"
           disabled={isUploading}

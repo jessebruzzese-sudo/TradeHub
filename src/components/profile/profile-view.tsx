@@ -453,9 +453,15 @@ export function ProfileView({
     window.location.reload();
   };
 
-  const handleAvatarUpdate = (newAvatarUrl: string) => {
-    if (isSelf && profile?.id) {
-      store.updateUser(profile.id, { avatar: `${newAvatarUrl}?v=${Date.now()}` });
+  const handleAvatarUpdate = async (newAvatarUrl: string) => {
+    if (!isSelf || !profile?.id) return;
+    // Optimistic local update for immediate UI refresh.
+    store.updateUser(profile.id, { avatar: `${newAvatarUrl}?v=${Date.now()}` });
+    try {
+      await updateUser?.({ avatar: newAvatarUrl });
+    } catch (e: any) {
+      console.error('[profile] avatar db update failed', e);
+      throw new Error(e?.message ?? 'Failed to save profile photo');
     }
   };
 
@@ -524,12 +530,21 @@ export function ProfileView({
       : Number((1 + (upCount / totalVotes) * 4).toFixed(1));
 
   const avg = Number((p?.rating_avg ?? starAverage) || 0);
-  const strengthScoreStored = p?.profile_strength_score != null ? Number(p.profile_strength_score) : null;
-  const strengthBandStored = p?.profile_strength_band != null ? String(p.profile_strength_band) : null;
+  const strengthScoreStored =
+    p?.profile_strength_score != null
+      ? Number(p.profile_strength_score)
+      : p?.profileStrengthScore != null
+        ? Number(p.profileStrengthScore)
+        : null;
+  const strengthBandStored =
+    p?.profile_strength_band != null
+      ? String(p.profile_strength_band)
+      : p?.profileStrengthBand != null
+        ? String(p.profileStrengthBand)
+        : null;
   const strengthPct =
-    strengthCalc?.total ??
-    (strengthScoreStored != null && !Number.isNaN(strengthScoreStored) ? strengthScoreStored : null);
-  const strengthBand = strengthCalc?.band ?? strengthBandStored ?? 'LOW';
+    strengthScoreStored != null && !Number.isNaN(strengthScoreStored) ? strengthScoreStored : null;
+  const strengthBand = strengthBandStored ?? strengthCalc?.band ?? 'LOW';
   const reliabilityPct = reliabilityToPercent(reliabilityRating);
   const starClass =
     avg >= 4.5

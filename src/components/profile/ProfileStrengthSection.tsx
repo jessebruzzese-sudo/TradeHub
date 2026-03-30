@@ -41,13 +41,10 @@ function toBreakdown(strengthCalc: ProfileStrengthCalc | null, profile: Record<s
   const likesFromCalc = Number(strengthCalc?.likes ?? 0);
   const completenessFromCalc = Number(strengthCalc?.completeness ?? 0);
   const abnFromCalc = Number(strengthCalc?.abn ?? 0);
-  const computedScoreFromCalc = Math.max(
-    0,
-    Math.min(100, Math.floor(activityFromCalc + linksFromCalc + googleFromCalc + likesFromCalc + completenessFromCalc + abnFromCalc))
+  const score = Number(profile?.profile_strength_score ?? profile?.profileStrengthScore ?? 0);
+  const band = normalizeProfileStrengthBand(
+    profile?.profile_strength_band ?? profile?.profileStrengthBand ?? strengthCalc?.band ?? 'LOW'
   );
-  const rawScore = Number(strengthCalc?.total ?? profile?.profile_strength_score ?? 0);
-  const score = rawScore > 0 ? rawScore : computedScoreFromCalc;
-  const band = normalizeProfileStrengthBand(strengthCalc?.band ?? profile?.profile_strength_band ?? 'LOW');
   const abnVerified = hasValidABN({
     abn: profile?.abn,
     abn_status: profile?.abn_status ?? profile?.abnStatus,

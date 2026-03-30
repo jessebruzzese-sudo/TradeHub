@@ -743,10 +743,9 @@ export default function EditProfilePage() {
   const handleAvatarUpdate = async (newAvatarUrl: string) => {
     try {
       await updateUser({ avatar: newAvatarUrl });
-      toast.success('Avatar updated');
-    } catch (error) {
-      console.error('Error updating avatar:', error);
-      toast.error('Failed to update avatar');
+    } catch (error: any) {
+      console.error('[profile/edit] avatar db update failed', error);
+      throw new Error(error?.message ?? 'Failed to save profile photo');
     }
   };
 

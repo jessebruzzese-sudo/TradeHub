@@ -181,7 +181,17 @@ export async function POST(request: Request) {
 
   const { error: updateError } = await (supabase as any).from('users').update(patch).eq('id', user.id);
   if (updateError) {
-    return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 });
+    // Surface useful details for debugging (safe: does not include secrets).
+    return NextResponse.json(
+      {
+        error: 'Failed to update profile',
+        details: {
+          code: (updateError as any).code ?? null,
+          message: (updateError as any).message ?? String(updateError),
+        },
+      },
+      { status: 500 }
+    );
   }
 
   return NextResponse.json({ ok: true });
