@@ -262,7 +262,9 @@ export async function POST(req: Request) {
     if (!ins1.error && ins1.data?.id) {
       inserted = ins1.data as any;
     } else if (isMissingColumnTitleError(ins1.error)) {
-      const ins2 = await admin
+      // Older DBs may not have `title` column yet. Our generated types assume it exists,
+      // so we intentionally escape typing here to keep backward-compat at runtime.
+      const ins2 = await (admin as any)
         .from('previous_work')
         .insert({
           user_id: user.id,
