@@ -1,4 +1,7 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+'use client';
+
+import { createBrowserClient } from '@supabase/ssr';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/database.types';
 
 let _client: SupabaseClient<Database> | null = null;
@@ -13,17 +16,7 @@ export function getBrowserSupabase() {
     throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
   }
 
-  _client = createClient<Database>(url, anon, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-      storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-    },
-    global: {
-      fetch: (input: RequestInfo | URL, init?: RequestInit) => fetch(input, init),
-    },
-  });
+  _client = createBrowserClient<Database>(url, anon);
 
   return _client;
 }

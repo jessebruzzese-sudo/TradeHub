@@ -1,3 +1,2 @@
-// Browser-only Supabase client with persistent auth.
-// Important: storage uploads require an authenticated client so RLS policies pass.
+// Browser Supabase client via @supabase/ssr (cookie-aligned with middleware).
 export { getBrowserSupabase } from '@/lib/supabase/browserClient';
