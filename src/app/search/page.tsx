@@ -143,6 +143,7 @@ export default function SearchDirectoryPage() {
     let cancelled = false;
 
     async function load() {
+      let failureLogged = false;
       try {
         if (DEBUG) {
           // eslint-disable-next-line no-console
@@ -161,11 +162,38 @@ export default function SearchDirectoryPage() {
         const url = `/api/discovery/search?${params}`;
         dbg('H4-cache-or-wrong-route', 'fetch:request', { url });
         const res = await fetch(url, { cache: 'no-store' });
+        const rawText = await res.text();
+        let data: Record<string, unknown> | null = null;
+        try {
+          data = rawText ? (JSON.parse(rawText) as Record<string, unknown>) : null;
+        } catch {
+          data = null;
+        }
         if (!res.ok) {
           if (res.status === 401) throw new Error('Sign in to search');
-          throw new Error('Failed to load');
+          const payload = data ?? {};
+          const apiErr =
+            typeof payload.error === 'string' && payload.error.trim()
+              ? payload.error.trim()
+              : 'Failed to load';
+          const stage =
+            typeof payload.stage === 'string' && payload.stage.trim()
+              ? payload.stage.trim()
+              : '';
+          console.error('Search directory load failed', {
+            url,
+            status: res.status,
+            body: payload,
+            rawSnippet: rawText.slice(0, 500),
+          });
+          failureLogged = true;
+          throw new Error(stage ? `${apiErr} (${stage})` : apiErr);
         }
-        const data = await res.json();
+        if (!data || typeof data !== 'object') {
+          console.error('Search directory: invalid JSON', { url, status: res.status, rawSnippet: rawText.slice(0, 500) });
+          failureLogged = true;
+          throw new Error('Invalid response from search');
+        }
         dbg('H1-api-returning-empty', 'fetch:response', {
           url,
           status: res.status,
@@ -181,9 +209,11 @@ export default function SearchDirectoryPage() {
           });
         }
         if (cancelled) return;
-        setUsers((data.profiles ?? []) as DirectoryUser[]);
+        setUsers((Array.isArray(data.profiles) ? data.profiles : []) as DirectoryUser[]);
       } catch (e) {
-        console.error('Search directory load failed', e);
+        if (!failureLogged) {
+          console.error('Search directory load failed', e);
+        }
         if (!cancelled) {
           setUsers([]);
           setLoadError(

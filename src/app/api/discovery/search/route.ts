@@ -10,6 +10,7 @@ import { getTier } from '@/lib/plan-limits';
 import { hasValidABN } from '@/lib/abn-utils';
 import { applyExcludeTestAccountsFilters } from '@/lib/test-account';
 import { getDisplayTradeListFromUserRow } from '@/lib/trades/user-trades';
+import { isPostgrestSchemaColumnError } from '@/lib/postgrest-schema-error';
 
 type UserRow = {
   id: string;
@@ -52,9 +53,12 @@ function tradeMatchKey(s: string): string {
   return s.trim().toLowerCase();
 }
 
-function getCandidateCoords(row: UserRow): { lat: number; lng: number } | null {
-  const lat = row.location_lat ?? row.base_lat ?? null;
-  const lng = row.location_lng ?? row.base_lng ?? null;
+function getCandidateCoords(row: UserRow & { lat?: number | null; lng?: number | null }): {
+  lat: number;
+  lng: number;
+} | null {
+  const lat = row.location_lat ?? row.base_lat ?? row.lat ?? null;
+  const lng = row.location_lng ?? row.base_lng ?? row.lng ?? null;
   if (lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
     return { lat: Number(lat), lng: Number(lng) };
   }
@@ -109,6 +113,127 @@ function parseBoolEnv(v: string | undefined | null): boolean | null {
   if (['1', 'true', 'yes', 'y', 'on'].includes(s)) return true;
   if (['0', 'false', 'no', 'n', 'off'].includes(s)) return false;
   return null;
+}
+
+/** Broad → narrow: tolerate production DBs missing newer columns (PostgREST PGRST204 / 42703). */
+const VIEWER_SELECT_LAYERS = [
+  'id,plan,location_lat,location_lng,base_lat,base_lng,search_lat,search_lng,is_premium,active_plan,subscription_status,subcontractor_plan,subcontractor_sub_status,complimentary_premium_until,premium_until',
+  'id,plan,lat,lng,base_lat,base_lng,search_lat,search_lng,is_premium,active_plan,subscription_status,subcontractor_plan,subcontractor_sub_status,complimentary_premium_until,premium_until',
+  'id,plan,location_lat,location_lng,base_lat,base_lng,is_premium,active_plan,subscription_status,complimentary_premium_until,premium_until',
+  'id,plan,lat,lng,base_lat,base_lng,is_premium,active_plan,subscription_status,complimentary_premium_until,premium_until',
+  'id,is_premium,active_plan,subscription_status,premium_until,complimentary_premium_until,location_lat,location_lng,base_lat,base_lng',
+  'id,is_premium,active_plan,subscription_status,premium_until,complimentary_premium_until,lat,lng,base_lat,base_lng',
+  'id,is_premium,subscription_status,active_plan',
+] as const;
+
+const DIRECTORY_SELECT_LAYERS = [
+  'id,name,business_name,avatar,location,postcode,rating,reliability_rating,completed_jobs,is_public_profile,primary_trade,additional_trades,abn_status,abn_verified_at,subscription_status,premium_until,complimentary_premium_until,pricing_type,pricing_amount,show_pricing_in_listings,plan,location_lat,location_lng,base_lat,base_lng,base_suburb,abn,cover_url,mini_bio,role,is_premium,profile_strength_score',
+  'id,name,business_name,avatar,location,postcode,rating,reliability_rating,completed_jobs,is_public_profile,primary_trade,additional_trades,abn_status,abn_verified_at,subscription_status,premium_until,complimentary_premium_until,plan,location_lat,location_lng,base_lat,base_lng,base_suburb,abn,cover_url,role,is_premium',
+  'id,name,business_name,avatar,location,postcode,rating,reliability_rating,completed_jobs,is_public_profile,primary_trade,additional_trades,abn_status,abn_verified_at,subscription_status,premium_until,complimentary_premium_until,plan,lat,lng,base_lat,base_lng,base_suburb,abn,cover_url,role,is_premium',
+  'id,name,business_name,avatar,location,postcode,rating,reliability_rating,completed_jobs,is_public_profile,primary_trade,additional_trades,abn_status,abn_verified_at,abn,subscription_status,premium_until,complimentary_premium_until,plan,location_lat,location_lng,base_lat,base_lng,role,is_premium',
+  'id,name,business_name,avatar,location,is_public_profile,primary_trade,additional_trades,abn,role,plan,location_lat,location_lng,base_lat,base_lng',
+  'id,name,business_name,avatar,location,is_public_profile,primary_trade,additional_trades,abn,role,plan,lat,lng,base_lat,base_lng',
+] as const;
+
+function discoveryErrorResponse(
+  status: number,
+  stage: string,
+  message: string,
+  err?: unknown
+): NextResponse {
+  const dev = process.env.NODE_ENV === 'development';
+  const code =
+    err && typeof err === 'object' && err !== null && 'code' in err
+      ? String((err as { code: unknown }).code)
+      : null;
+  const pgMessage =
+    err && typeof err === 'object' && err !== null && 'message' in err
+      ? String((err as { message: unknown }).message)
+      : null;
+  const body: Record<string, unknown> = {
+    error: message,
+    stage,
+    ...(code ? { code } : {}),
+  };
+  if (dev && pgMessage) body.details = { message: pgMessage };
+  return NextResponse.json(body, { status });
+}
+
+async function loadViewerRow(
+  supabaseAuth: ReturnType<typeof createServerSupabase>,
+  userId: string
+): Promise<
+  | { ok: true; me: Record<string, unknown> }
+  | { ok: false; error: unknown; stage: 'viewer_profile' }
+> {
+  let lastErr: unknown = null;
+  for (const select of VIEWER_SELECT_LAYERS) {
+    const { data, error } = await (supabaseAuth as any)
+      .from('users')
+      .select(select)
+      .eq('id', userId)
+      .maybeSingle();
+    if (!error) {
+      if (data) return { ok: true as const, me: data };
+      return {
+        ok: false as const,
+        error: new Error('User profile row not found'),
+        stage: 'viewer_profile' as const,
+      };
+    }
+    lastErr = error;
+    if (!isPostgrestSchemaColumnError(error)) {
+      return { ok: false as const, error, stage: 'viewer_profile' as const };
+    }
+  }
+  return { ok: false as const, error: lastErr, stage: 'viewer_profile' as const };
+}
+
+async function loadDirectoryRows(
+  supabase: ReturnType<typeof createServiceSupabase>,
+  viewerId: string,
+  excludeTestAccounts: boolean
+): Promise<
+  | { ok: true; rows: UserRow[] }
+  | { ok: false; error: unknown; stage: 'candidates_query' }
+> {
+  for (const select of DIRECTORY_SELECT_LAYERS) {
+    let q = (supabase as any)
+      .from('users')
+      .select(select)
+      .eq('is_public_profile', true)
+      .neq('id', viewerId)
+      .neq('role', 'admin');
+    if (excludeTestAccounts) q = applyExcludeTestAccountsFilters(q);
+
+    let { data, error } = await q.is('deleted_at', null);
+    if (
+      error &&
+      isPostgrestSchemaColumnError(error) &&
+      /deleted_at/i.test(String((error as { message?: string }).message ?? ''))
+    ) {
+      let q2 = (supabase as any)
+        .from('users')
+        .select(select)
+        .eq('is_public_profile', true)
+        .neq('id', viewerId)
+        .neq('role', 'admin');
+      if (excludeTestAccounts) q2 = applyExcludeTestAccountsFilters(q2);
+      ({ data, error } = await q2);
+    }
+
+    if (!error) {
+      return { ok: true, rows: (data ?? []) as UserRow[] };
+    }
+    if (!isPostgrestSchemaColumnError(error)) {
+      return { ok: false, error, stage: 'candidates_query' };
+    }
+  }
+  return {
+    ok: false,
+    error: new Error('Directory query failed for all column sets'),
+    stage: 'candidates_query',
+  };
 }
 
 export async function GET(request: NextRequest) {
@@ -169,25 +294,31 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: me, error: meErr } = await (supabaseAuth as any)
-      .from('users')
-      .select(
-        'id,plan,location_lat,location_lng,base_lat,base_lng,search_lat,search_lng,is_premium,active_plan,subscription_status,subcontractor_plan,subcontractor_sub_status,complimentary_premium_until,premium_until'
-      )
-      .eq('id', user.id)
-      .maybeSingle();
-
-    if (meErr || !me) {
-      return NextResponse.json(
-        { error: 'Could not load your profile' },
-        { status: 500 }
+    const viewerRes = await loadViewerRow(supabaseAuth, user.id);
+    if (!viewerRes.ok) {
+      console.error('[discovery/search] viewer load failed', {
+        stage: viewerRes.stage,
+        err: viewerRes.error,
+      });
+      return discoveryErrorResponse(
+        500,
+        viewerRes.stage,
+        'Could not load your profile',
+        viewerRes.error
       );
     }
+    const me = viewerRes.me;
+    const meRow = me as UserRow & { lat?: number | null; lng?: number | null };
+    const meForDiscovery = {
+      ...meRow,
+      location_lat: meRow.location_lat ?? meRow.lat ?? null,
+      location_lng: meRow.location_lng ?? meRow.lng ?? null,
+    };
 
-    const center = getViewerCenter(me as UserRow);
+    const center = getViewerCenter(meForDiscovery);
     const viewerMissingLocation = !center;
-    const allowedRadiusKm = getDiscoveryRadiusKm(me as UserRow);
-    const isViewerPremium = getTier(me) === 'premium';
+    const allowedRadiusKm = getDiscoveryRadiusKm(meForDiscovery);
+    const isViewerPremium = getTier(meForDiscovery) === 'premium';
 
     const searchParams = request.nextUrl.searchParams;
     const q = (searchParams.get('q') ?? '').trim().toLowerCase();
@@ -228,34 +359,19 @@ export async function GET(request: NextRequest) {
       center,
     });
 
-    let candidatesQuery = (supabase as any)
-      .from('users')
-      .select(
-        'id,name,business_name,avatar,location,postcode,rating,reliability_rating,completed_jobs,is_public_profile,primary_trade,additional_trades,abn_status,abn_verified_at,subscription_status,premium_until,complimentary_premium_until,pricing_type,pricing_amount,show_pricing_in_listings,plan,location_lat,location_lng,base_lat,base_lng,base_suburb,abn,cover_url,mini_bio,role,is_premium,profile_strength_score'
-      )
-      .eq('is_public_profile', true)
-      .neq('id', user.id)
-      .neq('role', 'admin')
-      ;
-    if (excludeTestAccounts) {
-      candidatesQuery = applyExcludeTestAccountsFilters(candidatesQuery);
+    const dirRes = await loadDirectoryRows(supabase, user.id, excludeTestAccounts);
+    if (!dirRes.ok) {
+      console.error('[discovery/search] candidates query failed', {
+        stage: dirRes.stage,
+        err: dirRes.error,
+      });
+      dbg('H5-rls-or-env', 'candidates:error', {
+        code: (dirRes.error as any)?.code ?? null,
+        message: (dirRes.error as any)?.message ?? String(dirRes.error),
+      });
+      return discoveryErrorResponse(500, dirRes.stage, 'Failed to load profiles', dirRes.error);
     }
-
-    const { data: candidates, error: candErr } = await candidatesQuery;
-
-    if (candErr) {
-      if (candErr.message?.includes('is_public_profile') || candErr.code === '42P01') {
-        return NextResponse.json({ profiles: [], outsideRadiusCount: 0, allowedRadiusKm });
-      }
-      console.error('[discovery/search] error:', candErr);
-      dbg('H5-rls-or-env', 'candidates:error', { code: (candErr as any).code ?? null, message: candErr.message ?? String(candErr) });
-      return NextResponse.json(
-        { error: 'Failed to load profiles' },
-        { status: 500 }
-      );
-    }
-
-    const rows = (candidates ?? []) as UserRow[];
+    const rows = dirRes.rows;
     dbg('H1-api-returning-empty', 'candidates:raw', {
       count: rows.length,
       sample: rows.slice(0, 5).map((r) => ({
@@ -512,10 +628,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (err: unknown) {
     console.error('[discovery/search] error:', err);
-    // Best-effort: do not leak error details.
-    return NextResponse.json(
-      { error: 'Failed to load search results' },
-      { status: 500 }
-    );
+    return discoveryErrorResponse(500, 'unhandled', 'Failed to load search results', err);
   }
 }
