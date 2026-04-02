@@ -1,6 +1,7 @@
 import { SubscriptionPlan, Capability } from './types';
 import { BILLING_SIM_ALLOWED, getSimulatedPremium } from './billing-sim';
 import { MVP_FREE_MODE, MVP_RADIUS_KM, MVP_AVAILABILITY_HORIZON_DAYS, MVP_HIDE_BUSINESS_NAME_UNTIL_ENGAGEMENT } from './feature-flags';
+import { hasPremiumAccess } from '@/lib/billing/has-premium-access';
 
 /**
  * Minimal structural type that matches any user-shaped object:
@@ -20,22 +21,12 @@ export type CapabilityUser = {
   is_admin?: boolean | null;
 
   /* subscription / premium — camelCase */
-  activePlan?: string | null;
   subscriptionStatus?: string | null;
   complimentaryPremiumUntil?: string | Date | null;
-  contractorPlan?: string | null;
-  subcontractorPlan?: string | null;
-  isPremium?: boolean | null;
-  premiumUntil?: string | Date | null;
 
   /* subscription / premium — snake_case */
-  active_plan?: string | null;
   subscription_status?: string | null;
   complimentary_premium_until?: string | Date | null;
-  contractor_plan?: string | null;
-  subcontractor_plan?: string | null;
-  is_premium?: boolean | null;
-  premium_until?: string | Date | null;
 
   /* suspension — camelCase */
   accountSuspended?: boolean | null;
@@ -51,44 +42,18 @@ function isSimulatingPremium(): boolean {
   return BILLING_SIM_ALLOWED && getSimulatedPremium();
 }
 
-function hasPersistedPremiumPlan(user: CapabilityUser): boolean {
-  return String(user?.plan || '').trim().toLowerCase() === 'premium';
-}
-
-/** Complimentary premium from DB: if date is in the future, user has full premium. */
-function hasComplimentaryPremiumActive(user: CapabilityUser): boolean {
-  if (!user?.complimentaryPremiumUntil) return false;
-  const until = new Date(user.complimentaryPremiumUntil);
-  return !Number.isNaN(until.getTime()) && until > new Date();
-}
-
 /**
- * Derives capabilities from DB: active_plan + subscription_status, or complimentary_premium_until.
+ * Canonical billing only: premium access ⇒ all capabilities (single TradeHub premium product).
  * Billing sim remains a dev override only.
  */
 export function getUserCapabilities(user: CapabilityUser): Capability[] {
-  if (hasPersistedPremiumPlan(user)) {
-    return ['BUILDER', 'CONTRACTOR', 'SUBCONTRACTOR'];
-  }
   if (isSimulatingPremium()) {
     return ['BUILDER', 'CONTRACTOR', 'SUBCONTRACTOR'];
   }
-  if (hasComplimentaryPremiumActive(user)) {
+  if (hasPremiumAccess(user)) {
     return ['BUILDER', 'CONTRACTOR', 'SUBCONTRACTOR'];
   }
-  const status = (user.subscriptionStatus || '').toUpperCase();
-  if (status !== 'ACTIVE') return [];
-  const plan = (user.activePlan || 'NONE').toUpperCase();
-  switch (plan) {
-    case 'BUSINESS_PRO_20':
-      return ['BUILDER', 'CONTRACTOR'];
-    case 'SUBCONTRACTOR_PRO_10':
-      return ['SUBCONTRACTOR'];
-    case 'ALL_ACCESS_PRO_26':
-      return ['BUILDER', 'CONTRACTOR', 'SUBCONTRACTOR'];
-    default:
-      return [];
-  }
+  return [];
 }
 
 export function hasCapability(user: CapabilityUser, capability: Capability): boolean {
@@ -98,19 +63,16 @@ export function hasCapability(user: CapabilityUser, capability: Capability): boo
 
 export function hasBuilderPremium(user: CapabilityUser): boolean {
   if (MVP_FREE_MODE && user) return true;
-  if (hasPersistedPremiumPlan(user)) return true;
   return hasCapability(user, 'BUILDER') || isSimulatingPremium();
 }
 
 export function hasContractorPremium(user: CapabilityUser): boolean {
   if (MVP_FREE_MODE && user) return true;
-  if (hasPersistedPremiumPlan(user)) return true;
   return hasCapability(user, 'CONTRACTOR') || isSimulatingPremium();
 }
 
 export function hasSubcontractorPremium(user: CapabilityUser): boolean {
   if (MVP_FREE_MODE && user) return true;
-  if (hasPersistedPremiumPlan(user)) return true;
   return hasCapability(user, 'SUBCONTRACTOR') || isSimulatingPremium();
 }
 
@@ -139,8 +101,6 @@ export function canCustomSearchLocation(user: CapabilityUser): boolean {
 
 /** Premium: multiple trades on profile (Free = 1 trade only). */
 export function canMultiTrade(user: CapabilityUser): boolean {
-  if (hasPersistedPremiumPlan(user)) return true;
-  if (user?.is_premium === true || user?.isPremium === true) return true;
   return (
     hasBuilderPremium(user) ||
     hasContractorPremium(user) ||

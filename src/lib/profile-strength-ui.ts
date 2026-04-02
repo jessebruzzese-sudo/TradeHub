@@ -61,6 +61,29 @@ export function getBandPillClassName(band: ProfileStrengthBand): string {
   return 'border-rose-200 bg-rose-50 text-rose-700';
 }
 
+/**
+ * Reads denormalized profile strength from API/profile objects.
+ * Uses explicit numeric / null checks so a score of 0 is not treated as "missing".
+ */
+export function getProfileStrengthScoreFromRow(
+  p: Record<string, unknown> | null | undefined
+): number | null {
+  if (p == null) return null;
+  const snake = p.profile_strength_score;
+  const camel = p.profileStrengthScore;
+  if (typeof snake === 'number' && Number.isFinite(snake)) return snake;
+  if (typeof camel === 'number' && Number.isFinite(camel)) return camel;
+  if (snake !== null && snake !== undefined && String(snake).trim() !== '') {
+    const n = Number(snake);
+    if (Number.isFinite(n)) return n;
+  }
+  if (camel !== null && camel !== undefined && String(camel).trim() !== '') {
+    const n = Number(camel);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
 export function getMissingProfileImprovementItems(
   input: ProfileImprovementInput
 ): ProfileImprovementItem[] {

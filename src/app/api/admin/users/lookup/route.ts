@@ -25,7 +25,7 @@ export const POST = withAdmin(async (req: Request) => {
     let { data, error } = await supabase
       .from('users')
       .select(
-        'id,email,name,role,active_plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,complimentary_premium_until,stripe_customer_id,stripe_subscription_id'
+        'id,email,name,role,plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,complimentary_premium_until,stripe_customer_id,stripe_subscription_id'
       )
       .eq('id', emailOrId)
       .maybeSingle();
@@ -35,7 +35,7 @@ export const POST = withAdmin(async (req: Request) => {
       const res = await supabase
         .from('users')
         .select(
-          'id,email,name,role,active_plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,complimentary_premium_until,stripe_customer_id,stripe_subscription_id'
+          'id,email,name,role,plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,complimentary_premium_until,stripe_customer_id,stripe_subscription_id'
         )
         .eq('email', emailOrId.toLowerCase())
         .maybeSingle();

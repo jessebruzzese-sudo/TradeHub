@@ -27,6 +27,7 @@ import {
   abrVerifiedAtFromUserMetadata,
 } from '@/lib/abn-normalize';
 import { hasValidABN } from '@/lib/abn-utils';
+import { hasPremiumAccess } from '@/lib/billing/has-premium-access';
 
 export async function ensureProfileRow(supabase: any, user: any) {
   if (!user?.id) return;
@@ -45,7 +46,7 @@ export async function ensureProfileRow(supabase: any, user: any) {
   const { data: existing, error: fetchError } = await supabase
     .from('users')
     .select(
-      'id, location, postcode, location_lat, location_lng, base_lat, base_lng, primary_trade, additional_trades, abn, abn_status, abn_verified, abn_verified_at, business_name, is_public_profile'
+      'id, location, postcode, location_lat, location_lng, primary_trade, additional_trades, abn, abn_status, abn_verified, abn_verified_at, business_name, is_public_profile'
     )
     .eq('id', user.id)
     .maybeSingle();
@@ -94,8 +95,6 @@ export async function ensureProfileRow(supabase: any, user: any) {
       postcode: metaPostcode,
       location_lat: metaHasValidCoords ? metaLocationLat : null,
       location_lng: metaHasValidCoords ? metaLocationLng : null,
-      base_lat: metaHasValidCoords ? metaLocationLat : null,
-      base_lng: metaHasValidCoords ? metaLocationLng : null,
       ...(() => {
         const list = Array.isArray(meta.trade_categories)
           ? (meta.trade_categories as unknown[]).map(String).map((t) => t.trim()).filter(Boolean)
@@ -144,7 +143,7 @@ export async function ensureProfileRow(supabase: any, user: any) {
   const { data: rowNow } = await supabase
     .from('users')
     .select(
-      'id, location, postcode, location_lat, location_lng, base_lat, base_lng, primary_trade, additional_trades, abn, abn_status, abn_verified, abn_verified_at, business_name, is_public_profile'
+      'id, location, postcode, location_lat, location_lng, primary_trade, additional_trades, abn, abn_status, abn_verified, abn_verified_at, business_name, is_public_profile'
     )
     .eq('id', user.id)
     .maybeSingle();
@@ -185,8 +184,6 @@ export async function ensureProfileRow(supabase: any, user: any) {
     const locationBackfill: Record<string, unknown> = {
       location_lat: metaLocationLat,
       location_lng: metaLocationLng,
-      base_lat: metaLocationLat,
-      base_lng: metaLocationLng,
     };
     if (metaLocation && !(rowNow as any)?.location) locationBackfill.location = metaLocation;
     if (metaPostcode && !(rowNow as any)?.postcode) locationBackfill.postcode = metaPostcode;
@@ -283,22 +280,17 @@ type DbUserRow = {
   /** Legacy jsonb column; app reads via getDisplayTradeListFromUserRow fallback only. */
   trades?: any;
   // Subscription / premium (from users table)
-  is_premium?: boolean | null;
-  active_plan?: string | null;
   subscription_status?: string | null;
   subscription_renews_at?: string | null;
   subscription_started_at?: string | null;
   subscription_canceled_at?: string | null;
   complimentary_premium_until?: string | null;
-  premium_until?: string | null;
   additional_trades_unlocked?: boolean | null;
   additional_trades?: string[] | null;
   search_location?: string | null;
   search_postcode?: string | null;
   search_lat?: number | null;
   search_lng?: number | null;
-  base_lat?: number | null;
-  base_lng?: number | null;
   location_lat?: number | null;
   location_lng?: number | null;
   radius?: number | null;
@@ -535,16 +527,8 @@ function normalizeSubscriptionStatus(s?: string | null): string | null {
   return v as string;
 }
 
-function normalizeActivePlan(s?: string | null): string | null {
-  const v = (s || '').trim().toUpperCase();
-  if (!v) return null;
-  if (['NONE', 'BUSINESS_PRO_20', 'SUBCONTRACTOR_PRO_10', 'ALL_ACCESS_PRO_26'].includes(v)) return v;
-  return v as string;
-}
-
 function mapDbToUi(row: DbUserRow): CurrentUser {
   const plan = String((row as any).plan || '').trim().toLowerCase();
-  const isPlanPremium = plan === 'premium';
   return {
     id: row.id,
     email: row.email ?? null,
@@ -562,8 +546,8 @@ function mapDbToUi(row: DbUserRow): CurrentUser {
     primaryTrade: row.primary_trade ? normalizeTrade(row.primary_trade) : null,
     location: (row as any).location ?? null,
     postcode: (row as any).postcode ?? null,
-    lat: (row as any).location_lat != null ? Number((row as any).location_lat) : (row.search_lat != null ? Number(row.search_lat) : null),
-    lng: (row as any).location_lng != null ? Number((row as any).location_lng) : (row.search_lng != null ? Number(row.search_lng) : null),
+    lat: (row as any).location_lat != null ? Number((row as any).location_lat) : null,
+    lng: (row as any).location_lng != null ? Number((row as any).location_lng) : null,
     abn: row.abn ?? null,
     businessName: row.business_name ?? null,
     abnStatus: (row.abn_status ? (String(row.abn_status).toUpperCase() as CurrentUser['abnStatus']) : null),
@@ -586,14 +570,18 @@ function mapDbToUi(row: DbUserRow): CurrentUser {
     additionalTradesUnlocked: row.additional_trades_unlocked === true,
 
     plan: plan === 'premium' || plan === 'free' ? (plan as 'free' | 'premium') : null,
-    isPremium: isPlanPremium || row.is_premium === true,
-    activePlan: normalizeActivePlan(row.active_plan) ?? null,
+    isPremium: hasPremiumAccess({
+      plan: (row as any).plan,
+      subscription_status: row.subscription_status,
+      complimentary_premium_until: row.complimentary_premium_until,
+    }),
+    activePlan: null,
     subscriptionStatus: normalizeSubscriptionStatus(row.subscription_status) ?? null,
     subscriptionRenewsAt: row.subscription_renews_at ?? null,
     subscriptionStartedAt: row.subscription_started_at ?? null,
     subscriptionCanceledAt: row.subscription_canceled_at ?? null,
     complimentaryPremiumUntil: row.complimentary_premium_until ?? null,
-    premiumUntil: row.premium_until ?? null,
+    premiumUntil: null,
 
     searchLocation: row.search_location ?? null,
     searchPostcode: row.search_postcode ?? null,
@@ -621,8 +609,15 @@ function mapDbToUi(row: DbUserRow): CurrentUser {
 
     receiveTradeAlerts: (row as any).subcontractor_work_alerts_enabled === true,
 
-    profileStrengthScore:
-      (row as any).profile_strength_score != null ? Number((row as any).profile_strength_score) : null,
+    profileStrengthScore: (() => {
+      const v = (row as any).profile_strength_score;
+      if (typeof v === 'number' && Number.isFinite(v)) return v;
+      if (v !== null && v !== undefined && String(v).trim() !== '') {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null;
+      }
+      return null;
+    })(),
     profileStrengthBand: (row as any).profile_strength_band ?? null,
     googleBusinessUrl: (row as any).google_business_url ?? null,
     googleBusinessName: (row as any).google_business_name ?? null,
@@ -752,9 +747,6 @@ function mapUiPatchToDb(patch: UpdateUserInput): Partial<DbUserRow> {
   // Location coords (if patch supports them)
   if ((patch as any).locationLat !== undefined) out.location_lat = numOrNull((patch as any).locationLat);
   if ((patch as any).locationLng !== undefined) out.location_lng = numOrNull((patch as any).locationLng);
-  // Keep base coords in sync for features still reading base_*.
-  if ((patch as any).locationLat !== undefined) out.base_lat = numOrNull((patch as any).locationLat);
-  if ((patch as any).locationLng !== undefined) out.base_lng = numOrNull((patch as any).locationLng);
   // Radius fields (often come from inputs/sliders as strings)
   if ((patch as any).radius !== undefined) out.radius = numOrNull((patch as any).radius);
   if ((patch as any).preferredRadiusKm !== undefined) out.preferred_radius_km = numOrNull((patch as any).preferredRadiusKm);
@@ -848,8 +840,6 @@ function dbPatchAffectsProfileStrength(dbPatch: Partial<DbUserRow>): boolean {
     'postcode',
     'location_lat',
     'location_lng',
-    'base_lat',
-    'base_lng',
     'search_location',
     'search_postcode',
     'search_lat',
@@ -893,19 +883,13 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
         const baseSelectNoProfileStrength =
           'id,email,name,role,trust_status,avatar,cover_url,bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,abn_verified,abn_verified_at,show_abn_on_profile,show_business_name_on_profile,additional_trades,website,instagram,facebook,linkedin,tiktok,youtube,' +
           'location,postcode,location_lat,location_lng,' +
-          'is_premium,active_plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,' +
-          'complimentary_premium_until,premium_until,additional_trades_unlocked,search_location,search_postcode,search_lat,search_lng,' +
+          'plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,' +
+          'complimentary_premium_until,additional_trades_unlocked,search_location,search_postcode,search_lat,search_lng,' +
           'is_public_profile,subcontractor_work_alerts_enabled,last_active_at';
         const baseSelect =
           baseSelectNoProfileStrength +
           ',profile_strength_score,profile_strength_band,website_url,instagram_url,facebook_url,linkedin_url,' +
           'google_business_url,google_business_name,google_business_address,google_place_id,google_rating,google_review_count,google_business_rating,google_business_review_count,google_listing_claimed_by_user,google_listing_verification_status,google_listing_verified_at,google_listing_verification_method,google_listing_verified_by,google_listing_rejection_reason';
-        // Legacy DBs used lat/lng instead of location_lat/location_lng — only swap coords on the
-        // "no Google/extra columns" select so we do not re-request missing extended columns.
-        const legacyCoordsSafe = baseSelectNoProfileStrength.replace(
-          'location_lat,location_lng,',
-          'lat,lng,'
-        );
         const loadWithSelect = (selectClause: string) =>
           (supabase.from('users') as any).select(selectClause).eq('id', userId).maybeSingle();
 
@@ -930,15 +914,6 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
           const resPs = await loadWithSelect(baseSelectNoProfileStrength);
           profile = resPs.data;
           error = resPs.error;
-        }
-
-        if (error && isSchemaColumnError(error)) {
-          const msg = String((error as any)?.message || '').toLowerCase();
-          if (msg.includes('location_lat') || msg.includes('location_lng')) {
-            const legacyRes = await loadWithSelect(legacyCoordsSafe);
-            profile = legacyRes.data;
-            error = legacyRes.error;
-          }
         }
 
         if (error && isSchemaColumnError(error)) {
@@ -1235,8 +1210,6 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
           if (hasSignupCoords && lat != null && lng != null) {
             coordsUpdate.location_lat = lat;
             coordsUpdate.location_lng = lng;
-            coordsUpdate.base_lat = lat;
-            coordsUpdate.base_lng = lng;
           }
 
           await supabase

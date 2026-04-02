@@ -15,6 +15,7 @@ import { ProfileAvatar } from '@/components/profile-avatar';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { hasValidABN } from '@/lib/abn-utils';
+import { hasPremiumAccess } from '@/lib/billing/has-premium-access';
 import {
   BUSINESS_NAV_SECTIONS,
   BOTTOM_NAV_ITEMS,
@@ -92,15 +93,12 @@ export function MobileDrawer() {
 
   const isVerified = hasValidABN(currentUser);
 
-  const isPremium =
-    String((currentUser as any)?.plan || '').toLowerCase() === 'premium' ||
-    Boolean((currentUser as any)?.isPremium) ||
-    Boolean((currentUser as any)?.is_premium) ||
-    (typeof (currentUser as any)?.premium_until === 'string' &&
-      new Date((currentUser as any).premium_until).getTime() > Date.now()) ||
-    (typeof (currentUser as any)?.complimentary_premium_until === 'string' &&
-      new Date((currentUser as any).complimentary_premium_until).getTime() > Date.now()) ||
-    ['active', 'trialing'].includes(String((currentUser as any)?.subscription_status || '').toLowerCase());
+  const isPremium = hasPremiumAccess({
+    plan: (currentUser as any)?.plan,
+    subscription_status: (currentUser as any)?.subscriptionStatus ?? (currentUser as any)?.subscription_status,
+    complimentary_premium_until:
+      (currentUser as any)?.complimentaryPremiumUntil ?? (currentUser as any)?.complimentary_premium_until,
+  });
 
   const primaryTrade =
     (currentUser as any)?.primary_trade ??

@@ -33,7 +33,7 @@ export const POST = withAdmin(async (req: Request) => {
       .update({ complimentary_premium_until: until })
       .eq('id', userId)
       .select(
-        'id,email,role,active_plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,complimentary_premium_until,stripe_customer_id,stripe_subscription_id'
+        'id,email,role,plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,complimentary_premium_until,stripe_customer_id,stripe_subscription_id'
       )
       .maybeSingle();
 

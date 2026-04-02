@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { fetchProfileStrengthCalc } from '@/lib/profile-strength-server';
+import { fetchProfileStrengthCalc } from '@/lib/profile-strength';
 
 export const dynamic = 'force-dynamic';
 

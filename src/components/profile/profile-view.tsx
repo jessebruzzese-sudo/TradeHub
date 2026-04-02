@@ -62,6 +62,7 @@ import { useRouter } from 'next/navigation';
 import type { ProfileStrengthCalc } from '@/lib/profile-strength-types';
 import ProfileSummaryTrustBar from '@/components/profile/ProfileSummaryTrustBar';
 import ProfileStrengthSection from '@/components/profile/ProfileStrengthSection';
+import { buildProfileStrengthCanonical } from '@/lib/profile-strength/canonical-ui';
 import LikeProfileButton from '@/components/profile/LikeProfileButton';
 
 type ProfileViewMode = 'self' | 'public';
@@ -202,7 +203,7 @@ export function ProfileView({
   isMe?: boolean;
   /** Server-fetched breakdown; if omitted, client loads `/api/profile/[id]/strength`. */
   strengthCalc?: ProfileStrengthCalc | null;
-  /** From `/profile/[id]` server: whether viewer liked + total likes count (skips client GET). */
+  /** From `/profiles/[id]` server: whether viewer liked + total likes count (skips client GET). */
   viewerLikeState?: { liked: boolean; count: number } | null;
 }) {
   const isSelf = mode === 'self' || !!isMeProp;
@@ -241,7 +242,7 @@ export function ProfileView({
   }, [strengthCalcProp, profileUserId]);
 
   useEffect(() => {
-    if (strengthCalcProp) return;
+    if (strengthCalcProp != null) return;
     const id = (profile as any)?.id as string | undefined;
     if (!id) return;
     let cancelled = false;
@@ -427,14 +428,17 @@ export function ProfileView({
   const reliabilityReviews = reviews.filter((r: any) => r.isReliabilityReview);
   const standardReviews = reviews.filter((r: any) => !r.isReliabilityReview);
 
-  const userForDiscovery = isSelf && profile ? {
-    plan: (profile as any).plan ?? null,
-    is_premium: (profile as any).isPremium ?? (profile as any).premium_now ?? undefined,
-    subscription_status: (profile as any).subscriptionStatus,
-    subcontractor_sub_status: undefined,
-    active_plan: (profile as any).activePlan,
-    subcontractor_plan: undefined,
-  } : null;
+  const userForDiscovery = isSelf && profile
+    ? {
+        plan: (profile as any).plan ?? null,
+        subscription_status:
+          (profile as any).subscriptionStatus ?? (profile as any).subscription_status ?? null,
+        complimentary_premium_until:
+          (profile as any).complimentaryPremiumUntil ??
+          (profile as any).complimentary_premium_until ??
+          null,
+      }
+    : null;
   const isPremiumForDiscoveryCheck = userForDiscovery ? isPremiumForDiscovery(userForDiscovery) : false;
   const showUpgradeNudge = isSelf && profile && !isPremiumForDiscoveryCheck && !isAdmin(profile);
   const showBillingSimulation = isSelf && BILLING_SIM_ALLOWED;
@@ -530,21 +534,10 @@ export function ProfileView({
       : Number((1 + (upCount / totalVotes) * 4).toFixed(1));
 
   const avg = Number((p?.rating_avg ?? starAverage) || 0);
-  const strengthScoreStored =
-    p?.profile_strength_score != null
-      ? Number(p.profile_strength_score)
-      : p?.profileStrengthScore != null
-        ? Number(p.profileStrengthScore)
-        : null;
-  const strengthBandStored =
-    p?.profile_strength_band != null
-      ? String(p.profile_strength_band)
-      : p?.profileStrengthBand != null
-        ? String(p.profileStrengthBand)
-        : null;
-  const strengthPct =
-    strengthScoreStored != null && !Number.isNaN(strengthScoreStored) ? strengthScoreStored : null;
-  const strengthBand = strengthBandStored ?? strengthCalc?.band ?? 'LOW';
+  const profileStrengthCanonical = buildProfileStrengthCanonical({
+    strengthCalc,
+    profile: p as Record<string, unknown>,
+  });
   const reliabilityPct = reliabilityToPercent(reliabilityRating);
   const starClass =
     avg >= 4.5
@@ -579,26 +572,7 @@ export function ProfileView({
                     profileUserId={profileUserId}
                     initialLiked={likeInitial?.liked ?? false}
                     initialLikesCount={likeInitial?.count ?? 0}
-                    onUpdated={(p) => {
-                      if (p.profileStrengthScore != null && p.profileStrengthBand) {
-                        setStrengthCalc((prev) => {
-                          const base: ProfileStrengthCalc = prev ?? {
-                            total: 0,
-                            band: 'LOW',
-                            activity: 0,
-                            links: 0,
-                            google: 0,
-                            likes: 0,
-                            completeness: 0,
-                          };
-                          return {
-                            ...base,
-                            total: p.profileStrengthScore ?? base.total,
-                            band: p.profileStrengthBand ?? base.band,
-                          };
-                        });
-                        return;
-                      }
+                    onUpdated={() => {
                       fetch(`/api/profile/${profileUserId}/strength`, { credentials: 'include' })
                         .then((r) => r.json())
                         .then((j) => {
@@ -677,7 +651,10 @@ export function ProfileView({
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h1 className="truncate text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+                      <h1
+                        className="truncate text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900"
+                        data-testid="profile-name"
+                      >
                         {displayName}
                       </h1>
                       {isVerified ? (
@@ -709,11 +686,7 @@ export function ProfileView({
                         rating={avg}
                         reviewCount={Number((p as any)?.rating_count ?? totalVotes)}
                         reliabilityPercent={reliabilityPct}
-                        profileStrengthScore={
-                          strengthPct != null && !Number.isNaN(Number(strengthPct))
-                            ? Number(strengthPct)
-                            : null
-                        }
+                        profileStrengthScore={profileStrengthCanonical.total}
                       />
                     </div>
 

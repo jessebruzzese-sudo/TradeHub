@@ -36,13 +36,15 @@ describe('isPremiumPlanValue', () => {
 });
 
 describe('getTier / getLimits', () => {
-  it('should give 90 days for premium-like plan values when status is active', () => {
+  it('should give 90 days for canonical premium (paid or complimentary)', () => {
     const premiumUsers = [
-      { subscription_status: 'active', active_plan: 'SUBCONTRACTOR_PRO_10' },
-      { subscription_status: 'active', active_plan: 'ALL_ACCESS_PRO_26' },
-      { subscription_status: 'active', subcontractor_plan: 'PRO_10', subcontractor_sub_status: 'active' },
-      { subscription_status: 'active', active_plan: 'pro' },
-      { subscription_status: 'active', active_plan: 'premium' },
+      { plan: 'premium', subscription_status: 'ACTIVE' },
+      { plan: 'premium', subscription_status: 'active' },
+      {
+        plan: 'free',
+        complimentary_premium_until: new Date(Date.now() + 7 * 86400000).toISOString(),
+      },
+      { subscription_tier: 'premium' },
     ];
     for (const user of premiumUsers) {
       const tier = getTier(user as any);
@@ -57,9 +59,9 @@ describe('getTier / getLimits', () => {
       null,
       undefined,
       {},
-      { subscription_status: 'active', active_plan: 'free' },
-      { subscription_status: 'active', active_plan: 'basic' },
-      { subscription_status: 'inactive', active_plan: 'SUBCONTRACTOR_PRO_10' },
+      { plan: 'free', subscription_status: 'ACTIVE' },
+      { plan: 'premium', subscription_status: 'CANCELED' },
+      { plan: 'premium', subscription_status: 'NONE' },
     ];
     for (const user of freeUsers) {
       const tier = getTier(user as any);

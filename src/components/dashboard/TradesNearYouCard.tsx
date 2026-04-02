@@ -18,11 +18,8 @@ export function TradesNearYouCard() {
   const userForDiscovery = currentUser
     ? {
         plan: currentUser.plan ?? null,
-        is_premium: currentUser.isPremium ?? undefined,
-        subscription_status: currentUser.subscriptionStatus,
-        subcontractor_sub_status: undefined,
-        active_plan: currentUser.activePlan,
-        subcontractor_plan: undefined,
+        subscription_status: currentUser.subscriptionStatus ?? null,
+        complimentary_premium_until: currentUser.complimentaryPremiumUntil ?? null,
       }
     : null;
   const isPremium = isPremiumForDiscovery(userForDiscovery);

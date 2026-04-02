@@ -13,11 +13,11 @@ import { addDays, subDays, isBefore, startOfDay, isAfter } from 'date-fns';
 import { MVP_FREE_MODE } from '@/lib/feature-flags';
 
 type CalendarUser = {
+  plan?: string | null;
   complimentaryPremiumUntil?: string | Date | null;
+  complimentary_premium_until?: string | Date | null;
   subscriptionStatus?: string | null;
-  activePlan?: string | null;
-  subcontractorPlan?: string | null;
-  subcontractorSubStatus?: string | null;
+  subscription_status?: string | null;
   radius?: number;
   subcontractorPreferredRadiusKm?: number;
 };

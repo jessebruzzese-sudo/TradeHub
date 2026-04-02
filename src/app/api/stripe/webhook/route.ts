@@ -9,6 +9,8 @@ import { getPremiumPriceId } from '@/lib/stripe/plans';
 import { createEmailEvent } from '@/lib/email/create-email-event';
 import { buildPremiumUpgradedTemplateData } from '@/lib/email/email-template-data';
 import { shouldSendEmailNow } from '@/lib/email/rollout';
+import { hasPremiumAccess } from '@/lib/billing/has-premium-access';
+import { mapStripeStatusToTradeHub } from '@/lib/stripe/sync-premium';
 
 type CheckoutSession = Stripe.Checkout.Session;
 type StripeSubscription = Stripe.Subscription;
@@ -29,7 +31,9 @@ type UserLookupResult = {
   id: string;
   email: string | null;
   name: string | null;
-  is_premium: boolean | null;
+  plan: string | null;
+  subscription_status: string | null;
+  complimentary_premium_until: string | null;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
 };
@@ -49,7 +53,9 @@ async function findUserForEvent(
   if (metadataUserId) {
     const { data } = await (supabase as any)
       .from('users')
-      .select('id, email, name, is_premium, stripe_customer_id, stripe_subscription_id')
+      .select(
+        'id, email, name, plan, subscription_status, complimentary_premium_until, stripe_customer_id, stripe_subscription_id'
+      )
       .eq('id', metadataUserId)
       .maybeSingle();
     if (data?.id) return data as UserLookupResult;
@@ -58,7 +64,9 @@ async function findUserForEvent(
   if (!metadataUserId && customerId) {
     const { data } = await (supabase as any)
       .from('users')
-      .select('id, email, name, is_premium, stripe_customer_id, stripe_subscription_id')
+      .select(
+        'id, email, name, plan, subscription_status, complimentary_premium_until, stripe_customer_id, stripe_subscription_id'
+      )
       .eq('stripe_customer_id', customerId)
       .maybeSingle();
     if (data?.id) return data as UserLookupResult;
@@ -69,7 +77,7 @@ async function findUserForEvent(
 
 async function maybeQueuePremiumUpgradedEmail(user: UserLookupResult, stripeEventId: string) {
   // Source of truth is billing state in users table; email is only a side effect.
-  if (user.is_premium === true) return;
+  if (hasPremiumAccess(user)) return;
   if (!user.email) return;
 
   const result = await createEmailEvent({
@@ -196,20 +204,26 @@ async function persistPlan(
     ? new Date(subscription.canceled_at * 1000).toISOString()
     : null;
 
+  const tradeHubStatus = subscription
+    ? mapStripeStatusToTradeHub(subscription.status)
+    : nextPlan === 'premium'
+      ? 'ACTIVE'
+      : 'CANCELED';
+
   const updatePayload: Record<string, unknown> =
     nextPlan === 'premium'
       ? {
-          is_premium: true,
-          active_plan: 'ALL_ACCESS_PRO_26',
-          subscription_status: 'ACTIVE',
+          plan: 'premium',
+          subscription_status: tradeHubStatus,
           subscription_started_at: startedAt,
           subscription_renews_at: renewsAt,
           subscription_canceled_at: null,
         }
       : {
-          is_premium: false,
-          active_plan: 'NONE',
-          subscription_status: 'CANCELED',
+          plan: 'free',
+          subscription_status: tradeHubStatus,
+          subscription_started_at: null,
+          subscription_renews_at: null,
           subscription_canceled_at: canceledAt ?? new Date().toISOString(),
         };
   if (customerId && !user.stripe_customer_id) updatePayload.stripe_customer_id = customerId;

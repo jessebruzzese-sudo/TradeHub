@@ -106,6 +106,8 @@ export interface User {
   accountSuspended?: boolean;
   suspensionEndsAt?: Date;
 
+  /** Canonical billing: `free` | `premium` (see users.plan). */
+  plan?: 'free' | 'premium' | string | null;
   activePlan?: SubscriptionPlan;
   subscriptionStatus?: SubscriptionStatus;
   subscriptionRenewsAt?: Date;

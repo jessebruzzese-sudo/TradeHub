@@ -29,7 +29,7 @@ export async function GET() {
     const { data: profile, error: profileErr } = await (supabase as any)
       .from('users')
       .select(
-        'id, plan, is_premium, active_plan, subscription_status, complimentary_premium_until, premium_until, subcontractor_plan, subcontractor_sub_status'
+        'id, plan, subscription_status, complimentary_premium_until'
       )
       .eq('id', user.id)
       .maybeSingle();

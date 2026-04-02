@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 
 type DbPatch = Record<string, unknown>;
 
-const locationKeys = new Set(['location', 'postcode', 'location_lat', 'location_lng', 'base_lat', 'base_lng']);
+const locationKeys = new Set(['location', 'postcode', 'location_lat', 'location_lng']);
 const blockedUserWritableGoogleFields = new Set([
   'google_listing_verified_at',
   'google_listing_verified_by',
@@ -40,11 +40,6 @@ function normalizeLocationPatch(input: DbPatch): DbPatch {
     if (!isValidCoordPair(lat, lng)) {
       patch.location_lat = null;
       patch.location_lng = null;
-      patch.base_lat = null;
-      patch.base_lng = null;
-    } else {
-      patch.base_lat = lat;
-      patch.base_lng = lng;
     }
   }
 
@@ -93,7 +88,7 @@ export async function POST(request: Request) {
 
   const { data: dbUser, error: userError } = await (supabase as any)
     .from('users')
-    .select('id, plan, is_premium, subscription_status, active_plan, subcontractor_plan, subcontractor_sub_status, complimentary_premium_until, premium_until, location, postcode, location_lat, location_lng, base_lat, base_lng, google_business_url, google_business_name, google_place_id, google_listing_verification_status, google_listing_claimed_by_user')
+    .select('id, plan, subscription_status, complimentary_premium_until, location, postcode, location_lat, location_lng, google_business_url, google_business_name, google_place_id, google_listing_verification_status, google_listing_claimed_by_user')
     .eq('id', user.id)
     .maybeSingle();
 

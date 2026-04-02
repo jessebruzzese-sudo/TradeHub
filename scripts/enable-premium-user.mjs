@@ -57,10 +57,8 @@ async function main() {
   }
 
   const update = {
-    is_premium: true,
-    active_plan: 'ALL_ACCESS_PRO_26',
+    plan: 'premium',
     subscription_status: 'ACTIVE',
-    complimentary_premium_until: in30Days.toISOString(),
     subscription_started_at: now.toISOString(),
     subscription_renews_at: in30Days.toISOString(),
   };
@@ -69,7 +67,7 @@ async function main() {
     .from('users')
     .update(update)
     .eq('id', userId)
-    .select('id, email, role, is_premium, subscription_status, active_plan, subcontractor_plan, subcontractor_sub_status, complimentary_premium_until, premium_until, subscription_started_at, subscription_renews_at')
+    .select('id, email, role, plan, subscription_status, complimentary_premium_until, subscription_started_at, subscription_renews_at')
     .single();
 
   if (error) {

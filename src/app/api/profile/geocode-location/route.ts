@@ -1,7 +1,6 @@
 /**
- * Geocode the authenticated user's location+postcode and persist location_lat,
- * location_lng, base_lat, base_lng. Used to backfill users who signed up before
- * we captured coords, so job discovery (radius filtering) works.
+ * Geocode the authenticated user's location+postcode and persist location_lat /
+ * location_lng. Used to backfill users who signed up before we captured coords.
  */
 import { NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase-server';
@@ -21,7 +20,7 @@ export async function POST() {
 
   const { data: row, error: fetchErr } = await supabase
     .from('users')
-    .select('id, location, postcode, location_lat, location_lng, base_lat, base_lng')
+    .select('id, location, postcode, location_lat, location_lng')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -29,9 +28,7 @@ export async function POST() {
     return NextResponse.json({ error: 'Could not load profile' }, { status: 500 });
   }
 
-  const hasCoords =
-    (row.location_lat != null && row.location_lng != null) ||
-    (row.base_lat != null && row.base_lng != null);
+  const hasCoords = row.location_lat != null && row.location_lng != null;
   if (hasCoords) {
     return NextResponse.json({ ok: true, skipped: 'already_has_coords' });
   }
@@ -70,8 +67,6 @@ export async function POST() {
     .update({
       location_lat: lat,
       location_lng: lng,
-      base_lat: lat,
-      base_lng: lng,
     })
     .eq('id', user.id);
 

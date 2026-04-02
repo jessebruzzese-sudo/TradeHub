@@ -1,5 +1,9 @@
 import { createServiceSupabase } from '@/lib/supabase/server';
 import type { ProfileStrengthCalc } from '@/lib/profile-strength-types';
+import {
+  profileStrengthBandFromTotal,
+  sumProfileStrengthCategoryPoints,
+} from '@/lib/profile-strength/compute-total';
 
 export type { ProfileStrengthCalc };
 
@@ -16,21 +20,38 @@ export function parseProfileStrengthRpcResult(data: unknown): ProfileStrengthCal
   const likes = Number(o.likes_points ?? o.likes ?? 0);
   const completeness = Number(o.completeness_points ?? o.completeness ?? 0);
   const abn = Number(o.abn_points ?? o.abn ?? 0);
-  const totalRaw = Number(
-    o.total ??
-      o.score ??
-      o.total_score ??
-      o.profile_strength_score ??
-      0
-  );
-  const computedTotal = Math.max(
-    0,
-    Math.min(100, Math.floor(activity + links + google + likes + completeness + abn))
-  );
+
+  const total = sumProfileStrengthCategoryPoints({
+    activity,
+    links,
+    google,
+    likes,
+    completeness,
+    abn,
+  });
+  const band = profileStrengthBandFromTotal(total);
+
+  if (process.env.NODE_ENV === 'development') {
+    const rpcTotal = Number(o.total ?? NaN);
+    if (Number.isFinite(rpcTotal) && rpcTotal !== total) {
+      console.warn('[profile-strength] RPC total field differs from category sum; using sum', {
+        rpcTotal,
+        derivedTotal: total,
+      });
+    }
+    const rpcBand = o.band != null ? String(o.band) : null;
+    if (rpcBand && rpcBand !== band) {
+      console.warn('[profile-strength] RPC band differs from band derived from summed total; using derived', {
+        rpcBand,
+        derivedBand: band,
+        total,
+      });
+    }
+  }
 
   return {
-    total: totalRaw > 0 ? totalRaw : computedTotal,
-    band: String(o.band ?? 'LOW'),
+    total,
+    band,
     activity,
     links,
     google,

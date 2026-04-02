@@ -33,6 +33,11 @@ export function isAbnVerified(user: ABNUser | null): boolean {
   return hasValidABN(user);
 }
 
+/** Short UI label for verified vs unverified ABN (dashboard, etc.). */
+export function abnLabel(u: ABNUser | null): 'verified' | 'unverified' {
+  return isAbnVerified(u) ? 'verified' : 'unverified';
+}
+
 export function sanitizeReturnUrl(url: string | null | undefined): string {
   if (!url || typeof url !== 'string') {
     return DEFAULT_RETURN_URL;

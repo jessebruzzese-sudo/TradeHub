@@ -19,9 +19,9 @@ test.describe('Profile visibility and badges', () => {
     if (!verifiedUserId) {
       test.skip(true, 'Missing seed: run npm run qa:seed');
     }
-    await page.goto(`${BASE_URL}/profile/${verifiedUserId}`);
+    await page.goto(`${BASE_URL}/profiles/${verifiedUserId}`);
     await page.waitForLoadState('networkidle');
-    await expect(page).toHaveURL(/\/profile\/[^/]+/);
+    await expect(page).toHaveURL(/\/profiles\/[^/]+/);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   });
 

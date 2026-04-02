@@ -1,5 +1,6 @@
 import { User, Job, Application, Conversation, Message, Review, AuditLog, AdminNote, UserBlock } from './types';
 
+/** Client-side app store (jobs, users, messaging). Exported for helpers that sync server rows into the store. */
 export interface AppStore {
   currentUser: User | null;
   users: User[];
@@ -44,7 +45,13 @@ export interface AppStore {
   /** Find or create the single direct thread for a user pair. jobId is optional metadata. */
   findOrCreateConversationByUserPair: (userId1: string, userId2: string, jobId?: string | null) => Conversation;
   /** Ensure a user exists in the store (for message entry from profile/search when user may not be loaded). */
-  ensureUserInStore: (partial: { id: string; name?: string; avatar?: string }) => void;
+  ensureUserInStore: (partial: {
+    id: string;
+    name?: string;
+    avatar?: string;
+    businessName?: string;
+    rating?: number;
+  }) => void;
   /** Find conversation for a job (by jobId or by contractor+subcontractor pair). */
   getConversationForJob: (jobId: string, contractorId: string, subcontractorId?: string | null) => Conversation | undefined;
   /** Blocking: true if blockerId has blocked blockedId (blocked user cannot message blocker). */
@@ -272,6 +279,8 @@ let store: AppStore = {
     if (existing) {
       if (partial.name != null) existing.name = partial.name;
       if (partial.avatar != null) existing.avatar = partial.avatar;
+      if (partial.businessName != null) existing.businessName = partial.businessName;
+      if (partial.rating != null && typeof partial.rating === 'number') existing.rating = partial.rating;
       return;
     }
     const now = new Date();
@@ -281,11 +290,12 @@ let store: AppStore = {
       email: '',
       role: 'subcontractor',
       trustStatus: 'approved',
-      rating: 0,
+      rating: typeof partial.rating === 'number' ? partial.rating : 0,
       completedJobs: 0,
       memberSince: now,
       createdAt: now,
       avatar: partial.avatar ?? null,
+      businessName: partial.businessName,
     } as User);
   },
 
@@ -563,6 +573,8 @@ export function resetStore(): void {
       if (existing) {
         if (partial.name != null) existing.name = partial.name;
         if (partial.avatar != null) existing.avatar = partial.avatar;
+        if (partial.businessName != null) existing.businessName = partial.businessName;
+        if (partial.rating != null && typeof partial.rating === 'number') existing.rating = partial.rating;
         return;
       }
       const now = new Date();
@@ -572,11 +584,12 @@ export function resetStore(): void {
         email: '',
         role: 'subcontractor',
         trustStatus: 'approved',
-        rating: 0,
+        rating: typeof partial.rating === 'number' ? partial.rating : 0,
         completedJobs: 0,
         memberSince: now,
         createdAt: now,
         avatar: partial.avatar ?? null,
+        businessName: partial.businessName,
       } as User);
     },
 

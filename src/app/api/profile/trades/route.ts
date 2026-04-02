@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
 
   const { data: profile } = await (supabase as any)
     .from('users')
-    .select('plan, is_premium, subscription_status, active_plan, complimentary_premium_until, is_admin, primary_trade')
+    .select('plan, subscription_status, complimentary_premium_until, is_admin, primary_trade')
     .eq('id', user.id)
     .maybeSingle();
 

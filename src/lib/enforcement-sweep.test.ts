@@ -28,8 +28,8 @@ describe('enforcement sweep: plan and premium logic', () => {
 
   it('returns tier and limits from user profile signals', () => {
     expect(getTier({ plan: 'free' })).toBe('free');
-    expect(getTier({ plan: 'premium' })).toBe('premium');
-    expect(getTier({ subscription_status: 'active', active_plan: 'SUBCONTRACTOR_PRO_10' })).toBe('premium');
+    expect(getTier({ plan: 'premium' })).toBe('free');
+    expect(getTier({ plan: 'premium', subscription_status: 'ACTIVE' })).toBe('premium');
     expect(getLimits('free').discoveryRadiusKm).toBe(20);
     expect(getLimits('premium').discoveryRadiusKm).toBe(100);
     expect(getLimits('free')).not.toBe(getLimits('free'));
@@ -39,15 +39,16 @@ describe('enforcement sweep: plan and premium logic', () => {
 describe('enforcement sweep: discovery and radius limits', () => {
   it('clamps radius by plan and safety caps', () => {
     expect(getDiscoveryRadiusKm({ plan: 'free' }, 999)).toBe(20);
-    expect(getDiscoveryRadiusKm({ plan: 'premium' }, 999)).toBe(100);
+    expect(getDiscoveryRadiusKm({ plan: 'premium', subscription_status: 'ACTIVE' }, 999)).toBe(100);
     expect(getDiscoveryRadiusKm({ plan: 'free' }, -5)).toBe(1);
-    expect(getDiscoveryRadiusKm({ plan: 'premium' }, null)).toBe(100);
+    expect(getDiscoveryRadiusKm({ plan: 'premium', subscription_status: 'ACTIVE' }, null)).toBe(100);
   });
 
   it('uses premium search center and free fallbacks correctly', () => {
     const premiumCenter = getViewerCenter({
       id: 'premium-user',
       plan: 'premium',
+      subscription_status: 'ACTIVE',
       search_lat: -33.9,
       search_lng: 151.2,
       location_lat: -37.8,
@@ -65,7 +66,7 @@ describe('enforcement sweep: discovery and radius limits', () => {
     });
     expect(freeCenter).toEqual({ lat: -37.8, lng: 144.9 });
 
-    expect(isPremiumForDiscovery({ plan: 'premium' })).toBe(true);
+    expect(isPremiumForDiscovery({ plan: 'premium', subscription_status: 'ACTIVE' })).toBe(true);
     expect(isPremiumForDiscovery({ plan: 'free' })).toBe(false);
   });
 

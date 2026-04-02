@@ -11,19 +11,19 @@ import { hasValidABN } from '@/lib/abn-utils';
 import { applyExcludeTestAccountsFilters } from '@/lib/test-account';
 import { getDisplayTradeListFromUserRow } from '@/lib/trades/user-trades';
 import { isPostgrestSchemaColumnError } from '@/lib/postgrest-schema-error';
+import { getPrimaryUserCoordinates } from '@/lib/location/get-user-coordinates';
 
 type UserRow = {
   id: string;
   plan?: string | null;
   location_lat?: number | null;
   location_lng?: number | null;
-  base_lat?: number | null;
-  base_lng?: number | null;
+  search_lat?: number | null;
+  search_lng?: number | null;
   primary_trade?: string | null;
   additional_trades?: string[] | string | null;
   business_name?: string | null;
   name?: string | null;
-  base_suburb?: string | null;
   location?: string | null;
   postcode?: string | null;
   abn?: string | null;
@@ -33,7 +33,6 @@ type UserRow = {
   cover_url?: string | null;
   mini_bio?: string | null;
   role?: string | null;
-  is_premium?: boolean | null;
   premium_now?: boolean | null;
   premium_expires_at?: string | null;
   reliability_rating?: number | null;
@@ -42,7 +41,6 @@ type UserRow = {
   is_public_profile?: boolean | null;
   rating?: number | null;
   subscription_status?: string | null;
-  premium_until?: string | null;
   complimentary_premium_until?: string | null;
   pricing_type?: string | null;
   pricing_amount?: number | null;
@@ -53,16 +51,8 @@ function tradeMatchKey(s: string): string {
   return s.trim().toLowerCase();
 }
 
-function getCandidateCoords(row: UserRow & { lat?: number | null; lng?: number | null }): {
-  lat: number;
-  lng: number;
-} | null {
-  const lat = row.location_lat ?? row.base_lat ?? row.lat ?? null;
-  const lng = row.location_lng ?? row.base_lng ?? row.lng ?? null;
-  if (lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
-    return { lat: Number(lat), lng: Number(lng) };
-  }
-  return null;
+function getCandidateCoords(row: UserRow): { lat: number; lng: number } | null {
+  return getPrimaryUserCoordinates(row);
 }
 
 function getTradesFromRow(row: UserRow): string[] {
@@ -117,22 +107,16 @@ function parseBoolEnv(v: string | undefined | null): boolean | null {
 
 /** Broad → narrow: tolerate production DBs missing newer columns (PostgREST PGRST204 / 42703). */
 const VIEWER_SELECT_LAYERS = [
-  'id,plan,location_lat,location_lng,base_lat,base_lng,search_lat,search_lng,is_premium,active_plan,subscription_status,subcontractor_plan,subcontractor_sub_status,complimentary_premium_until,premium_until',
-  'id,plan,lat,lng,base_lat,base_lng,search_lat,search_lng,is_premium,active_plan,subscription_status,subcontractor_plan,subcontractor_sub_status,complimentary_premium_until,premium_until',
-  'id,plan,location_lat,location_lng,base_lat,base_lng,is_premium,active_plan,subscription_status,complimentary_premium_until,premium_until',
-  'id,plan,lat,lng,base_lat,base_lng,is_premium,active_plan,subscription_status,complimentary_premium_until,premium_until',
-  'id,is_premium,active_plan,subscription_status,premium_until,complimentary_premium_until,location_lat,location_lng,base_lat,base_lng',
-  'id,is_premium,active_plan,subscription_status,premium_until,complimentary_premium_until,lat,lng,base_lat,base_lng',
-  'id,is_premium,subscription_status,active_plan',
+  'id,plan,location_lat,location_lng,search_lat,search_lng,subscription_status,complimentary_premium_until',
+  'id,plan,location_lat,location_lng,subscription_status,complimentary_premium_until',
+  'id,subscription_status,complimentary_premium_until',
 ] as const;
 
 const DIRECTORY_SELECT_LAYERS = [
-  'id,name,business_name,avatar,location,postcode,rating,reliability_rating,completed_jobs,is_public_profile,primary_trade,additional_trades,abn_status,abn_verified_at,subscription_status,premium_until,complimentary_premium_until,pricing_type,pricing_amount,show_pricing_in_listings,plan,location_lat,location_lng,base_lat,base_lng,base_suburb,abn,cover_url,mini_bio,role,is_premium,profile_strength_score',
-  'id,name,business_name,avatar,location,postcode,rating,reliability_rating,completed_jobs,is_public_profile,primary_trade,additional_trades,abn_status,abn_verified_at,subscription_status,premium_until,complimentary_premium_until,plan,location_lat,location_lng,base_lat,base_lng,base_suburb,abn,cover_url,role,is_premium',
-  'id,name,business_name,avatar,location,postcode,rating,reliability_rating,completed_jobs,is_public_profile,primary_trade,additional_trades,abn_status,abn_verified_at,subscription_status,premium_until,complimentary_premium_until,plan,lat,lng,base_lat,base_lng,base_suburb,abn,cover_url,role,is_premium',
-  'id,name,business_name,avatar,location,postcode,rating,reliability_rating,completed_jobs,is_public_profile,primary_trade,additional_trades,abn_status,abn_verified_at,abn,subscription_status,premium_until,complimentary_premium_until,plan,location_lat,location_lng,base_lat,base_lng,role,is_premium',
-  'id,name,business_name,avatar,location,is_public_profile,primary_trade,additional_trades,abn,role,plan,location_lat,location_lng,base_lat,base_lng',
-  'id,name,business_name,avatar,location,is_public_profile,primary_trade,additional_trades,abn,role,plan,lat,lng,base_lat,base_lng',
+  'id,name,business_name,avatar,location,postcode,rating,reliability_rating,completed_jobs,is_public_profile,primary_trade,additional_trades,abn_status,abn_verified_at,subscription_status,complimentary_premium_until,pricing_type,pricing_amount,show_pricing_in_listings,plan,location_lat,location_lng,abn,cover_url,mini_bio,role,profile_strength_score',
+  'id,name,business_name,avatar,location,postcode,rating,reliability_rating,completed_jobs,is_public_profile,primary_trade,additional_trades,abn_status,abn_verified_at,subscription_status,complimentary_premium_until,plan,location_lat,location_lng,abn,cover_url,role',
+  'id,name,business_name,avatar,location,postcode,rating,reliability_rating,completed_jobs,is_public_profile,primary_trade,additional_trades,abn_status,abn_verified_at,abn,subscription_status,complimentary_premium_until,plan,location_lat,location_lng,role',
+  'id,name,business_name,avatar,location,is_public_profile,primary_trade,additional_trades,abn,role,plan,location_lat,location_lng',
 ] as const;
 
 function discoveryErrorResponse(
@@ -308,12 +292,7 @@ export async function GET(request: NextRequest) {
       );
     }
     const me = viewerRes.me;
-    const meRow = me as UserRow & { lat?: number | null; lng?: number | null };
-    const meForDiscovery = {
-      ...meRow,
-      location_lat: meRow.location_lat ?? meRow.lat ?? null,
-      location_lng: meRow.location_lng ?? meRow.lng ?? null,
-    };
+    const meForDiscovery = me as UserRow;
 
     const center = getViewerCenter(meForDiscovery);
     const viewerMissingLocation = !center;
@@ -394,10 +373,7 @@ export async function GET(request: NextRequest) {
           hasCoords: !!getCandidateCoords(r),
           location_lat: r.location_lat ?? null,
           location_lng: r.location_lng ?? null,
-          base_lat: r.base_lat ?? null,
-          base_lng: r.base_lng ?? null,
           location: r.location ?? null,
-          base_suburb: r.base_suburb ?? null,
         })),
       });
     }
@@ -478,7 +454,7 @@ export async function GET(request: NextRequest) {
           name: c.row.name ?? null,
           business_name: c.row.business_name ?? null,
           role: c.row.role ?? null,
-          location: c.row.location ?? c.row.base_suburb ?? null,
+          location: c.row.location ?? null,
           postcode: c.row.postcode ?? null,
           avatar: c.row.avatar ?? null,
           cover_url: c.row.cover_url ?? null,
@@ -496,7 +472,6 @@ export async function GET(request: NextRequest) {
           abn_status: c.row.abn_status ?? null,
           abn_verified_at: c.row.abn_verified_at ?? null,
           subscription_status: c.row.subscription_status ?? null,
-          premium_until: c.row.premium_until ?? null,
           complimentary_premium_until: c.row.complimentary_premium_until ?? null,
           pricing_type: c.row.pricing_type ?? null,
           pricing_amount: c.row.pricing_amount ?? null,
@@ -559,7 +534,7 @@ export async function GET(request: NextRequest) {
         name: c.row.name ?? null,
         business_name: c.row.business_name ?? null,
         role: c.row.role ?? null,
-        location: c.row.location ?? c.row.base_suburb ?? null,
+        location: c.row.location ?? null,
         postcode: c.row.postcode ?? null,
         avatar: c.row.avatar ?? null,
         cover_url: c.row.cover_url ?? null,
@@ -577,7 +552,6 @@ export async function GET(request: NextRequest) {
         abn_status: c.row.abn_status ?? null,
         abn_verified_at: c.row.abn_verified_at ?? null,
         subscription_status: c.row.subscription_status ?? null,
-        premium_until: c.row.premium_until ?? null,
         complimentary_premium_until: c.row.complimentary_premium_until ?? null,
         pricing_type: c.row.pricing_type ?? null,
         pricing_amount: c.row.pricing_amount ?? null,

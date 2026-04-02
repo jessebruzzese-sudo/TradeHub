@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     const { data: dbUser, error: userErr } = await supabase
       .from('users')
-      .select('id, plan, role, is_premium, subscription_status, active_plan, subcontractor_plan, subcontractor_sub_status, complimentary_premium_until, premium_until')
+      .select('id, plan, role, subscription_status, complimentary_premium_until')
       .eq('id', authUser.id)
       .maybeSingle();
 

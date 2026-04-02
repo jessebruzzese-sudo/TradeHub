@@ -16,6 +16,8 @@ import { hasValidABN } from '@/lib/abn-utils';
 import { MapPin, Search as SearchIcon, MessageSquare, Crown } from 'lucide-react';
 import ProfileSummaryTrustBar from '@/components/profile/ProfileSummaryTrustBar';
 import { formatProfilePricingTypeLabel } from '@/lib/job-pay-labels';
+import { getPublicProfileHref } from '@/lib/url-utils';
+import { debugProfileCardData } from '@/lib/profile-debug';
 
 type DirectoryUser = {
   id: string;
@@ -37,7 +39,6 @@ type DirectoryUser = {
   additional_trades?: unknown;
   is_public_profile?: boolean | null;
   subscription_status?: string | null;
-  premium_until?: string | null;
   complimentary_premium_until?: string | null;
 
   abn_status?: string | null;
@@ -482,6 +483,7 @@ export default function SearchDirectoryPage() {
               <>
               <div className="px-4 pb-24 pt-3 grid grid-cols-1 gap-3 lg:grid-cols-3">
                 {ranked.map((u) => {
+                  debugProfileCardData('search', u as unknown as Record<string, unknown>);
                   const loc = u.location;
                   const premium = isPremium(u);
                   const userTrades = getNormalizedUserTrades(u);
@@ -544,7 +546,7 @@ export default function SearchDirectoryPage() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0 flex flex-wrap items-center gap-2">
-                              <Link href={`/profile/${u.id}`} className="block">
+                              <Link href={getPublicProfileHref(u.id)} className="block">
                                 <div
                                   className={cn(
                                     "text-[15px] leading-tight truncate hover:text-blue-600",
@@ -587,7 +589,14 @@ export default function SearchDirectoryPage() {
                                 : reliabilityToPercentSearch((u as any).reliability_rating);
                             const str = (u as any).profile_strength_score;
                             const strengthPct =
-                              str != null && str !== '' && !Number.isNaN(Number(str)) ? Number(str) : null;
+                              typeof str === 'number' && Number.isFinite(str)
+                                ? str
+                                : str !== null &&
+                                    str !== undefined &&
+                                    str !== '' &&
+                                    !Number.isNaN(Number(str))
+                                  ? Number(str)
+                                  : null;
                             const showRating = count > 0 || avg > 0;
                             if (!showRating && relPct == null && strengthPct == null) return null;
                             return (
@@ -643,7 +652,7 @@ export default function SearchDirectoryPage() {
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <Link href={`/profile/${u.id}`}>
+                          <Link href={getPublicProfileHref(u.id)}>
                             <Button
                               variant="outline"
                               size="sm"

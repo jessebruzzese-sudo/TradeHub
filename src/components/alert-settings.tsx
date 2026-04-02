@@ -12,11 +12,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { MVP_FREE_MODE } from '@/lib/feature-flags';
 
 type AlertUser = {
+  plan?: string | null;
   complimentaryPremiumUntil?: string | Date | null;
+  complimentary_premium_until?: string | Date | null;
   subscriptionStatus?: string | null;
-  activePlan?: string | null;
-  subcontractorPlan?: string | null;
-  subcontractorSubStatus?: string | null;
+  subscription_status?: string | null;
   subcontractorWorkAlertsEnabled?: boolean;
   subcontractorWorkAlertInApp?: boolean;
   subcontractorWorkAlertEmail?: boolean;

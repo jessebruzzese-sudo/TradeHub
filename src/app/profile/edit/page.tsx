@@ -34,6 +34,7 @@ import { hasValidABN } from '@/lib/abn-utils';
 import { normalizeAbnForDb } from '@/lib/abn-normalize';
 import { MVP_FREE_MODE } from '@/lib/feature-flags';
 import { getGoogleBusinessStatusLabel } from '@/lib/google-business';
+import { getPrimaryUserCoordinates } from '@/lib/location/get-user-coordinates';
 
 type GoogleBusinessSearchResult = {
   placeId: string;
@@ -55,13 +56,18 @@ function normalizePrimaryLocationSource(user: any): {
   lat: number | null;
   lng: number | null;
 } {
-  const suburb = String(user?.location ?? user?.base_location ?? user?.search_location ?? '').trim();
-  const postcode = String(user?.postcode ?? user?.base_postcode ?? user?.search_postcode ?? '').trim();
-  const latCandidates = [user?.location_lat, user?.lat, user?.base_lat, user?.search_lat];
-  const lngCandidates = [user?.location_lng, user?.lng, user?.base_lng, user?.search_lng];
-  const lat = latCandidates.find((v) => typeof v === 'number' && Number.isFinite(v)) ?? null;
-  const lng = lngCandidates.find((v) => typeof v === 'number' && Number.isFinite(v)) ?? null;
-  return { suburb, postcode, lat, lng };
+  const suburb = String(user?.location ?? '').trim();
+  const postcode = String(user?.postcode ?? '').trim();
+  const primary = getPrimaryUserCoordinates({
+    location_lat: user?.location_lat,
+    location_lng: user?.location_lng,
+  });
+  return {
+    suburb,
+    postcode,
+    lat: primary?.lat ?? null,
+    lng: primary?.lng ?? null,
+  };
 }
 export default function EditProfilePage() {
   const { session, currentUser, isLoading, updateUser } = useAuth();

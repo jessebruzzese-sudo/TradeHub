@@ -36,3 +36,10 @@ export function buildLoginUrl(returnUrl?: string | null): string {
   }
   return `/login?returnUrl=${encodeURIComponent(sanitized)}`;
 }
+
+/** Public profile URL for viewing another member (not `/profile`, which is the signed-in user’s own page). */
+export function getPublicProfileHref(userId: string): string {
+  const id = String(userId ?? '').trim();
+  if (!id) return '/';
+  return `/profiles/${id}`;
+}

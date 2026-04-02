@@ -3,35 +3,16 @@
  * Used for server-side enforcement of radius and availability.
  */
 
+import { hasPremiumAccess, type BillingUserLike } from '@/lib/billing/has-premium-access';
+
 export type PlanTier = 'free' | 'premium';
 
-export type PlanUser = {
-  plan?: string | null;
-  is_premium?: boolean | null;
-  subscription_status?: string | null;
-  subscriptionStatus?: string | null;
+/** User-shaped input for tier: canonical billing fields only (see hasPremiumAccess). */
+export type PlanUser = BillingUserLike & {
   subscription_tier?: string | null;
-  active_plan?: string | null;
-  activePlan?: string | null;
-  subcontractor_plan?: string | null;
-  subcontractorPlan?: string | null;
-  premium_until?: string | Date | null;
-  premiumUntil?: string | Date | null;
-  complimentary_premium_until?: string | Date | null;
-  complimentaryPremiumUntil?: string | Date | null;
 };
 
-type TierUser = PlanUser & {
-  id?: string;
-  subcontractor_sub_status?: string | null;
-  subcontractorSubStatus?: string | null;
-};
-
-function isFutureDate(d: unknown): boolean {
-  if (!d) return false;
-  const dt = d instanceof Date ? d : new Date(d as string);
-  return !Number.isNaN(dt.getTime()) && dt.getTime() > Date.now();
-}
+type TierUser = PlanUser & { id?: string };
 
 /** Normalise plan string for comparison. Returns empty string for null/undefined. */
 function normalisePlanString(plan?: string | null): string {
@@ -76,39 +57,8 @@ const PREMIUM_LIMITS: PlanLimits = {
 
 function isPremium(user: TierUser | null | undefined): boolean {
   if (!user) return false;
-
-  const explicitPlan = normalisePlanString((user as TierUser & { plan?: string | null }).plan);
-  if (explicitPlan === 'premium') return true;
-  if (explicitPlan === 'free') return false;
-
-  // Strong explicit flag
-  if (user.is_premium === true) return true;
-
-  // Complimentary premium (admin grant)
-  if (
-    isFutureDate(user.complimentary_premium_until) ||
-    isFutureDate(user.complimentaryPremiumUntil)
-  ) {
-    return true;
-  }
-
-  // Time-boxed premium
-  if (isFutureDate(user.premium_until) || isFutureDate(user.premiumUntil)) {
-    return true;
-  }
-
+  if (hasPremiumAccess(user)) return true;
   if (isPremiumPlanValue(user.subscription_tier)) return true;
-
-  const status = (user.subscription_status ?? user.subscriptionStatus ?? '').toString().trim().toLowerCase();
-  const activePlan = user.active_plan ?? user.activePlan;
-  const subPlan = user.subcontractor_plan ?? user.subcontractorPlan;
-
-  // Treat as premium when ACTIVE and plan indicates premium/pro
-  if (status === 'active') {
-    if (isPremiumPlanValue(activePlan)) return true;
-    if (isPremiumPlanValue(subPlan)) return true;
-  }
-
   return false;
 }
 

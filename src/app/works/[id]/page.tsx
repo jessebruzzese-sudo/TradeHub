@@ -15,6 +15,7 @@ import { getTradeIcon } from '@/lib/trade-icons';
 import { formatPostedDate } from '@/lib/completed-work-dates';
 import type { PreviousWorkListItem, PreviousWorkOwnerSummary } from '@/lib/previous-work';
 import { cn } from '@/lib/utils';
+import { getPublicProfileHref } from '@/lib/url-utils';
 
 export default function CompletedWorkDetailPage() {
   const params = useParams();
@@ -223,7 +224,7 @@ export default function CompletedWorkDetailPage() {
                     Posted by
                   </p>
                   <Link
-                    href={`/profile/${owner.id}`}
+                    href={getPublicProfileHref(owner.id)}
                     className="mt-3 flex items-center gap-3 rounded-lg transition hover:bg-white/80"
                   >
                     <UserAvatar avatarUrl={owner.avatar} userName={owner.displayName} size="lg" />

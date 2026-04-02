@@ -109,7 +109,7 @@ async function getEligibleRecipients(
   const { data: users, error } = await supabase
     .from('users')
     .select(
-      'id, email, name, primary_trade, additional_trades, subcontractor_work_alerts_enabled, deleted_at, is_premium, subscription_status, active_plan, subcontractor_plan, subcontractor_sub_status, complimentary_premium_until, premium_until'
+      'id, email, name, primary_trade, additional_trades, subcontractor_work_alerts_enabled, deleted_at, plan, subscription_status, complimentary_premium_until'
     )
     .eq('subcontractor_work_alerts_enabled', true)
     .neq('id', excludeOwnerId)

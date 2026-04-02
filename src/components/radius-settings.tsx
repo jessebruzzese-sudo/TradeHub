@@ -10,11 +10,11 @@ import { Button } from '@/components/ui/button';
 import { MVP_FREE_MODE, MVP_RADIUS_KM } from '@/lib/feature-flags';
 
 type RadiusUser = {
+  plan?: string | null;
   complimentaryPremiumUntil?: string | Date | null;
+  complimentary_premium_until?: string | Date | null;
   subscriptionStatus?: string | null;
-  activePlan?: string | null;
-  subcontractorPlan?: string | null;
-  subcontractorSubStatus?: string | null;
+  subscription_status?: string | null;
   radius?: number;
   subcontractorPreferredRadiusKm?: number;
 };

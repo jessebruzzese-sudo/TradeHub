@@ -1,12 +1,18 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
+function applyResponseCookies(from: NextResponse, to: NextResponse) {
+  for (const cookie of from.cookies.getAll()) {
+    to.cookies.set(cookie);
+  }
+  return to;
+}
+
 const PROTECTED_ROUTES = [
   '/dashboard',
   '/jobs',
   '/messages',
   '/notifications',
-  '/profile',
   '/applications',
   '/subcontractors',
   '/users',
@@ -16,7 +22,16 @@ const PROTECTED_ROUTES = [
 // Admin-only areas (UI + API)
 const ADMIN_ROUTES = ['/admin', '/api/admin'];
 
+/** Self profile + settings only. `/profile/[id]` legacy URLs redirect to public `/profiles/[id]` and must stay reachable without auth. */
+function isProfileSelfOrSettingsRoute(pathname: string): boolean {
+  if (pathname === '/profile' || pathname === '/profile/') return true;
+  if (pathname === '/profile/edit' || pathname.startsWith('/profile/edit/')) return true;
+  if (pathname === '/profile/availability' || pathname.startsWith('/profile/availability/')) return true;
+  return false;
+}
+
 function isProtectedRoute(pathname: string): boolean {
+  if (isProfileSelfOrSettingsRoute(pathname)) return true;
   return PROTECTED_ROUTES.some(route => pathname === route || pathname.startsWith(`${route}/`));
 }
 
@@ -88,7 +103,9 @@ export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
   if (pathname.startsWith('/how-it-works/subcontractors')) {
-    return NextResponse.redirect(new URL('/how-it-works', request.url));
+    const passthrough = NextResponse.next();
+    const redirectResponse = NextResponse.redirect(new URL('/how-it-works', request.url));
+    return applyResponseCookies(passthrough, redirectResponse);
   }
 
   if (shouldSkip(pathname)) {
@@ -103,9 +120,6 @@ export async function middleware(request: NextRequest) {
   let response = NextResponse.next();
 
   if (!supabaseUrl || !supabaseAnon) {
-    console.warn(
-      '[middleware] Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY — skipping auth check'
-    );
     return response;
   }
 
@@ -140,7 +154,8 @@ export async function middleware(request: NextRequest) {
       const loginUrl = new URL('/login', request.url);
       const safeReturnUrl = validateReturnUrl(fullPath, '/dashboard');
       loginUrl.searchParams.set('returnUrl', safeReturnUrl);
-      return NextResponse.redirect(loginUrl);
+      const redirectResponse = NextResponse.redirect(loginUrl);
+      return applyResponseCookies(response, redirectResponse);
     }
 
     const { data: profile, error: profileErr } = await supabase
@@ -153,14 +168,16 @@ export async function middleware(request: NextRequest) {
       if (isApiRoute(pathname)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
-      return NextResponse.redirect(new URL('/dashboard', request.url));
+      const redirectResponse = NextResponse.redirect(new URL('/dashboard', request.url));
+      return applyResponseCookies(response, redirectResponse);
     }
 
     if (profile?.role !== 'admin') {
       if (isApiRoute(pathname)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
-      return NextResponse.redirect(new URL('/dashboard', request.url));
+      const redirectResponse = NextResponse.redirect(new URL('/dashboard', request.url));
+      return applyResponseCookies(response, redirectResponse);
     }
   }
 
@@ -176,7 +193,8 @@ export async function middleware(request: NextRequest) {
       loginUrl.searchParams.set('returnUrl', safeReturnUrl);
     }
 
-    return NextResponse.redirect(loginUrl);
+    const redirectResponse = NextResponse.redirect(loginUrl);
+    return applyResponseCookies(response, redirectResponse);
   }
 
   // -------------------------
@@ -185,7 +203,8 @@ export async function middleware(request: NextRequest) {
   if (isAuthenticated && pathname === '/') {
     const url = request.nextUrl.clone();
     url.pathname = '/dashboard';
-    return NextResponse.redirect(url);
+    const redirectResponse = NextResponse.redirect(url);
+    return applyResponseCookies(response, redirectResponse);
   }
 
   // -------------------------
@@ -196,10 +215,12 @@ export async function middleware(request: NextRequest) {
     const safeReturnUrl = validateReturnUrl(returnUrl, '/dashboard');
 
     if (safeReturnUrl !== '/dashboard') {
-      return NextResponse.redirect(new URL(safeReturnUrl, request.url));
+      const redirectResponse = NextResponse.redirect(new URL(safeReturnUrl, request.url));
+      return applyResponseCookies(response, redirectResponse);
     }
 
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    const redirectResponse = NextResponse.redirect(new URL('/dashboard', request.url));
+    return applyResponseCookies(response, redirectResponse);
   }
 
   return response;

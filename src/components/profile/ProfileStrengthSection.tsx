@@ -5,11 +5,11 @@ import { useState } from 'react';
 import { ArrowRight, CheckCircle2, ChevronDown } from 'lucide-react';
 import type { ProfileStrengthCalc } from '@/lib/profile-strength-types';
 import { hasValidABN } from '@/lib/abn-utils';
-import { getActivityPoints, getActivityWarning, getInactiveDays } from '@/lib/profile-strength/activity-score';
+import { getActivityWarning, getInactiveDays } from '@/lib/profile-strength/activity-score';
+import { buildProfileStrengthCanonical } from '@/lib/profile-strength/canonical-ui';
 import {
   getBandPillClassName,
   getMissingProfileImprovementItems,
-  normalizeProfileStrengthBand,
   toScorePercent,
   type ProfileStrengthBand,
   type ProfileStrengthBreakdown,
@@ -34,48 +34,6 @@ function meterPercent(value: number, max: number): number {
   return Math.max(0, Math.min(100, Math.round((value / max) * 100)));
 }
 
-function toBreakdown(strengthCalc: ProfileStrengthCalc | null, profile: Record<string, any>): ProfileStrengthBreakdown {
-  const activityFromCalc = Number(strengthCalc?.activity ?? 0);
-  const linksFromCalc = Number(strengthCalc?.links ?? 0);
-  const googleFromCalc = Number(strengthCalc?.google ?? 0);
-  const likesFromCalc = Number(strengthCalc?.likes ?? 0);
-  const completenessFromCalc = Number(strengthCalc?.completeness ?? 0);
-  const abnFromCalc = Number(strengthCalc?.abn ?? 0);
-  const score = Number(profile?.profile_strength_score ?? profile?.profileStrengthScore ?? 0);
-  const band = normalizeProfileStrengthBand(
-    profile?.profile_strength_band ?? profile?.profileStrengthBand ?? strengthCalc?.band ?? 'LOW'
-  );
-  const abnVerified = hasValidABN({
-    abn: profile?.abn,
-    abn_status: profile?.abn_status ?? profile?.abnStatus,
-  });
-
-  if (strengthCalc) {
-    return {
-      score,
-      band,
-      activity_points: activityFromCalc,
-      links_points: linksFromCalc,
-      google_points: googleFromCalc,
-      likes_points: likesFromCalc,
-      completeness_points: completenessFromCalc,
-      abn_points: abnFromCalc,
-    };
-  }
-
-  const lastFallback = profile?.last_active_at ?? profile?.lastActiveAt ?? null;
-  return {
-    score,
-    band,
-    activity_points: getActivityPoints(lastFallback),
-    links_points: 0,
-    google_points: 0,
-    likes_points: 0,
-    completeness_points: 0,
-    abn_points: abnVerified ? 10 : 0,
-  };
-}
-
 function scoreHelperLine(band: ProfileStrengthBand): string {
   if (band === 'STRONG') return 'Your profile is in strong shape. Keep your activity high to maintain visibility.';
   if (band === 'MEDIUM') return 'Complete more of your profile to improve trust and visibility.';
@@ -84,7 +42,8 @@ function scoreHelperLine(band: ProfileStrengthBand): string {
 
 export default function ProfileStrengthSection({ strengthCalc, profile }: Props) {
   const [isProfileStrengthOpen, setIsProfileStrengthOpen] = useState(false);
-  const breakdown = toBreakdown(strengthCalc, profile);
+  const canonical = buildProfileStrengthCanonical({ strengthCalc, profile });
+  const breakdown: ProfileStrengthBreakdown = canonical.legacyBreakdown;
   const scorePct = toScorePercent(breakdown.score, 100);
 
   const hasWebsite = !!String(profile?.website_url ?? profile?.website ?? '').trim();
@@ -144,17 +103,51 @@ export default function ProfileStrengthSection({ strengthCalc, profile }: Props)
     key: keyof Omit<ProfileStrengthBreakdown, 'score' | 'band'>;
     label: string;
     helper: string;
+    testId: string;
   }> = [
-    { key: 'activity_points', label: 'Activity', helper: 'Based on when you last used TradeHub with an active session.' },
-    { key: 'links_points', label: 'Links', helper: 'Website and social proof links.' },
-    { key: 'google_points', label: 'Google rating', helper: 'Google Business profile and ratings.' },
-    { key: 'likes_points', label: 'Likes', helper: 'Community engagement from other users.' },
-    { key: 'completeness_points', label: 'Completeness', helper: 'Core profile fields and profile quality.' },
-    { key: 'abn_points', label: 'ABN verification', helper: 'Business verification confidence signal.' },
+    {
+      key: 'activity_points',
+      label: 'Activity',
+      helper: 'Based on when you last used TradeHub with an active session.',
+      testId: 'profile-strength-activity',
+    },
+    {
+      key: 'links_points',
+      label: 'Links',
+      helper: 'Website and social proof links.',
+      testId: 'profile-strength-links',
+    },
+    {
+      key: 'google_points',
+      label: 'Google rating',
+      helper: 'Google Business profile and ratings.',
+      testId: 'profile-strength-google-rating',
+    },
+    {
+      key: 'likes_points',
+      label: 'Likes',
+      helper: 'Community engagement from other users.',
+      testId: 'profile-strength-likes',
+    },
+    {
+      key: 'completeness_points',
+      label: 'Completeness',
+      helper: 'Core profile fields and profile quality.',
+      testId: 'profile-strength-completeness',
+    },
+    {
+      key: 'abn_points',
+      label: 'ABN verification',
+      helper: 'Business verification confidence signal.',
+      testId: 'profile-strength-abn-verification',
+    },
   ];
 
   return (
-    <section className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-b from-slate-50 via-slate-100 to-slate-200 p-4 shadow-sm sm:p-6">
+    <section
+      className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-b from-slate-50 via-slate-100 to-slate-200 p-4 shadow-sm sm:p-6"
+      data-testid="profile-strength"
+    >
       <div
         className="pointer-events-none absolute inset-0 opacity-20"
         style={{
@@ -179,8 +172,14 @@ export default function ProfileStrengthSection({ strengthCalc, profile }: Props)
           <div className="flex items-center gap-3">
             <h3 className="text-base font-semibold text-slate-900 sm:text-lg">Profile strength</h3>
             <div className="ml-auto flex items-center gap-2 sm:gap-3">
-              <span className="text-sm font-semibold text-slate-900 sm:text-base">{breakdown.score}/100</span>
-              <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold sm:px-3 sm:text-xs ${getBandPillClassName(breakdown.band)}`}>
+              <span className="text-sm font-semibold text-slate-900 sm:text-base">
+                <span data-testid="profile-strength-total">{breakdown.score}</span>
+                /100
+              </span>
+              <span
+                className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold sm:px-3 sm:text-xs ${getBandPillClassName(breakdown.band)}`}
+                data-testid="profile-strength-band"
+              >
                 {breakdown.band}
               </span>
               <ChevronDown
@@ -210,19 +209,23 @@ export default function ProfileStrengthSection({ strengthCalc, profile }: Props)
                     A stronger profile helps other users trust your business.
                   </p>
                 </div>
-                <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${getBandPillClassName(breakdown.band)}`}>
+                <span
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold ${getBandPillClassName(breakdown.band)}`}
+                  data-testid="profile-strength-band"
+                >
                   {breakdown.band}
                 </span>
               </div>
 
               <div className="mb-4 text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl">
-                {breakdown.score}
+                <span data-testid="profile-strength-total">{breakdown.score}</span>
                 <span className="ml-1 text-2xl font-semibold text-slate-500">/100</span>
               </div>
 
-              <div className="h-3 w-full overflow-hidden rounded-full bg-slate-200">
+              <div className="h-3 w-full overflow-hidden rounded-full bg-slate-200" data-testid="profile-strength-bar">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-slate-700 via-slate-800 to-slate-900 transition-all"
+                  data-testid="profile-strength-progress"
                   style={{ width: `${scorePct}%` }}
                 />
               </div>
@@ -250,7 +253,9 @@ export default function ProfileStrengthSection({ strengthCalc, profile }: Props)
                       <div key={row.key} className="rounded-2xl border border-slate-200 bg-white/80 p-3">
                         <div className="mb-2 flex items-center justify-between text-sm">
                           <span className="font-medium text-slate-700">{row.label}</span>
-                          <span className="font-semibold text-slate-900">{value} pts</span>
+                          <span className="font-semibold text-slate-900">
+                            <span data-testid={row.testId}>{value}</span> pts
+                          </span>
                         </div>
                         <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
                           <div className="h-full rounded-full bg-slate-800" style={{ width: `${percent}%` }} />

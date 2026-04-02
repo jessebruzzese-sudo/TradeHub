@@ -204,11 +204,12 @@ Deno.serve(async (req: Request) => {
             completed_jobs: 15,
             member_since: new Date().toISOString(),
             bio: account.bio,
-            subcontractor_plan: 'PRO_10',
-            subcontractor_sub_status: 'ACTIVE',
-            subcontractor_sub_renews_at: new Date(
+            plan: 'premium',
+            subscription_status: 'ACTIVE',
+            subscription_renews_at: new Date(
               Date.now() + 365 * 24 * 60 * 60 * 1000
             ).toISOString(),
+            subscription_started_at: new Date().toISOString(),
             subcontractor_preferred_radius_km: 50,
             subcontractor_alerts_enabled: true,
             subcontractor_alert_channel_in_app: true,
@@ -396,8 +397,8 @@ Deno.serve(async (req: Request) => {
             completed_jobs: 25,
             member_since: new Date().toISOString(),
             bio: contractorAccount.bio,
-            builder_plan: 'NONE',
-            builder_sub_status: 'NONE',
+            plan: 'free',
+            subscription_status: 'NONE',
           });
 
           if (dbError) throw dbError;

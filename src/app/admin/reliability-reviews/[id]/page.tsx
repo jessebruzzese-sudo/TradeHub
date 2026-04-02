@@ -94,7 +94,7 @@ export default function ReliabilityReviewDetailPage() {
           subcontractorName: caseData.subcontractor_name ?? 'Unknown',
           subcontractorEmail: caseData.subcontractor_email ?? '',
           subcontractorTrade: caseData.subcontractor_trade ?? 'Unknown',
-          subcontractorPlan: caseData.subcontractor_plan ?? 'N/A',
+          subcontractorPlan: caseData.plan ?? 'N/A',
           subcontractorRating: caseData.subcontractor_rating ?? 0,
           reason: caseData.reason,
           status: caseData.status,

@@ -1,7 +1,7 @@
 /**
  * Stripe → TradeHub premium sync logic.
- * Maps Stripe subscription state to unified premium fields.
- * Server-only. Do NOT touch subcontractor_plan enum.
+ * Maps Stripe subscription state to canonical users columns.
+ * Server-only.
  */
 
 import type Stripe from 'stripe';
@@ -18,8 +18,7 @@ export function mapStripeStatusToTradeHub(status: string): TradeHubSubscriptionS
 }
 
 export type PremiumSyncPayload = {
-  is_premium: boolean;
-  active_plan: string;
+  plan: 'free' | 'premium';
   subscription_status: TradeHubSubscriptionStatus;
   subscription_started_at: string | null;
   subscription_renews_at: string | null;
@@ -54,8 +53,7 @@ export function buildActivePremiumPayload(
   const status = mapStripeStatusToTradeHub(sub.status);
 
   return {
-    is_premium: status === 'ACTIVE',
-    active_plan: 'ALL_ACCESS_PRO_26',
+    plan: status === 'ACTIVE' ? 'premium' : 'free',
     subscription_status: status,
     subscription_started_at: startedAt,
     subscription_renews_at: renewsAt,
@@ -78,8 +76,7 @@ export function buildCanceledPayload(
     : new Date().toISOString();
 
   return {
-    is_premium: false,
-    active_plan: 'NONE',
+    plan: 'free',
     subscription_status: 'CANCELED',
     subscription_started_at: null,
     subscription_renews_at: null,

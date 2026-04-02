@@ -6,6 +6,7 @@ import { createServerSupabase, createServiceSupabase } from '@/lib/supabase-serv
 import { getAppUrl } from '@/lib/stripe';
 import { getStripe } from '@/lib/stripe/server';
 import { getPremiumPriceId } from '@/lib/stripe/plans';
+import { hasPremiumAccess } from '@/lib/billing/has-premium-access';
 
 export async function POST() {
   const priceId = getPremiumPriceId();
@@ -39,7 +40,7 @@ export async function POST() {
   const supabaseService = createServiceSupabase();
   const { data: dbUser, error: dbUserError } = await (supabaseService as any)
     .from('users')
-    .select('id, email, name, business_name, is_premium, active_plan, subscription_status, stripe_customer_id')
+    .select('id, email, name, business_name, plan, subscription_status, complimentary_premium_until, stripe_customer_id')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -53,11 +54,7 @@ export async function POST() {
     return NextResponse.json({ error: 'User profile not found' }, { status: 404 });
   }
 
-  const isPremiumUser =
-    Boolean(dbUser.is_premium) ||
-    String(dbUser.active_plan || '').toUpperCase() === 'ALL_ACCESS_PRO_26' ||
-    String(dbUser.subscription_status || '').toUpperCase() === 'ACTIVE';
-  if (isPremiumUser) {
+  if (hasPremiumAccess(dbUser)) {
     return NextResponse.json(
       { error: 'Your account is already on Premium.' },
       { status: 400 }

@@ -11,45 +11,34 @@ import { getTier } from '@/lib/plan-limits';
 import { hasValidABN } from '@/lib/abn-utils';
 import { applyExcludeTestAccountsFilters } from '@/lib/test-account';
 import { getDisplayTradeListFromUserRow } from '@/lib/trades/user-trades';
+import { getPrimaryUserCoordinates } from '@/lib/location/get-user-coordinates';
 
 type UserRow = {
   id: string;
   plan?: string | null;
   location_lat?: number | null;
   location_lng?: number | null;
-  base_lat?: number | null;
-  base_lng?: number | null;
   search_lat?: number | null;
   search_lng?: number | null;
   primary_trade?: string | null;
   additional_trades?: string[] | string | null;
   business_name?: string | null;
   name?: string | null;
-  base_suburb?: string | null;
   location?: string | null;
   postcode?: string | null;
   abn?: string | null;
   abn_status?: string | null;
   avatar?: string | null;
-  is_premium?: boolean | null;
-  active_plan?: string | null;
   subscription_status?: string | null;
-  subcontractor_plan?: string | null;
-  subcontractor_sub_status?: string | null;
+  complimentary_premium_until?: string | null;
 };
 
 function tradeMatchKey(s: string): string {
   return s.trim().toLowerCase();
 }
 
-/** Candidate coords: prefer location_* else base_* (never search_* for candidates). */
 function getCandidateCoords(row: UserRow): { lat: number; lng: number } | null {
-  const lat = row.location_lat ?? row.base_lat ?? null;
-  const lng = row.location_lng ?? row.base_lng ?? null;
-  if (lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
-    return { lat: Number(lat), lng: Number(lng) };
-  }
-  return null;
+  return getPrimaryUserCoordinates(row);
 }
 
 function getTradesFromRow(row: UserRow): string[] {
@@ -87,7 +76,6 @@ function mapToCard(
     (row as Record<string, unknown>).suburb ??
     (row as Record<string, unknown>).location_suburb ??
     (row as Record<string, unknown>).city ??
-    row.base_suburb ??
     row.location ??
     null;
 
@@ -140,7 +128,7 @@ export async function GET(
     const { data: me, error: meErr } = await (supabase as any)
       .from('users')
       .select(
-        'id,plan,location_lat,location_lng,base_lat,base_lng,search_lat,search_lng,is_premium,active_plan,subscription_status,subcontractor_plan,subcontractor_sub_status'
+        'id,plan,location_lat,location_lng,search_lat,search_lng,subscription_status,complimentary_premium_until'
       )
       .eq('id', user.id)
       .maybeSingle();
@@ -167,18 +155,17 @@ export async function GET(
     const fetchRadiusKm = isViewerPremium ? radiusKm : Math.max(300, radiusKm * 3);
     const bbox = bboxForRadiusKm(center.lat, center.lng, fetchRadiusKm);
 
-    const orClause =
-      `and(location_lat.gte.${bbox.minLat},location_lat.lte.${bbox.maxLat},location_lng.gte.${bbox.minLng},location_lng.lte.${bbox.maxLng}),` +
-      `and(base_lat.gte.${bbox.minLat},base_lat.lte.${bbox.maxLat},base_lng.gte.${bbox.minLng},base_lng.lte.${bbox.maxLng})`;
-
     let query = (supabase as any)
       .from('users')
       .select(
-        'id,plan,location_lat,location_lng,base_lat,base_lng,primary_trade,additional_trades,business_name,name,base_suburb,location,postcode,abn,abn_status,avatar,is_premium,active_plan,subscription_status,subcontractor_plan,subcontractor_sub_status'
+        'id,plan,location_lat,location_lng,primary_trade,additional_trades,business_name,name,location,postcode,abn,abn_status,avatar,subscription_status,complimentary_premium_until'
       )
       .eq('is_public_profile', true)
       .neq('id', user.id)
-      .or(orClause);
+      .gte('location_lat', bbox.minLat)
+      .lte('location_lat', bbox.maxLat)
+      .gte('location_lng', bbox.minLng)
+      .lte('location_lng', bbox.maxLng);
     query = applyExcludeTestAccountsFilters(query);
 
     const { data: candidates, error: candErr } = await query;

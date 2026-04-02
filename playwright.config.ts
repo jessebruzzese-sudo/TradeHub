@@ -9,7 +9,8 @@ const baseURL = process.env.PW_BASE_URL || 'http://localhost:3000';
 const hasUnverifiedCreds = !!(process.env.PW_NO_ABN_EMAIL && process.env.PW_NO_ABN_PASSWORD);
 
 export default defineConfig({
-  testDir: './playwright',
+  testDir: '.',
+  testMatch: ['playwright/**/*.spec.ts', 'tests/**/*.spec.ts'],
   timeout: 60_000,
   expect: { timeout: 10_000 },
 

@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
 
     const { data: profile, error: profileErr } = await (supabase as any)
       .from('users')
-      .select('id, plan, is_premium, active_plan, subscription_status, complimentary_premium_until, premium_until, primary_trade, additional_trades, abn, abn_status, abn_verified_at')
+      .select('id, plan, subscription_status, complimentary_premium_until, primary_trade, additional_trades, abn, abn_status, abn_verified_at')
       .eq('id', user.id)
       .maybeSingle();
 

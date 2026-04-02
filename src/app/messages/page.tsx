@@ -27,7 +27,8 @@ import { callTradeHubAI } from '@/lib/ai-client';
 import { EmptyState } from '@/components/empty-state';
 import { needsBusinessVerification, redirectToVerifyBusiness, getVerifyBusinessUrl } from '@/lib/verification-guard';
 import { safeRouterPush } from '@/lib/safe-nav';
-import { buildLoginUrl } from '@/lib/url-utils';
+import { buildLoginUrl, getPublicProfileHref } from '@/lib/url-utils';
+import { debugProfileCardData } from '@/lib/profile-debug';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -327,6 +328,11 @@ export default function MessagesPage() {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages.length]);
+
+  useEffect(() => {
+    if (!otherUserId) return;
+    debugProfileCardData('messages', { id: otherUserId });
+  }, [otherUserId]);
 
   if (!currentUser) {
     return (
@@ -820,7 +826,7 @@ export default function MessagesPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem asChild>
-                              <Link href={`/profile/${otherUserId}`} className="flex items-center gap-2">
+                              <Link href={getPublicProfileHref(otherUserId)} className="flex items-center gap-2">
                                 <User className="h-4 w-4" />
                                 View Profile
                               </Link>
@@ -1132,7 +1138,7 @@ export default function MessagesPage() {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem asChild>
-                                  <Link href={`/profile/${otherUserId}`} className="flex items-center gap-2">
+                                  <Link href={getPublicProfileHref(otherUserId)} className="flex items-center gap-2">
                                     <User className="h-4 w-4" />
                                     View Profile
                                   </Link>

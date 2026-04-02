@@ -33,6 +33,7 @@ import {
 import { useAuth } from '@/lib/auth';
 import { getBrowserSupabase } from '@/lib/supabase-client';
 import { isPremiumForDiscovery } from '@/lib/discovery';
+import { hasPremiumAccess } from '@/lib/billing/has-premium-access';
 import { buildLoginUrl } from '@/lib/url-utils';
 import { safeRouterPush } from '@/lib/safe-nav';
 import { needsBusinessVerification, getVerifyBusinessUrl } from '@/lib/verification-guard';
@@ -109,11 +110,12 @@ export default function JobsPage() {
   const userForDiscovery = currentUser
     ? {
         plan: (currentUser as any).plan ?? null,
-        is_premium: (currentUser as any).isPremium ?? (currentUser as any).is_premium ?? undefined,
-        subscription_status: (currentUser as any).subscriptionStatus ?? (currentUser as any).subscription_status ?? null,
-        active_plan: (currentUser as any).activePlan ?? (currentUser as any).active_plan ?? null,
-        subcontractor_plan: undefined,
-        subcontractor_sub_status: undefined,
+        subscription_status:
+          (currentUser as any).subscriptionStatus ?? (currentUser as any).subscription_status ?? null,
+        complimentary_premium_until:
+          (currentUser as any).complimentaryPremiumUntil ??
+          (currentUser as any).complimentary_premium_until ??
+          null,
       }
     : null;
 
@@ -324,7 +326,13 @@ export default function JobsPage() {
     const rows = (visibleJobs ?? []).slice();
 
     const getNum = (v: unknown) => (typeof v === 'number' && isFinite(v) ? v : null);
-    const isPrem = (j: Record<string, unknown>) => !!(j?.poster_is_premium ?? j?.posterIsPremium);
+    const isPrem = (j: Record<string, unknown>) =>
+      hasPremiumAccess({
+        plan: (j.poster_plan ?? j.posterPlan) as string | null,
+        subscription_status: (j.poster_subscription_status ?? j.posterSubscriptionStatus) as string | null,
+        complimentary_premium_until: (j.poster_complimentary_premium_until ??
+          j.posterComplimentaryPremiumUntil) as string | null,
+      }) || !!(j.poster_is_premium ?? j.posterIsPremium);
 
     // Always pin premium first
     rows.sort((a: Record<string, unknown>, b: Record<string, unknown>) => {

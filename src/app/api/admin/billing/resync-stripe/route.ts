@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import type Stripe from 'stripe';
 import { getStripe, isStripeConfigured } from '../../../../../lib/stripe/server';
-import { getPlanForPriceId } from '../../../../../lib/stripe/plans';
 import { withAdmin } from '../../../../../lib/admin/with-admin';
 
 function serviceClient() {
@@ -48,7 +47,7 @@ export const POST = withAdmin(async (req: Request) => {
 
     const { data: user, error: userErr } = await supabase
       .from('users')
-      .select('id,email,stripe_customer_id,stripe_subscription_id,active_plan,subscription_status')
+      .select('id,email,stripe_customer_id,stripe_subscription_id,plan,subscription_status')
       .eq('id', userId)
       .maybeSingle();
 
@@ -78,8 +77,6 @@ export const POST = withAdmin(async (req: Request) => {
       return NextResponse.json({ error: 'No Stripe subscription found for user' }, { status: 404 });
     }
 
-    const priceId = subscription.items?.data?.[0]?.price?.id;
-    const plan = priceId ? getPlanForPriceId(priceId) : null;
     const status = mapStripeStatusToDb(subscription.status);
     const renewsAt = subscription.current_period_end
       ? new Date(subscription.current_period_end * 1000).toISOString()
@@ -87,25 +84,22 @@ export const POST = withAdmin(async (req: Request) => {
     const startedAt = subscription.created ? new Date(subscription.created * 1000).toISOString() : null;
     const canceledAt = subscription.canceled_at ? new Date(subscription.canceled_at * 1000).toISOString() : null;
 
-    const update: any = {
+    const update: Record<string, unknown> = {
       subscription_status: status,
       subscription_renews_at: renewsAt,
       subscription_started_at: startedAt,
       subscription_canceled_at: canceledAt,
       stripe_customer_id: subscription.customer as string,
       stripe_subscription_id: subscription.id,
+      plan: status === 'ACTIVE' || status === 'PAST_DUE' ? 'premium' : 'free',
     };
-
-    if (plan) {
-      update.active_plan = plan;
-    }
 
     const { data: updated, error: updateErr } = await supabase
       .from('users')
       .update(update)
       .eq('id', userId)
       .select(
-        'id,email,role,active_plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,complimentary_premium_until,stripe_customer_id,stripe_subscription_id'
+        'id,email,role,plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,complimentary_premium_until,stripe_customer_id,stripe_subscription_id'
       )
       .maybeSingle();
 

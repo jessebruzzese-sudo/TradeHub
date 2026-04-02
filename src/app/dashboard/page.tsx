@@ -20,9 +20,10 @@ import {
 
 import { useAuth } from '@/lib/auth';
 import { useDevUnread } from '@/lib/dev-unread-context';
-import { isAbnVerified, abnLabel } from '@/lib/abn';
+import { isAbnVerified, abnLabel } from '@/lib/abn-utils';
 import { isAdmin } from '@/lib/is-admin';
 import { isPremiumForDiscovery } from '@/lib/discovery';
+import { getPrimaryUserCoordinates } from '@/lib/location/get-user-coordinates';
 import { getSafeReturnUrl, safeRouterReplace } from '@/lib/safe-nav';
 import { getBrowserSupabase } from '@/lib/supabase-client';
 
@@ -247,30 +248,48 @@ export default function DashboardPage() {
     (currentUser as any)?.is_public_profile ?? (currentUser as any)?.isPublicProfile;
 
   const isPublicProfile = typeof isPublicProfileRaw === 'boolean' ? isPublicProfileRaw : true;
-  const hasLocation = Boolean(
-    (currentUser as any)?.location_name ??
-      (currentUser as any)?.locationName ??
-      (currentUser as any)?.suburb ??
-      currentUser?.lat ??
-      (currentUser as any)?.location_lat ??
-      (currentUser as any)?.search_lat
-  );
 
   const userForDiscovery = useMemo(
     () =>
       currentUser
         ? {
             plan: currentUser.plan ?? null,
-            is_premium: currentUser.isPremium ?? undefined,
-            subscription_status: currentUser.subscriptionStatus,
-            subcontractor_sub_status: undefined,
-            active_plan: currentUser.activePlan,
-            subcontractor_plan: undefined,
+            subscription_status: currentUser.subscriptionStatus ?? null,
+            complimentary_premium_until: currentUser.complimentaryPremiumUntil ?? null,
           }
         : null,
     [currentUser]
   );
   const isPremium = Boolean(isPremiumForDiscovery(userForDiscovery));
+
+  const hasLocation = useMemo(() => {
+    if (!currentUser) return false;
+    const nameHints = [
+      (currentUser as any)?.location_name,
+      (currentUser as any)?.locationName,
+      (currentUser as any)?.suburb,
+    ];
+    if (nameHints.some((v) => typeof v === 'string' && v.trim())) return true;
+    if (String(currentUser.location ?? '').trim()) return true;
+    if (
+      getPrimaryUserCoordinates({
+        location_lat: currentUser.lat,
+        location_lng: currentUser.lng,
+      })
+    )
+      return true;
+    if (!isPremium) return false;
+    if (String(currentUser.searchLocation ?? '').trim() || String(currentUser.searchPostcode ?? '').trim())
+      return true;
+    const sl = currentUser.searchLat;
+    const sg = currentUser.searchLng;
+    return (
+      typeof sl === 'number' &&
+      Number.isFinite(sl) &&
+      typeof sg === 'number' &&
+      Number.isFinite(sg)
+    );
+  }, [currentUser, isPremium]);
   const freeRadiusKm = 20;
   const discoveryLabel = isPremium ? 'Premium radius' : `${freeRadiusKm}km radius`;
 

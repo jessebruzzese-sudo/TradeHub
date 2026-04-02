@@ -19,6 +19,8 @@ import { UnauthorizedAccess } from '@/components/unauthorized-access';
 import { TRADES } from '@/lib/trades';
 import { getBrowserSupabase } from '@/lib/supabase-client';
 import { cn } from '@/lib/utils';
+import { getPublicProfileHref } from '@/lib/url-utils';
+import { debugProfileCardData } from '@/lib/profile-debug';
 import { format } from 'date-fns';
 
 type ProfileCard = {
@@ -49,6 +51,7 @@ const FILTER_OPTIONS = [
 ] as const;
 
 function SubcontractorCard({ sub }: { sub: ProfileCard }) {
+  debugProfileCardData('subcontractors', sub as unknown as Record<string, unknown>);
   const primaryTrade = sub.trade_categories[0] ?? null;
   const TradeIcon = primaryTrade ? getTradeIcon(primaryTrade) : null;
   const displayName = sub.business_name ?? sub.display_name;
@@ -122,7 +125,7 @@ function SubcontractorCard({ sub }: { sub: ProfileCard }) {
             )}
           </div>
         </div>
-        <Link href={`/profile/${sub.id}`} className="shrink-0">
+        <Link href={getPublicProfileHref(sub.id)} className="shrink-0">
           <Button
             size="sm"
             variant="outline"
@@ -161,11 +164,12 @@ export default function SubcontractorsPage() {
       currentUser
         ? {
             plan: (currentUser as any).plan ?? null,
-            is_premium: (currentUser as any).isPremium ?? (currentUser as any).is_premium ?? undefined,
-            subscription_status: (currentUser as any).subscriptionStatus ?? (currentUser as any).subscription_status ?? null,
-            active_plan: (currentUser as any).activePlan ?? (currentUser as any).active_plan ?? null,
-            subcontractor_plan: undefined,
-            subcontractor_sub_status: undefined,
+            subscription_status:
+              (currentUser as any).subscriptionStatus ?? (currentUser as any).subscription_status ?? null,
+            complimentary_premium_until:
+              (currentUser as any).complimentaryPremiumUntil ??
+              (currentUser as any).complimentary_premium_until ??
+              null,
           }
         : null,
     [currentUser]

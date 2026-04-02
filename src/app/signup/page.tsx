@@ -359,7 +359,7 @@ export default function SignupPage() {
       setAbnVerifying(false);
     }
   };
-  // TODO: Map to real field if different (e.g. subscription_tier vs active_plan/is_premium)
+  // TODO: Map to canonical billing fields (plan, subscription_status) if backend adds them to signup payload
   const isPremium = currentUser?.isPremium === true;
   const router = useRouter();
   const searchParams = useSearchParams();

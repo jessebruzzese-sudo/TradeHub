@@ -103,11 +103,12 @@ export default function EditJobPage() {
       currentUser
         ? {
             plan: (currentUser as any).plan ?? null,
-            is_premium: (currentUser as any).isPremium ?? (currentUser as any).is_premium ?? undefined,
-            subscription_status: (currentUser as any).subscriptionStatus ?? (currentUser as any).subscription_status ?? null,
-            active_plan: (currentUser as any).activePlan ?? (currentUser as any).active_plan ?? null,
-            subcontractor_plan: undefined,
-            subcontractor_sub_status: undefined,
+            subscription_status:
+              (currentUser as any).subscriptionStatus ?? (currentUser as any).subscription_status ?? null,
+            complimentary_premium_until:
+              (currentUser as any).complimentaryPremiumUntil ??
+              (currentUser as any).complimentary_premium_until ??
+              null,
           }
         : null,
     [currentUser]

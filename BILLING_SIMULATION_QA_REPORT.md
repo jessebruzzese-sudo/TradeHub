@@ -3,6 +3,8 @@
 **Date:** 2026-01-06
 **Build Status:** ✅ PASSED
 
+*Doc refreshed 2026-04-02: verification text updated for `BILLING_SIM_ALLOWED` (removed deprecated `isBillingSimEnabled()` references) and current file paths.*
+
 ---
 
 ## 🎯 TEST 1: ENV GATE OFF
@@ -13,23 +15,22 @@
 
 ### Verification Points
 ✅ **Profile Section Hidden**
-- `lib/billing-sim.ts:18-25` - `isBillingSimEnabled()` returns `false`
-- `app/profile/page.tsx:37` - `showBillingSimulation` evaluates to `false`
+- `src/lib/billing-sim.ts:16-19` — `BILLING_SIM_ALLOWED` is `false` when the env flag is off (or on server / production)
+- `src/components/profile/profile-view.tsx` — `showBillingSimulation = isSelf && BILLING_SIM_ALLOWED` is `false`
 - Billing Simulation section does NOT render
 
 ✅ **Global Banner Hidden**
-- `components/billing-simulation-banner.tsx:13-15` - checks both `isBillingSimEnabled()` AND `getSimulatedPremium()`
-- When env gate is OFF, `isBillingSimEnabled()` returns `false`
-- Banner component returns `null` (line 31-33)
+- `src/components/billing-simulation-banner.tsx:10` — `isVisible = BILLING_SIM_ALLOWED && isSimulated`
+- When the env gate is off, `BILLING_SIM_ALLOWED` is falsy → banner returns `null` (lines 17-19)
 
 ✅ **Premium Features Locked**
-- `lib/capability-utils.ts:19-21` - `isSimulatingPremium()` checks `isBillingSimEnabled()`
+- `src/lib/capability-utils.ts:41-43` — `isSimulatingPremium()` is `BILLING_SIM_ALLOWED && getSimulatedPremium()`
 - Returns `false` when env gate is OFF
 - All Premium checks (`hasBuilderPremium`, `hasSubcontractorPremium`, `hasContractorPremium`) rely only on real subscription
 - No simulation unlock possible
 
 ✅ **localStorage Ignored**
-- Even if localStorage contains simulation state, `getSimulatedPremium()` returns `false` when `isBillingSimEnabled()` is `false` (line 27)
+- Even if localStorage contains simulation state, `getSimulatedPremium()` returns `false` when `BILLING_SIM_ALLOWED` is falsy (`billing-sim.ts:25`)
 
 ---
 
@@ -43,23 +44,23 @@
 ### Verification Points
 ✅ **Global Banner Appears**
 - Toggle switch calls `setSimulated(true)` which invokes `setSimulatedPremium(true)`
-- localStorage key `tradehub_sim_premium` set to `'true'`
-- `BillingSimulationBanner` polls every 1000ms (line 20)
-- Both conditions met: `isBillingSimEnabled()` && `getSimulatedPremium()` = true
+- localStorage key `tradehub:v1:sim_premium` set to `'true'` (`billing-sim.ts`)
+- `useSimulatedPremium` syncs across tabs via `storage` events (`use-simulated-premium.ts`)
+- Both conditions met: `BILLING_SIM_ALLOWED` && hook state reflecting `getSimulatedPremium()` = true
 - Banner renders with amber background and "SIMULATION MODE" text
 
 ✅ **Premium Features Unlock**
-- `capability-utils.ts:28-38` - All Premium capability checks include `|| isSimulatingPremium()`
-- Features that unlock:
+- `capability-utils.ts` — premium capability checks include `isSimulatingPremium()` where applicable
+- Features that unlock (when sim is on):
   - Builder Premium: Tender posting, custom search location
   - Contractor Premium: Custom search location, expanded radius
   - Subcontractor Premium: Multi-trade profiles, expanded radius, 60-day calendar
-- Verified in: `app/tenders/create/page.tsx:482`, `app/profile/edit/page.tsx:227,345`
+- Gates also verified via `app/profile/edit/page.tsx` and related capability-utils consumers
 
 ✅ **State Persists on Refresh**
-- `localStorage.getItem(STORAGE_KEY)` returns `'true'` after reload
-- `getSimulatedPremium()` reads from localStorage on every page load
-- Banner reappears automatically via useEffect polling
+- After reload, `getSimulatedPremium()` reads `tradehub:v1:sim_premium` from localStorage
+- `useSimulatedPremium` initializes from `getSimulatedPremium()` on mount
+- Banner shows again when `BILLING_SIM_ALLOWED && isSimulated`
 
 ✅ **State Persists Across Tabs**
 - localStorage is shared across all tabs in same origin
@@ -77,13 +78,11 @@
 
 ### Verification Points
 ✅ **Banner Disappears Instantly**
-- `handleTurnOff()` calls `setSimulatedPremium(false)` (line 26)
-- localStorage key removed via `localStorage.removeItem(STORAGE_KEY)` (line 48)
-- Local state set to `false` via `setIsVisible(false)` (line 27)
-- Component returns `null` before reload completes
+- `handleTurnOff()` sets simulation off via `setSimulated(false)` → `setSimulatedPremium(false)` (`billing-simulation-banner.tsx:12-14`)
+- Hook updates in-memory state; reload clears any stale UI
 
 ✅ **Page Reloads**
-- `window.location.reload()` executes (line 28)
+- `window.location.reload()` executes (`billing-simulation-banner.tsx:14`)
 - Fresh page load with simulation OFF
 
 ✅ **Premium Features Re-Lock**
@@ -107,29 +106,26 @@
 
 ### Verification Points
 ✅ **localStorage Cleared**
-- `handleResetSimulation()` calls `clearSimulatedPremium()` (line 52)
-- `clearSimulatedPremium()` removes localStorage key completely (line 58-66)
-- Separate dedicated function ensures clean reset
+- `handleResetSimulation()` in `profile-view.tsx` calls `clearSimulatedPremium()` then `setSimulated(false)` then reload
+- `clearSimulatedPremium()` removes the `tradehub:v1:sim_premium` key (`billing-sim.ts:52-59`)
 
 ✅ **State Set to OFF**
-- Local hook state updated via `setSimulated(false)` (line 54)
-- Ensures UI updates before reload
+- Local hook state updated via `setSimulated(false)` before reload
 
 ✅ **Page Reloads**
-- `window.location.reload()` executes (line 55)
+- `window.location.reload()` after reset (`profile-view.tsx:454-457`)
 - Full app reinitialization with clean state
 
 ✅ **Banner Does NOT Reappear**
-- After reload, `getSimulatedPremium()` returns `false`
-- Banner's useEffect checks and finds simulation OFF
-- Banner stays hidden (`isVisible = false`)
+- After reload, `getSimulatedPremium()` returns `false` and `useSimulatedPremium` initializes to off
+- `BillingSimulationBanner` computes `isVisible = BILLING_SIM_ALLOWED && isSimulated` → stays hidden
 
 ✅ **Premium Features Locked**
 - All capability checks return to real subscription only
 - No simulation artifact remains
 
 ✅ **Button Conditional Rendering**
-- Reset button only appears when `isSimulated === true` (line 290)
+- Reset button only appears in the billing simulation card when simulation UI is shown and state is on (`profile-view.tsx`)
 - Button disappears when simulation is OFF
 
 ---
@@ -142,35 +138,28 @@
 - `NEXT_PUBLIC_ENABLE_BILLING_SIMULATION=true` (accidentally left on)
 
 ### Verification Points
-✅ **Hard Block in Core Function**
-- `lib/billing-sim.ts:21-23` - FIRST check in `isBillingSimEnabled()`
-- ```typescript
-  if (process.env.NODE_ENV === 'production') {
-    return false;
-  }
-  ```
-- Returns `false` BEFORE checking env var
-- Cannot be bypassed
+✅ **Hard block on `BILLING_SIM_ALLOWED`**
+- `src/lib/billing-sim.ts:16-19` — `BILLING_SIM_ALLOWED` requires `typeof window !== 'undefined'`, `NODE_ENV !== 'production'`, and `NEXT_PUBLIC_ENABLE_BILLING_SIMULATION === 'true'`
+- In production builds the middle clause is false → simulation cannot be enabled regardless of the public env flag
 
 ✅ **Toggle Never Appears**
-- Profile page: `showBillingSimulation = isBillingSimEnabled()` evaluates to `false`
+- Profile (self view): `showBillingSimulation = isSelf && BILLING_SIM_ALLOWED` is `false` in production
 - Entire "Billing Simulation (Testing Only)" section does NOT render
 
 ✅ **Banner Never Appears**
-- Banner checks `isBillingSimEnabled() && getSimulatedPremium()`
-- First condition is `false` → short-circuit evaluation
-- Banner returns `null`
+- Banner uses `BILLING_SIM_ALLOWED && isSimulated` (`billing-simulation-banner.tsx:10`)
+- First operand is falsy in production → banner returns `null`
 
 ✅ **Capability Utils Return False**
-- `isSimulatingPremium()` calls `isBillingSimEnabled()` (line 20)
+- `isSimulatingPremium()` is `BILLING_SIM_ALLOWED && getSimulatedPremium()` (`capability-utils.ts:41-43`)
 - Returns `false` in production
 - All Premium checks use ONLY real subscription data
 - No simulation unlock path exists
 
 ✅ **localStorage Ignored**
 - Even if localStorage contains old simulation state from dev mode
-- `getSimulatedPremium()` returns `false` when `isBillingSimEnabled()` is `false` (line 27)
-- Leftover dev state cannot leak into production
+- `getSimulatedPremium()` returns `false` when `BILLING_SIM_ALLOWED` is falsy (`billing-sim.ts:25`)
+- Leftover dev state cannot unlock simulation in production
 
 ---
 
@@ -178,7 +167,7 @@
 
 ### Code Coverage
 - ✅ All Premium capability functions use `isSimulatingPremium()`
-- ✅ Banner present on ALL pages via `app/layout.tsx:50`
+- ✅ Banner present on ALL pages via `src/app/layout.tsx` (`<BillingSimulationBanner />`)
 - ✅ Profile toggle only shown when env gate allows
 - ✅ 20+ Premium gate checks verified
 
@@ -202,34 +191,32 @@
 ## 🔍 FILES TOUCHED IN VERSION 156
 
 ### Core Logic (3 files)
-1. **lib/billing-sim.ts**
-   - Added production hard block
-   - Added `clearSimulatedPremium()` function
-   - Enhanced documentation
+1. **`src/lib/billing-sim.ts`**
+   - `BILLING_SIM_ALLOWED` is the single gate (client-only, non-production, env flag)
+   - `getSimulatedPremium` / `setSimulatedPremium` / `clearSimulatedPremium` respect that gate
+   - Storage key: `tradehub:v1:sim_premium`
 
-2. **lib/capability-utils.ts**
-   - No changes needed (already uses simulation correctly)
-   - All Premium checks include `|| isSimulatingPremium()`
+2. **`src/lib/capability-utils.ts`**
+   - `isSimulatingPremium()` uses `BILLING_SIM_ALLOWED && getSimulatedPremium()`
+   - Premium capability checks include simulation where intended
 
 3. **.env.example** (NEW)
    - Created with simulation disabled by default
    - Clear warnings about production usage
 
 ### UI Components (2 files)
-4. **app/profile/page.tsx**
-   - Added status pill logic
-   - Added simulation badge in plan card
-   - Added reset button with handler
-   - Amber styling for simulated state
+4. **`src/components/profile/profile-view.tsx`**
+   - Billing simulation card when viewing own profile (`BILLING_SIM_ALLOWED`)
+   - Simulate Premium toggle, status copy, Reset Simulation handler
 
-5. **app/profile/edit/page.tsx**
+5. **`src/app/profile/edit/page.tsx`**
    - Replaced direct `activePlan` checks with capability-utils
    - Multi-trade gate: `hasSubcontractorPremium(currentUser)`
    - Search location gate: `hasBuilderPremium(currentUser) || hasContractorPremium(currentUser)`
 
 ### No Changes Needed
-- ✅ components/billing-simulation-banner.tsx (already correct)
-- ✅ app/layout.tsx (already includes banner)
+- ✅ `src/components/billing-simulation-banner.tsx` (uses `BILLING_SIM_ALLOWED`)
+- ✅ `app/layout.tsx` (includes banner)
 - ✅ All other Premium feature gates (already use capability-utils)
 
 ---

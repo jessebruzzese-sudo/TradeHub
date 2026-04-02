@@ -12,8 +12,8 @@
 import { AppLayout } from '@/components/app-nav';
 import { useAuth } from '@/lib/auth';
 import { getStore } from '@/lib/store';
-import type { PayType, JobStatus, User, UserRole, TrustStatus } from '@/lib/types';
-import { getDisplayTradeListFromUserRow } from '@/lib/trades/user-trades';
+import type { PayType, JobStatus } from '@/lib/types';
+import { loadJobById, syncContractorIntoStore } from '@/lib/jobs/load-job-by-id';
 import { formatJobPriceDisplay } from '@/lib/job-pay-labels';
 import StatusPill from '@/components/status-pill';
 import { Button } from '@/components/ui/button';
@@ -53,6 +53,7 @@ import { CancelJobDialog } from '@/components/cancel-job-dialog';
 import { ReliabilityReviewForm } from '@/components/reliability-review-form';
 import { JobStatusMessage } from '@/components/job-status-message';
 import { canLeaveReliabilityReview } from '@/lib/cancellation-utils';
+import { hasPremiumAccess } from '@/lib/billing/has-premium-access';
 import { getJobLifecycleState, canWithdrawApplication, canTransitionToStatus } from '@/lib/job-lifecycle';
 import { createSystemMessage, shouldAddSystemMessage } from '@/lib/messaging-utils';
 import { needsBusinessVerification, redirectToVerifyBusiness, getVerifyBusinessUrl } from '@/lib/verification-guard';
@@ -60,6 +61,8 @@ import { hasValidABN } from '@/lib/abn-utils';
 import { isAdmin } from '@/lib/is-admin';
 import { ownsJob } from '@/lib/permissions';
 import { trackEvent } from '@/lib/analytics';
+import { getPublicProfileHref } from '@/lib/url-utils';
+import { debugProfileCardData } from '@/lib/profile-debug';
 
 function AttachmentRow({
   attachment,
@@ -307,6 +310,8 @@ export default function JobDetailPage() {
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [isLoadingJob, setIsLoadingJob] = useState(false);
+  /** Bumps after poster sync on cache hit so we re-read the module store (not a subscribed store). */
+  const [, setClientStoreEpoch] = useState(0);
   const [actionSubmitting, setActionSubmitting] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number>(0);
@@ -320,165 +325,125 @@ export default function JobDetailPage() {
   const sb = useState(() => getBrowserSupabase())[0];
 
   useEffect(() => {
-    const fetchJobIfNeeded = async () => {
-      if (!jobId || isLoadingJob) return;
+    console.log('JOB DETAIL PARAM', params.id);
+  }, [params.id]);
 
-      const existingJob: any = store.getJobById(jobId);
+  useEffect(() => {
+    if (!jobId || !currentUser?.id) return;
 
-      // ✅ Only skip fetch if cached job already has BOTH attachments AND dates loaded
-      // Prevents stale single-date display after editing multiple dates.
-      const cachedHasAttachments =
-        Array.isArray(existingJob?.attachments) && existingJob.attachments.length > 0;
+    const existingJob: any = store.getJobById(jobId);
 
-      const cachedHasDates =
-        Array.isArray(existingJob?.dates) && existingJob.dates.length > 0;
+    const cachedHasAttachments =
+      Array.isArray(existingJob?.attachments) && existingJob.attachments.length > 0;
 
-      if (existingJob && cachedHasAttachments && cachedHasDates) return;
+    const cachedHasDates = Array.isArray(existingJob?.dates) && existingJob.dates.length > 0;
 
+    if (existingJob && cachedHasAttachments && cachedHasDates) {
+      if (existingJob.contractorId) {
+        void (async () => {
+          const supabase = getBrowserSupabase();
+          await syncContractorIntoStore(supabase, store, existingJob.contractorId);
+          setClientStoreEpoch((n) => n + 1);
+        })();
+      }
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
       setIsLoadingJob(true);
       try {
         const supabase = getBrowserSupabase();
-        const { data: jobData, error } = await supabase
-          .from('jobs')
-          .select('*')
-          .eq('id', jobId)
-          .maybeSingle();
+        const { job: jobData, error: loadErr, source, selectUsed } = await loadJobById(supabase, jobId, {
+          viewerId: currentUser.id,
+        });
 
-        if (error) {
-          console.error('Error fetching job:', error);
+        if (cancelled) return;
+
+        if (loadErr) {
+          console.error('[jobs/[id]] loadJobById exhausted attempts', { jobId, loadErr, source, selectUsed });
+        }
+
+        if (!jobData) {
           return;
         }
 
-        if (jobData) {
-          const rawDates: unknown[] = Array.isArray(jobData.dates)
-            ? jobData.dates
-            : [];
-          const dates: Date[] = rawDates
-            .filter(Boolean)
-            .map((d) => new Date(d as string))
-            .filter((d) => !isNaN(d.getTime()));
+        const rawDates: unknown[] = Array.isArray(jobData.dates) ? jobData.dates : [];
+        const dates: Date[] = rawDates
+          .filter(Boolean)
+          .map((d) => new Date(d as string))
+          .filter((d) => !isNaN(d.getTime()));
 
-          let durationDays = 0;
-          if (dates.length >= 2) {
-            const timestamps = dates.map((d) => d.getTime());
-            const earliest = Math.min(...timestamps);
-            const latest = Math.max(...timestamps);
-            durationDays =
-              Math.round((latest - earliest) / (1000 * 60 * 60 * 24)) + 1;
-          } else if (dates.length === 1) {
-            durationDays = 1;
-          }
+        let durationDays = 0;
+        if (dates.length >= 2) {
+          const timestamps = dates.map((d) => d.getTime());
+          const earliest = Math.min(...timestamps);
+          const latest = Math.max(...timestamps);
+          durationDays = Math.round((latest - earliest) / (1000 * 60 * 60 * 24)) + 1;
+        } else if (dates.length === 1) {
+          durationDays = 1;
+        }
 
-          const job = {
-            id: jobData.id,
-            title: jobData.title,
-            description: jobData.description,
-            tradeCategory: jobData.trade_category,
-            contractorId: jobData.contractor_id,
-            location: jobData.location,
-            postcode: jobData.postcode,
+        const job = {
+          id: jobData.id,
+          title: jobData.title,
+          description: jobData.description,
+          tradeCategory: jobData.trade_category,
+          contractorId: jobData.contractor_id,
+          location: jobData.location,
+          postcode: jobData.postcode,
+          dates,
+          payType: jobData.pay_type as PayType,
+          rate: jobData.rate ?? 0,
+          duration: durationDays > 0 ? durationDays : (jobData.duration ?? undefined),
+          status: jobData.status as unknown as JobStatus,
+          createdAt: new Date((jobData.created_at as string) ?? Date.now()),
+          cancelledAt: jobData.cancelled_at ? new Date(jobData.cancelled_at as string) : undefined,
+          cancelledBy: jobData.cancelled_by ?? undefined,
+          cancellationReason: jobData.cancellation_reason ?? undefined,
+          attachments: jobData.attachments,
+          startTime: jobData.start_time || undefined,
+          selectedSubcontractor: jobData.selected_subcontractor || undefined,
+          confirmedSubcontractor: jobData.confirmed_subcontractor || undefined,
+        };
+
+        if (existingJob) {
+          store.updateJob(String(jobData.id), {
+            description: jobData.description as string,
+            location: jobData.location as string,
+            postcode: jobData.postcode as string,
             dates,
             payType: jobData.pay_type as PayType,
-            rate: jobData.rate ?? 0,
-            duration: durationDays > 0 ? durationDays : (jobData.duration ?? undefined),
+            rate: (jobData.rate as number) ?? 0,
+            duration: durationDays > 0 ? durationDays : (jobData.duration as number | undefined),
             status: jobData.status as unknown as JobStatus,
-            createdAt: new Date(jobData.created_at ?? Date.now()),
-            cancelledAt: jobData.cancelled_at ? new Date(jobData.cancelled_at) : undefined,
+            cancelledAt: jobData.cancelled_at ? new Date(jobData.cancelled_at as string) : undefined,
             cancelledBy: jobData.cancelled_by ?? undefined,
             cancellationReason: jobData.cancellation_reason ?? undefined,
-            attachments: jobData.attachments,
+            attachments: (jobData.attachments as any) ?? undefined,
             startTime: jobData.start_time || undefined,
             selectedSubcontractor: jobData.selected_subcontractor || undefined,
             confirmedSubcontractor: jobData.confirmed_subcontractor || undefined,
-          };
+          });
+        } else {
+          store.jobs.push(job as any);
+        }
 
-          if (existingJob) {
-            // ✅ Update cached job with fresh DB fields (including attachments)
-            store.updateJob(jobData.id, {
-              description: jobData.description,
-              location: jobData.location,
-              postcode: jobData.postcode,
-              dates,
-              payType: jobData.pay_type as PayType,
-              rate: jobData.rate ?? 0,
-              duration: durationDays > 0 ? durationDays : (jobData.duration ?? undefined),
-              status: jobData.status as unknown as JobStatus,
-              cancelledAt: jobData.cancelled_at ? new Date(jobData.cancelled_at) : undefined,
-              cancelledBy: jobData.cancelled_by ?? undefined,
-              cancellationReason: jobData.cancellation_reason ?? undefined,
-
-              // ✅ key fields
-              attachments: (jobData.attachments as any) ?? undefined,
-
-              startTime: jobData.start_time || undefined,
-              selectedSubcontractor: jobData.selected_subcontractor || undefined,
-              confirmedSubcontractor: jobData.confirmed_subcontractor || undefined,
-            });
-          } else {
-            store.jobs.push(job as any);
-          }
-
-          // Fetch poster (jobData.contractor_id) into store if missing
-          if (jobData.contractor_id) {
-            const existingPoster = store.getUserById(jobData.contractor_id);
-
-            if (!existingPoster) {
-              const { data: userData } = await supabase
-                .from('users')
-                .select('*')
-                .eq('id', jobData.contractor_id)
-                .maybeSingle();
-
-              if (userData) {
-                const user: User = {
-                  id: userData.id,
-                  name: userData.name,
-                  email: userData.email,
-                  role: userData.role as UserRole,
-                  trustStatus: (userData.trust_status || 'pending') as TrustStatus,
-                  rating: userData.rating || 0,
-                  reliabilityRating: userData.reliability_rating ?? undefined,
-                  completedJobs: userData.completed_jobs || 0,
-                  memberSince: new Date(userData.created_at ?? Date.now()),
-                  createdAt: new Date(userData.created_at ?? Date.now()),
-                  primaryTrade: userData.primary_trade ?? undefined,
-                  additionalTrades: userData.additional_trades || [],
-                  additionalTradesUnlocked: userData.additional_trades_unlocked || false,
-                  businessName: userData.business_name ?? undefined,
-                  abn: userData.abn ?? undefined,
-                  bio: userData.bio ?? undefined,
-                  trades: getDisplayTradeListFromUserRow({
-                    primary_trade: userData.primary_trade,
-                    additional_trades: userData.additional_trades as string[] | null,
-                  }),
-                  location: userData.location ?? undefined,
-                  postcode: userData.postcode ?? undefined,
-                  radius: userData.radius ?? undefined,
-                  availability: userData.availability as User['availability'],
-                  avatar: userData.avatar ?? undefined,
-                  subcontractorPlan: userData.subcontractor_plan as User['subcontractorPlan'],
-                  abnStatus: userData.abn_status as User['abnStatus'],
-                  abnVerifiedAt: userData.abn_verified_at ?? undefined,
-                  abnVerifiedBy: userData.abn_verified_by ?? undefined,
-                  abnRejectionReason: userData.abn_rejection_reason ?? undefined,
-                  abnSubmittedAt: userData.abn_submitted_at ?? undefined,
-                };
-
-                store.users.push(user);
-              }
-            }
-          }
+        if (jobData.contractor_id) {
+          await syncContractorIntoStore(supabase, store, jobData.contractor_id as string);
         }
       } catch (error) {
         console.error('Error loading job:', error);
       } finally {
         setIsLoadingJob(false);
       }
-    };
+    })();
 
-    fetchJobIfNeeded();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobId, isLoadingJob]);
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId, currentUser?.id]);
 
   useEffect(() => {
     if (!lightboxOpen) return;
@@ -544,7 +509,14 @@ export default function JobDetailPage() {
   }, [lightboxOpen, lightboxIndex, lightboxItems.length, sb, lightboxItems]);
 
   const job = store.getJobById(jobId);
-  const poster = job ? store.getUserById(job.contractorId) : null;
+  const poster = job?.contractorId ? store.getUserById(job.contractorId) : null;
+  const posterPremium = poster
+    ? hasPremiumAccess({
+        plan: poster.plan,
+        subscriptionStatus: poster.subscriptionStatus,
+        complimentaryPremiumUntil: poster.complimentaryPremiumUntil,
+      })
+    : false;
   const applications = job ? store.getApplicationsByJob(job.id) : [];
 
   // “My application” = any application made by the current user (single-account model)
@@ -618,7 +590,7 @@ export default function JobDetailPage() {
     );
   }
 
-  if (!job || !poster) {
+  if (!job) {
     return (
       <AppLayout>
         {/* Grey wrapper (match /jobs) */}
@@ -1070,23 +1042,31 @@ export default function JobDetailPage() {
             <div className="mb-6 pb-6 border-b border-slate-100">
               <h3 className="text-sm font-semibold text-slate-900 mb-3">Posted by</h3>
 
-              <Link href={`/users/${poster.id}`} className="block group">
+              {(() => {
+                debugProfileCardData('jobs-posted-by', {
+                  id: poster?.id ?? job.contractorId,
+                  user_id: (poster as { user_id?: string } | null)?.user_id,
+                  contractorId: job.contractorId,
+                });
+                return null;
+              })()}
+
+              <Link
+                href={getPublicProfileHref(poster?.id ?? job.contractorId)}
+                className="block group"
+              >
                 <div
                   className={[
                     'relative flex items-center gap-4 rounded-2xl border bg-white p-4 transition-all duration-200',
                     'hover:bg-slate-50 hover:border-slate-200',
-                    // Premium glow
-                    (poster as any)?.isPremium ||
-                    (poster as any)?.is_premium ||
-                    (poster as any)?.subscription_status === 'active'
+                    // Premium glow (canonical billing)
+                    posterPremium
                       ? 'ring-2 ring-amber-300/50 shadow-[0_0_0_6px_rgba(251,191,36,0.08)]'
                       : 'border-slate-200'
                   ].join(' ')}
                 >
                   {/* Premium badge (top right) */}
-                  {((poster as any)?.isPremium ||
-                    (poster as any)?.is_premium ||
-                    (poster as any)?.subscription_status === 'active') && (
+                  {posterPremium && (
                     <div className="absolute right-4 top-4 inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-900">
                       <Crown className="h-3.5 w-3.5 text-amber-700" />
                       Premium
@@ -1095,19 +1075,19 @@ export default function JobDetailPage() {
 
                   {/* Avatar (larger) */}
                   <UserAvatar
-                    avatarUrl={poster.avatar}
-                    userName={poster.name || 'TradeHub user'}
+                    avatarUrl={poster?.avatar}
+                    userName={poster?.name || 'TradeHub user'}
                     size="xl"
                   />
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <p className="truncate text-base font-semibold text-slate-900">
-                        {poster.name || 'TradeHub user'}
+                        {poster?.name || 'TradeHub user'}
                       </p>
 
                       {/* Verified badge */}
-                      {hasValidABN(poster) && (
+                      {poster && hasValidABN(poster) && (
                         <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-800">
                           <BadgeCheck className="h-3.5 w-3.5 text-blue-600" />
                           Verified
@@ -1115,13 +1095,13 @@ export default function JobDetailPage() {
                       )}
                     </div>
 
-                    {poster.businessName && (
+                    {poster?.businessName && (
                       <p className="mt-0.5 truncate text-sm text-slate-600">
                         {poster.businessName}
                       </p>
                     )}
 
-                    {typeof (poster as any)?.rating === 'number' && (
+                    {poster && typeof (poster as any)?.rating === 'number' && (
                       <div className="mt-1 flex items-center gap-1 text-xs text-slate-500">
                         <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
                         <span className="font-medium text-slate-700">

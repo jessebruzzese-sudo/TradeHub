@@ -1,15 +1,15 @@
 import { SubcontractorPlan, SubcontractorSubStatus } from './types';
 import { MVP_FREE_MODE, MVP_RADIUS_KM, MVP_AVAILABILITY_HORIZON_DAYS } from './feature-flags';
 import { getTier, getLimits } from './plan-limits';
+import { hasPremiumAccess } from '@/lib/billing/has-premium-access';
 
 /** Structural type covering both User (types.ts) and CurrentUser (auth-context). */
 type SubscriptionUser = {
   plan?: string | null;
   complimentaryPremiumUntil?: string | Date | null;
+  complimentary_premium_until?: string | Date | null;
   subscriptionStatus?: string | null;
-  activePlan?: string | null;
-  subcontractorPlan?: string | null;
-  subcontractorSubStatus?: string | null;
+  subscription_status?: string | null;
   radius?: number;
   subcontractorPreferredRadiusKm?: number;
 };
@@ -70,27 +70,15 @@ export const TIER_LIMITS: Record<SubcontractorPlan, SubcontractorTierLimits> = {
 
 export function hasComplimentaryPremium(user: SubscriptionUser | null | undefined): boolean {
   if (!user) return false;
-  if (!user.complimentaryPremiumUntil) return false;
-  return new Date(user.complimentaryPremiumUntil) > new Date();
+  const raw = user.complimentaryPremiumUntil ?? user.complimentary_premium_until;
+  if (!raw) return false;
+  return new Date(raw) > new Date();
 }
 
-/** Single-account: based on plan/subscription status only, not role. Uses unified active_plan + subscription_status, or legacy subcontractor fields. */
+/** Single-account: canonical billing only (plan + subscription_status + complimentary). */
 export function isSubcontractorPro(user: SubscriptionUser | null | undefined): boolean {
   if (!user) return false;
-  if (String(user.plan || '').toLowerCase() === 'premium') return true;
-
-  if (hasComplimentaryPremium(user)) return true;
-
-  // Unified model (from users.active_plan + subscription_status)
-  const status = (user.subscriptionStatus || '').toUpperCase();
-  if (status === 'ACTIVE' && user.activePlan === 'SUBCONTRACTOR_PRO_10') return true;
-  if (status === 'ACTIVE' && user.activePlan === 'ALL_ACCESS_PRO_26') return true;
-
-  // Legacy subcontractor fields
-  return (
-    user.subcontractorPlan === 'PRO_10' &&
-    user.subcontractorSubStatus === 'ACTIVE'
-  );
+  return hasPremiumAccess(user);
 }
 
 /** Single-account: based on plan only. MVP: cap at MVP_RADIUS_KM. */
@@ -178,24 +166,15 @@ export function getSubscriptionDisplayText(user: SubscriptionUser | null | undef
   }
 
   if (hasComplimentaryPremium(user)) {
+    const until = user.complimentaryPremiumUntil ?? user.complimentary_premium_until;
     return {
       plan: 'Premium',
       badge: 'Complimentary',
-      expiryDate: user.complimentaryPremiumUntil
-        ? String(user.complimentaryPremiumUntil)
-        : undefined,
+      expiryDate: until ? String(until) : undefined,
     };
   }
 
-  const status = (user.subscriptionStatus || '').toUpperCase();
-  if (status === 'ACTIVE' && (user.activePlan === 'SUBCONTRACTOR_PRO_10' || user.activePlan === 'ALL_ACCESS_PRO_26')) {
-    return { plan: 'Premium' };
-  }
-  if (user.subcontractorPlan === 'PRO_10' && user.subcontractorSubStatus === 'ACTIVE') {
-    return { plan: 'Premium' };
-  }
-
-  return { plan: 'Free' };
+  return { plan: 'Premium' };
 }
 
 /** Single-account: anyone with plan or settings can use work alerts. */

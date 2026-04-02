@@ -4,6 +4,7 @@
  */
 
 import { getTier, getLimits, type PlanUser } from './plan-limits';
+import { getPrimaryUserCoordinates, getUserCoordinates } from '@/lib/location/get-user-coordinates';
 
 // Hard cap constants (defensive — real values still come from plan-limits)
 const ABS_MAX_FREE_RADIUS_KM = 20;
@@ -13,12 +14,7 @@ export type DbUserRow = {
   id: string;
   plan?: string | null;
   role?: string | null;
-  is_premium?: boolean | null;
   subscription_status?: string | null;
-  active_plan?: string | null;
-  subcontractor_plan?: string | null;
-  subcontractor_sub_status?: string | null;
-  premium_until?: string | null;
   complimentary_premium_until?: string | null;
 };
 
@@ -27,8 +23,6 @@ type PremiumUser = DbUserRow;
 type ViewerCenterUser = PremiumUser & {
   search_lat?: number | null;
   search_lng?: number | null;
-  base_lat?: number | null;
-  base_lng?: number | null;
   location_lat?: number | null;
   location_lng?: number | null;
 };
@@ -47,7 +41,10 @@ export function isPremiumForDiscovery(currentUser: PlanUser | null | undefined):
   return getTier(currentUser) === 'premium';
 }
 
-/** Viewer center: premium uses search_from if set; free never uses search_from; clean fallbacks. */
+/**
+ * Discovery viewer origin: premium uses search coords when set, else primary;
+ * free uses primary only (`location_lat` / `location_lng`).
+ */
 export function getViewerCenter(currentUser: ViewerCenterUser | null | undefined): {
   lat: number;
   lng: number;
@@ -55,28 +52,11 @@ export function getViewerCenter(currentUser: ViewerCenterUser | null | undefined
   if (!currentUser) return null;
 
   const isPremium = isPremiumForDiscovery(currentUser);
-
-  if (isPremium) {
-    const slat = currentUser.search_lat;
-    const slng = currentUser.search_lng;
-    if (slat != null && slng != null && !Number.isNaN(slat) && !Number.isNaN(slng)) {
-      return { lat: Number(slat), lng: clampLng(Number(slng)) };
-    }
-  }
-
-  const llat = currentUser.location_lat;
-  const llng = currentUser.location_lng;
-  if (llat != null && llng != null && !Number.isNaN(llat) && !Number.isNaN(llng)) {
-    return { lat: Number(llat), lng: clampLng(Number(llng)) };
-  }
-
-  const blat = currentUser.base_lat;
-  const blng = currentUser.base_lng;
-  if (blat != null && blng != null && !Number.isNaN(blat) && !Number.isNaN(blng)) {
-    return { lat: Number(blat), lng: clampLng(Number(blng)) };
-  }
-
-  return null;
+  const raw = isPremium
+    ? getUserCoordinates(currentUser)
+    : getPrimaryUserCoordinates(currentUser);
+  if (!raw) return null;
+  return { lat: raw.lat, lng: clampLng(raw.lng) };
 }
 
 export function clampLng(deg: number): number {

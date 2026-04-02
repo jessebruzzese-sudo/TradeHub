@@ -2058,6 +2058,7 @@ export type Database = {
           postcode: string | null
           preferred_radius_km: number | null
           premium_until: string | null
+          plan: string | null
           pricing_amount: number | null
           pricing_type: string | null
           primary_trade: string | null
@@ -2196,6 +2197,7 @@ export type Database = {
           postcode?: string | null
           preferred_radius_km?: number | null
           premium_until?: string | null
+          plan?: string | null
           pricing_amount?: number | null
           pricing_type?: string | null
           primary_trade?: string | null
@@ -2322,6 +2324,7 @@ export type Database = {
           postcode?: string | null
           preferred_radius_km?: number | null
           premium_until?: string | null
+          plan?: string | null
           pricing_amount?: number | null
           pricing_type?: string | null
           primary_trade?: string | null

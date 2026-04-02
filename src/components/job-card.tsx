@@ -50,6 +50,13 @@ type JobRpcExtras = {
 };
 
 export function JobCard({ job, showStatus = true, extraActions }: JobCardProps) {
+  console.log('JOB CARD', {
+    id: job.id,
+    title: job.title,
+    href: `/jobs/${job.id}`,
+    job,
+  });
+
   const extra = job as unknown as JobRpcExtras;
   const expired = isJobExpired(job);
   const pastStart = isPastStartDate(job);

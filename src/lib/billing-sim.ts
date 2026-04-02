@@ -58,11 +58,3 @@ export function clearSimulatedPremium(): void {
     console.error('Failed to clear simulated premium:', e);
   }
 }
-
-/**
- * Legacy: Check if billing simulation is enabled
- * @deprecated Use BILLING_SIM_ALLOWED constant instead
- */
-export function isBillingSimEnabled(): boolean {
-  return BILLING_SIM_ALLOWED;
-}

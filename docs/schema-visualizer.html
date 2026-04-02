@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TradeHub — DB schema (Mermaid)</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    header {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid #334155;
+      background: var(--panel);
+    }
+    header h1 {
+      margin: 0 0 0.35rem;
+      font-size: 1.15rem;
+      font-weight: 600;
+    }
+    header p {
+      margin: 0;
+      font-size: 0.8rem;
+      color: var(--muted);
+      max-width: 72ch;
+      line-height: 1.45;
+    }
+    header a { color: var(--accent); }
+    .wrap {
+      padding: 1rem;
+      overflow: auto;
+    }
+    #diagram {
+      background: #fff;
+      border-radius: 12px;
+      padding: 1rem;
+      min-height: 480px;
+    }
+    .mermaid { text-align: center; }
+    footer {
+      padding: 1rem 1.25rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+      border-top: 1px solid #334155;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>TradeHub database — relationship map</h1>
+    <p>
+      Open via a local server so the diagram loads (ES modules + CDN are unreliable on <code>file://</code>):
+      <code>npx --yes serve docs -p 3333</code> then visit
+      <a href="http://localhost:3333/schema-visualizer.html">http://localhost:3333/schema-visualizer.html</a>.
+      Schema is derived from <code>supabase/migrations</code>; regenerate types with <code>npm run db:gen-types</code>.
+      Edit the Mermaid block in this file or paste into <a href="https://mermaid.live" target="_blank" rel="noreferrer">mermaid.live</a>.
+    </p>
+  </header>
+  <div class="wrap">
+    <div id="diagram" class="mermaid">
+erDiagram
+  users {
+    uuid id PK
+    text email UK
+    text role
+    text trust_status
+    bool is_public_profile
+    text primary_trade
+    text_array additional_trades
+    timestamptz deleted_at
+  }
+
+  jobs {
+    uuid id PK
+    uuid contractor_id FK
+    text trade_category
+    text status
+  }
+
+  applications {
+    uuid id PK
+    uuid job_id FK
+    uuid subcontractor_id FK
+    text status
+  }
+
+  conversations {
+    uuid id PK
+    uuid job_id FK
+    uuid contractor_id FK
+    uuid subcontractor_id FK
+  }
+
+  messages {
+    uuid id PK
+    uuid conversation_id FK
+    uuid sender_id FK
+  }
+
+  reviews {
+    uuid id PK
+    uuid job_id FK
+    uuid author_id FK
+    uuid recipient_id FK
+  }
+
+  notifications {
+    uuid id PK
+    uuid user_id FK
+  }
+
+  audit_logs {
+    uuid id PK
+    uuid admin_id FK
+    uuid target_user_id FK
+  }
+
+  admin_notes {
+    uuid id PK
+    uuid admin_id FK
+    uuid user_id FK
+  }
+
+  previous_work {
+    uuid id PK
+    uuid user_id FK
+    text title
+  }
+
+  previous_work_images {
+    uuid id PK
+    uuid previous_work_id FK
+    text storage_path
+  }
+
+  user_locations {
+    uuid id PK
+    uuid user_id FK
+  }
+
+  user_trades {
+    uuid id PK
+    uuid user_id FK
+    text trade
+  }
+
+  user_blocks {
+    uuid id PK
+    uuid blocker_id FK
+    uuid blocked_id FK
+  }
+
+  user_reports {
+    uuid id PK
+    uuid reporter_id FK
+    uuid reported_id FK
+  }
+
+  user_ratings {
+    uuid id PK
+    uuid target_user_id FK
+    uuid rater_user_id FK
+  }
+
+  abn_verifications {
+    uuid id PK
+    uuid user_id FK
+  }
+
+  subcontractor_availability {
+    uuid id PK
+    uuid user_id FK
+    date date
+  }
+
+  subscription_history {
+    uuid id PK
+    uuid user_id FK
+  }
+
+  usage_metrics {
+    uuid id PK
+    uuid user_id FK
+  }
+
+  reliability_events {
+    uuid id PK
+    uuid subcontractor_id FK
+    uuid contractor_id FK
+    uuid job_id FK
+  }
+
+  admin_review_cases {
+    uuid id PK
+    uuid subcontractor_id FK
+  }
+
+  admin_account_reviews {
+    uuid id PK
+    uuid user_id FK
+    uuid reviewed_by FK
+  }
+
+  admin_settings {
+    uuid id PK
+    uuid updated_by FK
+  }
+
+  profile_views {
+    uuid id PK
+    uuid viewed_user_id FK
+    uuid viewer_user_id FK
+  }
+
+  profile_likes {
+    uuid id PK
+    uuid liked_user_id FK
+    uuid liked_by_user_id FK
+  }
+
+  users ||--o{ jobs : "contractor"
+  users ||--o{ applications : "subcontractor"
+  jobs ||--o{ applications : "has"
+  users ||--o{ conversations : "contractor"
+  users ||--o{ conversations : "subcontractor"
+  jobs ||--o{ conversations : "for_job"
+  conversations ||--o{ messages : "has"
+  users ||--o{ messages : "sender"
+  jobs ||--o{ reviews : "job"
+  users ||--o{ reviews : "author"
+  users ||--o{ reviews : "recipient"
+  users ||--o{ notifications : "recipient"
+  users ||--o{ audit_logs : "admin"
+  users ||--o{ audit_logs : "target"
+  users ||--o{ admin_notes : "admin"
+  users ||--o{ admin_notes : "subject"
+  users ||--o{ previous_work : "owner"
+  previous_work ||--o{ previous_work_images : "images"
+  users ||--o{ user_locations : "has"
+  users ||--o{ user_trades : "has"
+  users ||--o{ user_blocks : "blocker"
+  users ||--o{ user_blocks : "blocked"
+  users ||--o{ user_reports : "reporter"
+  users ||--o{ user_reports : "reported"
+  users ||--o{ user_ratings : "target"
+  users ||--o{ user_ratings : "rater"
+  users ||--o{ abn_verifications : "subject"
+  users ||--o{ subcontractor_availability : "dates"
+  users ||--o{ subscription_history : "billing"
+  users ||--o{ usage_metrics : "usage"
+  users ||--o{ reliability_events : "subcontractor"
+  users ||--o{ reliability_events : "contractor"
+  jobs ||--o{ reliability_events : "job"
+  users ||--o{ admin_review_cases : "subcontractor"
+  users ||--o{ admin_account_reviews : "user"
+  users ||--o{ admin_account_reviews : "reviewer"
+  users ||--o{ admin_settings : "updated_by"
+  users ||--o{ profile_views : "viewed"
+  users ||--o{ profile_views : "viewer"
+  users ||--o{ profile_likes : "liked"
+  users ||--o{ profile_likes : "liker"
+    </div>
+  </div>
+  <footer>
+    Views (not shown): <code>public_profile_directory</code>, <code>public_profile_directory_with_ratings</code>,
+    <code>user_rating_aggregates</code>, <code>users_with_ratings</code> — read from
+    <code>users</code> + aggregates.
+  </footer>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "neutral",
+      er: { useMaxWidth: true },
+      securityLevel: "loose",
+    });
+  </script>
+</body>
+</html>
