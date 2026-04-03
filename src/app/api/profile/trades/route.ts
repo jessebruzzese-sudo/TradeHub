@@ -6,9 +6,9 @@ import {
   hasContractorPremium,
   canChangePrimaryTrade,
 } from '@/lib/capability-utils';
-import { TRADES } from '@/lib/trades';
 import { normalizeTrade, normalizeTradesList } from '@/lib/trades/normalizeTrade';
 import { getDisplayTradeListFromUserRow, splitSelectedTrades } from '@/lib/trades/user-trades';
+import { loadActiveTradeNames, resolveTradeAgainstCatalog } from '@/lib/trades/load-active-trades';
 
 export const dynamic = 'force-dynamic';
 
@@ -88,13 +88,21 @@ export async function POST(request: NextRequest) {
         : trades
       : normalizeTradesList([primaryTrade]);
 
-  const validTrades = TRADES as readonly string[];
-  const invalid = effectiveTrades.filter((t) => !validTrades.includes(t));
+  let catalogNames: string[];
+  try {
+    catalogNames = await loadActiveTradeNames(supabase);
+  } catch {
+    return NextResponse.json({ error: 'Could not load trade catalog' }, { status: 500 });
+  }
+
+  const invalid = effectiveTrades.filter((t) => !resolveTradeAgainstCatalog(t, catalogNames));
   if (invalid.length > 0) {
     return NextResponse.json({
       error: `Invalid trade(s): ${invalid.join(', ')}. Must be from the allowed list.`,
     }, { status: 400 });
   }
+
+  const resolvedTrades = effectiveTrades.map((t) => resolveTradeAgainstCatalog(t, catalogNames)!);
 
   const { data: profile } = await (supabase as any)
     .from('users')
@@ -107,13 +115,13 @@ export async function POST(request: NextRequest) {
     : false;
   const canChange = profile ? canChangePrimaryTrade(profile) : false;
 
-  if (effectiveTrades.length > 1 && !isPremium) {
+  if (resolvedTrades.length > 1 && !isPremium) {
     return NextResponse.json({ error: 'Multiple trades require Premium' }, { status: 403 });
   }
 
   if (!canChange) {
     const currentPrimary = normalizeTrade((profile?.primary_trade ?? '').trim());
-    const requestedPrimary = primaryTrade || effectiveTrades[0] || '';
+    const requestedPrimary = primaryTrade || resolvedTrades[0] || '';
     if (requestedPrimary !== currentPrimary) {
       return NextResponse.json(
         { error: 'Primary trade is locked on the Free plan. Upgrade to Premium to change your trade.' },
@@ -122,7 +130,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const split = splitSelectedTrades(effectiveTrades, effectiveTrades.length > 1);
+  const split = splitSelectedTrades(resolvedTrades, resolvedTrades.length > 1);
 
   const { error: upErr } = await (supabase as any)
     .from('users')

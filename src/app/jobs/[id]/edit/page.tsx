@@ -31,7 +31,8 @@ import { format as formatDate } from 'date-fns';
 import { Calendar as CalendarIcon, X, Upload, FileText, Image as ImageIcon } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { getBrowserSupabase } from '@/lib/supabase-client';
-import { TRADES } from '@/lib/trades';
+import { isPremiumForDiscovery } from '@/lib/discovery';
+import { useActiveTradesCatalog } from '@/lib/trades/use-active-trades-catalog';
 
 type JobAttachment = {
   name: string;
@@ -114,6 +115,7 @@ export default function EditJobPage() {
     [currentUser]
   );
   const isPremium = isPremiumForDiscovery(userForDiscovery);
+  const { names: catalogTradeNames, loading: catalogTradesLoading } = useActiveTradesCatalog();
 
   const posterTrades = useMemo(() => {
     const t = (currentUser as any)?.trades;
@@ -132,7 +134,10 @@ export default function EditJobPage() {
     return out;
   }, [currentUser]);
 
-  const tradeOptions = isPremium ? [...TRADES] : posterTrades;
+  const tradeOptions = useMemo(
+    () => (isPremium ? catalogTradeNames : posterTrades),
+    [isPremium, catalogTradeNames, posterTrades]
+  );
 
   // Hydrate form when job becomes available (handles async store population).
   useEffect(() => {
@@ -390,7 +395,10 @@ export default function EditJobPage() {
                   <Select
                     value={formData.tradeCategory || (posterTrades[0] ?? tradeOptions[0] ?? '')}
                     onValueChange={(v) => handleChange('tradeCategory', v)}
-                    disabled={!isPremium && posterTrades.length <= 1}
+                    disabled={
+                      (!isPremium && posterTrades.length <= 1) ||
+                      (isPremium && catalogTradesLoading && catalogTradeNames.length === 0)
+                    }
                   >
                     <SelectTrigger id="tradeCategory" className="mt-1">
                       <SelectValue placeholder="Select trade" />

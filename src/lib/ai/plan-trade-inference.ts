@@ -48,9 +48,9 @@ const TRADE_KEYWORDS: Record<string, string[]> = {
     'waterproofing', 'membrane', 'as3740', 'wet areas', 'waterproof', 'tanking',
     'flashing', 'wet area', 'bathroom waterproof', 'balcony waterproof',
   ],
-  Bricklaying: [
+  'Bricklaying / Hebel': [
     'masonry', 'brickwork', 'brick veneer', 'blockwork', 'bricklayer', 'brick',
-    'block', 'cavity', 'weep hole', 'dpc', 'damp proof',
+    'block', 'cavity', 'weep hole', 'dpc', 'damp proof', 'hebel',
   ],
   'Plastering / Gyprock': [
     'plasterboard', 'wall lining', 'ceiling lining', 'gyprock', 'plaster', 'cornice',

@@ -18,6 +18,8 @@ import ProfileSummaryTrustBar from '@/components/profile/ProfileSummaryTrustBar'
 import { formatProfilePricingTypeLabel } from '@/lib/job-pay-labels';
 import { getPublicProfileHref } from '@/lib/url-utils';
 import { debugProfileCardData } from '@/lib/profile-debug';
+import { normalizeTrade } from '@/lib/trades/normalizeTrade';
+import { useActiveTradesCatalog } from '@/lib/trades/use-active-trades-catalog';
 
 type DirectoryUser = {
   id: string;
@@ -36,11 +38,15 @@ type DirectoryUser = {
   down_count?: number | null;
   reliability_rating?: number | null;
   primary_trade?: string | null;
+  /** Derived on the server from primary + additional; may duplicate those fields. */
+  trades?: string[] | null;
   additional_trades?: unknown;
   is_public_profile?: boolean | null;
   subscription_status?: string | null;
   complimentary_premium_until?: string | null;
 
+  /** Required for client-side `hasValidABN` / verified badge when API sends it. */
+  abn?: string | null;
   abn_status?: string | null;
   abn_verified_at?: string | null;
 
@@ -57,6 +63,7 @@ type DirectoryUser = {
   average_rating?: number | null;
   review_count?: number | null;
   reliability_percent?: number | null;
+  distance_km?: number | null;
 };
 
 function norm(v?: string | null) {
@@ -74,19 +81,44 @@ function normTrade(v?: string | null) {
 }
 
 function getNormalizedUserTrades(u: DirectoryUser): string[] {
+  const raw: string[] = [];
+  if (Array.isArray(u.trades)) {
+    for (const t of u.trades) {
+      if (typeof t === 'string' && t.trim()) raw.push(t.trim());
+    }
+  }
   const primary = typeof u.primary_trade === 'string' ? u.primary_trade.trim() : '';
-  const additional = Array.isArray(u.additional_trades)
-    ? (u.additional_trades as unknown[])
-        .filter((t): t is string => typeof t === 'string')
-        .map((t) => t.trim())
-        .filter(Boolean)
-    : [];
-  const merged = [...(primary ? [primary] : []), ...additional];
-  return Array.from(new Set(merged));
+  if (primary) raw.push(primary);
+  let additional: string[] = [];
+  if (Array.isArray(u.additional_trades)) {
+    additional = (u.additional_trades as unknown[])
+      .filter((t): t is string => typeof t === 'string')
+      .map((t) => t.trim())
+      .filter(Boolean);
+  } else if (typeof u.additional_trades === 'string' && u.additional_trades.trim()) {
+    additional = u.additional_trades
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  raw.push(...additional);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const t of raw) {
+    const k = t.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(t);
+  }
+  return out;
 }
 
 function isVerified(u: DirectoryUser) {
-  return hasValidABN(u as any);
+  try {
+    return hasValidABN(u);
+  } catch {
+    return false;
+  }
 }
 
 function isPremium(u: DirectoryUser) {
@@ -118,6 +150,23 @@ function reliabilityToPercentSearch(r?: number | null): number | null {
   return Math.round(Math.min(100, v));
 }
 
+function sanitizeDirectoryProfiles(raw: unknown): DirectoryUser[] {
+  if (!Array.isArray(raw)) return [];
+  const out: DirectoryUser[] = [];
+  for (const p of raw) {
+    if (p == null || typeof p !== 'object') continue;
+    const id = (p as { id?: unknown }).id;
+    if (typeof id !== 'string' || !id.trim()) continue;
+    out.push(p as DirectoryUser);
+  }
+  return out;
+}
+
+/** Treat directory API rows as public unless explicitly false (handles omitted flags). */
+function isDirectoryRowPublic(u: DirectoryUser): boolean {
+  return u.is_public_profile !== false;
+}
+
 export default function SearchDirectoryPage() {
   const router = useRouter();
   const store = useMemo(() => getStore(), []);
@@ -139,6 +188,7 @@ export default function SearchDirectoryPage() {
     'recommended' | 'premium' | 'rating' | 'nearest' | 'name'
   >('recommended');
   const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const { names: catalogTradeNames } = useActiveTradesCatalog();
 
   useEffect(() => {
     let cancelled = false;
@@ -209,8 +259,23 @@ export default function SearchDirectoryPage() {
             sampleProfiles: Array.isArray(data?.profiles) ? data.profiles.slice(0, 3) : null,
           });
         }
+        // Temporary: inspect discovery shape vs UI (remove when search is stable).
+        // eslint-disable-next-line no-console
+        console.log('[search] discovery payload (temporary)', {
+          url,
+          status: res.status,
+          profilesLen: Array.isArray(data.profiles) ? data.profiles.length : 0,
+          topLevelKeys: Object.keys(data),
+          sampleKeys:
+            Array.isArray(data.profiles) &&
+            data.profiles[0] != null &&
+            typeof data.profiles[0] === 'object'
+              ? Object.keys(data.profiles[0] as object)
+              : [],
+          sample0: Array.isArray(data.profiles) ? data.profiles[0] : null,
+        });
         if (cancelled) return;
-        setUsers((Array.isArray(data.profiles) ? data.profiles : []) as DirectoryUser[]);
+        setUsers(sanitizeDirectoryProfiles(data.profiles));
       } catch (e) {
         if (!failureLogged) {
           console.error('Search directory load failed', e);
@@ -233,34 +298,27 @@ export default function SearchDirectoryPage() {
   }, [retryKey, q, trade, verifiedOnly]);
 
   const allTrades = useMemo(() => {
-    const options = Array.from(
-      new Set(
-        users
-          .filter((u) => u.is_public_profile === true)
-          .flatMap((u) => getNormalizedUserTrades(u))
-      )
-    ).sort((a, b) => a.localeCompare(b));
-    const finalOptions = ['all', ...options];
+    const finalOptions = ['all', ...catalogTradeNames];
     if (DEBUG) {
       // eslint-disable-next-line no-console
       console.log('[search] trades:options', {
         usersCount: users.length,
-        publicUsersCount: users.filter((u) => u.is_public_profile === true).length,
+        catalogCount: catalogTradeNames.length,
         finalOptions,
       });
     }
     dbg('H2-client-filtering', 'trades:options', {
       usersCount: users.length,
-      publicUsersCount: users.filter((u) => u.is_public_profile === true).length,
+      publicUsersCount: users.filter((u) => isDirectoryRowPublic(u)).length,
       tradesCount: finalOptions.length,
       tradesSample: finalOptions.slice(0, 12),
     });
     return finalOptions;
-  }, [users]);
+  }, [catalogTradeNames]);
 
   const filtered = useMemo(() => {
     const queryText = q.trim().toLowerCase();
-    const tradeNorm = trade === 'all' ? '' : normTrade(trade);
+    const tradeFilterKey = trade === 'all' ? '' : normTrade(normalizeTrade(trade));
 
     const result = users.filter((u) => {
       if (verifiedOnly && !isVerified(u)) return false;
@@ -270,6 +328,7 @@ export default function SearchDirectoryPage() {
       const postcode = norm(u.postcode || '').toLowerCase();
       const tradesRaw = getNormalizedUserTrades(u);
       const tradesNorm = tradesRaw.map((t) => normTrade(t));
+      const tradesCanon = tradesRaw.map((t) => normTrade(normalizeTrade(t)));
 
       const matchesText =
         !queryText ||
@@ -278,7 +337,8 @@ export default function SearchDirectoryPage() {
         postcode.includes(queryText) ||
         tradesNorm.some((t) => t.includes(queryText));
 
-      const matchesTrade = !tradeNorm || tradesNorm.some((t) => t === tradeNorm);
+      const matchesTrade =
+        !tradeFilterKey || tradesCanon.some((t) => t === tradeFilterKey);
 
       return matchesText && matchesTrade;
     });
@@ -426,7 +486,7 @@ export default function SearchDirectoryPage() {
               >
                 {allTrades.map((t) => (
                   <option key={t} value={t}>
-                    {t === 'all' ? 'All trades' : prettyTrade(t)}
+                    {t === 'all' ? 'All trades' : t}
                   </option>
                 ))}
               </select>
@@ -484,9 +544,14 @@ export default function SearchDirectoryPage() {
               <div className="px-4 pb-24 pt-3 grid grid-cols-1 gap-3 lg:grid-cols-3">
                 {ranked.map((u) => {
                   debugProfileCardData('search', u as unknown as Record<string, unknown>);
-                  const loc = u.location;
+                  const displayName =
+                    norm(u.business_name) || norm(u.name) || 'Trade professional';
+                  const locLine =
+                    norm(u.location) ||
+                    (norm(u.postcode) ? `Postcode ${norm(u.postcode)}` : '');
                   const premium = isPremium(u);
                   const userTrades = getNormalizedUserTrades(u);
+                  const avatarInitial = (displayName.replace(/\s+/g, '') || '?').slice(0, 1).toUpperCase();
 
                   return (
                     <div
@@ -530,15 +595,12 @@ export default function SearchDirectoryPage() {
                           {u.avatar ? (
                             <img
                               src={u.avatar}
-                              alt={`${u.business_name || u.name || 'User'} avatar`}
+                              alt={`${displayName} avatar`}
                               className="h-11 w-11 rounded-full object-cover border border-slate-200"
                             />
                           ) : (
                             <div className="h-11 w-11 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-sm font-semibold text-slate-700">
-                              {(u.business_name || u.name || '?')
-                                .trim()
-                                .slice(0, 1)
-                                .toUpperCase()}
+                              {avatarInitial}
                             </div>
                           )}
                         </div>
@@ -553,7 +615,7 @@ export default function SearchDirectoryPage() {
                                     premium ? "font-bold text-slate-950" : "font-semibold text-slate-900"
                                   )}
                                 >
-                                  {u.business_name || u.name || 'Business'}
+                                  {displayName}
                                 </div>
                               </Link>
                               {premium && (
@@ -570,12 +632,17 @@ export default function SearchDirectoryPage() {
                             </p>
                           )}
 
-                          {loc && (
-                            <div className="mt-1 flex items-center gap-1 text-sm text-slate-600">
-                              <MapPin className="h-3.5 w-3.5 shrink-0" />
-                              <span className="truncate">{loc}</span>
-                            </div>
-                          )}
+                          <div
+                            className={cn(
+                              'mt-1 flex items-center gap-1 text-sm',
+                              locLine ? 'text-slate-600' : 'text-slate-400'
+                            )}
+                          >
+                            <MapPin className="h-3.5 w-3.5 shrink-0" />
+                            <span className="truncate">
+                              {locLine || 'Location not listed'}
+                            </span>
+                          </div>
 
                           {(() => {
                             const avg = Number(
@@ -612,18 +679,26 @@ export default function SearchDirectoryPage() {
                           })()}
 
                           <div className="mt-3 flex flex-wrap items-center gap-2">
-                            {userTrades.slice(0, 5).map((t) => (
-                              <span
-                                key={t}
-                                className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700"
-                              >
-                                {prettyTrade(t)}
+                            {userTrades.length === 0 ? (
+                              <span className="inline-flex items-center rounded-full border border-dashed border-slate-200 bg-slate-50/80 px-3 py-1 text-xs font-medium text-slate-500">
+                                Trade not listed
                               </span>
-                            ))}
-                            {userTrades.length > 5 && (
-                              <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
-                                +{userTrades.length - 5}
-                              </span>
+                            ) : (
+                              <>
+                                {userTrades.slice(0, 5).map((t) => (
+                                  <span
+                                    key={t}
+                                    className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700"
+                                  >
+                                    {prettyTrade(t)}
+                                  </span>
+                                ))}
+                                {userTrades.length > 5 && (
+                                  <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+                                    +{userTrades.length - 5}
+                                  </span>
+                                )}
+                              </>
                             )}
                             {isVerified(u) && (
                               <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 ring-1 ring-inset ring-blue-200">
@@ -675,7 +750,7 @@ export default function SearchDirectoryPage() {
                               e.preventDefault();
                               store.ensureUserInStore({
                                 id: u.id,
-                                name: (u.business_name || u.name || 'User') ?? undefined,
+                                name: displayName || undefined,
                                 avatar: u.avatar ?? undefined,
                               });
                               router.push(`/messages?userId=${u.id}`);

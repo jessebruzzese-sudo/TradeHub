@@ -25,7 +25,7 @@ export const TRADE_SCOPE_FALLBACKS: Record<string, string> = {
     'Waterproof membrane installation to bathrooms and ensuite wet areas prior to tiling.',
   Tiling:
     'Wet area floor and wall tiling including shower areas and splashbacks as per plans.',
-  Bricklaying:
+  'Bricklaying / Hebel':
     'External brickwork / masonry veneer and associated masonry works to the dwelling as shown on plans.',
   'Plastering / Gyprock':
     'Internal plasterboard wall and ceiling linings, set and finish throughout the dwelling.',

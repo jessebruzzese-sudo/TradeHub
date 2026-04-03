@@ -1,9 +1,34 @@
 // @ts-nocheck - Supabase client type inference
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabase } from '@/lib/supabase-server';
+import { createServerSupabase, createServiceSupabase } from '@/lib/supabase-server';
 import { isLikelyTestAccount } from '@/lib/test-account';
+import { displayNameForMessagingParticipant } from '@/lib/messaging-participant-display';
 
 export const dynamic = 'force-dynamic';
+
+const MESSAGING_USER_COLS =
+  'id, name, avatar, email, business_name, show_business_name_on_profile';
+
+async function fetchMessagingParticipantRow(
+  otherUserId: string,
+  supabase: ReturnType<typeof createServerSupabase>
+) {
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    try {
+      const admin = createServiceSupabase();
+      const { data, error } = await admin
+        .from('users')
+        .select(MESSAGING_USER_COLS)
+        .eq('id', otherUserId)
+        .maybeSingle();
+      if (!error && data) return data;
+    } catch {
+      // fall through
+    }
+  }
+  const { data } = await supabase.from('users').select(MESSAGING_USER_COLS).eq('id', otherUserId).maybeSingle();
+  return data ?? null;
+}
 
 /**
  * GET /api/messages?conversationId=<id>
@@ -46,13 +71,13 @@ export async function GET(request: NextRequest) {
 
     const otherUserId = conv.contractor_id === authUser.id ? conv.subcontractor_id : conv.contractor_id;
 
-    const [{ data: messages, error: msgErr }, { data: otherUser }] = await Promise.all([
+    const [{ data: messages, error: msgErr }, otherUser] = await Promise.all([
       supabase
         .from('messages')
         .select('id, conversation_id, sender_id, text, attachments, is_system_message, created_at')
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: true }),
-      supabase.from('users').select('id, name, avatar, email').eq('id', otherUserId).maybeSingle(),
+      fetchMessagingParticipantRow(otherUserId, supabase),
     ]);
 
     if (msgErr) {
@@ -85,7 +110,9 @@ export async function GET(request: NextRequest) {
         subcontractorId: conv.subcontractor_id,
         jobId: conv.job_id,
         otherUserId,
-        otherUserName: otherUser?.name ?? 'Unknown',
+        otherUserName: displayNameForMessagingParticipant(
+          otherUser ?? { name: null, business_name: null, show_business_name_on_profile: null, email: null }
+        ),
         otherUserAvatar: otherUser?.avatar ?? null,
       },
     });

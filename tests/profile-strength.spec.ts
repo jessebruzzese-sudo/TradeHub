@@ -38,7 +38,7 @@ test.describe('Profile strength', () => {
     await expect(strength.getByText('Links', { exact: true })).toBeVisible();
   });
 
-  test('profile strength section is always rendered', async ({ page }) => {
+  test('E2E fixture still exposes profile strength UI for anonymous Playwright runs', async ({ page }) => {
     await page.goto(`${BASE_URL}/profile/test-user-0`);
     const section = page.getByTestId('profile-strength');
     await expect(section).toBeVisible();

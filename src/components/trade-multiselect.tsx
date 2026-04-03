@@ -5,7 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { TRADES } from '@/lib/trades';
+import { useActiveTradesCatalog } from '@/lib/trades/use-active-trades-catalog';
 import { cn } from '@/lib/utils';
 
 export type TradeMultiSelectProps = {
@@ -23,6 +23,7 @@ export function TradeMultiSelect({
   label = 'Trade categories',
   error,
 }: TradeMultiSelectProps) {
+  const { names: catalogTradeNames, loading: catalogLoading } = useActiveTradesCatalog();
   const [showBuilderPrompt, setShowBuilderPrompt] = useState(false);
   const hadBuilderSelectedRef = useRef(false);
 
@@ -68,26 +69,30 @@ export function TradeMultiSelect({
         role="group"
         aria-label={label}
       >
-        {TRADES.map((trade) => (
-          <div
-            key={trade}
-            className="flex items-center gap-2"
-          >
-            <Checkbox
-              id={`trade-${trade}`}
-              checked={value.includes(trade)}
-              onCheckedChange={(checked) => handleToggle(trade, checked === true)}
-              disabled={wouldExceedFree && !value.includes(trade)}
-              aria-disabled={wouldExceedFree && !value.includes(trade)}
-            />
-            <Label
-              htmlFor={`trade-${trade}`}
-              className="cursor-pointer font-normal text-sm"
+        {catalogLoading ? (
+          <div className="col-span-full py-6 text-center text-sm text-slate-500">Loading trades…</div>
+        ) : (
+          catalogTradeNames.map((trade) => (
+            <div
+              key={trade}
+              className="flex items-center gap-2"
             >
-              {trade}
-            </Label>
-          </div>
-        ))}
+              <Checkbox
+                id={`trade-${trade}`}
+                checked={value.includes(trade)}
+                onCheckedChange={(checked) => handleToggle(trade, checked === true)}
+                disabled={wouldExceedFree && !value.includes(trade)}
+                aria-disabled={wouldExceedFree && !value.includes(trade)}
+              />
+              <Label
+                htmlFor={`trade-${trade}`}
+                className="cursor-pointer font-normal text-sm"
+              >
+                {trade}
+              </Label>
+            </div>
+          ))
+        )}
       </div>
 
       {!isPremium && wouldExceedFree && (

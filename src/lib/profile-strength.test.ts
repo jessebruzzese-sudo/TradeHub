@@ -42,5 +42,33 @@ describe('parseProfileStrengthRpcResult', () => {
     expect(parsed?.total).toBe(30);
     expect(parsed?.band).toBe('LOW');
   });
+
+  it('maps Postgres user_not_found envelope to zeroed categories (no longer returns null)', () => {
+    const parsed = parseProfileStrengthRpcResult({ error: 'user_not_found' });
+    expect(parsed).toBeTruthy();
+    expect(parsed?.total).toBe(0);
+    expect(parsed?.band).toBe('LOW');
+    expect(parsed?.activity).toBe(0);
+  });
+
+  it('accepts legacy numeric RPC return as total-only payload', () => {
+    const parsed = parseProfileStrengthRpcResult(42);
+    expect(parsed?.total).toBe(42);
+    expect(parsed?.band).toBe('MEDIUM');
+  });
+
+  it('unwraps nested single-element arrays so category keys are not lost', () => {
+    const inner = {
+      activity_points: 32,
+      links_points: 6,
+      google_points: 4,
+      likes_points: 2,
+      completeness_points: 5,
+      abn_points: 10,
+    };
+    const parsed = parseProfileStrengthRpcResult([[inner]]);
+    expect(parsed?.activity).toBe(32);
+    expect(parsed?.total).toBe(59);
+  });
 });
 

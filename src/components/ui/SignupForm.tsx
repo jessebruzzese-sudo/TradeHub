@@ -7,7 +7,7 @@ import Image from 'next/image';
 
 import { useAuth } from '@/lib/auth';
 import { UserRole } from '@/lib/types';
-import { TRADES } from '@/lib/trades';
+import { useActiveTradesCatalog } from '@/lib/trades/use-active-trades-catalog';
 import { getSafeReturnUrl, safeRouterReplace } from '@/lib/safe-nav';
 
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,7 @@ export default function SignupForm({ role }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const returnUrlParam = searchParams.get('returnUrl');
+  const { names: catalogTradeNames, loading: catalogTradesLoading } = useActiveTradesCatalog();
 
   const { signup, currentUser, isLoading } = useAuth();
 
@@ -354,12 +355,16 @@ export default function SignupForm({ role }: Props) {
 
                 <div>
                   <Label htmlFor="primaryTrade">Primary Trade *</Label>
-                  <Select value={primaryTrade} onValueChange={setPrimaryTrade}>
+                  <Select
+                    value={primaryTrade}
+                    onValueChange={setPrimaryTrade}
+                    disabled={catalogTradesLoading || catalogTradeNames.length === 0}
+                  >
                     <SelectTrigger className="mt-1" id="primaryTrade">
                       <SelectValue placeholder="Select your primary trade" />
                     </SelectTrigger>
                     <SelectContent>
-                      {TRADES.map((trade) => (
+                      {catalogTradeNames.map((trade) => (
                         <SelectItem key={trade} value={trade}>
                           {trade}
                         </SelectItem>

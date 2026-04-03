@@ -44,7 +44,7 @@ describe('validateTradeName', () => {
     expect(validateTradeName('floor tiling')).toBe('Tiling');
     expect(validateTradeName('fencing')).toBe('Landscaping');
     expect(validateTradeName('metalwork')).toBe('Builder/Contractor');
-    expect(validateTradeName('masonry')).toBe('Bricklaying');
+    expect(validateTradeName('masonry')).toBe('Bricklaying / Hebel');
   });
 
   it('does not fuzzy-match (rejects near-matches)', () => {

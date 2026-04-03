@@ -1,10 +1,9 @@
 // TradeHub trade categories – shared constant for discovery, signup, profile, and AI helpers
 
 /**
- * Canonical trade labels (exactly these 17). Matches signup Step 2 / `TradeMultiSelect` options.
- * Order is row-major for the 3-column checkbox grid: row1 left→right, then row2, etc.
- * DB: `users.primary_trade` + `users.additional_trades` are canonical; `jobs.trade_category` for listings.
- * App validation uses this list and `trade-validation.ts`.
+ * Canonical trade labels aligned with `public.trades.name` (active rows).
+ * Kept for AI validation, slug parsing, and legacy normalization; selectors load from `/api/trades`.
+ * DB: `users.primary_trade` + `users.additional_trades`; `jobs.trade_category` uses the same names.
  */
 export const TRADES = [
   'Builder/Contractor',
@@ -12,7 +11,7 @@ export const TRADES = [
   'Plumbing',
   'Electrical',
   'Concreting',
-  'Bricklaying',
+  'Bricklaying / Hebel',
   'Roofing',
   'Plastering / Gyprock',
   'Painting & Decorating',
@@ -70,8 +69,11 @@ export const TRADE_ALIASES: Record<string, string> = {
   metalwork: 'Builder/Contractor',
   insulation: 'Builder/Contractor',
   building: 'Builder/Contractor',
-  masonry: 'Bricklaying',
-  'bricklaying / masonry': 'Bricklaying',
+  bricklaying: 'Bricklaying / Hebel',
+  hebel: 'Bricklaying / Hebel',
+  'bricklaying / hebel': 'Bricklaying / Hebel',
+  masonry: 'Bricklaying / Hebel',
+  'bricklaying / masonry': 'Bricklaying / Hebel',
 };
 
 export function isValidTrade(value: string): value is TradeCategory {

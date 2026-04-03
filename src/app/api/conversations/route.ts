@@ -1,7 +1,30 @@
 // @ts-nocheck - Supabase client type inference
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabase } from '@/lib/supabase-server';
+import { createServerSupabase, createServiceSupabase } from '@/lib/supabase-server';
 import { isLikelyTestAccount } from '@/lib/test-account';
+import { displayNameForMessagingParticipant } from '@/lib/messaging-participant-display';
+
+/** Load target user for messaging bootstrap (RLS on `users` can hide rows from the caller). */
+async function loadTargetUserForMessaging(otherUserId: string): Promise<{
+  id: string;
+  email: string | null;
+  name: string | null;
+  deleted_at: string | null;
+} | null> {
+  const selectCols = 'id, email, name, deleted_at';
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    try {
+      const admin = createServiceSupabase();
+      const { data, error } = await admin.from('users').select(selectCols).eq('id', otherUserId).maybeSingle();
+      if (!error && data) return data;
+    } catch {
+      // fall through to user-scoped client
+    }
+  }
+  const supabase = createServerSupabase();
+  const { data } = await supabase.from('users').select(selectCols).eq('id', otherUserId).maybeSingle();
+  return data ?? null;
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -34,19 +57,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Cannot message yourself' }, { status: 400 });
     }
 
-    const { data: otherUser } = await supabase
-      .from('users')
-      .select('id, email, name')
-      .eq('id', otherUserId)
-      .maybeSingle();
+    const otherUser = await loadTargetUserForMessaging(otherUserId);
+    if (!otherUser) {
+      return NextResponse.json(
+        { error: 'That user could not be found.', code: 'TARGET_USER_NOT_FOUND' },
+        { status: 400 }
+      );
+    }
+    if (otherUser.deleted_at) {
+      return NextResponse.json(
+        { error: 'That account is no longer available.', code: 'TARGET_USER_UNAVAILABLE' },
+        { status: 400 }
+      );
+    }
     if (
-      !otherUser ||
       isLikelyTestAccount({
         email: otherUser.email,
         name: otherUser.name,
       })
     ) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Messaging is not available for this profile.', code: 'TARGET_USER_RESTRICTED' },
+        { status: 400 }
+      );
     }
 
     const [p1, p2] = authUser.id < otherUserId ? [authUser.id, otherUserId] : [otherUserId, authUser.id];
@@ -172,7 +205,7 @@ export async function GET() {
         .order('created_at', { ascending: false }),
       supabase
         .from('users')
-        .select('id, name, avatar, email')
+        .select('id, name, avatar, email, business_name, show_business_name_on_profile')
         .in('id', Array.from(otherUserIds)),
       jobIds.size > 0
         ? supabase
@@ -199,7 +232,16 @@ export async function GET() {
       const hidden = isLikelyTestAccount({ email: (u as any).email, name: u.name });
       if (hidden) continue;
       visibleOtherIds.add(u.id);
-      userMap[u.id] = { name: u.name ?? 'Unknown', avatar: u.avatar ?? null };
+      userMap[u.id] = {
+        name: displayNameForMessagingParticipant({
+          name: u.name,
+          business_name: (u as { business_name?: string | null }).business_name,
+          show_business_name_on_profile: (u as { show_business_name_on_profile?: boolean | null })
+            .show_business_name_on_profile,
+          email: (u as any).email,
+        }),
+        avatar: u.avatar ?? null,
+      };
     }
 
     const jobMap: Record<string, { title: string; status: string }> = {};

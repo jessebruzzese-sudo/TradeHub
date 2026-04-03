@@ -37,7 +37,7 @@ test.describe('Public profile loading fallback (regression)', () => {
     await expect(page.getByTestId('profile-not-found')).toHaveCount(0);
     await expect(page.getByTestId('public-profile-page')).toBeVisible();
     await expect(page.getByTestId('profile-name')).toContainText('Jesse Bruzzese');
-    await expect(page.getByTestId('profile-strength')).toBeVisible();
+    await expect(page.getByTestId('profile-strength')).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Profile not found' })).toHaveCount(0);
   });
 

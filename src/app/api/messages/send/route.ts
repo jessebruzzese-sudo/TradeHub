@@ -47,7 +47,21 @@ export async function POST(request: NextRequest) {
         .select('id, contractor_id, subcontractor_id')
         .eq('id', conversationId)
         .maybeSingle();
-      if (!convErr) conv = data;
+      if (convErr) {
+        console.warn('[messages/send] conversation lookup failed', {
+          conversationId,
+          authUserId: authUser.id,
+          message: convErr.message,
+          code: convErr.code,
+        });
+      } else if (!data) {
+        console.warn('[messages/send] no conversation row for id', {
+          conversationId,
+          authUserId: authUser.id,
+        });
+      } else {
+        conv = data;
+      }
     }
 
     if (!conv && contractorId && subcontractorId) {
@@ -77,7 +91,14 @@ export async function POST(request: NextRequest) {
     }
 
     if (!conv) {
-      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+      return NextResponse.json(
+        {
+          error: 'Conversation not found',
+          code: 'CONVERSATION_NOT_FOUND',
+          conversationId: body.conversationId ?? body.conversation_id ?? null,
+        },
+        { status: 404 }
+      );
     }
 
     conversationId = conv.id;
@@ -85,7 +106,16 @@ export async function POST(request: NextRequest) {
     const isParticipant =
       conv.contractor_id === authUser.id || conv.subcontractor_id === authUser.id;
     if (!isParticipant) {
-      return NextResponse.json({ error: 'Not a participant in this conversation' }, { status: 403 });
+      console.warn('[messages/send] participant check failed', {
+        conversationId: conv.id,
+        authUserId: authUser.id,
+        contractorId: conv.contractor_id,
+        subcontractorId: conv.subcontractor_id,
+      });
+      return NextResponse.json(
+        { error: 'Not a participant in this conversation', code: 'NOT_PARTICIPANT' },
+        { status: 403 }
+      );
     }
 
     const recipientId =
@@ -103,7 +133,13 @@ export async function POST(request: NextRequest) {
         name: recipientMeta.name,
       })
     ) {
-      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+      return NextResponse.json(
+        {
+          error: 'Messaging is not available for this profile.',
+          code: 'RECIPIENT_RESTRICTED',
+        },
+        { status: 403 }
+      );
     }
 
     const [res1, res2] = await Promise.all([

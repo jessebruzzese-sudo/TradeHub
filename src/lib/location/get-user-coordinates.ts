@@ -5,6 +5,9 @@ export type UserCoordinateFields = {
   search_lng?: number | null;
   location_lat?: number | null;
   location_lng?: number | null;
+  /** Legacy column names used by some DBs / migrations */
+  lat?: number | null;
+  lng?: number | null;
 };
 
 function pairFrom(
@@ -17,12 +20,12 @@ function pairFrom(
   return { lat: la as number, lng: ln as number };
 }
 
-/** Primary business / profile coordinates only (`location_lat` / `location_lng`). */
+/** Primary business / profile coordinates: `location_lat`/`location_lng`, then legacy `lat`/`lng`. */
 export function getPrimaryUserCoordinates(
   row: UserCoordinateFields | null | undefined
 ): { lat: number; lng: number } | null {
   if (!row) return null;
-  return pairFrom(row.location_lat, row.location_lng);
+  return pairFrom(row.location_lat, row.location_lng) ?? pairFrom(row.lat, row.lng);
 }
 
 /**

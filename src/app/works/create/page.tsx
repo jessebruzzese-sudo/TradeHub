@@ -170,9 +170,19 @@ export default function CreateCompletedWorkPage() {
         body: fd,
         credentials: 'include',
       });
-      const data = await res.json().catch(() => ({}));
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        details?: string;
+        errorId?: string;
+      };
       if (!res.ok) {
-        toast.error(typeof data?.error === 'string' ? data.error : 'Could not publish work.');
+        const msg = typeof data?.error === 'string' ? data.error : 'Could not publish work.';
+        const details = typeof data?.details === 'string' ? data.details.trim() : '';
+        if (details) {
+          toast.error(msg, { description: details, duration: 10_000 });
+        } else {
+          toast.error(msg);
+        }
         return;
       }
       router.push('/works?created=1');

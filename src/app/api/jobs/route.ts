@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase, createServiceSupabase } from '@/lib/supabase-server';
-import { TRADES } from '@/lib/trades';
+import { loadActiveTradeNames, resolveTradeAgainstCatalog } from '@/lib/trades/load-active-trades';
 import { getTier } from '@/lib/plan-limits';
 import {
   countJobsPostedInWindow,
@@ -40,9 +40,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Trade category is required' }, { status: 400 });
     }
 
-    if (!(TRADES as readonly string[]).includes(tradeCategory)) {
+    let catalogNames: string[];
+    try {
+      catalogNames = await loadActiveTradeNames(supabase);
+    } catch {
+      return NextResponse.json({ error: 'Could not load trade catalog' }, { status: 500 });
+    }
+
+    const resolvedCategory = resolveTradeAgainstCatalog(tradeCategory, catalogNames);
+    if (!resolvedCategory) {
       return NextResponse.json(
-        { error: `Invalid trade category. Must be one of: ${TRADES.join(', ')}` },
+        { error: `Invalid trade category. Must be one of: ${catalogNames.join(', ')}` },
         { status: 400 }
       );
     }
@@ -65,7 +73,7 @@ export async function POST(request: NextRequest) {
 
     if (!isPremium) {
       const userTrades = getListedTradesForJobEligibility(profile as any);
-      if (!userTrades.includes(tradeCategory)) {
+      if (!userTrades.includes(resolvedCategory)) {
         return NextResponse.json(
           { error: 'Free accounts can only post jobs in their listed trade(s). Upgrade to Premium to post in any trade.' },
           { status: 403 }
@@ -124,7 +132,7 @@ export async function POST(request: NextRequest) {
       contractor_id: user.id,
       title,
       description,
-      trade_category: tradeCategory,
+      trade_category: resolvedCategory,
       location,
       postcode,
       dates,
@@ -171,7 +179,15 @@ export async function POST(request: NextRequest) {
     }
 
     await refreshProfileStrength(user.id);
-    return NextResponse.json({ id: created.id });
+    const newId = created?.id != null ? String(created.id).trim() : '';
+    if (!newId) {
+      console.error('[api/jobs] insert missing id', created);
+      return NextResponse.json({ error: 'Failed to create job' }, { status: 500 });
+    }
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[api/jobs] POST ok', { jobId: newId });
+    }
+    return NextResponse.json({ id: newId });
   } catch (err) {
     console.error('[api/jobs] error:', err);
     return NextResponse.json({ error: 'Failed to create job' }, { status: 500 });

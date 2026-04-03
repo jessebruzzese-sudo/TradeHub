@@ -6,7 +6,7 @@
  * - Message sending
  */
 import { test, expect } from '@playwright/test';
-import { waitStable, getSeedUserId, ACCOUNTS } from './helpers';
+import { waitStable } from './helpers';
 
 const BASE_URL = process.env.PW_BASE_URL || 'http://localhost:3000';
 
@@ -35,16 +35,20 @@ test.describe('Messaging', () => {
   });
 
   test('messages?userId= opens or creates thread', async ({ page }) => {
-    const posterId = getSeedUserId(ACCOUNTS.poster.email);
-    if (!posterId) test.skip(true, 'Seed data required');
-    await page.goto(`${BASE_URL}/messages?userId=${posterId}`);
+    const peerId =
+      process.env.PW_MESSAGE_PEER_ID?.trim() ||
+      process.env.PW_MESSAGING_PEER_ID?.trim() ||
+      '';
+    if (!peerId) {
+      test.skip(
+        true,
+        'Set PW_MESSAGE_PEER_ID to a real user UUID (not @tradehub.test / test-account patterns). Seed QA peers are blocked by POST /api/conversations.'
+      );
+    }
+    await page.goto(`${BASE_URL}/messages?userId=${encodeURIComponent(peerId)}`);
     await waitStable(page);
-    // App resolves userId to conversation and replaces URL with ?conversation=; or keeps userId if redirect pending
     await expect(page).toHaveURL(/\/messages/);
-    const url = page.url();
-    const hasUserId = url.includes('userId=');
-    const hasConversation = url.includes('conversation=');
-    const hasMessagesHeading = await page.getByRole('heading', { name: /messages|conversations/i }).isVisible().catch(() => false);
-    expect(hasUserId || hasConversation || hasMessagesHeading).toBeTruthy();
+    await page.waitForURL(/conversation=/, { timeout: 30_000 });
+    await expect(page.getByRole('heading', { name: /^messages$/i, level: 1 }).first()).toBeVisible();
   });
 });

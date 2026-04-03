@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase, createServiceSupabase } from '@/lib/supabase-server';
-import { TRADES } from '@/lib/trades';
+import { loadActiveTradeNames, resolveTradeAgainstCatalog } from '@/lib/trades/load-active-trades';
 import { getTier } from '@/lib/plan-limits';
 import { needsBusinessVerification } from '@/lib/verification-guard';
 import { isAdmin } from '@/lib/is-admin';
@@ -182,17 +182,28 @@ export async function PATCH(
     const body = await request.json().catch(() => ({}));
     const tradeCategory = typeof body?.trade_category === 'string' ? body.trade_category.trim() : undefined;
 
+    let tradeCategoryResolved: string | undefined;
+
     if (tradeCategory !== undefined) {
       if (!tradeCategory) {
         return NextResponse.json({ error: 'Trade category cannot be empty' }, { status: 400 });
       }
 
-      if (!(TRADES as readonly string[]).includes(tradeCategory)) {
+      let catalogNames: string[];
+      try {
+        catalogNames = await loadActiveTradeNames(supabase);
+      } catch {
+        return NextResponse.json({ error: 'Could not load trade catalog' }, { status: 500 });
+      }
+
+      const resolved = resolveTradeAgainstCatalog(tradeCategory, catalogNames);
+      if (!resolved) {
         return NextResponse.json(
-          { error: `Invalid trade category. Must be one of: ${TRADES.join(', ')}` },
+          { error: `Invalid trade category. Must be one of: ${catalogNames.join(', ')}` },
           { status: 400 }
         );
       }
+      tradeCategoryResolved = resolved;
 
       const { data: profile, error: profileErr } = await (supabase as any)
         .from('users')
@@ -212,7 +223,7 @@ export async function PATCH(
 
       if (!isPremium) {
         const userTrades = getListedTradesForJobEligibility(profile as any);
-        if (!userTrades.includes(tradeCategory)) {
+        if (!userTrades.includes(tradeCategoryResolved)) {
           return NextResponse.json(
             { error: 'Free accounts can only post jobs in their listed trade(s). Upgrade to Premium to post in any trade.' },
             { status: 403 }
@@ -242,7 +253,7 @@ export async function PATCH(
     const updatePayload: Record<string, unknown> = {};
     if (title !== undefined) updatePayload.title = title;
     if (description !== undefined) updatePayload.description = description;
-    if (tradeCategory !== undefined) updatePayload.trade_category = tradeCategory;
+    if (tradeCategoryResolved !== undefined) updatePayload.trade_category = tradeCategoryResolved;
     if (location !== undefined) updatePayload.location = location;
     if (postcode !== undefined) updatePayload.postcode = postcode;
     if (Array.isArray(dates)) updatePayload.dates = dates;

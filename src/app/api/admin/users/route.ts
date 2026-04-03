@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase, createServiceSupabase } from '@/lib/supabase-server';
 import { applyExcludeTestAccountsFilters } from '@/lib/test-account';
+import { loadActiveTradeNames } from '@/lib/trades/load-active-trades';
+import { normalizeTrade } from '@/lib/trades/normalizeTrade';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -83,10 +85,6 @@ export async function GET(request: NextRequest) {
       .limit(5000);
     query = applyExcludeTestAccountsFilters(query);
 
-    if (trade && trade !== 'all') {
-      query = query.eq('primary_trade', trade);
-    }
-
     const now = new Date();
     const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000);
     const startOfToday = new Date(new Date().setHours(0, 0, 0, 0));
@@ -126,21 +124,26 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to load users' }, { status: 500 });
     }
 
-    const users = (data ?? []).map((u: any) => ({
+    let rows = data ?? [];
+    if (trade && trade !== 'all') {
+      rows = rows.filter((u: any) => normalizeTrade(String(u?.primary_trade ?? '').trim()) === trade);
+    }
+
+    const users = rows.map((u: any) => ({
       ...u,
       account_type: classifyAccountType(u?.email, u?.name),
     }));
     const usersFilteredByType =
       accountType === 'all' ? users : users.filter((u: any) => u.account_type === accountType);
-    const allTrades = Array.from(
-      new Set(
-        users
-          .map((u) => (u as any).primary_trade)
-          .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-      )
-    ).sort((a, b) => a.localeCompare(b));
 
-    return NextResponse.json({ users: usersFilteredByType, trades: allTrades });
+    let catalogTrades: string[];
+    try {
+      catalogTrades = await loadActiveTradeNames(serviceSupabase);
+    } catch {
+      catalogTrades = [];
+    }
+
+    return NextResponse.json({ users: usersFilteredByType, trades: catalogTrades });
   } catch (err: any) {
     console.error('Admin users route error:', err);
     return NextResponse.json({ error: err?.message || 'Internal Server Error' }, { status: 500 });

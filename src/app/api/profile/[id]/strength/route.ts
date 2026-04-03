@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { fetchProfileStrengthCalc } from '@/lib/profile-strength';
+import { formatUnknownError } from '@/lib/supabase/postgrest-errors';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,11 +12,21 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   const userId = id?.trim();
   if (!userId || !UUID_RE.test(userId)) {
-    return NextResponse.json({ error: 'Invalid user id' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid user id', details: 'Expected a UUID user id' }, { status: 400 });
   }
-  const calc = await fetchProfileStrengthCalc(userId);
-  if (!calc) {
-    return NextResponse.json({ error: 'Could not compute strength' }, { status: 500 });
+
+  try {
+    const calc = await fetchProfileStrengthCalc(userId);
+    return NextResponse.json(calc);
+  } catch (e) {
+    console.error('[api/profile/strength] unhandled exception', {
+      requestedUserId: userId,
+      details: formatUnknownError(e),
+      stack: e instanceof Error ? e.stack : undefined,
+    });
+    return NextResponse.json(
+      { error: 'Failed to load profile strength', details: formatUnknownError(e) },
+      { status: 500 }
+    );
   }
-  return NextResponse.json(calc);
 }

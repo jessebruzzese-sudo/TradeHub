@@ -109,23 +109,27 @@ export function PreviousWorkSection({ userId, isSelf, primaryTradeLabel }: Props
             'bg-slate-50/90 px-6 py-12 text-center sm:min-h-[12rem] sm:py-14'
           )}
         >
-          <p className="text-base font-semibold tracking-tight text-slate-900 sm:text-[17px]">
-            List previous jobs completed
-          </p>
-          <p className="mt-2 max-w-sm text-sm leading-relaxed text-slate-500">Showcase your skills</p>
           {isSelf ? (
-            <Button
-              asChild
-              className="mt-6 gap-1.5 rounded-lg border-slate-300"
-              variant="outline"
-              size="sm"
-            >
-              <Link href="/works/create">
-                <Plus className="h-4 w-4" aria-hidden />
-                Add Work
-              </Link>
-            </Button>
-          ) : null}
+            <>
+              <p className="text-base font-semibold tracking-tight text-slate-900 sm:text-[17px]">
+                List previous jobs completed
+              </p>
+              <p className="mt-2 max-w-sm text-sm leading-relaxed text-slate-500">Showcase your skills</p>
+              <Button
+                asChild
+                className="mt-6 gap-1.5 rounded-lg border-slate-300"
+                variant="outline"
+                size="sm"
+              >
+                <Link href="/works/create">
+                  <Plus className="h-4 w-4" aria-hidden />
+                  Add Work
+                </Link>
+              </Button>
+            </>
+          ) : (
+            <p className="text-base font-medium text-slate-600 sm:text-[17px]">No Works listed</p>
+          )}
         </div>
       ) : (
         <>

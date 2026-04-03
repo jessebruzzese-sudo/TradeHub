@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerSupabase, createServiceSupabase } from '@/lib/supabase-server';
+import { ensurePublicUserRow } from '@/lib/ensure-public-user-server';
 import {
   extForImageMime,
   isPreviousWorkStorageObjectKey,
@@ -15,6 +16,12 @@ import {
 } from '@/lib/previous-work';
 import { canViewPreviousWorkPortfolio, signPreviousWorkImageUrls } from '@/lib/previous-work-server';
 import { refreshProfileStrength } from '@/lib/profile-strength';
+import {
+  formatPostgrestError,
+  formatUnknownError,
+  isForeignKeyViolation,
+  isMissingTableColumnError,
+} from '@/lib/supabase/postgrest-errors';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -45,9 +52,21 @@ function toErrorPayload(errorId: string, message: string, err: unknown) {
   };
 }
 
-function isMissingColumnTitleError(err: unknown): boolean {
-  const msg = String((err as any)?.message ?? '');
-  return /column/i.test(msg) && /title/i.test(msg) && /does not exist/i.test(msg);
+const CREATE_WORK_FAILED = 'Failed to create completed work';
+
+function serializeSupabaseError(err: unknown): Record<string, unknown> {
+  if (!err || typeof err !== 'object') return { value: err == null ? 'null' : String(err) };
+  const e = err as Record<string, unknown>;
+  return {
+    code: e.code,
+    message: e.message,
+    details: e.details,
+    hint: e.hint,
+  };
+}
+
+function createWorkJsonError(errorId: string, details: string, status: number) {
+  return NextResponse.json({ error: CREATE_WORK_FAILED, details, errorId }, { status });
 }
 
 function requireServiceRoleKey() {
@@ -115,7 +134,7 @@ export async function GET(req: Request) {
       .order('created_at', { ascending: false });
     if (!q1.error) {
       rows = q1.data as any[] | null;
-    } else if (isMissingColumnTitleError(q1.error)) {
+    } else if (isMissingTableColumnError(q1.error, 'title')) {
       const q2 = await admin
         .from('previous_work')
         .select(selectWithoutTitle)
@@ -184,6 +203,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const errorId = crypto.randomUUID();
   try {
     const missingKey = requireServiceRoleKey();
     if (missingKey) return missingKey;
@@ -196,11 +216,29 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'You need to be signed in.' }, { status: 401 });
     }
 
+    const ct = req.headers.get('content-type') ?? '';
+    if (ct && !ct.toLowerCase().includes('multipart/form-data')) {
+      console.warn('[previous-work POST] wrong content-type', { errorId, userId: user.id, contentType: ct });
+      return NextResponse.json(
+        {
+          error: 'Invalid request body.',
+          details: 'Expected multipart/form-data with fields title, caption, optional location, and images.',
+          errorId,
+        },
+        { status: 400 }
+      );
+    }
+
     let form: FormData;
     try {
       form = await req.formData();
-    } catch {
-      return NextResponse.json({ error: 'Invalid form data.' }, { status: 400 });
+    } catch (parseErr) {
+      const stack = parseErr instanceof Error ? parseErr.stack : undefined;
+      console.error('[previous-work POST] formData parse failed', { errorId, userId: user.id, err: parseErr, stack });
+      return NextResponse.json(
+        { error: 'Invalid form data.', details: formatUnknownError(parseErr), errorId },
+        { status: 400 }
+      );
     }
 
     const titleRaw = form.get('title');
@@ -214,6 +252,22 @@ export async function POST(req: Request) {
     if (!loc.ok) return NextResponse.json({ error: loc.error }, { status: 400 });
 
     const files = form.getAll('images').filter((v): v is File => v instanceof File && v.size > 0);
+    const nonFileImageFields = form.getAll('images').filter((v) => !(v instanceof File));
+    if (nonFileImageFields.length > 0) {
+      console.warn('[previous-work POST] non-file images entries', {
+        errorId,
+        userId: user.id,
+        count: nonFileImageFields.length,
+      });
+      return NextResponse.json(
+        {
+          error: 'Invalid image upload.',
+          details: 'Each image must be a file upload (not a JSON string or URL in the images field).',
+          errorId,
+        },
+        { status: 400 }
+      );
+    }
     if (files.length > PREVIOUS_WORK_MAX_IMAGES) {
       return NextResponse.json(
         { error: `You can upload at most ${PREVIOUS_WORK_MAX_IMAGES} images per project.` },
@@ -233,6 +287,25 @@ export async function POST(req: Request) {
 
     const dbg = debugPreviousWorkCreate();
     const sr = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const formSummary = {
+      titleLen: typeof titleRaw === 'string' ? titleRaw.length : null,
+      captionLen: typeof captionRaw === 'string' ? captionRaw.length : null,
+      hasLocation: loc.value != null && String(loc.value).length > 0,
+      imageCount: files.length,
+      files: files.map((f) => ({ name: f.name, type: f.type, size: f.size })),
+    };
+    console.log('[previous-work POST] request summary', {
+      errorId,
+      userId: user.id,
+      titleLen: formSummary.titleLen,
+      captionLen: formSummary.captionLen,
+      hasLocation: formSummary.hasLocation,
+      imageCount: formSummary.imageCount,
+    });
+    if (dbg) {
+      console.log('[previous-work POST] parsed (debug)', { errorId, userId: user.id, form: formSummary });
+    }
+
     if (dbg) {
       console.log('[previous-work-create]', {
         bucket: PREVIOUS_WORK_STORAGE_BUCKET,
@@ -243,48 +316,121 @@ export async function POST(req: Request) {
     }
 
     const admin = createServiceSupabase();
+
+    const ensured = await ensurePublicUserRow(admin, user);
+    if (!ensured.ok) {
+      console.error('[previous-work POST] ensurePublicUserRow failed', {
+        errorId,
+        userId: user.id,
+        supabaseError: serializeSupabaseError(ensured.cause),
+      });
+      return createWorkJsonError(errorId, formatUnknownError(ensured.cause), 500);
+    }
+
     let lastOp = 'previous_work.insert';
+
+    const insertPayloadWithTitle = {
+      user_id: user.id,
+      title: ttl.value,
+      caption: cap.value,
+      location: loc.value,
+    };
+    const insertPayloadLegacy = {
+      user_id: user.id,
+      caption: cap.value,
+      location: loc.value,
+    };
+    console.log('[previous-work POST] insert payload', {
+      errorId,
+      userId: user.id,
+      payload: dbg
+        ? insertPayloadWithTitle
+        : {
+            user_id: insertPayloadWithTitle.user_id,
+            titleLen: insertPayloadWithTitle.title.length,
+            captionLen: insertPayloadWithTitle.caption.length,
+            location: insertPayloadWithTitle.location,
+          },
+    });
 
     // Backward-compatible insert:
     // - New schema: previous_work.title is required.
-    // - Older prod schema may not have title yet, causing 500s.
+    // - Older prod schema may not have title yet.
     let inserted: { id: string } | null = null;
     const ins1 = await admin
       .from('previous_work')
-      .insert({
-        user_id: user.id,
-        title: ttl.value,
-        caption: cap.value,
-        location: loc.value,
-      })
+      .insert(insertPayloadWithTitle)
       .select('id')
       .single();
     if (!ins1.error && ins1.data?.id) {
-      inserted = ins1.data as any;
-    } else if (isMissingColumnTitleError(ins1.error)) {
-      // Older DBs may not have `title` column yet. Our generated types assume it exists,
-      // so we intentionally escape typing here to keep backward-compat at runtime.
+      inserted = ins1.data as { id: string };
+    } else if (isMissingTableColumnError(ins1.error, 'title')) {
+      console.log('[previous-work POST] title column missing; retry without title', {
+        errorId,
+        userId: user.id,
+        payload: dbg
+          ? insertPayloadLegacy
+          : {
+              user_id: insertPayloadLegacy.user_id,
+              captionLen: insertPayloadLegacy.caption.length,
+              location: insertPayloadLegacy.location,
+            },
+      });
       const ins2 = await (admin as any)
         .from('previous_work')
-        .insert({
-          user_id: user.id,
-          caption: cap.value,
-          location: loc.value,
-        })
+        .insert(insertPayloadLegacy)
         .select('id')
         .single();
-      if (!ins2.error && ins2.data?.id) inserted = ins2.data as any;
+      if (!ins2.error && ins2.data?.id) inserted = ins2.data as { id: string };
       else {
-        const errorId = crypto.randomUUID();
         if (dbg) console.error('[previous-work-create] insert failed', { lastOp, errorId, err: ins2.error });
-        console.error('[previous-work POST insert]', { errorId, err: ins2.error });
-        return NextResponse.json(toErrorPayload(errorId, 'Could not save project.', ins2.error), { status: 500 });
+        console.error('[previous-work POST insert]', {
+          errorId,
+          userId: user.id,
+          lastOp,
+          supabaseError: serializeSupabaseError(ins2.error),
+          raw: ins2.error,
+        });
+        const st = isForeignKeyViolation(ins2.error) ? 400 : 500;
+        const det = formatPostgrestError(ins2.error);
+        if (st === 400) {
+          return NextResponse.json(
+            {
+              error: CREATE_WORK_FAILED,
+              details:
+                det ||
+                'Your account profile row is missing or out of sync. Try signing out and back in, or open Edit profile once.',
+              errorId,
+            },
+            { status: 400 }
+          );
+        }
+        return createWorkJsonError(errorId, det || 'Database rejected the insert.', 500);
       }
     } else {
-      const errorId = crypto.randomUUID();
       if (dbg) console.error('[previous-work-create] insert failed', { lastOp, errorId, err: ins1.error });
-      console.error('[previous-work POST insert]', { errorId, err: ins1.error });
-      return NextResponse.json(toErrorPayload(errorId, 'Could not save project.', ins1.error), { status: 500 });
+      console.error('[previous-work POST insert]', {
+        errorId,
+        userId: user.id,
+        lastOp,
+        supabaseError: serializeSupabaseError(ins1.error),
+        raw: ins1.error,
+      });
+      const st = isForeignKeyViolation(ins1.error) ? 400 : 500;
+      const det = formatPostgrestError(ins1.error);
+      if (st === 400) {
+        return NextResponse.json(
+          {
+            error: CREATE_WORK_FAILED,
+            details:
+              det ||
+              'Your account profile row is missing or out of sync. Try signing out and back in, or open Edit profile once.',
+            errorId,
+          },
+          { status: 400 }
+        );
+      }
+      return createWorkJsonError(errorId, det || 'Database rejected the insert.', 500);
     }
 
     const workId = inserted!.id as string;
@@ -325,33 +471,60 @@ export async function POST(req: Request) {
         });
         if (upErr) {
           if (dbg) console.error('[previous-work-create] storage upload error', { lastOp, upErr });
+          console.error('[previous-work POST] storage upload', {
+            errorId,
+            userId: user.id,
+            workId,
+            lastOp,
+            supabaseError: serializeSupabaseError(upErr),
+            raw: upErr,
+          });
           throw upErr;
         }
         if (dbg) console.log('[previous-work-create] storage upload ok', { lastOp });
         uploadedPaths.push(path);
 
         lastOp = `previous_work_images.insert[${i}]`;
+        const imageRow = {
+          previous_work_id: workId,
+          image_path: path,
+          sort_order: i,
+        };
         if (dbg) {
           console.log('[previous-work-create] previous_work_images insert start', {
             lastOp,
             pathSample: path.slice(0, 80),
           });
         }
-        const { error: imgErr } = await admin.from('previous_work_images').insert({
-          previous_work_id: workId,
-          image_path: path,
-          sort_order: i,
-        });
+        if (dbg) {
+          console.log('[previous-work POST] previous_work_images row', { errorId, userId: user.id, imageRow });
+        }
+        const { error: imgErr } = await admin.from('previous_work_images').insert(imageRow);
         if (imgErr) {
           if (dbg) console.error('[previous-work-create] previous_work_images insert failed', { lastOp, imgErr });
+          console.error('[previous-work POST] previous_work_images insert', {
+            errorId,
+            userId: user.id,
+            lastOp,
+            supabaseError: serializeSupabaseError(imgErr),
+            raw: imgErr,
+          });
           throw imgErr;
         }
         if (dbg) console.log('[previous-work-create] previous_work_images insert ok', { lastOp });
       }
     } catch (e) {
-      const errorId = crypto.randomUUID();
-      if (dbg) console.error('[previous-work-create] FAILED', { lastOp, errorId, err: e });
-      console.error('[previous-work POST upload]', { errorId, lastOp, err: e });
+      const stack = e instanceof Error ? e.stack : undefined;
+      if (dbg) console.error('[previous-work-create] FAILED', { lastOp, errorId, err: e, stack });
+      console.error('[previous-work POST upload]', {
+        errorId,
+        userId: user.id,
+        workId,
+        lastOp,
+        err: e,
+        stack,
+        supabaseError: serializeSupabaseError(e),
+      });
       if (uploadedPaths.length) {
         if (dbg) console.log('[previous-work-create] cleanup: storage.remove', { paths: uploadedPaths.length });
         const { error: rmErr } = await admin.storage.from(PREVIOUS_WORK_STORAGE_BUCKET).remove(uploadedPaths);
@@ -359,7 +532,11 @@ export async function POST(req: Request) {
       }
       if (dbg) console.log('[previous-work-create] cleanup: previous_work.delete', { workId });
       await admin.from('previous_work').delete().eq('id', workId);
-      return NextResponse.json(toErrorPayload(errorId, 'Upload failed. Please try again.', e), { status: 500 });
+      return createWorkJsonError(
+        errorId,
+        formatUnknownError(e) || 'Upload or image save failed.',
+        500
+      );
     }
 
     if (dbg) console.log('[previous-work-create] POST complete', { workId, images: uploadedPaths.length });
@@ -367,8 +544,8 @@ export async function POST(req: Request) {
     await refreshProfileStrength(user.id);
     return NextResponse.json({ id: workId }, { status: 201 });
   } catch (e) {
-    const errorId = crypto.randomUUID();
-    console.error('[previous-work POST] unhandled', { errorId, err: e });
-    return NextResponse.json(toErrorPayload(errorId, 'Unexpected error.', e), { status: 500 });
+    const stack = e instanceof Error ? e.stack : undefined;
+    console.error('[previous-work POST] unhandled', { errorId, err: e, stack });
+    return createWorkJsonError(errorId, formatUnknownError(e) || 'Unexpected error.', 500);
   }
 }

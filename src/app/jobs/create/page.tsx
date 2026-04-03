@@ -36,7 +36,7 @@ import { useAuth } from '@/lib/auth';
 import { isPremiumForDiscovery } from '@/lib/discovery';
 import { getBrowserSupabase } from '@/lib/supabase-client';
 import { getABNStatus, getABNStatusMessage, hasABNButNotVerified } from '@/lib/abn-utils';
-import { TRADES } from '@/lib/trades';
+import { useActiveTradesCatalog } from '@/lib/trades/use-active-trades-catalog';
 import { safeRouterPush } from '@/lib/safe-nav';
 import { needsBusinessVerification, redirectToVerifyBusiness, getVerifyBusinessUrl } from '@/lib/verification-guard';
 import { MVP_FREE_MODE } from '@/lib/feature-flags';
@@ -131,6 +131,7 @@ export default function CreateJobPage() {
     [currentUser]
   );
   const isPremium = isPremiumForDiscovery(userForDiscovery);
+  const { names: catalogTradeNames, loading: catalogTradesLoading } = useActiveTradesCatalog();
 
   const posterTrades = useMemo(() => {
     const t = (currentUser as any)?.trades;
@@ -149,7 +150,10 @@ export default function CreateJobPage() {
     return out;
   }, [currentUser]);
 
-  const tradeOptions = isPremium ? [...TRADES] : posterTrades;
+  const tradeOptions = useMemo(
+    () => (isPremium ? catalogTradeNames : posterTrades),
+    [isPremium, catalogTradeNames, posterTrades]
+  );
 
   useEffect(() => {
     if (!tradeCategory && posterTrades.length > 0) {
@@ -436,7 +440,13 @@ export default function CreateJobPage() {
         throw new Error(data?.error || 'Failed to create job');
       }
 
-      const createdJobId = data?.id;
+      const rawCreatedId = data?.id;
+      const createdJobId =
+        typeof rawCreatedId === 'string'
+          ? rawCreatedId.trim()
+          : rawCreatedId != null && rawCreatedId !== ''
+            ? String(rawCreatedId).trim()
+            : '';
       if (!createdJobId) throw new Error('No job ID returned');
 
       // Upload attachments (optional)
@@ -592,7 +602,10 @@ export default function CreateJobPage() {
                   <Select
                     value={tradeCategory || (posterTrades[0] ?? tradeOptions[0] ?? '')}
                     onValueChange={setTradeCategory}
-                    disabled={!isPremium && posterTrades.length <= 1}
+                    disabled={
+                      (!isPremium && posterTrades.length <= 1) ||
+                      (isPremium && catalogTradesLoading && catalogTradeNames.length === 0)
+                    }
                   >
                     <SelectTrigger id="tradeCategory" className="mt-1">
                       <SelectValue placeholder="Select trade" />

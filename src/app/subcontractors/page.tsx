@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Search, Lightbulb, Users, ArrowLeft, MapPin, BadgeCheck, Crown, ArrowRight, Calendar } from 'lucide-react';
 import { UserAvatar } from '@/components/user-avatar';
 import { UnauthorizedAccess } from '@/components/unauthorized-access';
-import { TRADES } from '@/lib/trades';
+import { useActiveTradesCatalog } from '@/lib/trades/use-active-trades-catalog';
 import { getBrowserSupabase } from '@/lib/supabase-client';
 import { cn } from '@/lib/utils';
 import { getPublicProfileHref } from '@/lib/url-utils';
@@ -34,7 +34,14 @@ type ProfileCard = {
   isPremium?: boolean;
 };
 
-const POPULAR_TRADES = ['Plumbing', 'Electrical', 'Carpentry', 'Concreting', 'Painting & Decorating'] as const;
+/** Display order for empty-state chips; labels must exist in `public.trades` / `/api/trades`. */
+const POPULAR_TRADE_ORDER = [
+  'Plumbing',
+  'Electrical',
+  'Carpentry',
+  'Concreting',
+  'Painting & Decorating',
+] as const;
 
 const SORT_OPTIONS = [
   { value: 'distance-closest', label: 'Distance: Closest' },
@@ -142,6 +149,11 @@ function SubcontractorCard({ sub }: { sub: ProfileCard }) {
 
 export default function SubcontractorsPage() {
   const { currentUser, isLoading } = useAuth();
+  const { names: catalogTradeNames } = useActiveTradesCatalog();
+  const popularTradesForChips = useMemo(
+    () => POPULAR_TRADE_ORDER.filter((t) => catalogTradeNames.includes(t)),
+    [catalogTradeNames]
+  );
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedTrade, setSelectedTrade] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('distance-closest');
@@ -182,7 +194,7 @@ export default function SubcontractorsPage() {
   const tradeDisplayValue = isPremium ? selectedTrade : (primaryTrade || 'All Trades');
   const TradeIcon = getTradeIcon(primaryTrade || undefined);
 
-  // Fetch profiles from discovery API
+  // `/api/discovery/trade/*` returns only users with active listed availability (subcontractor_availability, today+), not every public profile.
   useEffect(() => {
     if (!currentUser?.id) {
       setProfiles([]);
@@ -193,14 +205,23 @@ export default function SubcontractorsPage() {
     setProfilesError(null);
     const tradeParam = effectiveTrade === 'all' ? 'all' : effectiveTrade;
     fetch(`/api/discovery/trade/${encodeURIComponent(tradeParam)}`)
-      .then((res) => {
+      .then(async (res) => {
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          stage?: string;
+          profiles?: ProfileCard[];
+          outsideRadiusCount?: number;
+          allowedRadiusKm?: number;
+        };
         if (!res.ok) {
           if (res.status === 401) throw new Error('Sign in to view subcontractors');
-          throw new Error('Failed to load');
+          const msg = typeof data.error === 'string' && data.error.trim() ? data.error.trim() : 'Failed to load';
+          const stage = typeof data.stage === 'string' && data.stage.trim() ? data.stage.trim() : '';
+          throw new Error(stage ? `${msg} (${stage})` : msg);
         }
-        return res.json();
+        return data;
       })
-      .then((data: { profiles?: ProfileCard[]; outsideRadiusCount?: number; allowedRadiusKm?: number }) => {
+      .then((data) => {
         setProfiles(data.profiles ?? []);
         setOutsideRadiusCount(data.outsideRadiusCount ?? 0);
         setAllowedRadiusKm(data.allowedRadiusKm ?? 20);
@@ -357,7 +378,7 @@ export default function SubcontractorsPage() {
                     <h1 className="text-2xl font-semibold tracking-tight text-white">Find Subcontractors</h1>
                   </div>
                   <p className="mt-1 text-sm text-white/80">
-                    Browse and connect with verified subcontractors
+                    Subcontractors who have listed availability — browse by trade and connect
                   </p>
                 </div>
 
@@ -415,7 +436,7 @@ export default function SubcontractorsPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Trades</SelectItem>
-                      {TRADES.map((trade) => (
+                      {catalogTradeNames.map((trade) => (
                         <SelectItem key={trade} value={trade}>{trade}</SelectItem>
                       ))}
                     </SelectContent>
@@ -513,7 +534,7 @@ export default function SubcontractorsPage() {
                       <div>
                         <h4 className="text-sm font-medium text-slate-700 mb-2">Popular trades</h4>
                         <div className="flex flex-wrap gap-2">
-                          {(isPremium ? POPULAR_TRADES : primaryTrade ? [primaryTrade] : []).map((trade) => (
+                          {(isPremium ? popularTradesForChips : primaryTrade ? [primaryTrade] : []).map((trade) => (
                             <button
                               key={trade}
                               type="button"

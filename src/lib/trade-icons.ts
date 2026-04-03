@@ -34,6 +34,8 @@ const tradeIconMap: Record<string, LucideIcon> = {
   electrician: Zap,
   concreting: Square,
   bricklaying: Box,
+  hebel: Box,
+  'bricklaying / hebel': Box,
   roofing: Home,
   'plastering / gyprock': Layers,
   plastering: Layers,

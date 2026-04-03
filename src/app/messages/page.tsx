@@ -134,6 +134,7 @@ export default function MessagesPage() {
     otherUserName?: string;
     otherUserAvatar?: string | null;
   } | null>(null);
+  const [userIdBootstrapping, setUserIdBootstrapping] = useState(false);
 
   useEffect(() => {
     if (conversationId) {
@@ -155,7 +156,7 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!currentUser) return;
     setLoadingConversations(true);
-    fetch('/api/conversations')
+    fetch('/api/conversations', { credentials: 'include' })
       .then((res) => (res.ok ? res.json() : { conversations: [] }))
       .then((data) => {
         setConversationsFromApi(data.conversations ?? []);
@@ -169,21 +170,50 @@ export default function MessagesPage() {
     if (!userIdParam || !currentUser) return;
     if (userIdParam === currentUser.id) return;
     let cancelled = false;
+    setUserIdBootstrapping(true);
     fetch('/api/conversations', {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ otherUserId: userIdParam }),
     })
-      .then((res) => res.json())
-      .then((data) => {
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
         if (cancelled) return;
-        const convId = data.conversation?.id;
-        if (convId) {
-          router.replace(`/messages?conversation=${convId}`, { scroll: false });
+        if (!res.ok) {
+          const msg =
+            typeof data.error === 'string' && data.error.trim()
+              ? data.error.trim()
+              : `Could not start conversation (${res.status})`;
+          toast.error(msg);
+          router.replace('/messages', { scroll: false });
+          return;
         }
+        const convId = data.conversation?.id;
+        if (!convId) {
+          toast.error('Could not start conversation: invalid response from server.');
+          router.replace('/messages', { scroll: false });
+          return;
+        }
+        setSelectedConversation(convId);
+        const listRes = await fetch('/api/conversations', { credentials: 'include' });
+        const listData = listRes.ok ? await listRes.json().catch(() => ({})) : {};
+        if (!cancelled && Array.isArray(listData.conversations)) {
+          setConversationsFromApi(listData.conversations);
+        }
+        router.replace(`/messages?conversation=${convId}`, { scroll: false });
       })
-      .catch(() => {});
-    return () => { cancelled = true; };
+      .catch(() => {
+        if (cancelled) return;
+        toast.error('Could not start conversation. Please try again.');
+        router.replace('/messages', { scroll: false });
+      })
+      .finally(() => {
+        if (!cancelled) setUserIdBootstrapping(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [userIdParam, currentUser?.id, router]);
 
   // When ?job= is present: resolve contractor and redirect to ?userId=
@@ -250,7 +280,7 @@ export default function MessagesPage() {
       return;
     }
     setLoadingMessages(true);
-    fetch(`/api/messages?conversationId=${selectedConversation}`)
+    fetch(`/api/messages?conversationId=${selectedConversation}`, { credentials: 'include' })
       .then((res) => (res.ok ? res.json() : { messages: [], conversation: null }))
       .then((data) => {
         setMessagesFromApi(data.messages ?? []);
@@ -493,16 +523,24 @@ export default function MessagesPage() {
     setSendError(undefined);
     setIsSending(true);
 
+    const sendPayload = {
+      conversationId: currentConversation.id,
+      contractorId: currentConversation.contractorId,
+      subcontractorId: currentConversation.subcontractorId,
+      text: messageText.trim(),
+    };
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug('[messages] POST /api/messages/send', {
+        conversationId: sendPayload.conversationId,
+        textLength: sendPayload.text.length,
+      });
+    }
+
     try {
       const res = await fetch('/api/messages/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          conversationId: currentConversation.id,
-          contractorId: currentConversation.contractorId,
-          subcontractorId: currentConversation.subcontractorId,
-          text: messageText.trim(),
-        }),
+        body: JSON.stringify(sendPayload),
       });
       const data = await res.json();
 
@@ -518,7 +556,7 @@ export default function MessagesPage() {
         if (newConvId && newConvId !== currentConversation.id) {
           setSelectedConversation(newConvId);
           router.replace(`/messages?conversation=${newConvId}`, { scroll: false });
-          fetch('/api/conversations')
+          fetch('/api/conversations', { credentials: 'include' })
             .then((res) => (res.ok ? res.json() : { conversations: [] }))
             .then((data) => setConversationsFromApi(data.conversations ?? []))
             .catch(() => {});
@@ -739,9 +777,11 @@ export default function MessagesPage() {
                   <h1 className="text-lg font-semibold text-slate-900">Messages</h1>
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto p-3">
-                  {loadingConversations ? (
+                  {userIdBootstrapping ? (
+                    <div className="py-8 text-center text-sm text-slate-500">Starting conversation…</div>
+                  ) : loadingConversations ? (
                     <div className="py-8 text-center text-sm text-slate-500">Loading conversations...</div>
-                  ) : conversations.length === 0 ? (
+                  ) : conversations.length === 0 && !selectedConversation ? (
                     <div className="py-8 px-4">
                       <EmptyState
                         icon={MessageSquare}
@@ -1028,9 +1068,11 @@ export default function MessagesPage() {
               <h1 className="text-lg font-semibold text-slate-900">Messages</h1>
             </div>
             <div className="flex-1 overflow-y-auto p-3">
-              {loadingConversations ? (
+              {userIdBootstrapping ? (
+                <div className="p-4 text-center text-sm text-slate-500">Starting conversation…</div>
+              ) : loadingConversations ? (
                 <div className="p-4 text-center text-sm text-slate-500">Loading conversations...</div>
-              ) : conversations.length === 0 ? (
+              ) : conversations.length === 0 && !selectedConversation ? (
                 <EmptyState
                   icon={MessageSquare}
                   title="No messages yet"

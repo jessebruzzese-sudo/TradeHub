@@ -65,6 +65,15 @@ import ProfileStrengthSection from '@/components/profile/ProfileStrengthSection'
 import { buildProfileStrengthCanonical } from '@/lib/profile-strength/canonical-ui';
 import LikeProfileButton from '@/components/profile/LikeProfileButton';
 
+/** Apply strength API JSON; ignore error bodies and non-OK responses so UI keeps client-side fallback. */
+function applyProfileStrengthApiPayload(j: unknown, setStrengthCalc: (c: ProfileStrengthCalc) => void) {
+  if (!j || typeof j !== 'object') return;
+  const o = j as Record<string, unknown>;
+  if ('error' in o && o.error != null) return;
+  if (typeof o.total !== 'number' || !Number.isFinite(o.total)) return;
+  setStrengthCalc(j as ProfileStrengthCalc);
+}
+
 type ProfileViewMode = 'self' | 'public';
 
 export type PublicProfileData = {
@@ -197,6 +206,7 @@ export function ProfileView({
   isMe: isMeProp,
   strengthCalc: strengthCalcProp,
   viewerLikeState: viewerLikeStateProp,
+  e2eShowProfileStrength,
 }: {
   mode: ProfileViewMode;
   profile: any;
@@ -205,9 +215,14 @@ export function ProfileView({
   strengthCalc?: ProfileStrengthCalc | null;
   /** From `/profiles/[id]` server: whether viewer liked + total likes count (skips client GET). */
   viewerLikeState?: { liked: boolean; count: number } | null;
+  /**
+   * Non-production only: show the Profile strength accordion without a signed-in viewer
+   * (Playwright fixture profiles). Ignored when `NODE_ENV === 'production'`.
+   */
+  e2eShowProfileStrength?: boolean;
 }) {
   const isSelf = mode === 'self' || !!isMeProp;
-  const { currentUser, updateUser, refreshUser } = useAuth();
+  const { currentUser, session, updateUser, refreshUser } = useAuth();
   const router = useRouter();
   const store = useMemo(() => getStore(), []);
   const supabase = useMemo(() => getBrowserSupabase(), []);
@@ -216,6 +231,21 @@ export function ProfileView({
   const [portalLoading, setPortalLoading] = useState(false);
 
   const profileUserId = profile?.id ?? null;
+  const viewerAuthId = currentUser?.id ?? session?.user?.id ?? null;
+  const e2eStrengthUi =
+    typeof process !== 'undefined' &&
+    process.env.NODE_ENV !== 'production' &&
+    e2eShowProfileStrength === true;
+  /** Server `isMe` with no client session: dev-only Playwright seams (`__e2e_viewer` on `/profiles/[id]`). */
+  const e2eServerOnlyOwner =
+    typeof process !== 'undefined' &&
+    process.env.NODE_ENV !== 'production' &&
+    isMeProp === true &&
+    viewerAuthId == null;
+  const showProfileStrengthSection =
+    e2eStrengthUi ||
+    (!!viewerAuthId && !!profileUserId && viewerAuthId === profileUserId) ||
+    e2eServerOnlyOwner;
   const [upCount, setUpCount] = useState<number>(0);
   const [downCount, setDownCount] = useState<number>(0);
   const [myRating, setMyRating] = useState<1 | -1 | null>(null);
@@ -243,20 +273,26 @@ export function ProfileView({
 
   useEffect(() => {
     if (strengthCalcProp != null) return;
+    if (!showProfileStrengthSection) return;
     const id = (profile as any)?.id as string | undefined;
     if (!id) return;
     let cancelled = false;
     fetch(`/api/profile/${id}/strength`, { credentials: 'include' })
-      .then((r) => r.json())
-      .then((j) => {
-        if (cancelled || j?.error) return;
-        setStrengthCalc(j as ProfileStrengthCalc);
+      .then(async (r) => {
+        let j: unknown;
+        try {
+          j = await r.json();
+        } catch {
+          return;
+        }
+        if (cancelled || !r.ok) return;
+        applyProfileStrengthApiPayload(j, setStrengthCalc);
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [profileUserId, strengthCalcProp]);
+  }, [profileUserId, strengthCalcProp, showProfileStrengthSection]);
 
   useEffect(() => {
     if (viewerLikeStateProp != null) {
@@ -574,9 +610,15 @@ export function ProfileView({
                     initialLikesCount={likeInitial?.count ?? 0}
                     onUpdated={() => {
                       fetch(`/api/profile/${profileUserId}/strength`, { credentials: 'include' })
-                        .then((r) => r.json())
-                        .then((j) => {
-                          if (!j?.error) setStrengthCalc(j as ProfileStrengthCalc);
+                        .then(async (r) => {
+                          let j: unknown;
+                          try {
+                            j = await r.json();
+                          } catch {
+                            return;
+                          }
+                          if (!r.ok) return;
+                          applyProfileStrengthApiPayload(j, setStrengthCalc);
                         })
                         .catch(() => {});
                     }}
@@ -844,9 +886,11 @@ export function ProfileView({
                   )}
                 </div>
 
-                <div className="mt-6 space-y-4">
-                  <ProfileStrengthSection strengthCalc={strengthCalc} profile={p} />
-                </div>
+                {showProfileStrengthSection ? (
+                  <div className="mt-6 space-y-4">
+                    <ProfileStrengthSection strengthCalc={strengthCalc} profile={p} />
+                  </div>
+                ) : null}
 
                 {hasAnyLinks && (
                   <div className="mt-6">

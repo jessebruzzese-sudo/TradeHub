@@ -54,7 +54,13 @@ export default async function PublicProfileByIdPage({
   if (process.env.NODE_ENV !== 'production' && isE2EProfileStrengthFixtureId(profileId)) {
     const { profile, strengthCalc } = getE2EProfileStrengthFixture(profileId);
     return (
-      <ProfileView mode="public" profile={profile as any} strengthCalc={strengthCalc} viewerLikeState={null} />
+      <ProfileView
+        mode="public"
+        profile={profile as any}
+        strengthCalc={strengthCalc}
+        viewerLikeState={null}
+        e2eShowProfileStrength
+      />
     );
   }
 
@@ -131,10 +137,7 @@ export default async function PublicProfileByIdPage({
     const { data: profileStrengthBreakdown } = await admin.rpc('calculate_profile_strength', {
       p_user_id: profileId,
     });
-    const strength = Array.isArray(profileStrengthBreakdown)
-      ? profileStrengthBreakdown[0]
-      : profileStrengthBreakdown;
-    strengthCalc = parseProfileStrengthRpcResult(strength);
+    strengthCalc = parseProfileStrengthRpcResult(profileStrengthBreakdown);
   } catch {
     // RPC unavailable
   }

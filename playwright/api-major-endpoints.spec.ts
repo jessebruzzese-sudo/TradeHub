@@ -61,7 +61,7 @@ test.describe('API major endpoints integration', () => {
       { method: 'POST', path: '/api/availability', allowed: [200, 400, 401, 403, 500], body: { dates: [] } },
       { method: 'POST', path: '/api/jobs', allowed: [400, 401, 403], body: {} },
       { method: 'GET', path: '/api/discovery/trades-near-you', allowed: [200, 401, 500] },
-      { method: 'POST', path: '/api/messages/send', allowed: [200, 400, 401, 404], body: { conversationId: 'x', text: 'hi' } },
+      { method: 'POST', path: '/api/messages/send', allowed: [200, 400, 401, 403, 404], body: { conversationId: 'x', text: 'hi' } },
       { method: 'POST', path: '/api/billing/create-checkout-session', allowed: [200, 400, 401, 404, 503] },
       { method: 'POST', path: '/api/billing/portal', allowed: [200, 400, 401, 404, 503] },
       { method: 'GET', path: '/api/admin/stats', allowed: [200, 401, 403] },

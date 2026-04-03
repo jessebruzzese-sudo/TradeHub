@@ -44,7 +44,7 @@ import {
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { format } from 'date-fns';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { getBrowserSupabase } from '@/lib/supabase-client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -299,7 +299,12 @@ export default function JobDetailPage() {
   const params = useParams();
   const router = useRouter();
   const store = getStore();
-  const jobId = params.id as string;
+  const jobId = useMemo(() => {
+    const raw = params?.id;
+    if (typeof raw === 'string') return raw.trim();
+    if (Array.isArray(raw) && raw[0] != null) return String(raw[0]).trim();
+    return '';
+  }, [params?.id]);
 
   const [showApplyDialog, setShowApplyDialog] = useState(false);
   const [applicationMessage, setApplicationMessage] = useState('');
@@ -309,7 +314,8 @@ export default function JobDetailPage() {
   const [withdrawReason, setWithdrawReason] = useState('');
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
-  const [isLoadingJob, setIsLoadingJob] = useState(false);
+  /** Start true so we never render "Job not found" before the first fetch/cache check runs. */
+  const [isLoadingJob, setIsLoadingJob] = useState(true);
   /** Bumps after poster sync on cache hit so we re-read the module store (not a subscribed store). */
   const [, setClientStoreEpoch] = useState(0);
   const [actionSubmitting, setActionSubmitting] = useState(false);
@@ -324,12 +330,24 @@ export default function JobDetailPage() {
   const [lightboxItems, setLightboxItems] = useState<LightboxItem[]>([]);
   const sb = useState(() => getBrowserSupabase())[0];
 
-  useEffect(() => {
-    console.log('JOB DETAIL PARAM', params.id);
-  }, [params.id]);
+  /** Avoid one frame of "Job not found" when [id] changes but prior load had finished (isLoadingJob was false). */
+  useLayoutEffect(() => {
+    if (!jobId) {
+      setIsLoadingJob(false);
+      return;
+    }
+    setIsLoadingJob(true);
+  }, [jobId]);
 
   useEffect(() => {
-    if (!jobId || !currentUser?.id) return;
+    if (!jobId) {
+      setIsLoadingJob(false);
+      return;
+    }
+
+    if (!currentUser?.id) {
+      return;
+    }
 
     const existingJob: any = store.getJobById(jobId);
 
@@ -339,6 +357,7 @@ export default function JobDetailPage() {
     const cachedHasDates = Array.isArray(existingJob?.dates) && existingJob.dates.length > 0;
 
     if (existingJob && cachedHasAttachments && cachedHasDates) {
+      setIsLoadingJob(false);
       if (existingJob.contractorId) {
         void (async () => {
           const supabase = getBrowserSupabase();
@@ -350,9 +369,9 @@ export default function JobDetailPage() {
     }
 
     let cancelled = false;
+    setIsLoadingJob(true);
 
     (async () => {
-      setIsLoadingJob(true);
       try {
         const supabase = getBrowserSupabase();
         const { job: jobData, error: loadErr, source, selectUsed } = await loadJobById(supabase, jobId, {
@@ -386,7 +405,7 @@ export default function JobDetailPage() {
         }
 
         const job = {
-          id: jobData.id,
+          id: String(jobData.id),
           title: jobData.title,
           description: jobData.description,
           tradeCategory: jobData.trade_category,
@@ -977,8 +996,9 @@ export default function JobDetailPage() {
   };
 
   const handleMessagePoster = () => {
-    const conversation = store.findOrCreateConversation(job.id, job.contractorId, currentUser.id);
-    router.push(`/messages?conversation=${conversation.id}`);
+    // Use ?userId= so /messages runs POST /api/conversations and replaces with a real Supabase
+    // conversation id. Store-only ids like `conv-${Date.now()}` are not valid for /api/messages/send.
+    router.push(`/messages?userId=${job.contractorId}`);
   };
 
   const canCancelJob =

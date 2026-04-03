@@ -26,7 +26,7 @@ import { SuburbAutocomplete } from '@/components/suburb-autocomplete';
 import { useAuth } from '@/lib/auth';
 import { getBrowserSupabase } from '@/lib/supabase-client';
 import { isAdmin } from '@/lib/is-admin';
-import { TRADES } from '@/lib/trades';
+import { useActiveTradesCatalog } from '@/lib/trades/use-active-trades-catalog';
 import { normalizeTrade, normalizeTradesList } from '@/lib/trades/normalizeTrade';
 import { cn } from '@/lib/utils';
 import { canCustomSearchLocation, canMultiTrade, canChangePrimaryTrade } from '@/lib/capability-utils';
@@ -163,6 +163,7 @@ export default function EditProfilePage() {
   const [userTrades, setUserTrades] = useState<Array<{ id: string | null; trade: string; is_primary: boolean }>>([]);
   const [tradesLoading, setTradesLoading] = useState(false);
   const [addTradeOpen, setAddTradeOpen] = useState(false);
+  const { names: catalogTradeNames, loading: catalogTradesLoading } = useActiveTradesCatalog();
 
   // Load trades from API
   useEffect(() => {
@@ -588,8 +589,8 @@ export default function EditProfilePage() {
 
   const selectedTrades = useMemo(() => userTrades.map((t) => t.trade), [userTrades]);
   const availableTradeOptions = useMemo(
-    () => TRADES.filter((t) => !selectedTrades.includes(t)),
-    [selectedTrades]
+    () => catalogTradeNames.filter((t) => !selectedTrades.includes(t)),
+    [catalogTradeNames, selectedTrades]
   );
 
   const handleAddTrade = (trade: string) => {
@@ -1554,13 +1555,13 @@ export default function EditProfilePage() {
                           );
                         }
                       }}
-                      disabled={tradesLoading}
+                      disabled={tradesLoading || catalogTradesLoading}
                     >
                       <SelectTrigger className={inputClass}>
                         <SelectValue placeholder="Select your primary trade" />
                       </SelectTrigger>
                       <SelectContent>
-                        {TRADES.map((t) => (
+                        {catalogTradeNames.map((t) => (
                           <SelectItem key={t} value={t}>
                             {t}
                           </SelectItem>

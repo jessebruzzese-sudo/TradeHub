@@ -1,23 +1,39 @@
+/**
+ * GET /api/discovery/trade/[trade] — powers `/subcontractors`.
+ *
+ * **Availability-driven directory:** a user appears here only if they have an **active listed availability**
+ * (≥ one `subcontractor_availability` row with `date >= today`, UTC calendar day). A public profile alone
+ * is not sufficient. Broader “who exists on the platform” discovery stays on `/api/discovery/search`.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabase } from '@/lib/supabase-server';
+import { createServerSupabase, createServiceSupabase } from '@/lib/supabase-server';
 import {
   getViewerCenter,
   getDiscoveryRadiusKm,
-  bboxForRadiusKm,
   haversineKm,
   isPremiumCandidate,
 } from '@/lib/discovery';
 import { getTier } from '@/lib/plan-limits';
 import { hasValidABN } from '@/lib/abn-utils';
-import { applyExcludeTestAccountsFilters } from '@/lib/test-account';
 import { getDisplayTradeListFromUserRow } from '@/lib/trades/user-trades';
 import { getPrimaryUserCoordinates } from '@/lib/location/get-user-coordinates';
+import {
+  loadPublicDirectoryUserRows,
+  loadViewerDiscoveryRow,
+} from '@/lib/discovery/public-directory-query';
+import { formatUnknownError } from '@/lib/supabase/postgrest-errors';
+import { isLikelyTestAccount } from '@/lib/test-account';
+import { loadUserIdsWithActiveSubcontractorListing } from '@/lib/discovery/subcontractor-listing-availability';
 
 type UserRow = {
   id: string;
   plan?: string | null;
+  role?: string | null;
   location_lat?: number | null;
   location_lng?: number | null;
+  lat?: number | null;
+  lng?: number | null;
   search_lat?: number | null;
   search_lng?: number | null;
   primary_trade?: string | null;
@@ -64,7 +80,6 @@ function mapToCard(
   avatar_url: string | null;
   isPremium: boolean;
 } {
-  // Prefer users.name (visible/display name), then business_name, with safe fallback
   const displayName =
     (row as Record<string, unknown>).name ??
     (row as Record<string, unknown>).business_name ??
@@ -102,6 +117,35 @@ function mapToCard(
 
 export const dynamic = 'force-dynamic';
 
+function parseBoolEnv(v: string | undefined | null): boolean | null {
+  if (v == null) return null;
+  const s = String(v).trim().toLowerCase();
+  if (!s) return null;
+  if (['1', 'true', 'yes', 'y', 'on'].includes(s)) return true;
+  if (['0', 'false', 'no', 'n', 'off'].includes(s)) return false;
+  return null;
+}
+
+function discoveryTradeErrorResponse(
+  status: number,
+  stage: string,
+  message: string,
+  err?: unknown
+): NextResponse {
+  const fromErr = formatUnknownError(err ?? '');
+  const resolvedError = fromErr.trim() ? fromErr : message;
+  const details: Record<string, string> = { fallbackMessage: message };
+  if (err && typeof err === 'object' && err !== null) {
+    const e = err as Record<string, unknown>;
+    if (e.code != null) details.code = String(e.code);
+    if (e.message != null) details.pgMessage = String(e.message);
+    if (e.details != null) details.pgDetails = String(e.details);
+    if (e.hint != null) details.hint = String(e.hint);
+  }
+  console.error('[discovery/trade] failing stage', { stage, message: resolvedError, details, err });
+  return NextResponse.json({ error: resolvedError, stage, details }, { status });
+}
+
 export async function GET(
   _request: NextRequest,
   ctx: { params: Promise<{ trade: string }> }
@@ -110,94 +154,96 @@ export async function GET(
     const { trade: tradeParam } = await ctx.params;
     if (!tradeParam?.trim()) {
       return NextResponse.json(
-        { error: 'Trade parameter required' },
+        { error: 'Trade parameter required', stage: 'params', details: {} },
         { status: 400 }
       );
     }
 
-    const supabase = createServerSupabase();
+    const isProd =
+      process.env.NODE_ENV === 'production' ||
+      process.env.VERCEL_ENV === 'production' ||
+      process.env.NEXT_PUBLIC_VERCEL_ENV === 'production';
+    const excludeTestAccountsOverride = parseBoolEnv(process.env.DISCOVERY_EXCLUDE_TEST_ACCOUNTS);
+    const excludeTestAccounts =
+      excludeTestAccountsOverride != null ? excludeTestAccountsOverride : isProd;
+
+    const supabaseAuth = createServerSupabase();
     const {
       data: { user },
       error: authErr,
-    } = await supabase.auth.getUser();
+    } = await supabaseAuth.auth.getUser();
 
     if (authErr || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: me, error: meErr } = await (supabase as any)
-      .from('users')
-      .select(
-        'id,plan,location_lat,location_lng,search_lat,search_lng,subscription_status,complimentary_premium_until'
-      )
-      .eq('id', user.id)
-      .maybeSingle();
-
-    if (meErr || !me) {
-      return NextResponse.json(
-        { error: 'Could not load your profile' },
-        { status: 500 }
+    const viewerRes = await loadViewerDiscoveryRow(supabaseAuth, user.id);
+    if (!viewerRes.ok) {
+      return discoveryTradeErrorResponse(
+        500,
+        viewerRes.stage,
+        'Could not load your profile',
+        viewerRes.error
       );
     }
 
-    const center = getViewerCenter(me as UserRow);
-    if (!center) {
-      return NextResponse.json({
-        profiles: [],
-        outsideRadiusCount: 0,
-        allowedRadiusKm: 20,
-        message: 'Add your location to discover trades near you.',
-      });
-    }
-
-    const radiusKm = getDiscoveryRadiusKm(me as UserRow);
+    const me = viewerRes.me as UserRow;
+    const center = getViewerCenter(me);
+    const radiusKm = getDiscoveryRadiusKm(me);
     const isViewerPremium = getTier(me) === 'premium';
-    const fetchRadiusKm = isViewerPremium ? radiusKm : Math.max(300, radiusKm * 3);
-    const bbox = bboxForRadiusKm(center.lat, center.lng, fetchRadiusKm);
 
-    let query = (supabase as any)
-      .from('users')
-      .select(
-        'id,plan,location_lat,location_lng,primary_trade,additional_trades,business_name,name,location,postcode,abn,abn_status,avatar,subscription_status,complimentary_premium_until'
-      )
-      .eq('is_public_profile', true)
-      .neq('id', user.id)
-      .gte('location_lat', bbox.minLat)
-      .lte('location_lat', bbox.maxLat)
-      .gte('location_lng', bbox.minLng)
-      .lte('location_lng', bbox.maxLng);
-    query = applyExcludeTestAccountsFilters(query);
+    const supabaseService = createServiceSupabase();
 
-    const { data: candidates, error: candErr } = await query;
+    const listingRes = await loadUserIdsWithActiveSubcontractorListing(supabaseService);
+    if (!listingRes.ok) {
+      return discoveryTradeErrorResponse(
+        500,
+        listingRes.stage,
+        'Failed to load availability listings',
+        listingRes.error
+      );
+    }
+    const userIdsWithActiveListing = listingRes.userIds;
 
-    if (candErr) {
-      if (candErr.message?.includes('is_public_profile') || candErr.code === '42P01') {
-        return NextResponse.json({ profiles: [], outsideRadiusCount: 0, allowedRadiusKm: radiusKm });
-      }
-      console.error('Discovery trade route error:', candErr);
-      return NextResponse.json(
-        { error: 'Failed to load profiles' },
-        { status: 500 }
+    const dirRes = await loadPublicDirectoryUserRows(supabaseService, user.id);
+    if (!dirRes.ok) {
+      return discoveryTradeErrorResponse(
+        500,
+        dirRes.stage,
+        'Failed to load profiles',
+        dirRes.error
       );
     }
 
-    const rows = (candidates ?? []) as UserRow[];
+    // Must have listed availability (today or future); public profile is necessary but not enough.
+    let rows = (dirRes.rows as UserRow[]).filter((r) => userIdsWithActiveListing.has(r.id));
+    rows = rows.filter((r) => {
+      if (!Object.prototype.hasOwnProperty.call(r, 'role')) return true;
+      return String((r as { role?: string }).role ?? '').toLowerCase() !== 'admin';
+    });
+    if (excludeTestAccounts) {
+      rows = rows.filter(
+        (r) =>
+          !isLikelyTestAccount({
+            name: r.name ?? null,
+            businessName: r.business_name ?? null,
+          })
+      );
+    }
 
     const tradeParamNorm = tradeParam.trim().toLowerCase();
     const matchAllTrades = tradeParamNorm === 'all';
 
-    const allMatchingWithDistance: { row: UserRow; distanceKm: number; isPremium: boolean }[] = [];
+    const allMatchingWithDistance: { row: UserRow; distanceKm: number | null; isPremium: boolean }[] =
+      [];
 
     for (const row of rows) {
       if (!matchAllTrades && !matchesTrade(row, tradeParam)) continue;
       const coords = getCandidateCoords(row);
-      if (!coords) continue;
-      const distanceKm = haversineKm(
-        center.lat,
-        center.lng,
-        coords.lat,
-        coords.lng
-      );
+      const distanceKm =
+        center != null && coords
+          ? haversineKm(center.lat, center.lng, coords.lat, coords.lng)
+          : null;
       allMatchingWithDistance.push({
         row,
         distanceKm,
@@ -205,29 +251,41 @@ export async function GET(
       });
     }
 
-    const withinRadius = allMatchingWithDistance.filter((c) => c.distanceKm <= radiusKm);
-    const outsideRadiusCount = isViewerPremium ? 0 : allMatchingWithDistance.filter((c) => c.distanceKm > radiusKm).length;
-
-    withinRadius.sort(
-      (a, b) =>
-        Number(b.isPremium) - Number(a.isPremium) ||
-        a.distanceKm - b.distanceKm
+    const withinRadius = allMatchingWithDistance.filter(
+      (c) => c.distanceKm == null || c.distanceKm <= radiusKm
     );
+    const outsideRadiusCount = isViewerPremium
+      ? 0
+      : allMatchingWithDistance.filter(
+          (c) => c.distanceKm != null && c.distanceKm > radiusKm
+        ).length;
 
-    const cards = withinRadius.map((c) =>
-      mapToCard(c.row, c.isPremium)
-    );
+    withinRadius.sort((a, b) => {
+      const p = Number(b.isPremium) - Number(a.isPremium);
+      if (p !== 0) return p;
+      const da = a.distanceKm;
+      const db = b.distanceKm;
+      if (da == null && db == null) return 0;
+      if (da == null) return 1;
+      if (db == null) return -1;
+      return da - db;
+    });
 
-    return NextResponse.json({
+    const cards = withinRadius.map((c) => mapToCard(c.row, c.isPremium));
+
+    const payload: Record<string, unknown> = {
       profiles: cards,
       outsideRadiusCount,
       allowedRadiusKm: radiusKm,
-    });
+    };
+    if (!center) {
+      payload.message =
+        'Add your location to see distance ordering and radius hints. You can still browse matching trades.';
+    }
+
+    return NextResponse.json(payload);
   } catch (err: unknown) {
     console.error('discovery trade/[trade] error:', err);
-    return NextResponse.json(
-      { error: 'Failed to load profiles' },
-      { status: 500 }
-    );
+    return discoveryTradeErrorResponse(500, 'unhandled', 'Failed to load profiles', err);
   }
 }
