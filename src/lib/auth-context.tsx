@@ -331,7 +331,7 @@ export type CurrentUser = {
   email?: string | null;
   name?: string | null;
   plan?: 'free' | 'premium' | null;
-  /** Role is NOT used for permissions; admin only via isAdmin(). Kept for UI/copy. */
+  /** Role is not used for admin permissions (use is_admin + isAdmin()). Kept for UI/copy. */
   role?: string | null;
   is_admin?: boolean | null;
 
@@ -692,6 +692,7 @@ function buildFallbackCurrentUser(user: Pick<User, 'id' | 'email' | 'user_metada
     email: user.email ?? null,
     name: String(meta.full_name ?? meta.name ?? user.email ?? '').trim() || null,
     role,
+    is_admin: false,
     trustStatus,
     primaryTrade,
     trades,
@@ -877,11 +878,11 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
     async (userId: string): Promise<CurrentUser | null> => {
       try {
         // Use safe select: only columns that exist in all migrations. Do NOT request:
-        // mini_bio, phone, show_phone_on_profile, show_email_on_profile, is_admin,
+        // mini_bio, phone, show_phone_on_profile, show_email_on_profile,
         // show_abn_on_profile, show_business_name_on_profile, pricing_type, pricing_amount,
         // show_pricing_on_profile, show_pricing_in_listings (may not exist in older DBs)
         const baseSelectNoProfileStrength =
-          'id,email,name,role,trust_status,avatar,cover_url,bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,abn_verified,abn_verified_at,show_abn_on_profile,show_business_name_on_profile,additional_trades,website,instagram,facebook,linkedin,tiktok,youtube,' +
+          'id,email,name,role,is_admin,trust_status,avatar,cover_url,bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,abn_verified,abn_verified_at,show_abn_on_profile,show_business_name_on_profile,additional_trades,website,instagram,facebook,linkedin,tiktok,youtube,' +
           'location,postcode,location_lat,location_lng,' +
           'plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,' +
           'complimentary_premium_until,additional_trades_unlocked,search_location,search_postcode,search_lat,search_lng,' +
@@ -906,7 +907,7 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
 
         // If this fails, we must not fall back to a row missing abn/location (empty profile edit UI).
         const minimalSelectWithCore =
-          'id,email,name,role,trust_status,avatar,cover_url,bio,primary_trade,business_name,abn,abn_status,abn_verified,abn_verified_at,show_abn_on_profile,show_business_name_on_profile,additional_trades,location,postcode,location_lat,location_lng,is_public_profile';
+          'id,email,name,role,is_admin,trust_status,avatar,cover_url,bio,primary_trade,business_name,abn,abn_status,abn_verified,abn_verified_at,show_abn_on_profile,show_business_name_on_profile,additional_trades,location,postcode,location_lat,location_lng,is_public_profile';
 
         let { data: profile, error } = await loadWithSelect(baseSelect);
 

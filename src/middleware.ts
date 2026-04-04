@@ -160,7 +160,7 @@ export async function middleware(request: NextRequest) {
 
     const { data: profile, error: profileErr } = await supabase
       .from('users')
-      .select('role')
+      .select('is_admin')
       .eq('id', user.id)
       .single();
 
@@ -172,7 +172,7 @@ export async function middleware(request: NextRequest) {
       return applyResponseCookies(response, redirectResponse);
     }
 
-    if (profile?.role !== 'admin') {
+    if (profile?.is_admin !== true) {
       if (isApiRoute(pathname)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }

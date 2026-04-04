@@ -63,12 +63,11 @@ export async function GET(request: NextRequest) {
 
     const { data: profile, error: adminErr } = await serviceSupabase
       .from('users')
-      .select('is_admin, role')
+      .select('is_admin')
       .eq('id', user.id)
       .maybeSingle();
 
-    const role = String((profile as any)?.role || '').trim().toLowerCase();
-    const isAdmin = !!profile && (profile.is_admin === true || role === 'admin');
+    const isAdmin = profile?.is_admin === true;
     if (adminErr || !isAdmin) {
       if (adminErr) console.error('Admin users auth failed:', adminErr);
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

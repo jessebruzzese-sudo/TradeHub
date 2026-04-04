@@ -5,6 +5,5 @@ type UserLike =
 
 export function isAdmin(user: UserLike): boolean {
   if (!user) return false;
-  if (user.is_admin === true) return true;
-  return String(user.role || '').trim().toLowerCase() === 'admin';
+  return user.is_admin === true;
 }
