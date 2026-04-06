@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { requireAdmin } from '@/lib/admin/require-admin';
+import {
+  adminAuthErrorResponseOrNull,
+  requireAdmin,
+} from '@/lib/admin/require-admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,7 +54,8 @@ export async function PATCH(
 
     return NextResponse.json(data);
   } catch (err) {
-    if (err instanceof Response) throw err;
+    const auth = adminAuthErrorResponseOrNull(err);
+    if (auth) return auth;
     console.error('Admin report status error:', err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Unknown error' },

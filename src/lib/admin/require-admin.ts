@@ -1,52 +1,98 @@
-import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 
-type RequireAdminResult = {
-  userId: string;
-  email?: string;
+export type RequireAdminResult = {
+  user: any;
+  profile: {
+    id: string;
+    is_admin: boolean;
+  };
 };
 
-function getSupabaseServer() {
-  const cookieStore = cookies();
+export async function requireAdmin(): Promise<RequireAdminResult> {
+  const cookieStore = await cookies();
 
-  return createServerClient(
+  const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() {
-          return cookieStore.getAll();
+        get(name: string) {
+          return cookieStore.get(name)?.value;
         },
-        setAll(cookiesToSet) {
-          // Route handlers can set cookies; middleware uses a different pattern.
-          cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set(name, value, options);
-          });
-        },
+        set() {},
+        remove() {},
       },
     }
   );
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError) {
+    throw new Error('AUTH_ERROR');
+  }
+
+  if (!user) {
+    throw new Error('NO_USER');
+  }
+
+  const { data: me, error: profileError } = await supabase
+    .from('users')
+    .select('id,is_admin')
+    .eq('id', user.id)
+    .single();
+
+  if (profileError) {
+    throw new Error('USER_LOOKUP_FAILED');
+  }
+
+  if (!me) {
+    throw new Error('USER_NOT_FOUND');
+  }
+
+  if (me.is_admin !== true) {
+    throw new Error('NOT_ADMIN');
+  }
+
+  return {
+    user,
+    profile: me,
+  };
 }
 
-export async function requireAdmin(
-  supabaseClient?: ReturnType<typeof getSupabaseServer>
-): Promise<RequireAdminResult> {
-  const supabase = supabaseClient ?? getSupabaseServer();
+/** Maps errors from {@link requireAdmin} to JSON responses (401/403/404/500). */
+export function adminAuthErrorToResponse(err: unknown): Response {
+  const message = err instanceof Error ? err.message : 'UNKNOWN_ERROR';
 
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) {
-    throw new Response('Unauthorized', { status: 401 });
+  if (message === 'NO_USER' || message === 'AUTH_ERROR') {
+    return Response.json({ error: message }, { status: 401 });
   }
 
-  const { data: row, error: profileErr } = await supabase
-    .from('users')
-    .select('id, is_admin')
-    .eq('id', user.id)
-    .maybeSingle();
-
-  if (profileErr || !row || row.is_admin !== true) {
-    throw new Response('Forbidden', { status: 403 });
+  if (message === 'NOT_ADMIN') {
+    return Response.json({ error: message }, { status: 403 });
   }
 
-  return { userId: user.id, email: user.email ?? undefined };
+  if (message === 'USER_NOT_FOUND' || message === 'USER_LOOKUP_FAILED') {
+    return Response.json({ error: message }, { status: 404 });
+  }
+
+  return Response.json({ error: 'UNEXPECTED_AUTH_ERROR' }, { status: 500 });
+}
+
+const ADMIN_AUTH_MESSAGES = new Set([
+  'AUTH_ERROR',
+  'NO_USER',
+  'NOT_ADMIN',
+  'USER_NOT_FOUND',
+  'USER_LOOKUP_FAILED',
+]);
+
+/** If `err` came from {@link requireAdmin}, return the matching JSON response; otherwise `null`. */
+export function adminAuthErrorResponseOrNull(err: unknown): Response | null {
+  const message = err instanceof Error ? err.message : '';
+  if (!ADMIN_AUTH_MESSAGES.has(message)) return null;
+  return adminAuthErrorToResponse(err);
 }

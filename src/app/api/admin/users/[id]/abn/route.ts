@@ -2,7 +2,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Database } from "@/lib/database.types";
 import { createServerSupabase } from "@/lib/supabase-server";
-import { requireAdmin } from "@/lib/admin/require-admin";
+import {
+  adminAuthErrorResponseOrNull,
+  requireAdmin,
+} from "@/lib/admin/require-admin";
 import { createEmailEvent } from "@/lib/email/create-email-event";
 import { shouldSendEmailNow } from "@/lib/email/rollout";
 
@@ -33,8 +36,9 @@ export async function POST(
       );
     }
 
+    const { user } = await requireAdmin();
+    const userId = user.id;
     const supabase = createServerSupabase();
-    const { userId } = await requireAdmin(supabase);
 
     type UsersUpdate = Database['public']['Tables']['users']['Update'];
     const updateData: UsersUpdate = { abn_status };
@@ -101,6 +105,8 @@ export async function POST(
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
+    const auth = adminAuthErrorResponseOrNull(err);
+    if (auth) return auth;
     return NextResponse.json(
       { ok: false, error: err?.message ?? "Unknown error" },
       { status: 500 }

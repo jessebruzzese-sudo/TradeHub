@@ -1,10 +1,14 @@
-import { requireAdmin } from './require-admin';
+import { adminAuthErrorToResponse, requireAdmin } from './require-admin';
 
 export function withAdmin<T extends (...args: any[]) => Promise<Response>>(
   handler: T
 ) {
   return async (...args: Parameters<T>): Promise<Response> => {
-    await requireAdmin();
+    try {
+      await requireAdmin();
+    } catch (err) {
+      return adminAuthErrorToResponse(err);
+    }
     return handler(...args);
   };
 }

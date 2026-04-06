@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import type { Database } from '@/lib/database.types';
 import { createServiceSupabase } from '@/lib/supabase-server';
-import { requireAdmin } from '@/lib/admin/require-admin';
+import {
+  adminAuthErrorResponseOrNull,
+  requireAdmin,
+} from '@/lib/admin/require-admin';
 
 type ConversationRow = Pick<Database['public']['Tables']['conversations']['Row'], 'id' | 'contractor_id' | 'subcontractor_id' | 'job_id' | 'created_at'>;
 type MessageRow = Pick<Database['public']['Tables']['messages']['Row'], 'id' | 'sender_id' | 'text' | 'is_system_message' | 'created_at' | 'attachments'>;
@@ -107,7 +110,8 @@ export async function GET(
       })),
     });
   } catch (err) {
-    if (err instanceof Response) throw err;
+    const auth = adminAuthErrorResponseOrNull(err);
+    if (auth) return auth;
     console.error('Admin conversation fetch error:', err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Unknown error' },

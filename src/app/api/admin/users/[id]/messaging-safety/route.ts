@@ -1,7 +1,10 @@
 // @ts-nocheck - Supabase client type inference
 import { NextResponse } from 'next/server';
 import { createServiceSupabase } from '@/lib/supabase-server';
-import { requireAdmin } from '@/lib/admin/require-admin';
+import {
+  adminAuthErrorResponseOrNull,
+  requireAdmin,
+} from '@/lib/admin/require-admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -112,7 +115,8 @@ export async function GET(
       })),
     });
   } catch (err) {
-    if (err instanceof Response) throw err;
+    const auth = adminAuthErrorResponseOrNull(err);
+    if (auth) return auth;
     console.error('Admin messaging-safety error:', err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Unknown error' },

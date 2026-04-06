@@ -2,7 +2,10 @@
 import { NextRequest } from 'next/server';
 import type { Database } from '@/lib/database.types';
 import { createServerSupabase } from '@/lib/supabase-server';
-import { requireAdmin } from '@/lib/admin/require-admin';
+import {
+  adminAuthErrorResponseOrNull,
+  requireAdmin,
+} from '@/lib/admin/require-admin';
 
 type AdminAccountReviewsInsert = Database['public']['Tables']['admin_account_reviews']['Insert'];
 type AdminAccountReviewsUpdate = Database['public']['Tables']['admin_account_reviews']['Update'];
@@ -21,7 +24,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { userId } = await requireAdmin();
+    const { user } = await requireAdmin();
+    const userId = user.id;
     const { id } = await params;
 
     const body = await request.json();
@@ -90,7 +94,8 @@ export async function POST(
 
     return Response.json({ ok: true });
   } catch (err) {
-    if (err instanceof Response) throw err;
+    const auth = adminAuthErrorResponseOrNull(err);
+    if (auth) return auth;
     return Response.json(
       { ok: false, error: err instanceof Error ? err.message : 'Unknown error' },
       { status: 500 }

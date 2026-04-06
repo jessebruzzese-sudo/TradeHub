@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { requireAdmin } from '@/lib/admin/require-admin';
+import {
+  adminAuthErrorResponseOrNull,
+  requireAdmin,
+} from '@/lib/admin/require-admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,7 +38,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ url: data.signedUrl });
   } catch (err) {
-    if (err instanceof Response) throw err;
+    const auth = adminAuthErrorResponseOrNull(err);
+    if (auth) return auth;
     console.error('Admin signed URL error:', err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Unknown error' },

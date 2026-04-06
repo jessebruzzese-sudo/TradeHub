@@ -31,8 +31,11 @@ export default function AdminAlertsPage() {
   useEffect(() => {
     let cancelled = false;
     fetch('/api/admin/alerts')
-      .then((r) => {
-        if (!r.ok) throw new Error(r.status === 403 ? 'Forbidden' : 'Failed to load');
+      .then(async (r) => {
+        if (!r.ok) {
+          const data = (await r.json().catch(() => ({}))) as { error?: string };
+          throw new Error(typeof data.error === 'string' ? data.error : 'Failed to load');
+        }
         return r.json();
       })
       .then((data) => {

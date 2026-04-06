@@ -148,7 +148,10 @@ export async function middleware(request: NextRequest) {
   if (isAdminRoute(pathname)) {
     if (!isAuthenticated) {
       if (isApiRoute(pathname)) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        return NextResponse.json(
+          { error: 'NO_USER', source: 'middleware' },
+          { status: 401 }
+        );
       }
       const fullPath = pathname + search;
       const loginUrl = new URL('/login', request.url);
@@ -166,7 +169,10 @@ export async function middleware(request: NextRequest) {
 
     if (profileErr) {
       if (isApiRoute(pathname)) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        return NextResponse.json(
+          { error: 'USER_LOOKUP_FAILED', source: 'middleware' },
+          { status: 404 }
+        );
       }
       const redirectResponse = NextResponse.redirect(new URL('/dashboard', request.url));
       return applyResponseCookies(response, redirectResponse);
@@ -174,7 +180,10 @@ export async function middleware(request: NextRequest) {
 
     if (profile?.is_admin !== true) {
       if (isApiRoute(pathname)) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        return NextResponse.json(
+          { error: 'NOT_ADMIN', source: 'middleware' },
+          { status: 403 }
+        );
       }
       const redirectResponse = NextResponse.redirect(new URL('/dashboard', request.url));
       return applyResponseCookies(response, redirectResponse);

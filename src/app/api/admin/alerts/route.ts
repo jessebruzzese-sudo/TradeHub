@@ -4,7 +4,7 @@
  */
 import { NextResponse } from 'next/server';
 import { createServiceSupabase } from '@/lib/supabase-server';
-import { requireAdmin } from '@/lib/admin/require-admin';
+import { adminAuthErrorToResponse, requireAdmin } from '@/lib/admin/require-admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,8 +13,8 @@ const LIMIT = 100;
 export async function GET() {
   try {
     await requireAdmin();
-  } catch (r) {
-    return r as Response;
+  } catch (err) {
+    return adminAuthErrorToResponse(err);
   }
 
   const supabase = createServiceSupabase();
