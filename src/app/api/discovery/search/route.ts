@@ -16,6 +16,7 @@ import {
   loadViewerDiscoveryRow,
 } from '@/lib/discovery/public-directory-query';
 import { formatUnknownError } from '@/lib/supabase/postgrest-errors';
+import { profileStrengthRankBoost } from '@/lib/discovery/profile-strength-rank-boost';
 
 type UserRow = {
   id: string;
@@ -259,7 +260,8 @@ function profileVerifiedForSort(p: {
 type DirectoryProfileOut = ReturnType<typeof mapCandidateToProfile>;
 
 /**
- * Distance is not used (no stable coords on directory rows). Order: verified first, rating desc, name asc, id.
+ * Distance is not used (no stable coords on directory rows).
+ * Order: verified first, rating desc, profile-strength boost (tie-break), name asc, id.
  */
 function compareDirectoryProfiles(a: DirectoryProfileOut, b: DirectoryProfileOut): number {
   const va = profileVerifiedForSort(a);
@@ -269,6 +271,10 @@ function compareDirectoryProfiles(a: DirectoryProfileOut, b: DirectoryProfileOut
   const ra = Number(a.rating_avg ?? a.rating ?? 0);
   const rb = Number(b.rating_avg ?? b.rating ?? 0);
   if (rb !== ra) return rb - ra;
+
+  const sa = profileStrengthRankBoost(a.profile_strength_score);
+  const sb = profileStrengthRankBoost(b.profile_strength_score);
+  if (sb !== sa) return sb - sa;
 
   const na = String(a.name ?? a.business_name ?? '').toLowerCase();
   const nb = String(b.name ?? b.business_name ?? '').toLowerCase();
@@ -551,7 +557,7 @@ export async function GET(request: NextRequest) {
     console.log('[discovery/search] response mapping', {
       profileCount: profiles.length,
       tradesDerivedWithFallbackRowCount: tradesFallbackRows,
-      sort: 'verified_then_rating_then_name_then_id',
+      sort: 'verified_then_rating_then_profile_strength_then_name_then_id',
       distanceKm: 'omitted (null on all)',
       premium_now: 'false for directory rows (no billing in select)',
       viewerPremium: isViewerPremium,

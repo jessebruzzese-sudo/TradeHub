@@ -690,7 +690,7 @@ export default function SignupPage() {
               number={3}
               icon={Building2}
               title="Business details"
-              subtitle="You can list availability and apply for work now. ABN verification is only needed for posting jobs and applying to jobs posted by others."
+              subtitle="You can list availability and apply for work now. You can post jobs without ABN verification; ABN verification is optional for posting (trust signal) and is required to apply to jobs posted by others."
               enabled={maxUnlockedStep >= 3}
               open={openSection === 3}
               completed={isStepDone(3)}
@@ -730,7 +730,10 @@ export default function SignupPage() {
                     >
                       <path d="M12 2l2.1 2.1 3-.3-.3 3L19 9l3 3-3 3 .3 3-3-.3L12 22l-2.1-2.1-3 .3.3-3L5 15l-3-3 3-3-.3-3 3 .3L12 2z"/>
                     </svg>
-                    <span>Required to post jobs and apply to jobs posted by others</span>
+                    <span>
+                      Not required to post jobs; required to apply to jobs posted by others; optional verification builds
+                      trust
+                    </span>
                   </div>
 
                   <div className="mt-3 flex items-center gap-3">

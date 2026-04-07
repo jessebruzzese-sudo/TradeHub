@@ -47,15 +47,15 @@ test.describe('Supabase-backed platform guardrails', () => {
     await waitStable(page, 250);
     await expect(page).toHaveURL(/\/jobs/);
 
-    const verifyAbnToPost = page.getByRole('link', { name: /verify abn to post/i });
-    if (await verifyAbnToPost.isVisible().catch(() => false)) {
-      await verifyAbnToPost.click();
+    const postJob = page.getByRole('link', { name: /post job/i });
+    if (await postJob.first().isVisible().catch(() => false)) {
+      await postJob.first().click();
       await waitStable(page, 250);
-      await expect(page.url()).toMatch(/\/verify-business|\/jobs|\/jobs\/create|\/dashboard|\/login/);
+      await expect(page.url()).toMatch(/\/jobs\/create|\/login|\/dashboard/);
     } else {
       await page.goto(`${BASE_URL}/jobs/create`);
       await waitStable(page, 250);
-      await expect(page.url()).toMatch(/\/jobs\/create|\/verify-business|\/login|\/dashboard/);
+      await expect(page.url()).toMatch(/\/jobs\/create|\/login|\/dashboard/);
     }
 
     // 3) Billing routes should be reachable and guarded (Stripe integration surface)
@@ -95,7 +95,7 @@ test.describe('Supabase-backed platform guardrails', () => {
 
       await page.goto(`${BASE_URL}/jobs/create`);
       await waitStable(page, 250);
-      await expect(page.url()).toMatch(/\/verify-business|\/dashboard/);
+      await expect(page.url()).toMatch(/\/jobs\/create|\/dashboard|\/login/);
 
       await page.goto(`${BASE_URL}/messages`);
       await waitStable(page, 250);

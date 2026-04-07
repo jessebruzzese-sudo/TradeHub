@@ -9,9 +9,25 @@ import {
   JOB_POST_LIMIT_ERROR_CODE,
   recordJobPostEvent,
 } from '@/lib/job-post-limits';
-import { needsBusinessVerification } from '@/lib/verification-guard';
 import { refreshProfileStrength } from '@/lib/profile-strength';
 import { getListedTradesForJobEligibility } from '@/lib/trades/user-trades';
+import { hasContractorRoleForJobPosting } from '@/lib/permissions';
+import {
+  JOB_POST_CONTRACTOR_ROLE_CODE,
+  JOB_POST_CONTRACTOR_ROLE_MESSAGE,
+} from '@/lib/jobs/job-post-role-messages';
+
+function isJobsRlsOrPermissionError(err: { code?: string; message?: string } | null | undefined): boolean {
+  const code = String(err?.code ?? '');
+  const msg = String(err?.message ?? '').toLowerCase();
+  return (
+    code === '42501' ||
+    msg.includes('row-level security') ||
+    msg.includes('violates row-level security') ||
+    msg.includes('permission denied for table') ||
+    msg.includes('new row violates row-level security')
+  );
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -57,7 +73,7 @@ export async function POST(request: NextRequest) {
 
     const { data: profile, error: profileErr } = await (supabase as any)
       .from('users')
-      .select('id, plan, subscription_status, complimentary_premium_until, primary_trade, additional_trades, abn, abn_status, abn_verified_at')
+      .select('id, role, plan, subscription_status, complimentary_premium_until, primary_trade, additional_trades')
       .eq('id', user.id)
       .maybeSingle();
 
@@ -65,8 +81,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Could not load profile' }, { status: 500 });
     }
 
-    if (needsBusinessVerification(profile as any)) {
-      return NextResponse.json({ error: 'Verify your ABN to post jobs' }, { status: 403 });
+    if (!hasContractorRoleForJobPosting(profile as { role?: string | null })) {
+      return NextResponse.json(
+        { error: JOB_POST_CONTRACTOR_ROLE_MESSAGE, code: JOB_POST_CONTRACTOR_ROLE_CODE },
+        { status: 403 }
+      );
     }
 
     const isPremium = getTier(profile) === 'premium';
@@ -85,7 +104,7 @@ export async function POST(request: NextRequest) {
         postedInWindow = await countJobsPostedInWindow(serviceSupabase, user.id);
       } catch (countErr) {
         console.error('[api/jobs] post limit count failed', countErr);
-        return NextResponse.json({ error: 'Could not verify posting limit' }, { status: 500 });
+        return NextResponse.json({ error: 'Could not check posting limit' }, { status: 500 });
       }
       if (postedInWindow >= FREE_JOB_POST_MAX_PER_WINDOW) {
         return NextResponse.json(
@@ -155,6 +174,12 @@ export async function POST(request: NextRequest) {
 
     if (insertError) {
       console.error('[api/jobs] insert error:', insertError);
+      if (isJobsRlsOrPermissionError(insertError)) {
+        return NextResponse.json(
+          { error: JOB_POST_CONTRACTOR_ROLE_MESSAGE, code: JOB_POST_CONTRACTOR_ROLE_CODE },
+          { status: 403 }
+        );
+      }
       return NextResponse.json(
         { error: insertError?.message || 'Failed to create job' },
         { status: 500 }

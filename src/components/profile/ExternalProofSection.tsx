@@ -15,7 +15,7 @@ type Props = {
   googleRating?: number | null;
   googleReviewCount?: number | null;
   googleListingVerificationStatus?: string | null;
-  /** Same fields as job gating — badge tier uses `hasValidABN` internally. */
+  /** ABN fields for trust badge tier (`hasValidABN` internally). */
   abn?: string | null;
   abnStatus?: string | null;
 };

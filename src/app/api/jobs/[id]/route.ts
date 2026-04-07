@@ -2,10 +2,27 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase, createServiceSupabase } from '@/lib/supabase-server';
 import { loadActiveTradeNames, resolveTradeAgainstCatalog } from '@/lib/trades/load-active-trades';
 import { getTier } from '@/lib/plan-limits';
-import { needsBusinessVerification } from '@/lib/verification-guard';
 import { isAdmin } from '@/lib/is-admin';
 import { refreshProfileStrength } from '@/lib/profile-strength';
 import { getListedTradesForJobEligibility } from '@/lib/trades/user-trades';
+import { jobsListingWindowStartIso } from '@/lib/jobs/listing-window';
+import { hasContractorRoleForJobPosting } from '@/lib/permissions';
+import {
+  JOB_EDIT_CONTRACTOR_ROLE_MESSAGE,
+  JOB_POST_CONTRACTOR_ROLE_CODE,
+} from '@/lib/jobs/job-post-role-messages';
+
+function isJobsRlsOrPermissionError(err: { code?: string; message?: string } | null | undefined): boolean {
+  const code = String(err?.code ?? '');
+  const msg = String(err?.message ?? '').toLowerCase();
+  return (
+    code === '42501' ||
+    msg.includes('row-level security') ||
+    msg.includes('violates row-level security') ||
+    msg.includes('permission denied for table') ||
+    msg.includes('new row violates row-level security')
+  );
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +59,7 @@ export async function DELETE(
       .from('jobs')
       .select('id, contractor_id, attachments')
       .eq('id', jobId)
+      .gte('created_at', jobsListingWindowStartIso())
       .maybeSingle();
 
     if (jobErr) {
@@ -114,7 +132,8 @@ export async function DELETE(
     const { error: deleteErr } = await serviceSupabase
       .from('jobs')
       .delete()
-      .eq('id', jobId);
+      .eq('id', jobId)
+      .gte('created_at', jobsListingWindowStartIso());
 
     if (deleteErr) {
       console.error('[jobs delete] job row delete failed', deleteErr);
@@ -169,6 +188,7 @@ export async function PATCH(
       .from('jobs')
       .select('id, contractor_id')
       .eq('id', jobId)
+      .gte('created_at', jobsListingWindowStartIso())
       .maybeSingle();
 
     if (jobErr || !job) {
@@ -177,6 +197,23 @@ export async function PATCH(
 
     if (job.contractor_id !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const { data: actor, error: actorErr } = await supabase
+      .from('users')
+      .select('id, role')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (actorErr || !actor) {
+      return NextResponse.json({ error: 'Could not load profile' }, { status: 500 });
+    }
+
+    if (!hasContractorRoleForJobPosting(actor as { role?: string | null })) {
+      return NextResponse.json(
+        { error: JOB_EDIT_CONTRACTOR_ROLE_MESSAGE, code: JOB_POST_CONTRACTOR_ROLE_CODE },
+        { status: 403 }
+      );
     }
 
     const body = await request.json().catch(() => ({}));
@@ -207,16 +244,12 @@ export async function PATCH(
 
       const { data: profile, error: profileErr } = await (supabase as any)
         .from('users')
-        .select('id, plan, subscription_status, complimentary_premium_until, primary_trade, additional_trades, abn, abn_status, abn_verified_at')
+        .select('id, role, plan, subscription_status, complimentary_premium_until, primary_trade, additional_trades')
         .eq('id', user.id)
         .maybeSingle();
 
       if (profileErr || !profile) {
         return NextResponse.json({ error: 'Could not load profile' }, { status: 500 });
-      }
-
-      if (needsBusinessVerification(profile as any)) {
-        return NextResponse.json({ error: 'Verify your ABN to edit jobs' }, { status: 403 });
       }
 
       const isPremium = getTier(profile) === 'premium';
@@ -274,11 +307,18 @@ export async function PATCH(
       .from('jobs')
       .update(updatePayload)
       .eq('id', jobId)
-      .eq('contractor_id', user.id);
+      .eq('contractor_id', user.id)
+      .gte('created_at', jobsListingWindowStartIso());
 
     if (updateErr) {
       console.error('[api/jobs/[id]] update error:', updateErr);
-      return NextResponse.json({ error: 'Failed to update job' }, { status: 500 });
+      if (isJobsRlsOrPermissionError(updateErr)) {
+        return NextResponse.json(
+          { error: JOB_EDIT_CONTRACTOR_ROLE_MESSAGE, code: JOB_POST_CONTRACTOR_ROLE_CODE },
+          { status: 403 }
+        );
+      }
+      return NextResponse.json({ error: updateErr?.message || 'Failed to update job' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });

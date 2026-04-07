@@ -95,7 +95,9 @@ export default function FAQsPage() {
               Can I control business visibility on my profile?
             </AccordionTrigger>
             <AccordionContent className="text-sm text-gray-600 pb-4">
-              Yes. You can choose what appears on your public profile and use in-app messaging before sharing more. ABN verification unlocks posting jobs and certain business actions.
+              Yes. You can choose what appears on your public profile and use in-app messaging before sharing more. You can
+              post jobs without ABN verification; verification is optional for posting and acts as a trust signal, and is
+              required for some other actions such as applying to jobs.
             </AccordionContent>
           </AccordionItem>
 

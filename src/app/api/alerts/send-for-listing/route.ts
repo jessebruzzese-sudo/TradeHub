@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase-server';
 import { sendListingAlerts } from '@/lib/alerts/send-listing-alerts';
+import { jobsListingWindowStartIso } from '@/lib/jobs/listing-window';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,6 +37,7 @@ export async function POST(request: NextRequest) {
       .from('jobs')
       .select('contractor_id')
       .eq('id', listingId)
+      .gte('created_at', jobsListingWindowStartIso())
       .maybeSingle();
     const j = job as { contractor_id?: string } | null;
     if (!j || j.contractor_id !== authUser.id) {

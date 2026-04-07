@@ -292,7 +292,7 @@ export function ProfileView({
     return () => {
       cancelled = true;
     };
-  }, [profileUserId, strengthCalcProp, showProfileStrengthSection]);
+  }, [profileUserId, strengthCalcProp, showProfileStrengthSection, isSelf ? currentUser : null]);
 
   useEffect(() => {
     if (viewerLikeStateProp != null) {

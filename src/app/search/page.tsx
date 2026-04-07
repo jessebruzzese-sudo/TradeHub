@@ -20,6 +20,7 @@ import { getPublicProfileHref } from '@/lib/url-utils';
 import { debugProfileCardData } from '@/lib/profile-debug';
 import { normalizeTrade } from '@/lib/trades/normalizeTrade';
 import { useActiveTradesCatalog } from '@/lib/trades/use-active-trades-catalog';
+import { profileStrengthRankBoost } from '@/lib/discovery/profile-strength-rank-boost';
 
 type DirectoryUser = {
   id: string;
@@ -136,11 +137,18 @@ function getDistanceKm(u: any): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/** Higher profile strength ranks above peers after primary sort keys (same max boost as API). */
+function compareProfileStrengthRank(a: DirectoryUser, b: DirectoryUser): number {
+  const sa = profileStrengthRankBoost(a.profile_strength_score);
+  const sb = profileStrengthRankBoost(b.profile_strength_score);
+  return sb - sa;
+}
+
 function scoreUser(u: any) {
   const avg = Number((u as any).rating_avg ?? 0);
   const count = Number((u as any).rating_count ?? 0);
   const weightedScore = avg * Math.log10(count + 1);
-  return weightedScore;
+  return weightedScore + profileStrengthRankBoost((u as DirectoryUser).profile_strength_score);
 }
 
 function reliabilityToPercentSearch(r?: number | null): number | null {
@@ -388,6 +396,9 @@ export default function SearchDirectoryPage() {
         const rb = Number((b as any).rating_avg ?? b.rating ?? 0);
         if (rb !== ra) return rb - ra;
 
+        const ps = compareProfileStrengthRank(a, b);
+        if (ps !== 0) return ps;
+
         return String(a.business_name || a.name || '').localeCompare(
           String(b.business_name || b.name || '')
         );
@@ -404,11 +415,18 @@ export default function SearchDirectoryPage() {
         const db = getDistanceKm(b);
 
         // Put unknown distances last
-        if (da == null && db == null) return 0;
+        if (da == null && db == null) {
+          const ps = compareProfileStrengthRank(a, b);
+          if (ps !== 0) return ps;
+          return String(a.id).localeCompare(String(b.id));
+        }
         if (da == null) return 1;
         if (db == null) return -1;
 
-        return da - db;
+        if (da !== db) return da - db;
+        const ps = compareProfileStrengthRank(a, b);
+        if (ps !== 0) return ps;
+        return String(a.id).localeCompare(String(b.id));
       });
       return list;
     }
@@ -417,7 +435,12 @@ export default function SearchDirectoryPage() {
       list.sort((a, b) => {
         const pf = premiumFirst(a, b);
         if (pf !== 0) return pf;
-        return Number((b as any).rating_avg ?? b.rating ?? 0) - Number((a as any).rating_avg ?? a.rating ?? 0);
+        const ra = Number((a as any).rating_avg ?? a.rating ?? 0);
+        const rb = Number((b as any).rating_avg ?? b.rating ?? 0);
+        if (rb !== ra) return rb - ra;
+        const ps = compareProfileStrengthRank(a, b);
+        if (ps !== 0) return ps;
+        return String(a.id).localeCompare(String(b.id));
       });
       return list;
     }
@@ -426,9 +449,11 @@ export default function SearchDirectoryPage() {
       list.sort((a, b) => {
         const pf = premiumFirst(a, b);
         if (pf !== 0) return pf;
-        return String(a.business_name || a.name || '').localeCompare(
+        const nm = String(a.business_name || a.name || '').localeCompare(
           String(b.business_name || b.name || '')
         );
+        if (nm !== 0) return nm;
+        return compareProfileStrengthRank(a, b);
       });
       return list;
     }

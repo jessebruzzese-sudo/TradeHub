@@ -60,16 +60,11 @@ test.describe('Jobs', () => {
     await expect(error).not.toBeVisible();
   });
 
-  test('verified user sees Post Job CTA', async ({ page }) => {
+  test('signed-in user sees Post Job CTA', async ({ page }) => {
     await page.goto(`${BASE_URL}/jobs`);
     await waitStable(page);
     const postJobLink = page.getByRole('link', { name: /post job/i });
-    if (await postJobLink.first().isVisible().catch(() => false)) {
-      await expect(postJobLink.first()).toHaveAttribute('href', /\/jobs\/create/);
-      return;
-    }
-    const verifyCta = page.getByRole('link', { name: /verify abn to post|verify now/i }).first();
-    await expect(verifyCta).toBeVisible();
-    await expect(verifyCta).toHaveAttribute('href', /\/verify-business/);
+    await expect(postJobLink.first()).toBeVisible();
+    await expect(postJobLink.first()).toHaveAttribute('href', /\/jobs\/create/);
   });
 });

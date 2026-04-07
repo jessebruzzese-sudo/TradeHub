@@ -1,24 +1,30 @@
 /**
  * Single source of truth for permissions.
- * TradeHub uses a SINGLE account model: no separate builder/contractor/subcontractor roles.
  *
  * Rules:
- * - NEVER use user.role to determine access (except isAdmin for platform admin routes)
- * - Ownership is determined ONLY by matching IDs
- * - Commit actions (create/edit/apply/confirm/accept/award/publish) require verified ABN
- * - Browsing NEVER requires ABN
- * - Premium features enforced via capability-utils only
+ * - NEVER use user.role for admin checks (use is_admin + isAdmin()).
+ * - Job posts: Supabase RLS requires `users.role = 'contractor'` plus row ownership to INSERT/UPDATE/DELETE own `jobs` rows.
+ *   (Admin moderation uses a separate jobs UPDATE policy.) UI and API mirror the contractor rule for clear UX.
+ * - ABN is not required to post or edit jobs (see verification-guard for apply/hire flows).
+ * - Browsing NEVER requires ABN.
+ * - Premium features enforced via capability-utils.
  */
-import { hasValidABN } from '@/lib/abn-utils';
 import { hasSubcontractorPremium, hasBuilderPremium, hasContractorPremium } from '@/lib/capability-utils';
 export { isAdmin } from '@/lib/is-admin';
 
 type UserLike = {
   id?: string;
+  role?: string | null;
   abn?: string | null;
   abnStatus?: string | null;
   additionalTradesUnlocked?: boolean;
 } | null;
+
+/** Aligned with RLS on `jobs` INSERT/UPDATE/DELETE for own rows (`role = 'contractor'`). */
+export function hasContractorRoleForJobPosting(user: UserLike): boolean {
+  if (!user) return false;
+  return String(user.role ?? '').trim().toLowerCase() === 'contractor';
+}
 
 type JobLike = { id?: string; contractorId?: string | null } | null | undefined;
 
@@ -31,17 +37,12 @@ export function ownsJob(user: UserLike, job: JobLike): boolean {
   return job.contractorId === user.id;
 }
 
-export function canCommitAction(user: UserLike): boolean {
-  if (!user) return false;
-  return hasValidABN(user);
-}
-
 export function canCreateJob(user: UserLike): boolean {
-  return isLoggedIn(user) && canCommitAction(user);
+  return isLoggedIn(user) && hasContractorRoleForJobPosting(user);
 }
 
 export function canEditJob(user: UserLike, job: JobLike): boolean {
-  return isLoggedIn(user) && ownsJob(user, job) && canCommitAction(user);
+  return isLoggedIn(user) && ownsJob(user, job) && hasContractorRoleForJobPosting(user);
 }
 
 export function canUnlockMultiTrade(user: UserLike): boolean {

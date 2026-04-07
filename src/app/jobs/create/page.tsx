@@ -2,10 +2,9 @@
 'use client';
 
 /*
- * QA notes - ABN gating (Jobs create):
- * - /jobs/create redirects unverified users to /verify-business (returnUrl=/jobs/create); no form flash.
- * - Verified users can create jobs as normal.
- * - No TradeGate; ABN gates the route (action), not browsing.
+ * QA notes — Jobs create:
+ * - Contractor role required (matches RLS on `jobs` INSERT/UPDATE/DELETE for own rows). Subcontractor/admin-without-contractor see inline message.
+ * - ABN optional for posting (trust signal only).
  */
 
 import Link from 'next/link';
@@ -35,12 +34,14 @@ import { SuburbAutocomplete } from '@/components/suburb-autocomplete';
 import { useAuth } from '@/lib/auth';
 import { isPremiumForDiscovery } from '@/lib/discovery';
 import { getBrowserSupabase } from '@/lib/supabase-client';
-import { getABNStatus, getABNStatusMessage, hasABNButNotVerified } from '@/lib/abn-utils';
+import { getABNStatus, getABNStatusMessage, hasValidABN } from '@/lib/abn-utils';
 import { useActiveTradesCatalog } from '@/lib/trades/use-active-trades-catalog';
 import { safeRouterPush } from '@/lib/safe-nav';
-import { needsBusinessVerification, redirectToVerifyBusiness, getVerifyBusinessUrl } from '@/lib/verification-guard';
+import { getVerifyBusinessUrl } from '@/lib/verification-guard';
 import { MVP_FREE_MODE } from '@/lib/feature-flags';
 import { FREE_JOB_POST_LIMIT_MESSAGE, JOB_POST_LIMIT_ERROR_CODE } from '@/lib/job-post-limits';
+import { canCreateJob } from '@/lib/permissions';
+import { JOB_POST_CONTRACTOR_ROLE_CODE, JOB_POST_CONTRACTOR_ROLE_MESSAGE } from '@/lib/jobs/job-post-role-messages';
 
 type PayType = 'fixed' | 'hourly' | 'day_rate';
 
@@ -193,7 +194,6 @@ export default function CreateJobPage() {
     void refreshPostLimit();
   }, [refreshPostLimit]);
 
-  // ABN gate: redirect only after profile has loaded (avoid gating verified users during load).
   useEffect(() => {
     if (isLoading || hasRedirected.current) return;
     if (!session?.user) {
@@ -202,13 +202,7 @@ export default function CreateJobPage() {
       safeRouterPush(router, loginUrl, '/login');
       return;
     }
-    if (!currentUser) return; // wait for profile
-    if (needsBusinessVerification(currentUser)) {
-      hasRedirected.current = true;
-      redirectToVerifyBusiness(router, '/jobs/create');
-      return;
-    }
-  }, [isLoading, session?.user, currentUser, router]);
+  }, [isLoading, session?.user, router]);
 
   if (!session?.user) return null;
 
@@ -230,8 +224,9 @@ export default function CreateJobPage() {
     );
   }
 
-  const abnStatusMessage = getABNStatusMessage(currentUser);
-  const hasAbnPending = hasABNButNotVerified(currentUser);
+  const abnStatusDetail = getABNStatusMessage(currentUser);
+  const showAbnTrustNotice = currentUser && !hasValidABN(currentUser);
+  const canPostByRole = canCreateJob(currentUser);
 
   const atFreeJobLimit =
     !isPremium &&
@@ -367,6 +362,11 @@ export default function CreateJobPage() {
 
     if (isSubmitting) return;
 
+    if (!canPostByRole) {
+      toast.error(JOB_POST_CONTRACTOR_ROLE_MESSAGE);
+      return;
+    }
+
     if (atFreeJobLimit) {
       toast.error(FREE_JOB_POST_LIMIT_MESSAGE);
       return;
@@ -400,12 +400,6 @@ export default function CreateJobPage() {
       duration = Math.max(1, parseInt(durationDays || '1', 10) || 1);
     }
 
-    if (currentUser && needsBusinessVerification(currentUser)) {
-      toast.error('Verify your ABN to continue.');
-      redirectToVerifyBusiness(router, '/jobs/create');
-      return;
-    }
-
     try {
       setIsSubmitting(true);
       const datesIso = jobDates.map((d) => d.toISOString());
@@ -435,6 +429,10 @@ export default function CreateJobPage() {
         if (data?.code === JOB_POST_LIMIT_ERROR_CODE) {
           toast.error(typeof data?.error === 'string' ? data.error : FREE_JOB_POST_LIMIT_MESSAGE);
           void refreshPostLimit();
+          return;
+        }
+        if (data?.code === JOB_POST_CONTRACTOR_ROLE_CODE) {
+          toast.error(typeof data?.error === 'string' ? data.error : JOB_POST_CONTRACTOR_ROLE_MESSAGE);
           return;
         }
         throw new Error(data?.error || 'Failed to create job');
@@ -528,21 +526,38 @@ export default function CreateJobPage() {
         <div className="relative z-10 mx-auto w-full max-w-3xl px-4 py-8 pb-24 sm:px-6 lg:px-8">
           <PageHeader backLink={{ href: '/jobs' }} title="Post a New Job" tone="dark" />
 
-          {abnStatusMessage && (
-            <div className="mb-6 rounded-xl border border-yellow-200 bg-yellow-50 p-4">
+          {!canPostByRole && (
+            <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
               <div className="flex items-start gap-3">
-                <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-yellow-600" />
-                <div className="flex-1">
-                  <p className="mb-1 text-sm font-medium text-yellow-900">ABN Verification Required</p>
-                  <p className="text-sm text-yellow-800">{abnStatusMessage}</p>
+                <Info className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" aria-hidden />
+                <div className="space-y-2 text-sm text-amber-950">
+                  <p className="font-medium">Contractor account required</p>
+                  <p>{JOB_POST_CONTRACTOR_ROLE_MESSAGE}</p>
+                  <Button asChild size="sm" variant="outline" className="mt-1 border-amber-300 bg-white">
+                    <Link href="/jobs">Go to Jobs</Link>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
 
-                  {getABNStatus(currentUser) === 'REJECTED' && (
-                    <Link href={getVerifyBusinessUrl('/jobs/create')}>
-                      <Button size="sm" className="mt-3">
-                        Update ABN Details
-                      </Button>
-                    </Link>
-                  )}
+          {showAbnTrustNotice && (
+            <div className="mb-6 rounded-xl border border-slate-200/90 bg-white/95 p-4 shadow-sm">
+              <div className="flex items-start gap-3">
+                <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-slate-500" />
+                <div className="flex-1 space-y-2">
+                  <p className="text-sm text-slate-800">
+                    ABN verification is optional for job posting and acts as a trust signal. Verified businesses may build
+                    more trust with other users.
+                  </p>
+                  {abnStatusDetail ? <p className="text-sm text-slate-600">{abnStatusDetail}</p> : null}
+                  <div className="pt-1">
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={getVerifyBusinessUrl('/jobs/create')}>
+                        {getABNStatus(currentUser) === 'REJECTED' ? 'Update ABN details (optional)' : 'Verify business (optional)'}
+                      </Link>
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -593,7 +608,8 @@ export default function CreateJobPage() {
                 <Label htmlFor="tradeCategory">Trade Category</Label>
                 {!isPremium && posterTrades.length === 0 ? (
                   <div className="mt-1 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                    Add a trade to your profile to post jobs.
+                    Free accounts need at least one trade on your profile to pick a job category — this is separate from
+                    ABN verification.
                     <Link href="/profile/edit" className="ml-1 font-medium text-amber-700 underline hover:text-amber-900">
                       Edit profile
                     </Link>
@@ -962,11 +978,22 @@ export default function CreateJobPage() {
                 )}
               </div>
 
+              <p className="text-center text-xs text-slate-600">
+                You can post jobs without ABN verification. Some later platform actions may still require verification.
+              </p>
+
               <div className="flex gap-3">
                 <Button
                   type="submit"
                   className="flex-1"
-                  disabled={hasAbnPending || isSubmitting || atFreeJobLimit}
+                  disabled={isSubmitting || atFreeJobLimit || !canPostByRole}
+                  title={
+                    !canPostByRole
+                      ? JOB_POST_CONTRACTOR_ROLE_MESSAGE
+                      : atFreeJobLimit
+                        ? 'You have reached your free job post limit for this period. Upgrade for unlimited posting.'
+                        : undefined
+                  }
                 >
                   {isSubmitting ? (
                     <span className="flex items-center justify-center gap-2">
@@ -984,9 +1011,6 @@ export default function CreateJobPage() {
                 </Link>
               </div>
 
-              {hasAbnPending && (
-                <p className="text-center text-xs text-gray-500">You can post jobs once your ABN has been verified</p>
-              )}
             </form>
           </div>
         </div>

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase, createServiceSupabase } from '@/lib/supabase-server';
 import { isLikelyTestAccount } from '@/lib/test-account';
 import { displayNameForMessagingParticipant } from '@/lib/messaging-participant-display';
+import { jobsListingWindowStartIso } from '@/lib/jobs/listing-window';
 
 /** Load target user for messaging bootstrap (RLS on `users` can hide rows from the caller). */
 async function loadTargetUserForMessaging(otherUserId: string): Promise<{
@@ -212,6 +213,7 @@ export async function GET() {
             .from('jobs')
             .select('id, title, status')
             .in('id', Array.from(jobIds))
+            .gte('created_at', jobsListingWindowStartIso())
         : Promise.resolve({ data: [] as { id: string; title: string; status: string }[] }),
     ]);
 

@@ -1858,7 +1858,8 @@ export default function EditProfilePage() {
             <div className="mb-4">
               <div className="text-sm font-semibold text-slate-900">Verification</div>
               <div className="text-xs text-slate-600">
-                ABN is only required for posting jobs and applying to jobs posted by others. You can verify anytime.
+                You can post jobs without ABN verification. ABN verification is optional for posting and acts as a trust
+                signal; applying to jobs posted by others still requires a verified ABN. You can verify anytime.
               </div>
             </div>
 

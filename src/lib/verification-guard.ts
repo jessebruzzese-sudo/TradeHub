@@ -1,6 +1,6 @@
 /**
- * ABN enforcement: gates ACTIONS ONLY (create/publish/apply/confirm/accept/award).
- * Browsing Jobs/Messages is allowed for non-ABN users.
+ * ABN enforcement: gates trust-critical actions (e.g. apply, messaging commitments).
+ * Posting and editing jobs are not gated here. Browsing Jobs/Messages is allowed without ABN.
  */
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { hasValidABN, getABNGateUrl } from '@/lib/abn-utils';

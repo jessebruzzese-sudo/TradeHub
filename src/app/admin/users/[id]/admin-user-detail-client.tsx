@@ -817,7 +817,8 @@ export function AdminUserDetailClient({ user, accountReview: initialAccountRevie
               {abnAction === 'verify' && (
                 <div className="bg-blue-50 border border-blue-200 rounded p-3">
                   <p className="text-sm text-blue-800">
-                    By verifying this ABN, the user will be able to post jobs on the platform.
+                    By verifying this ABN, the user gains a stronger trust signal on the platform (posting jobs does not
+                    require verification for now).
                   </p>
                 </div>
               )}

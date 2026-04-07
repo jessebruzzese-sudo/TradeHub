@@ -1,6 +1,7 @@
 // @ts-nocheck - Supabase client type inference
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase-server';
+import { jobsListingWindowStartIso } from '@/lib/jobs/listing-window';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,7 @@ export async function GET(
       .from('jobs')
       .select('id, contractor_id, title, status')
       .eq('id', jobId)
+      .gte('created_at', jobsListingWindowStartIso())
       .maybeSingle();
 
     if (error || !job) {

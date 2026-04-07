@@ -76,7 +76,7 @@ export function hasSubcontractorPremium(user: CapabilityUser): boolean {
   return hasCapability(user, 'SUBCONTRACTOR') || isSimulatingPremium();
 }
 
-/** Single-account model: any logged-in user can post jobs (ABN enforced at action time via permissions.ts). */
+/** Job posting is not ABN-gated; API/UI enforce `users.role = 'contractor'` to match RLS on `jobs` INSERT/UPDATE/DELETE (own rows). */
 export function canPostJobs(user: CapabilityUser): boolean {
   return !!user;
 }

@@ -1,16 +1,15 @@
 'use client';
 
 /*
- * QA notes — ABN gating (Jobs list):
- * - /jobs loads for unverified users (browse allowed).
- * - Only "Post Job" / "Verify ABN to Post" is gated: unverified see CTA to verify; verified see Post Job.
- * - No TradeGate; hooks before any early return.
+ * QA notes — Jobs list:
+ * - /jobs loads for all signed-in users; Post Job goes to /jobs/create (ABN optional).
+ * - Soft notice when unverified encourages optional verification as a trust signal.
  */
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Briefcase, Plus, ShieldCheck, ArrowRight, Trash2 } from 'lucide-react';
+import { Briefcase, Plus, Info, ArrowRight, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { AppLayout } from '@/components/app-nav';
@@ -36,8 +35,12 @@ import { isPremiumForDiscovery } from '@/lib/discovery';
 import { hasPremiumAccess } from '@/lib/billing/has-premium-access';
 import { buildLoginUrl } from '@/lib/url-utils';
 import { safeRouterPush } from '@/lib/safe-nav';
-import { needsBusinessVerification, getVerifyBusinessUrl } from '@/lib/verification-guard';
+import { hasValidABN } from '@/lib/abn-utils';
+import { getVerifyBusinessUrl } from '@/lib/verification-guard';
+import { canCreateJob } from '@/lib/permissions';
+import { JOB_POST_CONTRACTOR_ROLE_MESSAGE } from '@/lib/jobs/job-post-role-messages';
 import { getTradeIcon } from '@/lib/trade-icons';
+import { jobsListingWindowStartIso } from '@/lib/jobs/listing-window';
 
 type JobsTab = 'find' | 'posts';
 
@@ -101,9 +104,8 @@ export default function JobsPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteConfirmJobId, setDeleteConfirmJobId] = useState<string | null>(null);
 
-  // Compute ABN verified state (optional field right now)
-  const showAbnGateForPosting = useMemo(
-    () => !!currentUser && needsBusinessVerification(currentUser),
+  const showAbnTrustNotice = useMemo(
+    () => !!currentUser && !hasValidABN(currentUser),
     [currentUser]
   );
 
@@ -159,6 +161,8 @@ export default function JobsPage() {
   useEffect(() => {
     void refreshPostLimit();
   }, [refreshPostLimit]);
+
+  const canPostJobAsContractor = canCreateJob(currentUser);
 
   const atFreeJobLimit =
     !isPremium &&
@@ -264,6 +268,7 @@ export default function JobsPage() {
             poster:contractor_id(id, name, business_name, avatar, rating)
           `)
           .eq('contractor_id', currentUser.id)
+          .gte('created_at', jobsListingWindowStartIso())
           .order('created_at', { ascending: false })
           .limit(50);
 
@@ -475,31 +480,27 @@ export default function JobsPage() {
             </div>
           </div>
 
-          {/* Optional ABN callout for contractors */}
-          {showAbnGateForPosting && (
-            <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4">
+          {showAbnTrustNotice && (
+            <div className="mb-6 rounded-xl border border-slate-200 bg-white/90 p-4 shadow-sm">
               <div className="flex items-start gap-3">
-                <ShieldCheck className="mt-0.5 h-5 w-5 text-red-600" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-red-900">Verify your ABN to post jobs.</p>
-                  <p className="mt-1 text-sm text-red-800">
-                    Browsing jobs still works — verification is required for trust-critical actions like posting.
+                <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-slate-500" aria-hidden />
+                <div className="flex-1 space-y-2">
+                  <p className="text-sm text-slate-800">
+                    You can post jobs without ABN verification. ABN verification is optional for job posting and acts as a
+                    trust signal. Some later actions (for example applying to work) may still require verification.
                   </p>
-                  <div className="mt-3">
+                  <Button asChild size="sm" variant="outline">
                     <Link href={getVerifyBusinessUrl('/jobs')}>
-                      <Button size="sm" className="gap-2">
-                        <ShieldCheck className="h-4 w-4" />
-                        Verify now
-                        <ArrowRight className="h-4 w-4" />
-                      </Button>
+                      Verify business (optional)
+                      <ArrowRight className="ml-1 h-4 w-4" />
                     </Link>
-                  </div>
+                  </Button>
                 </div>
               </div>
             </div>
           )}
 
-          {!showAbnGateForPosting && !isPremium && postLimitInfo && !postLimitInfo.unlimited && (
+          {!isPremium && postLimitInfo && !postLimitInfo.unlimited && (
             <div
               className={`mb-4 rounded-xl border px-4 py-3 text-sm shadow-sm ${
                 atFreeJobLimit ? 'border-amber-300 bg-amber-50 text-amber-950' : 'border-slate-200 bg-white/90 text-slate-800'
@@ -534,16 +535,7 @@ export default function JobsPage() {
                     </TabsTrigger>
                   </TabsList>
 
-                  {/* CTA (keep ABN gate exactly) */}
-                  {showAbnGateForPosting ? (
-                    <Link href={getVerifyBusinessUrl('/jobs')}>
-                      <Button className="h-10 gap-2 rounded-xl shadow-sm transition-all hover:shadow-md active:scale-[0.99]">
-                        <ShieldCheck className="h-4 w-4" />
-                        Verify ABN to Post
-                        <ArrowRight className="h-4 w-4" />
-                      </Button>
-                    </Link>
-                  ) : atFreeJobLimit ? (
+                  {atFreeJobLimit ? (
                     <div className="flex flex-col items-stretch gap-1 sm:items-end">
                       <Button
                         type="button"
@@ -551,12 +543,30 @@ export default function JobsPage() {
                         className="h-10 gap-2 rounded-xl opacity-60 shadow-sm"
                         disabled
                         aria-disabled
+                        title="You have reached your free job post limit for this period. Upgrade for unlimited posting."
                       >
                         <Plus className="h-4 w-4" />
                         Post Job
                       </Button>
                       <span className="max-w-[14rem] text-right text-xs text-amber-900 sm:max-w-none">
                         Free limit reached — upgrade for unlimited posting.
+                      </span>
+                    </div>
+                  ) : !canPostJobAsContractor ? (
+                    <div className="flex max-w-md flex-col items-stretch gap-1 sm:items-end">
+                      <Button
+                        type="button"
+                        variant="primary-green"
+                        className="h-10 gap-2 rounded-xl opacity-60 shadow-sm"
+                        disabled
+                        aria-disabled
+                        title={JOB_POST_CONTRACTOR_ROLE_MESSAGE}
+                      >
+                        <Plus className="h-4 w-4" />
+                        Post Job
+                      </Button>
+                      <span className="text-right text-xs text-amber-900">
+                        Contractor accounts post jobs; use Find Work to browse and apply.
                       </span>
                     </div>
                   ) : (
@@ -717,20 +727,17 @@ export default function JobsPage() {
                       </div>
 
                       <div className="mt-5">
-                        {showAbnGateForPosting ? (
-                          <Link href={getVerifyBusinessUrl('/jobs')}>
-                            <Button>
-                              <ShieldCheck className="mr-2 h-4 w-4" />
-                              Verify ABN to Post
-                            </Button>
-                          </Link>
-                        ) : (
+                        {canPostJobAsContractor ? (
                           <Link href="/jobs/create">
                             <Button variant="secondary-green">
                               <Plus className="mr-2 h-4 w-4" />
                               Post Your First Job
                             </Button>
                           </Link>
+                        ) : (
+                          <p className="max-w-md text-sm text-slate-600">
+                            {JOB_POST_CONTRACTOR_ROLE_MESSAGE}
+                          </p>
                         )}
                       </div>
                     </div>

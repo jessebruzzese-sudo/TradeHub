@@ -370,7 +370,7 @@ test.describe('Free vs Premium logic', () => {
 
 // ==================== ABN VERIFICATION GATING ====================
 test.describe('ABN verification gating — verified user', () => {
-  test('verified user sees Post Job CTA (not Verify ABN to Post)', async ({ page }) => {
+  test('user sees Post Job CTA linking to jobs/create', async ({ page }) => {
     await page.goto(`${BASE_URL}/jobs`);
     await page.waitForLoadState('networkidle');
     const postJobLink = page.getByRole('link', { name: /post job/i });
@@ -385,9 +385,8 @@ test.describe('ABN verification gating — verified user', () => {
     await page.goto(`${BASE_URL}/jobs/create`);
     await page.waitForLoadState('networkidle');
     const url = page.url();
-    // Redirect to verify-business = needs ABN; redirect to dashboard = no profile row (currentUser null)
-    if (url.includes('/verify-business') || url.includes('/dashboard')) {
-      test.skip(true, 'Test user needs ABN verification and users table row');
+    if (!/\/jobs\/create/.test(url)) {
+      test.skip(true, 'Expected /jobs/create; got redirect (login/profile/auth state)');
     }
     await expect(page).toHaveURL(/\/jobs\/create/);
   });
@@ -431,19 +430,18 @@ test.describe('ABN verification gating — unverified user', () => {
     await expect(page).toHaveURL(/\/messages/);
   });
 
-  test('unverified user sees Verify ABN to Post on jobs page', async ({ page }) => {
+  test('unverified user sees Post Job CTA on jobs page', async ({ page }) => {
     await page.goto(`${BASE_URL}/jobs`);
     await page.waitForLoadState('networkidle');
-    const verifyLink = page.getByRole('link', { name: /verify abn to post/i });
-    await expect(verifyLink).toBeVisible();
-    await expect(verifyLink).toHaveAttribute('href', /\/verify-business/);
+    const postJobLink = page.getByRole('link', { name: /post job/i });
+    await expect(postJobLink.first()).toBeVisible();
+    await expect(postJobLink.first()).toHaveAttribute('href', /\/jobs\/create/);
   });
 
-  test('unverified user redirects to verify-business when navigating to jobs/create', async ({ page }) => {
+  test('unverified user can load jobs/create', async ({ page }) => {
     await page.goto(`${BASE_URL}/jobs/create`);
     await page.waitForLoadState('networkidle');
-    await expect(page).toHaveURL(/\/verify-business/);
-    await expect(page.getByText(/verify|abn|business/i)).toBeVisible();
+    await expect(page).toHaveURL(/\/jobs\/create/);
   });
 
   test('unverified user sees Verify your ABN modal/CTA for contract actions', async ({ page }) => {

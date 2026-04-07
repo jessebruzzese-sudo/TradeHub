@@ -29,19 +29,19 @@ test.describe('ABN gating — unverified user', () => {
     await expect(page.getByRole('heading', { name: /subcontractors|find subcontractors/i })).toBeVisible()
   })
 
-  test('sees Verify ABN to Post on jobs page (not Post Job)', async ({ page }) => {
+  test('sees Post Job CTA on jobs page (ABN optional for posting)', async ({ page }) => {
     await page.goto(`${BASE_URL}/jobs`)
     await page.waitForLoadState('networkidle')
-    const verifyLink = page.getByRole('link', { name: /verify abn to post/i })
-    await expect(verifyLink).toBeVisible()
-    await expect(verifyLink).toHaveAttribute('href', /\/verify-business/)
+    const postJobLink = page.getByRole('link', { name: /post job/i })
+    await expect(postJobLink.first()).toBeVisible()
+    await expect(postJobLink.first()).toHaveAttribute('href', /\/jobs\/create/)
   })
 
-  test('redirects to verify-business when navigating to jobs/create', async ({ page }) => {
+  test('can open jobs/create without verify-business redirect', async ({ page }) => {
     await page.goto(`${BASE_URL}/jobs/create`)
     await page.waitForLoadState('networkidle')
-    await expect(page).toHaveURL(/\/verify-business/)
-    await expect(page.getByText(/verify|abn|business/i)).toBeVisible()
+    await expect(page).toHaveURL(/\/jobs\/create/)
+    await expect(page.getByRole('heading', { name: /post a new job/i })).toBeVisible()
   })
 
   test('messages page loads and shows verify ABN for action cards when applicable', async ({ page }) => {

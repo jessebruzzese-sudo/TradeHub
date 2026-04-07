@@ -62,7 +62,7 @@ test.describe('Platform full regression (critical UX)', () => {
     await expect(page).toHaveURL(/\/search/);
 
     await go(page, '/jobs/create');
-    expect(page.url()).toMatch(/\/jobs\/create|\/verify-business|\/dashboard|\/login/);
+    expect(page.url()).toMatch(/\/jobs\/create|\/dashboard|\/login/);
 
     if (HAS_UNVERIFIED) {
       await loginAs(page, ACCOUNTS.unverified.email, ACCOUNTS.unverified.password);
@@ -71,7 +71,7 @@ test.describe('Platform full regression (critical UX)', () => {
       await go(page, '/search');
       await expect(page).toHaveURL(/\/search/);
       await go(page, '/jobs/create');
-      expect(page.url()).toMatch(/\/verify-business|\/dashboard/);
+      expect(page.url()).toMatch(/\/jobs\/create|\/dashboard|\/login/);
       await go(page, '/messages');
       await expect(page).toHaveURL(/\/messages/);
     }

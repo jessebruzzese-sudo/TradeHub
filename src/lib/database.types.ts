@@ -2769,6 +2769,7 @@ export type Database = {
           viewer_radius_km: number
         }[]
       }
+      purge_expired_job_listings: { Args: never; Returns: string }
       haversine_km: {
         Args: { lat1: number; lat2: number; lon1: number; lon2: number }
         Returns: number

@@ -6,6 +6,7 @@ import {
   buildHireConfirmedTemplateData,
   buildJobInviteTemplateData,
 } from '@/lib/email/email-template-data';
+import { jobsListingWindowStartIso } from '@/lib/jobs/listing-window';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +51,7 @@ export async function POST(
       .from('jobs')
       .select('id, contractor_id, status, selected_subcontractor, title, location, starts_at')
       .eq('id', jobId)
+      .gte('created_at', jobsListingWindowStartIso())
       .maybeSingle();
 
     if (jobErr || !job) {
@@ -87,7 +89,8 @@ export async function POST(
           selected_subcontractor: app.subcontractor_id,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', jobId);
+        .eq('id', jobId)
+        .gte('created_at', jobsListingWindowStartIso());
       if (jobUpdateErr) {
         return NextResponse.json({ error: jobUpdateErr.message }, { status: 500 });
       }
@@ -161,7 +164,8 @@ export async function POST(
             confirmed_subcontractor: authUser.id,
             updated_at: new Date().toISOString(),
           })
-          .eq('id', jobId);
+          .eq('id', jobId)
+          .gte('created_at', jobsListingWindowStartIso());
         if (jobUpdateErr) {
           return NextResponse.json({ error: jobUpdateErr.message }, { status: 500 });
         }
@@ -180,7 +184,8 @@ export async function POST(
             selected_subcontractor: null,
             updated_at: new Date().toISOString(),
           })
-          .eq('id', jobId);
+          .eq('id', jobId)
+          .gte('created_at', jobsListingWindowStartIso());
         if (jobUpdateErr) {
           return NextResponse.json({ error: jobUpdateErr.message }, { status: 500 });
         }
@@ -222,7 +227,8 @@ export async function POST(
           confirmed_subcontractor: selectedId,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', jobId);
+        .eq('id', jobId)
+        .gte('created_at', jobsListingWindowStartIso());
       if (jobUpdateErr) {
         return NextResponse.json({ error: jobUpdateErr.message }, { status: 500 });
       }

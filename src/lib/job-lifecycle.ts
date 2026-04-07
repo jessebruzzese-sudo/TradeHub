@@ -1,4 +1,5 @@
 import { Job, JobStatus, ApplicationStatus } from './types';
+import { isJobCreatedWithinListingWindow } from './jobs/listing-window';
 
 export interface JobLifecycleState {
   canCancel: boolean;
@@ -6,6 +7,7 @@ export interface JobLifecycleState {
   canConfirmHire: boolean;
   canComplete: boolean;
   canReopen: boolean;
+  /** True when the job listing is past the 30-day visibility window (should not appear in UI if queries filter correctly). */
   isExpired: boolean;
   isPastStartDate: boolean;
   allowsApplications: boolean;
@@ -19,21 +21,11 @@ export interface StateTransitionResult {
   reason?: string;
 }
 
+/**
+ * Listing expiry is based on created_at (30-day window), not scheduled work dates.
+ */
 export function isJobExpired(job: Job): boolean {
-  if (!job.dates || job.dates.length === 0) {
-    return false;
-  }
-
-  const startDate = new Date(job.dates[0]);
-  if (job.startTime) {
-    const [hours, minutes] = job.startTime.split(':').map(Number);
-    startDate.setHours(hours, minutes, 0, 0);
-  }
-
-  const now = new Date();
-  const hoursSinceStart = (now.getTime() - startDate.getTime()) / (1000 * 60 * 60);
-
-  return hoursSinceStart > 0 && job.status !== 'completed' && job.status !== 'cancelled';
+  return !isJobCreatedWithinListingWindow(job.createdAt);
 }
 
 export function isPastStartDate(job: Job): boolean {
@@ -51,7 +43,7 @@ export function isPastStartDate(job: Job): boolean {
 }
 
 export function getJobLifecycleState(job: Job, hasApplications: boolean = false): JobLifecycleState {
-  const expired = isJobExpired(job);
+  const listingExpired = isJobExpired(job);
   const pastStart = isPastStartDate(job);
 
   const state: JobLifecycleState = {
@@ -60,38 +52,33 @@ export function getJobLifecycleState(job: Job, hasApplications: boolean = false)
     canConfirmHire: false,
     canComplete: false,
     canReopen: false,
-    isExpired: expired,
+    isExpired: listingExpired,
     isPastStartDate: pastStart,
     allowsApplications: false,
     allowsSelection: false,
   };
 
+  if (listingExpired) {
+    state.statusMessage = 'This job listing is no longer available';
+    state.warningMessage = 'This post has passed the 30-day listing period';
+    return state;
+  }
+
   switch (job.status) {
     case 'open':
-      state.allowsApplications = !expired && !pastStart;
-      state.allowsSelection = hasApplications && !expired;
+      state.allowsApplications = true;
+      state.allowsSelection = hasApplications;
       state.canClose = !hasApplications;
       state.canCancel = true;
-
-      if (expired) {
-        state.statusMessage = 'This job has expired and can no longer accept applications';
-        state.warningMessage = 'Start date has passed without confirmation';
-      } else if (pastStart) {
-        state.statusMessage = 'Start date has passed';
-        state.warningMessage = 'This job can no longer accept new applications';
-      }
+      state.statusMessage = 'Job is open for applications';
       break;
 
     case 'accepted':
       state.canCancel = true;
-      state.canConfirmHire = !expired;
-
-      if (expired) {
-        state.statusMessage = 'Accepted by subcontractor (job expired)';
-        state.warningMessage = 'Confirm hire or cancel - start date has passed';
-      } else if (pastStart) {
+      state.canConfirmHire = true;
+      if (pastStart) {
         state.statusMessage = 'Accepted by subcontractor';
-        state.warningMessage = 'Confirm hire soon - start date is approaching';
+        state.warningMessage = 'Confirm hire soon — scheduled work date has started or passed';
       } else {
         state.statusMessage = 'Subcontractor accepted - confirm hire to proceed';
       }
@@ -123,7 +110,7 @@ export function getJobLifecycleState(job: Job, hasApplications: boolean = false)
 
     case 'closed':
       state.statusMessage = 'Job closed without hiring';
-      state.canReopen = !expired && !pastStart;
+      state.canReopen = true;
       break;
   }
 
@@ -146,7 +133,6 @@ export function canTransitionToStatus(
   newStatus: JobStatus,
   context: {
     hasApplications?: boolean;
-    isExpired?: boolean;
     hasSelectedSubcontractor?: boolean;
     hasConfirmedSubcontractor?: boolean;
   } = {}
@@ -187,13 +173,6 @@ export function canTransitionToStatus(
     return {
       allowed: false,
       reason: 'Can only mark confirmed jobs as completed',
-    };
-  }
-
-  if (newStatus === 'open' && currentStatus === 'closed' && context.isExpired) {
-    return {
-      allowed: false,
-      reason: 'Cannot reopen expired jobs',
     };
   }
 

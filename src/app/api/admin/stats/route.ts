@@ -6,6 +6,7 @@ import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { applyExcludeTestAccountsFilters } from '@/lib/test-account';
+import { jobsListingWindowStartIso } from '@/lib/jobs/listing-window';
 
 export const revalidate = 60;
 
@@ -79,14 +80,19 @@ export async function GET() {
         .eq('trust_status', 'pending')
     );
 
+    const listingSince = jobsListingWindowStartIso();
     const [totalUsersRes, pendingVerificationsRes, activeJobsRes, totalJobsRes] = await Promise.all([
       totalUsersQuery,
       pendingVerificationsQuery,
       supabaseService
         .from('jobs')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'active'),
-      supabaseService.from('jobs').select('*', { count: 'exact', head: true }),
+        .eq('status', 'active')
+        .gte('created_at', listingSince),
+      supabaseService
+        .from('jobs')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', listingSince),
     ]);
 
     // If any query errors, log and fail gracefully

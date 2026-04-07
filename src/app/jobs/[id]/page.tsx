@@ -2,11 +2,9 @@
 'use client';
 
 /*
- * QA notes — ABN gating (Job detail):
- * - /jobs/[id] loads for unverified users (browse allowed).
- * - Apply, Select, Accept, Confirm Hire (and other commit actions) are blocked for unverified:
- *   disabled button + "Verify ABN to apply" (or equivalent) + CTA link to /verify-business.
- * - Verified users can create/apply as normal. No TradeGate.
+ * QA notes — Job detail:
+ * - Browse and view always allowed. Posting/editing job listings requires contractor role (RLS); ABN not required for those.
+ * - Apply, select applicant, confirm hire, etc. still require verified ABN — copy and toasts say so clearly.
  */
 
 import { AppLayout } from '@/components/app-nav';
@@ -59,7 +57,9 @@ import { createSystemMessage, shouldAddSystemMessage } from '@/lib/messaging-uti
 import { needsBusinessVerification, redirectToVerifyBusiness, getVerifyBusinessUrl } from '@/lib/verification-guard';
 import { hasValidABN } from '@/lib/abn-utils';
 import { isAdmin } from '@/lib/is-admin';
-import { ownsJob } from '@/lib/permissions';
+import { canEditJob, ownsJob } from '@/lib/permissions';
+import { JOB_EDIT_CONTRACTOR_ROLE_MESSAGE } from '@/lib/jobs/job-post-role-messages';
+import { jobsListingWindowStartIso } from '@/lib/jobs/listing-window';
 import { trackEvent } from '@/lib/analytics';
 import { getPublicProfileHref } from '@/lib/url-utils';
 import { debugProfileCardData } from '@/lib/profile-debug';
@@ -700,6 +700,8 @@ export default function JobDetailPage() {
 
   const needsAbnForActions = needsBusinessVerification(currentUser);
   const returnUrl = `/jobs/${jobId}`;
+  const abnRequiredActionToast =
+    'This step requires a verified ABN. Verify your business to continue.';
   const attachments = (job as any)?.attachments ?? [];
 
   const canGoPrev = lightboxItems.length > 1;
@@ -719,7 +721,7 @@ export default function JobDetailPage() {
 
   const handleStartApply = () => {
     if (needsAbnForActions) {
-      toast.error('Verify your ABN to continue.');
+      toast.error(abnRequiredActionToast);
       redirectToVerifyBusiness(router, returnUrl);
       return;
     }
@@ -728,7 +730,7 @@ export default function JobDetailPage() {
 
   const handleApply = () => {
     if (needsAbnForActions) {
-      toast.error('Verify your ABN to continue.');
+      toast.error(abnRequiredActionToast);
       redirectToVerifyBusiness(router, returnUrl);
       return;
     }
@@ -761,7 +763,7 @@ export default function JobDetailPage() {
 
   const handleSelectApplication = async (applicationId: string) => {
     if (needsAbnForActions) {
-      toast.error('Verify your ABN to continue.');
+      toast.error(abnRequiredActionToast);
       redirectToVerifyBusiness(router, returnUrl);
       return;
     }
@@ -788,7 +790,7 @@ export default function JobDetailPage() {
 
   const handleAccept = async () => {
     if (needsAbnForActions) {
-      toast.error('Verify your ABN to continue.');
+      toast.error(abnRequiredActionToast);
       redirectToVerifyBusiness(router, returnUrl);
       return;
     }
@@ -833,7 +835,7 @@ export default function JobDetailPage() {
 
   const handleConfirmHire = async () => {
     if (needsAbnForActions) {
-      toast.error('Verify your ABN to continue.');
+      toast.error(abnRequiredActionToast);
       redirectToVerifyBusiness(router, returnUrl);
       return;
     }
@@ -888,12 +890,17 @@ export default function JobDetailPage() {
     try {
       const supabase = getBrowserSupabase();
 
-      const { error } = await supabase
+      const { error, count } = await supabase
         .from('jobs')
-        .update({ status: 'closed' })
-        .eq('id', job.id);
+        .update({ status: 'closed' }, { count: 'exact' })
+        .eq('id', job.id)
+        .gte('created_at', jobsListingWindowStartIso());
 
       if (error) throw error;
+      if (count === 0) {
+        toast.error('This job listing is no longer available.');
+        return;
+      }
 
       toast.success('Job closed successfully');
       router.refresh();
@@ -1146,13 +1153,21 @@ export default function JobDetailPage() {
                 <p className="text-gray-600">{job.tradeCategory}</p>
               </div>
               <div className="flex items-center gap-3">
-                {isMyJob && job.status === 'open' && (
+                {isMyJob && job.status === 'open' && canEditJob(currentUser, job) && (
                   <Link href={`/jobs/${job.id}/edit`}>
                     <Button variant="outline" size="sm">
                       <Edit className="w-4 h-4 mr-2" />
                       Edit Post
                     </Button>
                   </Link>
+                )}
+                {isMyJob && job.status === 'open' && !canEditJob(currentUser, job) && (
+                  <span
+                    className="max-w-[11rem] text-right text-xs text-amber-800 sm:max-w-xs"
+                    title={JOB_EDIT_CONTRACTOR_ROLE_MESSAGE}
+                  >
+                    Editing requires a contractor account.
+                  </span>
                 )}
                 <StatusPill type="job" status={job.status} />
               </div>
@@ -1330,17 +1345,29 @@ export default function JobDetailPage() {
               );
             })()}
 
+            {currentUser && (
+              <p className="mb-4 text-xs text-slate-600">
+                <span className="font-medium text-slate-700">Heads up:</span> Posting a job does not require ABN
+                verification. Applying, selecting a subcontractor, and confirming hire require a verified ABN when you take
+                those steps.
+              </p>
+            )}
+
             {canApply && (
               <div className="space-y-3">
                 {needsAbnForActions ? (
                   <div className="space-y-2">
-                    <Button disabled className="w-full">
+                    <Button
+                      disabled
+                      className="w-full"
+                      title="Applying requires a verified ABN. Posting a job does not."
+                    >
                       Apply for this Job
                     </Button>
                     <p className="text-sm text-amber-700">
-                      Verify your ABN to continue.{' '}
+                      Applying requires a verified ABN.{' '}
                       <Link href={getVerifyBusinessUrl(returnUrl)} className="font-medium text-blue-600 hover:text-blue-700 underline">
-                        Verify ABN
+                        Verify business
                       </Link>
                     </p>
                   </div>
@@ -1403,7 +1430,12 @@ export default function JobDetailPage() {
             {!isMyJob && job.status === 'accepted' && job.selectedSubcontractor === currentUser.id && (
               <div className="space-y-2">
                 <div className="flex gap-3">
-                  <Button onClick={handleAccept} className="flex-1" disabled={needsAbnForActions || actionSubmitting}>
+                  <Button
+                    onClick={handleAccept}
+                    className="flex-1"
+                    disabled={needsAbnForActions || actionSubmitting}
+                    title={needsAbnForActions ? 'Accepting requires a verified ABN.' : undefined}
+                  >
                     <CheckCircle className="w-4 h-4 mr-2" />
                     {actionSubmitting ? 'Accepting...' : 'Accept'}
                   </Button>
@@ -1414,9 +1446,9 @@ export default function JobDetailPage() {
                 </div>
                 {needsAbnForActions && (
                   <p className="text-sm text-amber-700">
-                    Verify your ABN to continue.{' '}
+                    This step requires a verified ABN.{' '}
                     <Link href={getVerifyBusinessUrl(returnUrl)} className="font-medium text-blue-600 hover:text-blue-700 underline">
-                      Verify ABN
+                      Verify business
                     </Link>
                   </p>
                 )}
@@ -1430,6 +1462,13 @@ export default function JobDetailPage() {
                     onClick={handleConfirmHire}
                     className="flex-1"
                     disabled={!lifecycleState?.canConfirmHire || needsAbnForActions || actionSubmitting}
+                    title={
+                      needsAbnForActions
+                        ? 'Confirming hire requires a verified ABN.'
+                        : !lifecycleState?.canConfirmHire
+                          ? 'Hire cannot be confirmed in the current job state.'
+                          : undefined
+                    }
                   >
                     <CheckCircle className="w-4 h-4 mr-2" />
                     {actionSubmitting ? 'Confirming...' : 'Confirm Hire'}
@@ -1443,9 +1482,9 @@ export default function JobDetailPage() {
                 </div>
                 {needsAbnForActions && (
                   <p className="text-sm text-amber-700">
-                    Verify your ABN to continue.{' '}
+                    Confirming hire requires a verified ABN.{' '}
                     <Link href={getVerifyBusinessUrl(returnUrl)} className="font-medium text-blue-600 hover:text-blue-700 underline">
-                      Verify ABN
+                      Verify business
                     </Link>
                   </p>
                 )}
@@ -1547,12 +1586,19 @@ export default function JobDetailPage() {
                               size="sm"
                               onClick={() => handleSelectApplication(app.id)}
                               disabled={lifecycleState?.isExpired || needsAbnForActions || actionSubmitting}
+                              title={
+                                needsAbnForActions
+                                  ? 'Selecting a subcontractor requires a verified ABN (posting this job did not).'
+                                  : lifecycleState?.isExpired
+                                    ? 'This listing is no longer accepting selections.'
+                                    : undefined
+                              }
                             >
                               Select
                             </Button>
                             {needsAbnForActions && (
                               <Link href={getVerifyBusinessUrl(returnUrl)} className="text-xs text-amber-700 font-medium">
-                                Verify ABN
+                                Verify business
                               </Link>
                             )}
                           </div>

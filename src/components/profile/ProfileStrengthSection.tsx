@@ -56,7 +56,15 @@ export default function ProfileStrengthSection({ strengthCalc, profile }: Props)
   const hasLikes = likesCount > 0 || breakdown.likes_points > 0;
   const hasGoogleRating = !!String(profile?.google_business_url ?? '').trim();
   const abnVerified = breakdown.abn_points > 0;
-  const lastActiveAt = strengthCalc?.last_active_at ?? profile?.last_active_at ?? profile?.lastActiveAt ?? null;
+  const lastActiveAt =
+    strengthCalc?.last_active_at ??
+    profile?.last_active_at ??
+    profile?.lastActiveAt ??
+    profile?.last_seen_at ??
+    profile?.lastSeenAt ??
+    profile?.updated_at ??
+    profile?.updatedAt ??
+    null;
   const inactiveDays = typeof strengthCalc?.inactive_days === 'number'
     ? strengthCalc.inactive_days
     : getInactiveDays(lastActiveAt);

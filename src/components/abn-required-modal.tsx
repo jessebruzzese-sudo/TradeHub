@@ -32,7 +32,8 @@ export function ABNRequiredModal({ open, onOpenChange, returnUrl }: ABNRequiredM
           </div>
           <DialogTitle className="text-center">Verify your business</DialogTitle>
           <DialogDescription className="text-center">
-            Verify your ABN to unlock business features such as posting jobs and applying for work.
+            Verify your ABN to unlock business features such as applying for work. You can post jobs without ABN
+            verification; optional verification also builds trust on your profile.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-3 mt-4">

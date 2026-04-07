@@ -89,13 +89,21 @@ export function getE2EProfileStrengthFixture(id: E2EProfileStrengthId): {
     };
   }
 
-  // test-user-null — no strengthCalc; UI uses client fallback categories + summed total
+  // test-user-null — no strengthCalc; UI uses client fallback (must stay 0: no trade/bio/location so completeness+links don't inflate)
   return {
     profile: {
       ...baseProfile,
       id: 'test-user-null',
       profile_strength_band: 'LOW',
       last_active_at: null,
+      last_seen_at: null,
+      updated_at: null,
+      created_at: null,
+      bio: null,
+      mini_bio: null,
+      location: null,
+      trades: [],
+      primary_trade: null,
     },
     strengthCalc: null,
   };

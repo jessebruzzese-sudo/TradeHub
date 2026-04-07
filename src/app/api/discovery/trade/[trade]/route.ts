@@ -25,6 +25,7 @@ import {
 import { formatUnknownError } from '@/lib/supabase/postgrest-errors';
 import { isLikelyTestAccount } from '@/lib/test-account';
 import { loadUserIdsWithActiveSubcontractorListing } from '@/lib/discovery/subcontractor-listing-availability';
+import { profileStrengthRankBoost } from '@/lib/discovery/profile-strength-rank-boost';
 
 type UserRow = {
   id: string;
@@ -47,6 +48,8 @@ type UserRow = {
   avatar?: string | null;
   subscription_status?: string | null;
   complimentary_premium_until?: string | null;
+  /** From directory select when available; missing after schema fallback → boost 0. */
+  profile_strength_score?: number | null;
 };
 
 function tradeMatchKey(s: string): string {
@@ -265,10 +268,20 @@ export async function GET(
       if (p !== 0) return p;
       const da = a.distanceKm;
       const db = b.distanceKm;
-      if (da == null && db == null) return 0;
+      if (da == null && db == null) {
+        // no distance — tie-break by profile strength, then id
+        const sa = profileStrengthRankBoost(a.row.profile_strength_score);
+        const sb = profileStrengthRankBoost(b.row.profile_strength_score);
+        if (sb !== sa) return sb - sa;
+        return String(a.row.id).localeCompare(String(b.row.id));
+      }
       if (da == null) return 1;
       if (db == null) return -1;
-      return da - db;
+      if (da !== db) return da - db;
+      const sa = profileStrengthRankBoost(a.row.profile_strength_score);
+      const sb = profileStrengthRankBoost(b.row.profile_strength_score);
+      if (sb !== sa) return sb - sa;
+      return String(a.row.id).localeCompare(String(b.row.id));
     });
 
     const cards = withinRadius.map((c) => mapToCard(c.row, c.isPremium));

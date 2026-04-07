@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/database.types';
 import { requireAdmin, adminAuthErrorToResponse } from '@/lib/admin/require-admin';
+import { jobsListingWindowStartIso } from '@/lib/jobs/listing-window';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,9 +25,11 @@ export async function GET() {
       { auth: { persistSession: false } }
     );
 
+    const listingSince = jobsListingWindowStartIso();
     const { count: totalJobCount, error: countError } = await adminSupabase
       .from('jobs')
-      .select('*', { count: 'exact', head: true });
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', listingSince);
 
     if (countError) {
       console.error('🔥 JOB COUNT FAILED:', countError);
@@ -35,6 +38,7 @@ export async function GET() {
     const { data: jobs, error } = await adminSupabase
       .from('jobs')
       .select('*')
+      .gte('created_at', listingSince)
       .order('created_at', { ascending: false })
       .limit(500);
 
@@ -66,10 +70,11 @@ export async function GET() {
       contractor_name: contractorNames[j.contractor_id] ?? null,
     }));
 
+    // totalInListingWindow: count of rows matching the same created_at window as `jobs` (30 days).
     return NextResponse.json({
       ok: true,
       count: jobs?.length || 0,
-      totalInDb: totalJobCount ?? 0,
+      totalInListingWindow: totalJobCount ?? 0,
       jobs: jobsWithContractor,
     });
   } catch (err) {

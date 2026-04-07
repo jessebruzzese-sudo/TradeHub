@@ -17,7 +17,7 @@ export type ABNUser = {
 };
 
 /**
- * App-wide ABN verification for gating (post job, apply, etc.).
+ * App-wide ABN verification for gating (e.g. apply to jobs, messaging actions). Job posting does not use this.
  * ABN verification source of truth: non-empty ABN + status VERIFIED only. Do not infer verification from timestamps or booleans alone.
  */
 export function hasValidABN(user: ABNUser | null): boolean {
@@ -107,7 +107,7 @@ export function getABNStatusMessage(
 ): string | null {
   if (!user) return null;
   if (!user.abn || user.abn.trim().length === 0) {
-    return 'You need to provide your ABN before posting jobs.';
+    return 'Add your ABN when you are ready to verify — it is optional for posting jobs and helps build trust.';
   }
   const status = String(user.abnStatus ?? user.abn_status ?? '').toUpperCase();
   if (!status || status === 'UNVERIFIED') {

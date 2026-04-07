@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/database.types';
 import { requireAdmin, adminAuthErrorToResponse } from '@/lib/admin/require-admin';
+import { jobsListingWindowStartIso } from '@/lib/jobs/listing-window';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,6 +37,7 @@ export async function GET(
       .from('jobs')
       .select('*')
       .eq('id', id)
+      .gte('created_at', jobsListingWindowStartIso())
       .single();
 
     if (error || !job) {

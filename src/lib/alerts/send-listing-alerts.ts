@@ -7,6 +7,7 @@ import { getTier } from '@/lib/plan-limits';
 import { createEmailEvent } from '@/lib/email/create-email-event';
 import { shouldSendEmailNow } from '@/lib/email/rollout';
 import { getDisplayTradeListFromUserRow } from '@/lib/trades/user-trades';
+import { jobsListingWindowStartIso } from '@/lib/jobs/listing-window';
 
 export type SendListingAlertsResult = {
   listingId: string;
@@ -54,6 +55,7 @@ export async function sendListingAlerts(listingId: string): Promise<SendListingA
       .from('jobs')
       .select('id, title, description, trade_category, location, postcode, contractor_id')
       .eq('id', listingId)
+      .gte('created_at', jobsListingWindowStartIso())
       .maybeSingle();
 
     if (error || !job) {

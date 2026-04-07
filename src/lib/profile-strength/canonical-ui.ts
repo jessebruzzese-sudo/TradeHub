@@ -1,6 +1,5 @@
 import type { ProfileStrengthCalc } from '@/lib/profile-strength-types';
-import { hasValidABN } from '@/lib/abn-utils';
-import { getActivityPoints } from '@/lib/profile-strength/activity-score';
+import { computeProfileStrengthCategoriesFromProfile } from '@/lib/profile-strength/client-fallback-compute';
 import {
   normalizeProfileStrengthBand,
   type ProfileStrengthBand,
@@ -62,21 +61,13 @@ export function buildProfileStrengthCanonical(opts: {
     completeness_points = Number(strengthCalc.completeness ?? 0);
     abn_points = Number(strengthCalc.abn ?? 0);
   } else {
-    const lastFallback =
-      (profile?.last_active_at as string | null | undefined) ??
-      (profile?.lastActiveAt as string | null | undefined) ??
-      null;
-    activity_points = getActivityPoints(lastFallback);
-    links_points = 0;
-    google_points = 0;
-    likes_points = 0;
-    completeness_points = 0;
-    abn_points = hasValidABN({
-      abn: profile?.abn as string | null | undefined,
-      abn_status: (profile?.abn_status ?? profile?.abnStatus) as string | null | undefined,
-    })
-      ? 10
-      : 0;
+    const parts = computeProfileStrengthCategoriesFromProfile(profile);
+    activity_points = parts.activity;
+    links_points = parts.links;
+    google_points = parts.google;
+    likes_points = parts.likes;
+    completeness_points = parts.completeness;
+    abn_points = parts.abn;
   }
 
   const parts: ProfileStrengthCategoryParts = {

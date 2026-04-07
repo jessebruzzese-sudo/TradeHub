@@ -17,7 +17,7 @@ type GoogleBusinessLike = {
   google_review_count?: number | null;
   google_listing_verification_status?: string | null;
   google_listing_claimed_by_user?: boolean | null;
-  /** Optional — used with `hasValidABN` for gold-tier trust (same rules as job gating). */
+  /** Optional — used with `hasValidABN` for gold-tier trust (ABN verified status). */
   abn?: string | null;
   abn_status?: string | null;
   abnStatus?: string | null;

@@ -4,6 +4,7 @@ import type { AppStore } from '@/lib/store';
 import type { User, UserRole, TrustStatus } from '@/lib/types';
 import { getDisplayTradeListFromUserRow } from '@/lib/trades/user-trades';
 import { isPostgrestSchemaOrColumnError } from '@/lib/supabase/postgrest-errors';
+import { jobsListingWindowStartIso } from '@/lib/jobs/listing-window';
 
 const JOBS_NARROW_SELECT =
   'id, contractor_id, title, description, trade_category, location, postcode, dates, start_time, duration, pay_type, rate, status, created_at, attachments, cancelled_at, cancelled_by, cancellation_reason, selected_subcontractor, confirmed_subcontractor, location_lat, location_lng, deleted_at, approval_status, fulfilled, starts_at, fulfillment_marked_at, fulfillment_marked_by, reminder_48h_sent, file_url, file_name, location_place_id, start_date, updated_at';
@@ -32,7 +33,12 @@ async function fetchJobWithSelect(
   attempt: LoadJobByIdSource
 ): Promise<{ data: Record<string, unknown> | null; error: unknown }> {
   console.log('loadJobById attempt', { id, attempt });
-  const { data, error } = await supabase.from('jobs').select(select).eq('id', id).maybeSingle();
+  const { data, error } = await supabase
+    .from('jobs')
+    .select(select)
+    .eq('id', id)
+    .gte('created_at', jobsListingWindowStartIso())
+    .maybeSingle();
   console.log('loadJobById result', { id, attempt, found: !!data, error: error ?? null });
   return {
     data: (data as Record<string, unknown> | null) ?? null,

@@ -10,14 +10,14 @@ import { useAuth } from '@/lib/auth';
 import { buildLoginUrl } from '@/lib/url-utils';
 
 export default function ProfilePage() {
-  const { session, currentUser } = useAuth();
+  const { session, profile } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (currentUser === null) {
+    if (profile === null) {
       router.replace('/');
     }
-  }, [currentUser, router]);
+  }, [profile, router]);
 
   if (!session?.user) {
     return (
@@ -33,7 +33,7 @@ export default function ProfilePage() {
     );
   }
 
-  if (!currentUser) {
+  if (!profile) {
     return (
       <AppLayout>
         <div className="flex min-h-screen items-center justify-center text-sm text-slate-500">
@@ -43,5 +43,5 @@ export default function ProfilePage() {
     );
   }
 
-  return <ProfileView mode="self" profile={currentUser} />;
+  return <ProfileView mode="self" profile={profile} />;
 }

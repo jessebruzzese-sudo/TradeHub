@@ -8,7 +8,6 @@ import { toast } from 'sonner';
 import { AppLayout } from '@/components/app-nav';
 import { UserAvatar } from '@/components/user-avatar';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -26,6 +25,8 @@ import { isPremiumForDiscovery } from '@/lib/discovery';
 import { getPrimaryUserCoordinates } from '@/lib/location/get-user-coordinates';
 import { getSafeReturnUrl, safeRouterReplace } from '@/lib/safe-nav';
 import { getBrowserSupabase } from '@/lib/supabase-client';
+import { canCreateJob } from '@/lib/permissions';
+import { JOB_POST_CONTRACTOR_ROLE_MESSAGE } from '@/lib/jobs/job-post-role-messages';
 
 import { startOfDay, isAfter, format } from 'date-fns';
 import {
@@ -128,7 +129,9 @@ function StatusChipsContent({
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom" align="center" className="max-w-[220px]">
-                <p className="text-xs">Verify ABN to post jobs</p>
+                <p className="text-xs">
+                  You can post jobs without ABN verification; optional verification builds trust
+                </p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -326,10 +329,7 @@ export default function DashboardPage() {
       .catch(() => {});
   }, [hasSession]);
 
-  const postJobHref =
-    !isAdminUser && !abnVerified
-      ? `/verify-business?returnUrl=${encodeURIComponent('/jobs/create')}`
-      : '/jobs/create';
+  const canPostJobListing = Boolean(currentUser && canCreateJob(currentUser));
 
   const savedLocationsCount = (hasLocation ? 1 : 0) + (savedLocations ?? []).length;
   const hasMultipleLocations = savedLocationsCount >= 2;
@@ -350,12 +350,13 @@ export default function DashboardPage() {
       };
     }
 
-    // 2) ABN not verified (non-admin)
+    // 2) ABN not verified (non-admin) — optional trust step
     if (!isAdminUser && !abnVerified) {
       return {
         key: 'verify_abn',
-        title: 'Verify your ABN',
-        description: 'Verification unlocks posting jobs and applying to jobs.',
+        title: 'Verify your ABN (optional)',
+        description:
+          'You can post jobs without ABN verification. Verification is optional for posting and acts as a trust signal; applying to jobs others post still requires a verified ABN.',
         cta: 'Verify ABN',
         href: `/verify-business?returnUrl=${encode('/dashboard')}`,
         secondaryCta: 'Learn more',
@@ -385,7 +386,6 @@ export default function DashboardPage() {
     isPremium,
     freeRadiusKm,
     isContractor,
-    postJobHref,
   ]);
 
   const onTogglePublicProfile = async (value: boolean) => {
@@ -604,10 +604,10 @@ export default function DashboardPage() {
           className="pointer-events-none absolute bottom-[-200px] right-[-200px] h-[1600px] w-[1600px] opacity-[0.04]"
         />
 
-        {/* Content container */}
-        <div className="relative mx-auto w-full max-w-5xl px-4 py-8">
+        {/* Content container — tight top on mobile under sticky header; desktop keeps prior rhythm */}
+        <div className="relative mx-auto w-full max-w-5xl px-4 pb-8 pt-2 md:py-8">
         {/* Header hero strip */}
-        <div className="relative -mx-4 px-4 pb-6 pt-6 sm:rounded-3xl">
+        <div className="relative -mx-4 px-4 pb-6 pt-2 md:pt-6 sm:rounded-3xl">
           <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-white/60 via-white/30 to-white/60" />
           <div
             className="pointer-events-none absolute inset-0 rounded-3xl [mask-image:radial-gradient(70%_60%_at_50%_0%,black,transparent)] bg-gradient-to-b from-blue-200/40 to-transparent"
@@ -880,10 +880,15 @@ export default function DashboardPage() {
               <>
                 <ActionCard
                   title="Post a Job"
-                  description="Create a job and reach relevant subcontractors."
-                  href={postJobHref}
+                  description={
+                    canPostJobListing
+                      ? 'Create a job and reach relevant subcontractors. Contractor account required; ABN not required to post; free limits and profile trades still apply.'
+                      : JOB_POST_CONTRACTOR_ROLE_MESSAGE
+                  }
+                  href={canPostJobListing ? '/jobs/create' : '/jobs'}
                   icon={<Briefcase className="h-5 w-5" />}
-                  badge={!abnVerified ? <Badge variant="secondary">ABN required</Badge> : undefined}
+                  disabled={!canPostJobListing}
+                  disabledHint={!canPostJobListing ? JOB_POST_CONTRACTOR_ROLE_MESSAGE : undefined}
                 />
                 <ActionCard
                   title="Browse Subcontractors"
@@ -1055,33 +1060,53 @@ function ActionCard({
   href,
   icon,
   badge,
+  disabled,
+  disabledHint,
 }: {
   title: string;
   description: string;
   href: string;
   icon: React.ReactNode;
   badge?: React.ReactNode;
+  disabled?: boolean;
+  disabledHint?: string;
 }) {
+  const body = (
+    <div className="flex items-start justify-between gap-3">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-700 group-hover:bg-slate-200">
+          {icon}
+        </div>
+        <div>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+            {badge}
+          </div>
+          <p className="mt-1 text-sm text-gray-600">{description}</p>
+        </div>
+      </div>
+      <ArrowRight className="mt-1 h-4 w-4 text-slate-300 transition group-hover:text-slate-500" />
+    </div>
+  );
+
+  if (disabled) {
+    return (
+      <div
+        className="group cursor-not-allowed rounded-2xl border border-slate-200 bg-white/95 p-5 opacity-60 backdrop-blur-md"
+        title={disabledHint}
+        aria-disabled
+      >
+        {body}
+      </div>
+    );
+  }
+
   return (
     <Link
       href={href}
       className="group rounded-2xl border border-slate-200 bg-white/95 backdrop-blur-md p-5 transition hover:border-slate-300 hover:shadow-md hover:-translate-y-[2px]"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-700 group-hover:bg-slate-200">
-            {icon}
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-              {badge}
-            </div>
-            <p className="mt-1 text-sm text-gray-600">{description}</p>
-          </div>
-        </div>
-        <ArrowRight className="mt-1 h-4 w-4 text-slate-300 transition group-hover:text-slate-500" />
-      </div>
+      {body}
     </Link>
   );
 }

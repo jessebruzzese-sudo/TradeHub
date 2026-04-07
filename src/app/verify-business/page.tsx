@@ -228,7 +228,8 @@ export default function VerifyBusinessPage() {
           </h2>
 
           <p className="text-center text-sm text-gray-600 mb-4">
-            Verify your ABN to unlock business features such as posting jobs and applying for work.
+            Verify your ABN to unlock business features such as applying for work. You can post jobs without ABN
+            verification; optional verification also builds trust on your profile.
           </p>
 
           {/* Current status */}

@@ -3,6 +3,7 @@ import { createServiceSupabase } from '@/lib/supabase-server';
 import { createEmailEvent } from '@/lib/email/create-email-event';
 import { shouldSendEmailNow } from '@/lib/email/rollout';
 import { getDisplayTradeListFromUserRow } from '@/lib/trades/user-trades';
+import { jobsListingWindowStartIso } from '@/lib/jobs/listing-window';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -59,10 +60,14 @@ async function runDigest(request: NextRequest) {
     ? userRows.filter((u: any) => String(u.email).toLowerCase() === oneAccountEmail)
     : userRows;
 
+  const listingSince = jobsListingWindowStartIso();
+  const digestSince = since.toISOString();
+  const effectiveSince = digestSince > listingSince ? digestSince : listingSince;
+
   const jobsRes = await svc
     .from('jobs')
     .select('id, title, trade_category, location, created_at')
-    .gte('created_at', since.toISOString())
+    .gte('created_at', effectiveSince)
     .order('created_at', { ascending: false })
     .limit(200);
 

@@ -2,17 +2,16 @@
 'use client';
 
 /*
- * QA notes - ABN gating (Job edit):
- * - /jobs/[id]/edit redirects unverified users to /verify-business (returnUrl preserved). No TradeGate.
- * - Edit job is a commit action; only verified ABN users can save changes.
+ * QA notes — Job edit:
+ * - Owner with contractor role can save (matches hiring/job-post model, API, and RLS on `jobs` UPDATE). ABN optional for jobs.
  */
 
 import { AppLayout } from '@/components/app-nav';
 import { PageHeader } from '@/components/page-header';
 import { useAuth } from '@/lib/auth';
 import { getStore } from '@/lib/store';
-import { ownsJob, canEditJob } from '@/lib/permissions';
-import { needsBusinessVerification, redirectToVerifyBusiness } from '@/lib/verification-guard';
+import { canEditJob, ownsJob, hasContractorRoleForJobPosting } from '@/lib/permissions';
+import { JOB_EDIT_CONTRACTOR_ROLE_MESSAGE, JOB_POST_CONTRACTOR_ROLE_CODE } from '@/lib/jobs/job-post-role-messages';
 import { safeRouterPush } from '@/lib/safe-nav';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,7 +27,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { PopoverContentWithDone } from '@/components/ui/popover-content-with-done';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format as formatDate } from 'date-fns';
-import { Calendar as CalendarIcon, X, Upload, FileText, Image as ImageIcon } from 'lucide-react';
+import { Calendar as CalendarIcon, X, Upload, FileText, Image as ImageIcon, Info } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { getBrowserSupabase } from '@/lib/supabase-client';
 import { isPremiumForDiscovery } from '@/lib/discovery';
@@ -96,7 +95,6 @@ export default function EditJobPage() {
   const [attachments, setAttachments] = useState<JobAttachment[]>([]);
   const [isUploading, setIsUploading] = useState(false);
 
-  const hasRedirectedAbn = useRef(false);
   const hydratedRef = useRef(false);
 
   const userForDiscovery = useMemo(
@@ -173,20 +171,13 @@ export default function EditJobPage() {
     }
   }, [isLoading, job, currentUser, jobId, router]);
 
-  useEffect(() => {
-    if (isLoading || hasRedirectedAbn.current) return;
-    if (!currentUser || !job || !ownsJob(currentUser, job)) return;
-    if (needsBusinessVerification(currentUser)) {
-      hasRedirectedAbn.current = true;
-      redirectToVerifyBusiness(router, `/jobs/${jobId}/edit`);
-    }
-  }, [isLoading, currentUser, job, jobId, router]);
-
   if (!session?.user) return null;
 
   const isOwner = job && currentUser && ownsJob(currentUser, job);
-  const isRedirecting =
-    !job || (currentUser && job && !ownsJob(currentUser, job)) || (job && currentUser && isOwner && needsBusinessVerification(currentUser));
+  const canSaveListing = !!(currentUser && job && canEditJob(currentUser, job));
+  const roleBlocksEditing =
+    !!currentUser && !!job && ownsJob(currentUser, job) && !hasContractorRoleForJobPosting(currentUser);
+  const isRedirecting = !job || (currentUser && job && !ownsJob(currentUser, job));
 
   if (isLoading || (session?.user && !currentUser) || isRedirecting) {
     return (
@@ -200,11 +191,11 @@ export default function EditJobPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser || !job || !canEditJob(currentUser, job)) {
-      if (currentUser && job && ownsJob(currentUser, job) && needsBusinessVerification(currentUser)) {
-        toast.error('Verify your ABN to continue.');
-        redirectToVerifyBusiness(router, `/jobs/${jobId}/edit`);
-      }
+    if (!currentUser || !job || !ownsJob(currentUser, job)) {
+      return;
+    }
+    if (!canSaveListing) {
+      toast.error(JOB_EDIT_CONTRACTOR_ROLE_MESSAGE);
       return;
     }
 
@@ -255,6 +246,11 @@ export default function EditJobPage() {
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (data?.code === JOB_POST_CONTRACTOR_ROLE_CODE) {
+          throw new Error(
+            typeof data?.error === 'string' ? data.error : JOB_EDIT_CONTRACTOR_ROLE_MESSAGE
+          );
+        }
         throw new Error(data?.error || 'Failed to update job');
       }
 
@@ -366,6 +362,21 @@ export default function EditJobPage() {
         <div className="relative z-10 mx-auto w-full max-w-4xl px-4 py-10 pb-16 md:pb-20">
           <PageHeader backLink={{ href: `/jobs/${jobId}` }} title="Edit Job" tone="dark" />
 
+          {roleBlocksEditing && (
+            <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+              <div className="flex items-start gap-3">
+                <Info className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" aria-hidden />
+                <div className="space-y-2 text-sm text-amber-950">
+                  <p className="font-medium">Contractor account required</p>
+                  <p>{JOB_EDIT_CONTRACTOR_ROLE_MESSAGE}</p>
+                  <Button asChild size="sm" variant="outline" className="mt-1 border-amber-300 bg-white">
+                    <Link href={`/jobs/${jobId}`}>Back to job</Link>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="rounded-2xl bg-white shadow-[0_25px_80px_rgba(0,0,0,0.25)] hover:shadow-[0_25px_80px_rgba(0,0,0,0.35)] transition-shadow p-6 sm:p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Section: Job details */}
@@ -386,7 +397,8 @@ export default function EditJobPage() {
                 <Label htmlFor="tradeCategory">Trade Category</Label>
                 {!isPremium && posterTrades.length === 0 ? (
                   <div className="mt-1 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                    Add a trade to your profile to edit job trade.
+                    Free accounts need at least one trade on your profile to change category — not related to ABN
+                    verification.
                     <Link href="/profile/edit" className="ml-1 font-medium text-amber-700 underline hover:text-amber-900">
                       Edit profile
                     </Link>
@@ -688,18 +700,31 @@ export default function EditJobPage() {
               )}
             </div>
 
-            <div className="mt-8 flex gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => router.push(`/jobs/${jobId}`)}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700">
-                Save Changes
-              </Button>
+            <div className="mt-8 space-y-3">
+              <div className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 text-xs text-slate-600">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden />
+                <p>
+                  You can post jobs without ABN verification. Some later platform actions may still require verification.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => router.push(`/jobs/${jobId}`)}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700"
+                  disabled={!canSaveListing}
+                  title={!canSaveListing ? JOB_EDIT_CONTRACTOR_ROLE_MESSAGE : undefined}
+                >
+                  Save Changes
+                </Button>
+              </div>
             </div>
           </form>
           </div>

@@ -381,8 +381,8 @@ export default function SignupForm({ role }: Props) {
                 <div>
                   <h3 className="text-xl font-bold text-gray-900 mb-2">Business details</h3>
                   <p className="text-sm text-gray-600 mb-6">
-                    You can list availability and apply for work now. ABN verification is only needed for posting jobs and
-                    applying to jobs posted by others.
+                    You can list availability and apply for work now. You can post jobs without ABN verification; ABN
+                    verification is optional for posting (trust signal) and is required to apply to jobs posted by others.
                   </p>
                 </div>
 
@@ -410,7 +410,9 @@ export default function SignupForm({ role }: Props) {
                     className="mt-1"
                     inputMode="numeric"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Required to post jobs and apply to jobs posted by others</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Not required to post jobs; required to apply to jobs others post; optional verification builds trust
+                  </p>
                 </div>
               </div>
             )}

@@ -312,6 +312,12 @@ type DbUserRow = {
   show_pricing_on_profile?: boolean | null;
   show_pricing_in_listings?: boolean | null;
   last_active_at?: string | null;
+  last_seen_at?: string | null;
+  updated_at?: string | null;
+  created_at?: string | null;
+  profile_likes_count?: number | null;
+  works_completed_count?: number | null;
+  works_uploaded_count?: number | null;
   google_business_url?: string | null;
   google_business_name?: string | null;
   google_business_address?: string | null;
@@ -428,6 +434,18 @@ export type CurrentUser = {
   googleListingVerifiedBy?: string | null;
   googleListingRejectionReason?: string | null;
   lastActiveAt?: string | null;
+  lastSeenAt?: string | null;
+  updatedAt?: string | null;
+  profileLikesCount?: number | null;
+  worksCompletedCount?: number | null;
+  worksUploadedCount?: number | null;
+  /** Snake_case mirrors for profile strength / public profile shapes */
+  profile_likes_count?: number | null;
+  works_completed_count?: number | null;
+  works_uploaded_count?: number | null;
+  last_seen_at?: string | null;
+  updated_at?: string | null;
+  created_at?: string | null;
 }
 
 type SignupExtras = {
@@ -503,6 +521,8 @@ type UpdateUserInput = Partial<
 type AuthCtx = {
   session: Session | null;
   currentUser: CurrentUser | null;
+  /** Same object as `currentUser` — full `users` row mapped for UI (use for profile strength, edits). */
+  profile: CurrentUser | null;
   isLoading: boolean;
 
   login: (email: string, password: string) => Promise<void>;
@@ -565,7 +585,7 @@ function mapDbToUi(row: DbUserRow): CurrentUser {
       : undefined,
     completedJobs: null,
     memberSince: null,
-    createdAt: null,
+    createdAt: (row as any).created_at ?? null,
 
     additionalTradesUnlocked: row.additional_trades_unlocked === true,
 
@@ -644,6 +664,23 @@ function mapDbToUi(row: DbUserRow): CurrentUser {
     googleListingVerifiedBy: (row as any).google_listing_verified_by ?? null,
     googleListingRejectionReason: (row as any).google_listing_rejection_reason ?? null,
     lastActiveAt: (row as any).last_active_at ?? null,
+    lastSeenAt: (row as any).last_seen_at ?? null,
+    updatedAt: (row as any).updated_at ?? null,
+    profileLikesCount:
+      (row as any).profile_likes_count != null ? Number((row as any).profile_likes_count) : null,
+    worksCompletedCount:
+      (row as any).works_completed_count != null ? Number((row as any).works_completed_count) : null,
+    worksUploadedCount:
+      (row as any).works_uploaded_count != null ? Number((row as any).works_uploaded_count) : null,
+    profile_likes_count:
+      (row as any).profile_likes_count != null ? Number((row as any).profile_likes_count) : null,
+    works_completed_count:
+      (row as any).works_completed_count != null ? Number((row as any).works_completed_count) : null,
+    works_uploaded_count:
+      (row as any).works_uploaded_count != null ? Number((row as any).works_uploaded_count) : null,
+    last_seen_at: (row as any).last_seen_at ?? null,
+    updated_at: (row as any).updated_at ?? null,
+    created_at: (row as any).created_at ?? null,
   };
 }
 
@@ -882,11 +919,14 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
         // show_abn_on_profile, show_business_name_on_profile, pricing_type, pricing_amount,
         // show_pricing_on_profile, show_pricing_in_listings (may not exist in older DBs)
         const baseSelectNoProfileStrength =
-          'id,email,name,role,is_admin,trust_status,avatar,cover_url,bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,abn_verified,abn_verified_at,show_abn_on_profile,show_business_name_on_profile,additional_trades,website,instagram,facebook,linkedin,tiktok,youtube,' +
+          'id,email,name,role,is_admin,trust_status,avatar,cover_url,bio,mini_bio,rating,reliability_rating,primary_trade,business_name,abn,abn_status,abn_verified,abn_verified_at,show_abn_on_profile,show_business_name_on_profile,additional_trades,website,instagram,facebook,linkedin,tiktok,youtube,' +
           'location,postcode,location_lat,location_lng,' +
           'plan,subscription_status,subscription_renews_at,subscription_started_at,subscription_canceled_at,' +
           'complimentary_premium_until,additional_trades_unlocked,search_location,search_postcode,search_lat,search_lng,' +
-          'is_public_profile,subcontractor_work_alerts_enabled,last_active_at';
+          'is_public_profile,subcontractor_work_alerts_enabled,last_active_at,last_seen_at,updated_at,created_at,' +
+          'profile_likes_count,works_completed_count,works_uploaded_count,' +
+          'pricing_type,pricing_amount,show_pricing_on_profile,show_pricing_in_listings,' +
+          'phone,show_phone_on_profile,show_email_on_profile';
         const baseSelect =
           baseSelectNoProfileStrength +
           ',profile_strength_score,profile_strength_band,website_url,instagram_url,facebook_url,linkedin_url,' +
@@ -907,7 +947,7 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
 
         // If this fails, we must not fall back to a row missing abn/location (empty profile edit UI).
         const minimalSelectWithCore =
-          'id,email,name,role,is_admin,trust_status,avatar,cover_url,bio,primary_trade,business_name,abn,abn_status,abn_verified,abn_verified_at,show_abn_on_profile,show_business_name_on_profile,additional_trades,location,postcode,location_lat,location_lng,is_public_profile';
+          'id,email,name,role,is_admin,trust_status,avatar,cover_url,bio,mini_bio,primary_trade,business_name,abn,abn_status,abn_verified,abn_verified_at,show_abn_on_profile,show_business_name_on_profile,additional_trades,location,postcode,location_lat,location_lng,is_public_profile,last_active_at,last_seen_at,updated_at,created_at,profile_likes_count,works_completed_count,works_uploaded_count,pricing_type';
 
         let { data: profile, error } = await loadWithSelect(baseSelect);
 
@@ -1394,6 +1434,7 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
     () => ({
       session,
       currentUser,
+      profile: currentUser,
       isLoading,
       login,
       signup,

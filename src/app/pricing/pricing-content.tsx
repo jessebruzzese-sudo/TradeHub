@@ -488,7 +488,8 @@ export default function PricingContent() {
         {/* Requirements Note */}
         <div className="max-w-5xl mx-auto mt-6 text-center">
           <p className="text-sm text-blue-100">
-            ABN verification required to post jobs or apply to jobs. Browsing is always free.
+            You can post jobs without ABN verification. ABN verification is optional for job posting and acts as a trust
+            signal; applying to jobs still requires a verified ABN. Browsing is always free.
           </p>
         </div>
 

@@ -40,17 +40,12 @@ test.describe('ABN verification enforcement (verified user)', () => {
     }
   })
 
-  test('sees Post Job CTA when verified (not Verify ABN to Post)', async ({ page }) => {
+  test('sees Post Job CTA (ABN not required to post)', async ({ page }) => {
     await switchToUser(page, ACCOUNTS.premium.email, ACCOUNTS.premium.password)
     await page.goto(`${BASE_URL}/jobs`)
     await page.waitForLoadState('networkidle')
     const postJobLink = page.getByRole('link', { name: /post job/i })
-    if (await postJobLink.first().isVisible().catch(() => false)) {
-      await expect(postJobLink.first()).toHaveAttribute('href', /\/jobs\/create/)
-      return
-    }
-    const verifyCta = page.getByRole('link', { name: /verify abn to post|verify now/i }).first()
-    await expect(verifyCta).toBeVisible()
-    await expect(verifyCta).toHaveAttribute('href', /\/verify-business/)
+    await expect(postJobLink.first()).toBeVisible()
+    await expect(postJobLink.first()).toHaveAttribute('href', /\/jobs\/create/)
   })
 })
