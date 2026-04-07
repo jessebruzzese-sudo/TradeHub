@@ -909,6 +909,50 @@ export default function EditProfilePage() {
     }
   };
 
+  const saveActionBar = (placement: 'top' | 'bottom') => (
+    <div
+      className={cn(
+        '-mx-4 px-4 py-3 backdrop-blur bg-white/60 border-slate-900/10',
+        placement === 'top'
+          ? 'sticky top-0 z-30 mb-5 border-b'
+          : 'mt-8 border-t'
+      )}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            {placement === 'top' ? (
+              <h1 className="text-lg font-semibold text-slate-900">Edit profile</h1>
+            ) : (
+              <div className="text-lg font-semibold text-slate-900">Edit profile</div>
+            )}
+            {isSaving ? (
+              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">Saving…</span>
+            ) : savedTick ? (
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">Saved</span>
+            ) : null}
+          </div>
+          <p className="text-xs text-slate-600">Keep it short and clear — this is what businesses see first.</p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => router.back()}
+            disabled={isSaving}
+          >
+            Cancel
+          </Button>
+
+          <Button type="submit" disabled={isSaving}>
+            Save changes
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <AppLayout>
       <div className="relative min-h-screen bg-gradient-to-b from-slate-50 via-slate-100 to-slate-200">
@@ -937,36 +981,7 @@ export default function EditProfilePage() {
         <div className="relative z-10 min-h-screen w-full py-8 overflow-x-hidden">
           <div className="mx-auto max-w-3xl px-4 pb-24">
             <form onSubmit={handleSave} className="space-y-6">
-            <div className="sticky top-0 z-30 -mx-4 mb-5 border-b border-slate-900/10 bg-white/60 px-4 py-3 backdrop-blur">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-lg font-semibold text-slate-900">Edit profile</h1>
-                  {isSaving ? (
-                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">Saving…</span>
-                  ) : savedTick ? (
-                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">Saved</span>
-                  ) : null}
-                </div>
-                <p className="text-xs text-slate-600">Keep it short and clear — this is what businesses see first.</p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => router.back()}
-                  disabled={isSaving}
-                >
-                  Cancel
-                </Button>
-
-                <Button type="submit" disabled={isSaving}>
-                  Save changes
-                </Button>
-              </div>
-            </div>
-          </div>
+            {saveActionBar('top')}
           <div className={cardClass}>
             <div className="mb-3">
               <h2 className="text-sm font-semibold text-slate-900">Basic details</h2>
@@ -1973,6 +1988,8 @@ export default function EditProfilePage() {
               </Button>
             </div>
           </div>
+
+          {saveActionBar('bottom')}
 
           <Dialog open={deleteOpen} onOpenChange={(v) => !deleteLoading && setDeleteOpen(v)}>
             <DialogContent className="sm:max-w-md">
