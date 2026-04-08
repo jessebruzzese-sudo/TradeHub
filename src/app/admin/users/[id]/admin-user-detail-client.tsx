@@ -6,7 +6,6 @@ import { useAuth } from '@/lib/auth';
 import { isAdmin } from '@/lib/is-admin';
 import { getStore } from '@/lib/store';
 import { UnauthorizedAccess } from '@/components/unauthorized-access';
-import StatusPill from '@/components/status-pill';
 import { AdminNotesPanel } from '@/components/admin-notes-panel';
 import { AuditLogView } from '@/components/audit-log-view';
 import { AdminConfirmationDialog } from '@/components/admin-confirmation-dialog';
@@ -24,6 +23,8 @@ import { AdminNote } from '@/lib/types';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import type { User } from '@/lib/types';
+import type { ProfileStrengthCalc } from '@/lib/profile-strength-types';
+import { ProfileView } from '@/components/profile/profile-view';
 
 interface AccountReview {
   id: string;
@@ -84,9 +85,21 @@ interface AdminUserDetailClientProps {
   user: User;
   accountReview: AccountReview | null;
   userId: string;
+  profileData: Record<string, unknown>;
+  strengthCalc: ProfileStrengthCalc | null;
+  viewerLikeState: { liked: boolean; count: number } | null;
+  profileIsViewer: boolean;
 }
 
-export function AdminUserDetailClient({ user, accountReview: initialAccountReview, userId }: AdminUserDetailClientProps) {
+export function AdminUserDetailClient({
+  user,
+  accountReview: initialAccountReview,
+  userId,
+  profileData,
+  strengthCalc,
+  viewerLikeState,
+  profileIsViewer,
+}: AdminUserDetailClientProps) {
   const { currentUser } = useAuth();
   const router = useRouter();
   const store = getStore();
@@ -338,38 +351,41 @@ export function AdminUserDetailClient({ user, accountReview: initialAccountRevie
 
   return (
     <AppLayout>
-      <div className="max-w-7xl mx-auto p-4 md:p-6">
-        <div className="mb-6">
+      <div className="max-w-7xl mx-auto space-y-6 p-4 md:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <Link href="/admin/users">
-            <Button variant="ghost" size="sm" className="mb-4">
-              <ArrowLeft className="w-4 h-4 mr-2" />
+            <Button variant="ghost" size="sm">
+              <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Users
             </Button>
           </Link>
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">{user.name}</h1>
-              <p className="text-sm text-gray-600 mt-1">{user.email}</p>
-            </div>
-            <div className="flex gap-2">
-              {user.trustStatus !== 'verified' && (
-                <Button onClick={handleVerifyUser} variant="outline" size="sm">
-                  <ShieldCheck className="w-4 h-4 mr-2" />
-                  Verify User
-                </Button>
-              )}
-              <Button
-                onClick={handleSuspendUser}
-                variant="outline"
-                size="sm"
-                className="text-orange-600 hover:text-orange-700"
-              >
-                <ShieldAlert className="w-4 h-4 mr-2" />
-                Place on Hold
+          <div className="flex flex-wrap gap-2">
+            {user.trustStatus !== 'verified' && (
+              <Button onClick={handleVerifyUser} variant="outline" size="sm">
+                <ShieldCheck className="mr-2 h-4 w-4" />
+                Verify User
               </Button>
-            </div>
+            )}
+            <Button
+              onClick={handleSuspendUser}
+              variant="outline"
+              size="sm"
+              className="text-orange-600 hover:text-orange-700"
+            >
+              <ShieldAlert className="mr-2 h-4 w-4" />
+              Place on Hold
+            </Button>
           </div>
         </div>
+
+        <ProfileView
+          mode="public"
+          profile={profileData}
+          isMe={profileIsViewer}
+          strengthCalc={strengthCalc}
+          viewerLikeState={viewerLikeState}
+          embedInParentLayout
+        />
 
         {accountReview && (
           <Card className="mb-6">
@@ -505,52 +521,7 @@ export function AdminUserDetailClient({ user, accountReview: initialAccountRevie
           </Card>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-          <div className="bg-white border border-gray-200 rounded-xl p-6">
-            <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Shield className="w-5 h-5 text-gray-600" />
-              User Details
-            </h3>
-            <div className="space-y-3">
-              <div>
-                <p className="text-xs text-gray-500 uppercase">Role</p>
-                <p className="text-sm font-medium text-gray-900 capitalize">{user.role}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 uppercase">Status</p>
-                <StatusPill type="trust" status={user.trustStatus} />
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 uppercase">Rating</p>
-                <p className="text-sm font-medium text-gray-900">{user.rating.toFixed(1)} / 5.0</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 uppercase">Completed Jobs</p>
-                <p className="text-sm font-medium text-gray-900">{user.completedJobs}</p>
-              </div>
-              {user.businessName && (
-                <div>
-                  <p className="text-xs text-gray-500 uppercase">Business Name</p>
-                  <p className="text-sm font-medium text-gray-900">{user.businessName}</p>
-                </div>
-              )}
-              {user.abn && (
-                <div>
-                  <p className="text-xs text-gray-500 uppercase">ABN</p>
-                  <p className="text-sm font-medium text-gray-900">{user.abn}</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="lg:col-span-2">
-            <AdminNotesPanel
-              notes={adminNotes}
-              users={store.users}
-              onAddNote={handleAddNote}
-            />
-          </div>
-        </div>
+        <AdminNotesPanel notes={adminNotes} users={store.users} onAddNote={handleAddNote} />
 
         <AuditLogView
           logs={auditLogs}

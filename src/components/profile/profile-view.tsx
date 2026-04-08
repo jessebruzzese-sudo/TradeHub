@@ -10,7 +10,6 @@ import {
   ThumbsDown,
   Crown,
   ArrowLeft,
-  ArrowRight,
   TestTube,
   RotateCcw,
   User,
@@ -43,6 +42,7 @@ import { PricingBlueWrapper } from '@/components/marketing/PricingBlueWrapper';
 import { VerifiedBadge } from '@/components/verified-badge';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
+import { primaryButtonClass } from '@/components/ui/primary-button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { PremiumUpsellBar } from '@/components/premium-upsell-bar';
@@ -207,6 +207,7 @@ export function ProfileView({
   strengthCalc: strengthCalcProp,
   viewerLikeState: viewerLikeStateProp,
   e2eShowProfileStrength,
+  embedInParentLayout = false,
 }: {
   mode: ProfileViewMode;
   profile: any;
@@ -220,6 +221,8 @@ export function ProfileView({
    * (Playwright fixture profiles). Ignored when `NODE_ENV === 'production'`.
    */
   e2eShowProfileStrength?: boolean;
+  /** When true, render profile chrome only (no `AppLayout`) so a parent route can supply layout. */
+  embedInParentLayout?: boolean;
 }) {
   const isSelf = mode === 'self' || !!isMeProp;
   const { currentUser, session, updateUser, refreshUser } = useAuth();
@@ -588,8 +591,7 @@ export function ProfileView({
         ? "from-amber-100 via-amber-50 to-white"
         : "from-slate-100 via-slate-50 to-white";
 
-  return (
-    <AppLayout>
+  const profileBody = (
       <PricingBlueWrapper className="bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800">
         <div className="mx-auto max-w-5xl px-4 py-10 text-white">
           <div className="mb-6 flex items-center justify-between">
@@ -1024,11 +1026,18 @@ export function ProfileView({
                   ) : null}
 
                   <div className="pt-1">
-                    <Link href="/profile/availability">
-                      <Button variant="outline" className="gap-2">
-                        Update availability <ArrowRight className="h-4 w-4" />
-                      </Button>
-                    </Link>
+                    <Button asChild className={primaryButtonClass}>
+                      <Link href="/profile/availability" className="flex items-center gap-2">
+                        {!nextAvailable && !availLoading && (
+                          <span className="relative flex h-2 w-2">
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/70 opacity-60" />
+                            <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
+                          </span>
+                        )}
+                        <Calendar className="h-4 w-4" />
+                        {nextAvailable ? 'Update availability' : 'List availability'}
+                      </Link>
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -1327,6 +1336,11 @@ export function ProfileView({
           </div>
         </div>
       </PricingBlueWrapper>
-    </AppLayout>
   );
+
+  if (embedInParentLayout) {
+    return profileBody;
+  }
+
+  return <AppLayout>{profileBody}</AppLayout>;
 }

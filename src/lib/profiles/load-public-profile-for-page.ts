@@ -79,7 +79,7 @@ export type LoadPublicProfilePageResult =
   | {
       ok: true;
       data: Record<string, unknown>;
-      source: 'public_profile_directory' | 'users_public' | 'users_owner_private';
+      source: 'public_profile_directory' | 'users_public' | 'users_owner_private' | 'users_admin';
     }
   | { ok: false; reason: 'not_found' | 'test_account_hidden' };
 
@@ -190,7 +190,7 @@ export async function loadPublicProfileForPage(
   supabase: SupabaseClient<Database>,
   profileId: string,
   viewerId: string | null,
-  options?: { e2eScenarioQuery?: string | null }
+  options?: { e2eScenarioQuery?: string | null; adminView?: boolean }
 ): Promise<LoadPublicProfilePageResult> {
   dbg('profile page params.id', profileId);
   dbg('viewerId', viewerId);
@@ -228,12 +228,11 @@ export async function loadPublicProfileForPage(
   }
 
   if (row) {
-    if (
-      isLikelyTestAccount({
-        name: row.name as string | undefined,
-        businessName: row.business_name as string | undefined,
-      })
-    ) {
+    const likelyTest = isLikelyTestAccount({
+      name: row.name as string | undefined,
+      businessName: row.business_name as string | undefined,
+    });
+    if (likelyTest && !options?.adminView) {
       return { ok: false, reason: 'test_account_hidden' };
     }
     return { ok: true, data: row, source: 'public_profile_directory' };
@@ -265,18 +264,51 @@ export async function loadPublicProfileForPage(
           trades,
           primary_trade: raw.primary_trade ?? (mapped as { primary_trade?: string }).primary_trade,
         };
-        if (
-          isLikelyTestAccount({
-            name: withTrades.name as string | undefined,
-            businessName: withTrades.business_name as string | undefined,
-          })
-        ) {
+        const likelyTest = isLikelyTestAccount({
+          name: withTrades.name as string | undefined,
+          businessName: withTrades.business_name as string | undefined,
+        });
+        if (likelyTest && !options?.adminView) {
           return { ok: false, reason: 'test_account_hidden' };
         }
         return { ok: true, data: withTrades, source: 'users_public' };
       }
     } catch (e) {
       dbg('users service fallback threw', e);
+    }
+  }
+
+  if (options?.adminView && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    dbg('admin view: load users row via service (non-deleted, any visibility)');
+    try {
+      const admin = createServiceSupabase();
+      const { data: urow, error: uerr } = await admin
+        .from('users')
+        .select('*')
+        .eq('id', profileId)
+        .is('deleted_at', null)
+        .maybeSingle();
+      dbg('admin view users data', urow);
+      dbg('admin view users error', uerr);
+      if (!uerr && urow) {
+        const raw = urow as Record<string, unknown>;
+        const mapped = mapUserRowToPublicProfileShape(raw);
+        const trades = getDisplayTradeListFromUserRow({
+          primary_trade: raw.primary_trade as string | null | undefined,
+          additional_trades: raw.additional_trades as string[] | string | null | undefined,
+        });
+        return {
+          ok: true,
+          data: {
+            ...mapped,
+            trades,
+            primary_trade: raw.primary_trade ?? (mapped as { primary_trade?: string }).primary_trade,
+          },
+          source: 'users_admin',
+        };
+      }
+    } catch (e) {
+      dbg('admin view full user load threw', e);
     }
   }
 
@@ -305,12 +337,11 @@ export async function loadPublicProfileForPage(
     }
 
     const mapped = mapUserRowToPublicProfileShape(urow);
-    if (
-      isLikelyTestAccount({
-        name: mapped.name as string | undefined,
-        businessName: mapped.business_name as string | undefined,
-      })
-    ) {
+    const likelyTest = isLikelyTestAccount({
+      name: mapped.name as string | undefined,
+      businessName: mapped.business_name as string | undefined,
+    });
+    if (likelyTest && !options?.adminView) {
       return { ok: false, reason: 'test_account_hidden' };
     }
     return { ok: true, data: mapped, source: 'users_owner_private' };

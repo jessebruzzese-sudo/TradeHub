@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { primaryButtonClass } from '@/components/ui/primary-button';
 import { Search, Lightbulb, Users, ArrowLeft, MapPin, BadgeCheck, Crown, ArrowRight, Calendar } from 'lucide-react';
 import { UserAvatar } from '@/components/user-avatar';
 import { UnauthorizedAccess } from '@/components/unauthorized-access';
@@ -391,10 +392,7 @@ export default function SubcontractorsPage() {
                     </div>
                   )}
 
-                  <Button
-                    asChild
-                    className="h-10 rounded-full gap-2 px-5 shadow-md hover:shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700 transition-all"
-                  >
+                  <Button asChild className={primaryButtonClass}>
                     <Link href="/profile/availability" className="flex items-center gap-2">
                       {!nextAvailableLabel && !availLoading && (
                         <span className="relative flex h-2 w-2">

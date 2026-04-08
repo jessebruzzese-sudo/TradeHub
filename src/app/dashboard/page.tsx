@@ -51,6 +51,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { primaryButtonClass } from '@/components/ui/primary-button';
 
 
 function norm(v?: string | null) {
@@ -305,6 +306,7 @@ export default function DashboardPage() {
     (currentUser as any)?.account_status ?? (currentUser as any)?.accountStatus ?? 'active'
   );
   const [stats, setStats] = useState<Record<string, number>>({});
+  const [newJobsCount, setNewJobsCount] = useState(0);
   const [statusAccordionOpen, setStatusAccordionOpen] = useState(false);
   const [locationUpsellOpen, setLocationUpsellOpen] = useState(false);
   const [availDates, setAvailDates] = useState<string[]>([]);
@@ -312,7 +314,6 @@ export default function DashboardPage() {
   const [savedLocations, setSavedLocations] = useState<{ id: string }[] | null>(null);
   const { override: devUnreadOverride } = useDevUnread();
   const profileViews7d = Number((stats as any)?.profileViews7d ?? 0);
-  const searchAppearances7d = Number((stats as any)?.searchAppearances7d ?? 0);
   const unreadMessages =
     devUnreadOverride != null ? devUnreadOverride : Number((stats as any)?.unreadMessages ?? 0);
 
@@ -327,6 +328,23 @@ export default function DashboardPage() {
         }));
       })
       .catch(() => {});
+  }, [hasSession]);
+
+  useEffect(() => {
+    if (!hasSession) return;
+
+    const loadNewJobs = async () => {
+      try {
+        const res = await fetch('/api/dashboard/new-jobs');
+        const data = await res.json();
+        setNewJobsCount(typeof data?.count === 'number' ? data.count : 0);
+      } catch (err) {
+        console.error('Failed to load new jobs count', err);
+        setNewJobsCount(0);
+      }
+    };
+
+    void loadNewJobs();
   }, [hasSession]);
 
   const canPostJobListing = Boolean(currentUser && canCreateJob(currentUser));
@@ -719,10 +737,7 @@ export default function DashboardPage() {
               </div>
 
               <div className="flex items-center gap-2">
-                <Button
-                  asChild
-                  className="h-10 rounded-full gap-2 px-5 shadow-md hover:shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700 transition-all"
-                >
+                <Button asChild className={primaryButtonClass}>
                   <Link href="/profile/availability" className="flex items-center gap-2">
                     {!nextAvailableLabel && (
                       <span className="relative flex h-2 w-2">
@@ -970,11 +985,11 @@ export default function DashboardPage() {
             <Card className="rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200 shadow-md">
               <CardContent className="flex items-center gap-4 p-5">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
-                  <Search className="h-6 w-6" />
+                  <Briefcase className="h-5 w-5 text-blue-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{searchAppearances7d}</p>
-                  <p className="text-xs text-muted-foreground">Search appearances (7d)</p>
+                  <p className="text-2xl font-bold">{newJobsCount}</p>
+                  <p className="text-xs text-muted-foreground">Open jobs in your area</p>
                 </div>
               </CardContent>
             </Card>
