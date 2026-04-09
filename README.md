@@ -1,139 +1,327 @@
-Purpose
-Confirm TradeHub’s core functionality works as intended using one user account model, with behaviour controlled by role, subscription, and permissions — not account type.
+TradeHub QA Test Plan — DEV Fixes
+Goal
 
+Validate that the major platform fixes now work in real-world use:
 
-Tester: _______________
+messaging
+posting jobs
+search
+browse subcontractors trade filtering
+profile strength
+dashboard metrics
+admin controls
+support link
+Test setup
 
-1. Accounts & Setup
+Use at least:
 
-☐ User can sign up successfully
-☐ User can log in successfully
-☐ Session persists after page refresh
-☐ Logging out fully signs the user out (no auto re-login)
-☐ Refresh after logout stays logged out
-  Users Can successfully change profile avatar, avatar should stay on account via supabase
+1 admin account
+2 free user accounts in different trades
+1 premium user account
+1 additional normal user for messaging/job interaction
 
-2. Authentication & Navigation
+Recommended trade mix:
 
-☐ Signup validation works (clear errors shown)
-☐ Invalid login shows correct error
-☐ Visiting a protected page while logged out redirects to login
-☐ After login, user returns to original page
-☐ Back button does not restore logged-in state after logout
+Plumber
+Electrician
+Carpenter
+Premium plumber or premium electrician
+1. Account creation and admin signup alert
+Test
 
-3. Roles & Permission Behaviour
+Create a brand new TradeHub account.
 
-Using the same user account system, verify behaviour changes correctly:
+Expected result
+Account is created successfully
+Admin dashboard shows a new signup alert or pending review entry
+New signup appears in recent signups/admin review area
+Fail if
+Account creates but no admin alert appears
+Signup appears delayed or not at all
+Admin count is wrong
+2. Messaging between users
+Test
 
-☐ User with contractor permissions can post a job (when ABN verified)
-☐ User without required verification cannot post a job
-☐ User with subcontracting permissions can list availability
-☐ UI hides actions the user cannot perform
-☐ Restricted actions are blocked server-side (not UI-only)
+From User A:
 
-4. Job Visibility & Trades
+open another user’s profile
+click Message
+send a message
 
-Post a job requiring a specific trade (e.g. Electrical):
+From User B:
 
-☐ User with matching trade sees the job in discovery (within radius rules)
-☐ User with a non-matching trade does not see irrelevant listings
+open inbox
+confirm message is visible
+reply
 
-Job detail page:
-☐ Poster and applicants see the correct scope and actions for their role
+From User A:
 
-5. Applications
+confirm reply is received
+Expected result
+conversation opens correctly
+messages send successfully
+both users see the same thread
+no blank thread, failed send, or hidden conversation
+unread count increases before opening, then clears after opening thread
+Fail if
+clicking message does nothing
+thread opens but messages do not load
+sent messages do not appear for recipient
+unread count stays wrong
+3. Admin direct messaging
+Test
 
-☐ Eligible user can apply or message on a job
-☐ User cannot apply to their own job posting (where enforced)
+From admin user page:
 
-6. Messaging
+open a user profile in admin
+click Message User
+send a message
+Expected result
+admin can start or reuse a direct thread
+normal user receives the admin message in inbox
+reply path works both ways
+Fail if
+button is missing
+message thread fails to create
+user does not receive admin message
+4. Post job flow
+Test
 
-☐ Job-related thread is created correctly
-☐ Only users involved can access the thread
-☐ Messages send and receive correctly
-☐ Refresh preserves message history
-☐ Unread indicators behave correctly
+Using a valid contractor/trade account:
 
-7. Availability Listings
+go to Post Job
+complete all required fields
+submit
 
-☐ User can list availability dates
-☐ Availability description saves correctly
-☐ Dates display accurately (no timezone issues)
-☐ Past dates handled correctly
-☐ Availability can be edited or removed
+Then:
 
-8. ABN / Verification Rules
+check job appears in relevant listings
+open the job detail page
+Expected result
+form submits successfully
+no silent failure
+job saves correctly
+job appears in listings immediately if it meets normal visibility rules
+Fail if
+submit hangs
+error appears unexpectedly
+job saves but does not show up
+wrong trade or job details saved
+5. Browse subcontractors — same trade logic
+Test
 
-☐ Unverified users can still:
+Log in as a free Plumbing user and visit Browse Subcontractors.
 
-List availability
+Expected result
+only plumbing users are shown by default
+non-plumbing users are not shown
 
-Apply for standard jobs
+Repeat with an Electrical user.
 
-Access dashboard
+Fail if
+other trades appear for free users
+wrong trade results show up
+empty state appears even though matching users exist
+6. Premium browse subcontractors behavior
+Test
 
-☐ Features that require verification or upgrade show correct prompts
-☐ Verification does not unintentionally block onboarding
+Log in as a premium user:
 
-9. Premium Feature Gating
+open Browse Subcontractors
+select multiple trades
+optionally use browse all if available
+Expected result
+premium user can view selected multiple trades
+results reflect selected trades correctly
+behavior stays stable when toggling filters
+Fail if
+premium still behaves like free
+selected trades do not change results
+wrong users appear
+7. Search logic
+Test
 
-☐ Multi-trade selection requires upgrade
-☐ Non-premium users see lock or upgrade CTA
-☐ Premium users can access gated features
+On the search page:
 
-Search-from-location (if enabled):
-☐ Premium users use search-from location
-☐ Non-premium users use base location only
-☐ Base location is not overwritten
+search by name
+search by trade
+search by partial keyword
+search with and without filters
 
-10. Admin (If Applicable)
+Use accounts you already know should match.
 
-☐ Admin login works
-☐ Admin pages load without errors
-☐ User lists and detail views work
-☐ Non-admin users cannot access admin routes
+Expected result
+valid matches appear
+no false empty states when users exist
+results are relevant to the search term
+visible/public users appear correctly
+Fail if
+obvious matches are missing
+results are empty when data exists
+irrelevant users dominate
+search behaves inconsistently between refreshes
+8. Premium users rank first on search
+Test
 
-11. Security & Edge Cases
+Search for a term that returns both premium and non-premium users in the same trade.
 
-☐ Invalid return URLs are blocked
-☐ Direct access to restricted routes is blocked
-☐ Users cannot access or edit other users’ data
-☐ No major console errors during normal use
+Expected result
+premium users appear above non-premium users
+within that order, results still look sensible by strength/relevance/rating
+Fail if
+non-premium users appear above premium without a clear reason
+ordering changes randomly between loads
+9. Profile strength logic
+Test
 
-12. UX & Stability
+Open a user profile and record current profile strength.
+Then update profile fields such as:
 
-☐ Mobile layout usable
-☐ No broken layouts or overlapping elements
-☐ No infinite loading states
-☐ App feels stable during normal usage
+ABN
+bio
+profile image
+links/socials
+trade fields
+phone visibility or other completion items
 
-Bug Reporting (Required)
+Refresh profile.
 
-For every issue found, include:
+Expected result
+score changes appropriately
+band/category updates correctly
+score is not stuck at 0
+changes feel consistent with profile completeness
+Fail if
+score does not move after meaningful edits
+score remains 0 despite complete profile
+frontend score clearly disagrees with actual profile state
+10. Dashboard performance bar
+Test
 
-Steps to reproduce
+For a normal user, verify:
 
-Expected vs actual result
+Profile views
+Jobs
+Unread messages
 
-Screenshot or screen recording
+Run supporting actions:
 
-Console or network errors
+view the profile from another account
+send unread messages
+create a job if applicable
 
-Severity (Critical / Major / Minor)
+Then refresh dashboard.
 
+Expected result
+counts update to reflect real activity
+unread messages drop after thread is opened/read
+jobs count reflects actual visible jobs logic
+profile views increase after another user views the profile
+Fail if
+all metrics stay at 0
+unread count never changes
+profile views never move
+jobs count is obviously wrong
+11. Admin jobs moderation
+Test
 
-13. Branding / Logo Update
+As admin:
 
-☐ New TradeHub logo files received and added to the repo
-☐ Logo updated in header/nav (desktop + mobile)
-☐ Logo updated on landing/hero (if shown there)
-☐ Logo updated on auth pages (login/signup)
-☐ Logo updated on favicon / app icon (browser tab)
-☐ No old logo appears anywhere in the app (search “logo” + visual check)
-☐ Logo looks correct on light/dark backgrounds and different screen sizes
+open admin jobs list
+open several job detail pages
+delete a job
+Expected result
+admin can view all jobs, including older ones
+detail pages load correctly
+delete works and removes the job from admin list and normal user view where applicable
+Fail if
+some jobs show “not found”
+delete fails
+only recent jobs appear
+12. Admin premium upgrade
+Test
 
-Notes:
+As admin:
 
-Confirm no broken image links
+open a user
+grant premium
+have that user refresh and test premium-only features
 
-Confirm image sizing/alignment doesn’t shift layout
+Then:
+
+remove premium if safe to test on a non-live billing account
+Expected result
+premium status updates correctly
+premium features unlock
+admin can control premium without touching Supabase manually
+Fail if
+upgrade button does nothing
+user still behaves as free
+removing premium leaves account in broken state
+13. Admin ban / delete moderation
+Test
+
+As admin:
+
+ban a normal user
+try to use that user account
+restore if needed
+soft-delete a test user
+confirm access is blocked
+Expected result
+banned user cannot continue using app
+deleted/suspended user is blocked correctly
+restore/unban returns access where intended
+Fail if
+banned user can still browse/use app
+deleted user still behaves normally
+admin cannot restore safely
+14. Help / Support link
+Test
+
+Check Help / Support from:
+
+header
+mobile menu
+dashboard/sidebar
+Expected result
+each opens email to support@tradehub.com.au
+Fail if
+wrong email opens
+dead link
+inconsistent behavior across menus
+Pass / fail template for testers
+
+Use this simple format for each section:
+
+Test name:
+Pass or fail:
+What happened:
+Screenshot attached: Yes / No
+Device used:
+Account used:
+
+Example:
+
+Test name: Messaging between users
+Pass or fail: Fail
+What happened: Message sent from User A but did not appear for User B until full refresh
+Screenshot attached: Yes
+Device used: iPhone 15
+Account used: plumber_test_1
+
+Priority order for your testers
+
+Have them test in this order:
+
+Account signup + admin alerts
+Messaging
+Post job
+Search
+Browse subcontractors
+Profile strength
+Dashboard metrics
+Admin controls
+Help/support link
+
+That order follows the most important launch-risk areas first, based on the fixes described in your dev notes.
