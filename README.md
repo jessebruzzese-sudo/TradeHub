@@ -324,4 +324,143 @@ Dashboard metrics
 Admin controls
 Help/support link
 
-That order follows the most important launch-risk areas first, based on the fixes described in your dev notes.
+Admin only fixes
+1. Admin Accounts Must Be Able To View All User Accounts
+
+Admin users need unrestricted visibility across the entire platform.
+
+Requirements
+Admin dashboard must display all registered accounts.
+Admins must be able to:
+Search users
+Filter users
+View active/inactive users
+View premium/free users
+View verified/unverified users
+View contractors/subcontractors
+Admin access must bypass normal frontend visibility restrictions and RLS limitations where appropriate (service-role/server-side access only).
+User List Should Include
+Full name
+Business name
+Email
+Role
+Plan (Free/Premium)
+Verification status
+ABN status
+Created date
+Last active date
+Number of jobs posted
+Number of applications/messages
+Account status (active/banned/suspended)
+2. Admins Must Be Able To Upgrade Accounts Without Stripe Payment
+
+Admins need manual subscription controls for support/testing/promotional purposes.
+
+Requirements
+
+Admins must be able to:
+
+Upgrade any user to Premium manually
+Downgrade users manually
+Grant temporary Premium access
+Override Stripe subscription requirements
+Apply Premium without requiring checkout/payment
+Suggested Fields
+plan
+is_premium
+premium_expires_at
+subscription_source
+Suggested Logic
+
+Allow values such as:
+
+stripe
+admin
+promo
+founder
+beta
+Important
+
+Admin-granted Premium must:
+
+Unlock all Premium features immediately
+Work exactly like Stripe Premium
+Not be removed by webhook sync logic
+Be clearly identifiable in admin panel
+3. Admins Need Visibility Into Which Accounts Create Jobs
+
+Admins need moderation and platform activity visibility.
+
+Requirements
+
+Admin dashboard must clearly show:
+
+Which users created jobs
+Job status
+Job creation dates
+Open/closed jobs
+Deleted jobs
+Number of applicants
+Job List Should Display
+Job title
+Contractor/business name
+User ID
+Created date
+Status
+Trade category
+Location
+Applicant count
+Additional Admin Actions
+
+Admins should be able to:
+
+Open job detail page
+View contractor profile
+Remove jobs
+Close jobs
+Flag suspicious jobs
+See all jobs platform-wide
+4. Admin User Detail Page Must Show Complete Account Information
+
+The admin user page should function as a full internal account overview.
+
+Admin Must Be Able To See
+Identity / Account
+User ID
+Email
+Phone number
+Full name
+Business name
+Role
+Account created date
+Last active date
+Subscription
+Free/Premium
+Subscription source
+Subscription status
+Premium expiry date
+Verification
+ABN status
+Verification status
+Uploaded verification docs
+Verified badge eligibility
+Profile Data
+Primary trade
+Additional trades
+Bio
+Locations
+Radius settings
+Availability status
+Activity
+Jobs posted
+Applications submitted
+Messages/conversations
+Works uploaded
+Reviews/ratings
+Profile strength score
+Moderation
+Ban/suspend account
+Delete account
+Remove Premium
+Add admin notes
+View reports/flags
