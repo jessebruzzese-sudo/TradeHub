@@ -1,3 +1,5 @@
+JesseBruzzese@gmail.com
+
 TradeHub QA Test Plan — DEV Fixes
 Goal
 
