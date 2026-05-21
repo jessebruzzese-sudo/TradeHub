@@ -5,7 +5,6 @@ import Image from 'next/image';
 import Cropper from 'react-easy-crop';
 import type { Area } from 'react-easy-crop';
 import { toast } from 'sonner';
-import { getBrowserSupabase } from '@/lib/supabase-client';
 import { getCroppedImageBlob } from '@/lib/crop-image';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Slider } from '@/components/ui/slider';
@@ -40,7 +39,6 @@ export function ProfileAvatar({
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isAutoCenteringRef = useRef(false);
-  const supabase = getBrowserSupabase();
   const formatSbError = (err: unknown): string => {
     if (!err) return '';
     if (typeof err === 'string') return err;
@@ -151,6 +149,7 @@ export function ProfileAvatar({
       | null = null;
 
     try {
+	/*
       lastOp = 'auth.getSession';
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       if (sessionError) throw sessionError;
@@ -187,6 +186,7 @@ export function ProfileAvatar({
 
       setCropOpen(false);
       setImageSrc(null);
+	*/
     } catch (error: unknown) {
       console.error('[ProfileAvatar] crop upload failed', {
         userId,

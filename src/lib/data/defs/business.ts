@@ -1,0 +1,22 @@
+// vim: ts=2
+import { unique, pgTable, boolean, text, uuid, date, timestamp, integer, real } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { tradesTable } from "@/lib/data/defs/trades";
+
+export const businessTable = pgTable("business", {
+	id: uuid("id").notNull().primaryKey().default(sql`gen_random_uuid()`),
+	businessName: text("business_name"),
+	abn: text("abn"),
+	abnEntityName: text("abn_entity_name"),
+	abnEntityType: text("abn_entity_type"),
+	abnVerified: text("abn_verified"),
+	location: text("location"), // address, move locations details to own table?
+	postcode: text("postcode"),
+	locationLat: text("latitude"),
+	locationLng: text("longitude")
+});
+
+export const businessTradeTable = pgTable("business_trade", {
+	businessId: uuid("business_id").notNull().references(()=>businessTable.id),
+	tradeId: uuid("trade_id").notNull().references(()=>tradesTable.id)
+}, (table)=>[unique({name: "uc_business_trade", columns:[businessTable.id, tradesTable.id]})]);

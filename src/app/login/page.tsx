@@ -1,5 +1,5 @@
 'use client';
-
+// vim: ts=2
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -17,10 +17,8 @@ function getFriendlyLoginError(error: any): string {
   if (!error) {
     return 'Invalid email or password. Please check your credentials and try again.';
   }
-
   const errorMessage = (error?.message || '').toLowerCase();
   const errorCode = error?.code || error?.status || '';
-
   // Invalid credentials
   if (
     errorMessage.includes('invalid login') ||
@@ -32,7 +30,6 @@ function getFriendlyLoginError(error: any): string {
   ) {
     return 'Invalid email or password. Please check your credentials and try again.';
   }
-
   // Network/connection errors
   if (
     errorMessage.includes('network') ||
@@ -43,7 +40,6 @@ function getFriendlyLoginError(error: any): string {
   ) {
     return 'Network error. Please check your connection and try again.';
   }
-
   // Rate limiting
   if (
     errorMessage.includes('too many requests') ||
@@ -52,50 +48,47 @@ function getFriendlyLoginError(error: any): string {
   ) {
     return 'Too many login attempts. Please wait a moment and try again.';
   }
-
   // Default fallback
   return 'Unable to sign in. Please try again later.';
 }
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+	const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [showPassword, setShowPassword] = useState<boolean>(false);
   const [error, setError] = useState('');
 
-  const { login, currentUser, isLoading } = useAuth();
+  const { login, jwt } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const returnUrlParam = searchParams.get('returnUrl');
 
   // If already logged in, redirect away from /login
   useEffect(() => {
-    if (!isLoading && currentUser) {
-      const defaultUrl = isAdmin(currentUser) ? '/admin' : '/dashboard';
-      const safeReturnUrl = getSafeReturnUrl(returnUrlParam, defaultUrl);
-      console.log('[Login] Auto-redirecting logged-in user to:', safeReturnUrl);
-      safeRouterReplace(router, safeReturnUrl, defaultUrl);
+    if (!isLoading && jwt) {
+     	isAdmin(jwt).then((adminResult)=>{
+				const defaultUrl = adminResult ? "/admin" : "/dashboard";
+      	const safeReturnUrl = getSafeReturnUrl(returnUrlParam, defaultUrl);
+      	console.log('[Login] Auto-redirecting logged-in user to:', safeReturnUrl);
+      	safeRouterReplace(router, safeReturnUrl, defaultUrl);
+			});
     }
-  }, [currentUser, isLoading, returnUrlParam, router]);
+  }, [isLoading, returnUrlParam, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-
     try {
-    await login(email, password);
-
-// If login() succeeds (no throw), redirect:
-const defaultUrl = isAdmin(currentUser) ? '/admin' : '/dashboard';
-const safeReturnUrl = getSafeReturnUrl(returnUrlParam, defaultUrl);
-
-console.log('[Login] Login successful, redirecting to:', safeReturnUrl);
-safeRouterReplace(router, safeReturnUrl);
-
+			setIsLoading(true);
+    	const token = await login(email, password);
+			const defaultUrl = await isAdmin(token) ? '/admin' : '/dashboard';
+			const safeReturnUrl = getSafeReturnUrl(returnUrlParam, defaultUrl);
+			safeRouterReplace(router, safeReturnUrl);
     } catch (err: any) {
       const friendlyError = getFriendlyLoginError(err);
+			setIsLoading(false);
       setError(friendlyError);
-      console.error('Login failed:', err);
     }
   };
 
@@ -108,7 +101,6 @@ safeRouterReplace(router, safeReturnUrl);
       </AppLayout>
     );
   }
-
   return (
     <AppLayout>
       <div className="relative min-h-screen bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800">

@@ -1,5 +1,9 @@
-import { createServerClient } from '@supabase/ssr';
+// vim: ts=2
+
 import { NextResponse, type NextRequest } from 'next/server';
+import { headers, cookies } from "next/headers";
+import { ENV } from "@/lib/env";
+import * as jose from "jose";
 
 function applyResponseCookies(from: NextResponse, to: NextResponse) {
   for (const cookie of from.cookies.getAll()) {
@@ -60,10 +64,9 @@ function isApiRoute(pathname: string): boolean {
 
 function shouldSkip(pathname: string): boolean {
   // ✅ IMPORTANT: do NOT skip /api/admin/*
-  if (pathname.startsWith('/api/admin')) return false;
+  if (pathname.startsWith('/api/')) return false;
 
   return (
-    pathname.startsWith('/api/') ||
     pathname.startsWith('/_next/') ||
     pathname === '/favicon.ico' ||
     pathname.startsWith('/logo') ||
@@ -99,7 +102,7 @@ function validateReturnUrl(url: string | null, fallback: string): string {
   return trimmed;
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
   if (pathname.startsWith('/how-it-works/subcontractors')) {
@@ -112,35 +115,27 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
   // Only mutate response cookies (no request.cookies.set / no NextResponse.next() per cookie).
   // That pattern can disturb or lock request bodies for downstream handlers (e.g. POST in Playwright).
   let response = NextResponse.next();
+	
+	const store = await cookies();	
+	const cookie = store.get("authorization") ?? null;
+	const authorization = cookie?.value ?? null;
+	let isAuthenticated = false;
+	let isAdmin = false;
+	try{
+		const secret = new TextEncoder().encode(ENV.jwt.secret);
+		await jose.jwtVerify(authorization, secret);
+		const claims = await jose.decodeJwt(authorization);
+		isAuthenticated = true;
+		isAdmin = claims.role?.toLowerCase() === "admin";
+	}catch(err_){
+		//console.error(err_);
+		isAuthenticated = false;
+	}
 
-  if (!supabaseUrl || !supabaseAnon) {
-    return response;
-  }
-
-  const supabase = createServerClient(supabaseUrl, supabaseAnon, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value, options }) => {
-          response.cookies.set(name, value, options);
-        });
-      },
-    },
-  });
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const isAuthenticated = !!user;
+	//console.log(`[middleware] AUTH = ${isAuthenticated} ADMIN = ${isAdmin}`);
 
   // -------------------------
   // 1) ADMIN LOCKDOWN
@@ -160,25 +155,7 @@ export async function middleware(request: NextRequest) {
       const redirectResponse = NextResponse.redirect(loginUrl);
       return applyResponseCookies(response, redirectResponse);
     }
-
-    const { data: profile, error: profileErr } = await supabase
-      .from('users')
-      .select('is_admin')
-      .eq('id', user.id)
-      .single();
-
-    if (profileErr) {
-      if (isApiRoute(pathname)) {
-        return NextResponse.json(
-          { error: 'USER_LOOKUP_FAILED', source: 'middleware' },
-          { status: 404 }
-        );
-      }
-      const redirectResponse = NextResponse.redirect(new URL('/dashboard', request.url));
-      return applyResponseCookies(response, redirectResponse);
-    }
-
-    if (profile?.is_admin !== true) {
+    if (isAdmin !== true) {
       if (isApiRoute(pathname)) {
         return NextResponse.json(
           { error: 'NOT_ADMIN', source: 'middleware' },

@@ -17,19 +17,20 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { getBrowserSupabase } from '@/lib/supabase-client';
 import { UnauthorizedAccess } from '@/components/unauthorized-access';
 import { notifyContractorsAboutAvailability } from '@/lib/notification-utils';
 
 export default function AvailabilityPage() {
-  const { currentUser, isLoading } = useAuth();
-  const supabase = getBrowserSupabase();
+
+  const { jwt } = useAuth();
   const router = useRouter();
+		
+	const [isLoading, setIsLoading] = useState<boolean>(false);
+	const [currentUser, setCurrentUser] = useState<any|null>(null);
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
   const [isRefining, setIsRefining] = useState(false);
-
   const [pricingType, setPricingType] = useState<string>('');
   const [pricingAmount, setPricingAmount] = useState<string>('');
   const [showPricingPublicly, setShowPricingPublicly] = useState(false);
@@ -37,48 +38,26 @@ export default function AvailabilityPage() {
   const userId = currentUser?.id ?? null;
 
   const loadAvailability = useCallback(async () => {
-    if (!userId) return;
-
+    if (!isLoading) return;
     try {
-      const { data: availabilityData, error: availError } = await supabase
-        .from('subcontractor_availability')
-        .select('date, description')
-        .eq('user_id', userId);
-
-      let descriptionFromAvailability: string | null = null;
-      if (!availError && availabilityData && availabilityData.length > 0) {
-        const dates = availabilityData.map((item: any) => new Date(item.date));
-        setSelectedDates(dates);
-        if (availabilityData[0].description) {
-          descriptionFromAvailability = availabilityData[0].description;
-          setDescription(availabilityData[0].description);
-        }
-      }
-
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('availability_description')
-        .eq('id', userId)
-        .maybeSingle();
-
-      const hasDescriptionFromAvailability =
-        descriptionFromAvailability != null && descriptionFromAvailability !== '';
-      if (
-        !userError &&
-        userData?.availability_description &&
-        !hasDescriptionFromAvailability
-      ) {
-        setDescription(userData.availability_description);
+			const response_ = await apiClient.get("/api/me/availability");
+			const availability = response_.data; // description with dates ...
+			const dates: string[] = availability.dates; 
+			const description: string = availability.description;
+      if (dates != null && dates.length > 0) {
+        const dates_ = dates.map((item: any) => new Date(item));
+        setSelectedDates(dates_);
+        setDescription(description);
       }
     } catch (err) {
       console.error('Error loading availability:', err);
     }
-  }, [userId, supabase]);
+  }, [isLoading]);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!isLoading) return;
     loadAvailability();
-  }, [userId, loadAvailability]);
+  }, [isLoading, loadAvailability]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -192,11 +171,13 @@ export default function AvailabilityPage() {
     }
   }
 
-  const showLoadingState = isLoading;
-  const showUnauthorized = !isLoading && !currentUser;
-  const showContent = currentUser != null;
+	const isLoggedIn = jwt === null || jwt === undefined;
 
-  if (showLoadingState) {
+  if (!isLoggedIn) {
+    return <UnauthorizedAccess redirectTo="/login" />;
+  }
+
+  if (isLoading){
     return (
       <AppLayout>
         <div className="flex min-h-[60vh] items-center justify-center text-sm text-slate-600">
@@ -204,14 +185,6 @@ export default function AvailabilityPage() {
         </div>
       </AppLayout>
     );
-  }
-
-  if (showUnauthorized) {
-    return <UnauthorizedAccess redirectTo="/login" />;
-  }
-
-  if (!showContent) {
-    return null;
   }
 
   return (

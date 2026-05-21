@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Lock, Info } from 'lucide-react';
-import { useNavigation, useDayPicker, Button } from 'react-day-picker';
-import { Calendar } from '@/components/ui/calendar';
+import { DayPicker } from 'react-day-picker';
+import "react-day-picker/style.css";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PremiumUpsellBar } from '@/components/premium-upsell-bar';
@@ -94,98 +94,13 @@ export function AvailabilityCalendar({
     return 'range_single';
   };
 
-  const premiumCalendarClassNames = {
-    months: 'flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0',
-    month: 'space-y-6',
-    caption: 'relative',
-    caption_label: 'flex items-center justify-center gap-2',
-    nav: 'flex items-center justify-between w-full',
-    nav_button:
-      'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:border-slate-300 hover:text-slate-700 transition-colors',
-    nav_button_previous: '',
-    nav_button_next: '',
-    table: 'w-full border-collapse',
-    head_row: 'grid grid-cols-7 mb-4',
-    head_cell:
-      'text-[13px] font-medium text-slate-400 h-9 flex items-center justify-center',
-    row: 'grid grid-cols-7 w-full mt-3',
-    cell: 'h-11 text-center text-sm p-0 relative flex items-center justify-center focus-within:relative focus-within:z-20',
-    day: 'h-11 w-11 min-w-0 p-0 font-normal text-slate-700 hover:bg-blue-50 transition-colors aria-selected:opacity-100 flex items-center justify-center rounded-full',
-    day_range_end: 'day-range-end',
-    day_selected:
-      'bg-blue-600 text-white hover:bg-blue-500 focus:bg-blue-600 focus:text-white',
-    day_today:
-      'border border-blue-300 text-blue-700 [&[aria-selected]]:border-transparent [&[aria-selected]]:text-white',
-    day_outside: 'text-slate-300 opacity-50',
-    day_disabled: 'text-slate-300 opacity-40 cursor-not-allowed hover:bg-transparent',
-    day_range_middle: 'aria-selected:bg-blue-600 aria-selected:text-white',
-    day_hidden: 'invisible',
-  };
-
-  const rangeModifiers = {
-    range_single: (date: Date) => getRangeModifier(date) === 'range_single',
-    range_start: (date: Date) => getRangeModifier(date) === 'range_start',
-    range_middle: (date: Date) => getRangeModifier(date) === 'range_middle',
-    range_end: (date: Date) => getRangeModifier(date) === 'range_end',
-  };
-
-  const rangeModifiersClassNames = {
-    range_single: 'rounded-full',
-    range_start: '!rounded-l-full !rounded-r-none',
-    range_middle: '!rounded-none',
-    range_end: '!rounded-r-full !rounded-l-none',
-  };
-
-  const CustomCaptionLabel = ({ displayMonth }: { displayMonth: Date }) => (
-    <div className="flex items-center justify-center gap-2">
-      <CalendarIcon className="h-5 w-5 text-blue-600" />
-      <span className="text-[18px] font-semibold text-slate-800">
-        {format(displayMonth, 'MMMM yyyy')}
-      </span>
-    </div>
-  );
-
-  const CustomCaption = ({ displayMonth, id }: { displayMonth: Date; id?: string }) => {
-    const { previousMonth, nextMonth, goToMonth } = useNavigation();
-    const { classNames, labels, locale, components } = useDayPicker();
-    const IconLeft = components?.IconLeft ?? (() => <ChevronLeft className="h-4 w-4" />);
-    const IconRight = components?.IconRight ?? (() => <ChevronRight className="h-4 w-4" />);
-    const prevLabel = labels?.labelPrevious?.(previousMonth, { locale }) ?? 'Previous month';
-    const nextLabel = labels?.labelNext?.(nextMonth, { locale }) ?? 'Next month';
-
-    return (
-      <div className="mb-6 grid grid-cols-[40px_1fr_40px] items-center" id={id}>
-        <Button
-          name="previous-month"
-          aria-label={prevLabel}
-          className={`${classNames.nav_button} ${classNames.nav_button_previous} justify-self-start`}
-          disabled={!previousMonth}
-          onClick={() => previousMonth && goToMonth(previousMonth)}
-        >
-          <IconLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex items-center justify-center gap-2">
-          <CustomCaptionLabel displayMonth={displayMonth} />
-        </div>
-        <Button
-          name="next-month"
-          aria-label={nextLabel}
-          className={`${classNames.nav_button} ${classNames.nav_button_next} justify-self-end`}
-          disabled={!nextMonth}
-          onClick={() => nextMonth && goToMonth(nextMonth)}
-        >
-          <IconRight className="h-4 w-4" />
-        </Button>
-      </div>
-    );
-  };
-
   const innerContent = (
     <div className="space-y-4">
       {/* Calendar panel — Google-style widget */}
       <div className="flex justify-center px-2 py-4 md:py-5">
         <div className="w-full max-w-[400px] rounded-[28px] border border-slate-200/70 bg-white px-7 py-7 shadow-[0_4px_20px_rgba(15,23,42,0.06)]">
-          <Calendar
+          <DayPicker
+	    animate
             mode="multiple"
             selected={selectedDates}
             onSelect={(dates) => {
@@ -195,18 +110,6 @@ export function AvailabilityCalendar({
                 );
                 onDatesChange(validDates);
               }
-            }}
-            disabled={disabledMatcher}
-            className="p-0"
-            classNames={premiumCalendarClassNames}
-            modifiers={rangeModifiers}
-            modifiersClassNames={rangeModifiersClassNames}
-            numberOfMonths={1}
-            components={{
-              Caption: CustomCaption,
-              CaptionLabel: CustomCaptionLabel,
-              IconLeft: () => <ChevronLeft className="h-4 w-4" />,
-              IconRight: () => <ChevronRight className="h-4 w-4" />,
             }}
           />
         </div>

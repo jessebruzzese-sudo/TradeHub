@@ -1,23 +1,19 @@
 // @ts-nocheck
+// vim: ts=2
 'use client';
-
 export const dynamic = "force-dynamic";
-
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/lib/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { getAxios } from "@/lib/utils";
 import Link from 'next/link';
 import Image from 'next/image';
-
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { TradeMultiSelect } from '@/components/trade-multiselect';
 import { SuburbAutocomplete } from '@/components/suburb-autocomplete';
-
 import { getSafeReturnUrl, safeRouterReplace } from '@/lib/safe-nav';
 import { normalizeTradesList } from '@/lib/trades/normalizeTrade';
-import { getBrowserSupabase } from '@/lib/supabase-client';
 import { toast } from 'sonner';
 import { normalizeAbnForDb } from '@/lib/abn-normalize';
 
@@ -92,49 +88,13 @@ async function persistAbnVerification(params: {
   entityName?: string | null;
   verified: boolean;
 }) {
-  const supabase = getBrowserSupabase();
-
-  const { data: userRes, error: userErr } = await supabase.auth.getUser();
-  if (userErr || !userRes?.user) throw new Error('NOT_AUTHENTICATED');
-
-  const userId = userRes.user.id;
   const nowIso = new Date().toISOString();
   const abnDigits = normalizeAbnForDb(params.abn);
-  if (!abnDigits) throw new Error('PERSIST_FAILED');
-
   if (params.verified) {
-    const { error } = await supabase
-      .from('users')
-      .update({
-        abn: abnDigits,
-        abn_status: 'VERIFIED',
-        abn_verified: true,
-        abn_verified_at: nowIso,
-        business_name: params.entityName ?? null,
-      })
-      .eq('id', userId);
-
-    if (error) {
-      console.error('[abn] persist verified failed', error);
-      throw new Error('PERSIST_FAILED');
-    }
+		// ABN was verified
     return;
   }
-
-  const { error } = await supabase
-    .from('users')
-    .update({
-      abn: abnDigits,
-      abn_status: 'UNVERIFIED',
-      abn_verified: false,
-      abn_verified_at: null,
-    })
-    .eq('id', userId);
-
-  if (error) {
-    console.error('[abn] persist unverified failed', error);
-    throw new Error('PERSIST_FAILED');
-  }
+	// ABN not verified	
 }
 
 function CollapsibleSection({
@@ -234,12 +194,13 @@ export default function SignupPage() {
   useEffect(() => {
     setCurrentStep(openSection >= 1 ? openSection : 1);
   }, [openSection]);
-
+	/* USER DETAILS */
   const [fullName, setFullName] = useState('');
   const [visibleName, setVisibleName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+	/* BUSINESS DETAILS */
   const [tradeCategories, setTradeCategories] = useState<string[]>([]);
   const [businessName, setBusinessName] = useState('');
   const [abn, setAbn] = useState('');
@@ -273,6 +234,7 @@ export default function SignupPage() {
   const progressPct = Math.round((completedCount / TOTAL_STEPS) * 100);
 
   // Step 1 validation
+  // TODO check this validation
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   const hasLetter = /[A-Za-z]/.test(password);
   const hasNumber = /[0-9]/.test(password);
@@ -298,29 +260,23 @@ export default function SignupPage() {
     postcode.trim().length > 0;
   const step6Valid = formValid;
 
-  const { signup, currentUser } = useAuth();
-
+  // called onclick on verify abn 
+  // I'm assuming
   const verifyAbnNow = async () => {
     const clean = (abn || '').replace(/\s/g, '');
-
     setAbnError(null);
-
     if (!/^\d{11}$/.test(clean)) {
       setAbnError('Enter a valid 11-digit ABN');
       return;
     }
-
     try {
       setAbnVerifying(true);
-
       const res = await fetch('/api/abn/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ abn: clean }),
       });
-
       const data = await res.json();
-
       if (!res.ok) {
         setAbnError(data?.error || 'ABN verification failed');
         persistAbnVerification({
@@ -330,7 +286,6 @@ export default function SignupPage() {
         }).catch(() => {});
         return;
       }
-
       if (currentUser?.id) {
         try {
           await persistAbnVerification({
@@ -359,8 +314,7 @@ export default function SignupPage() {
       setAbnVerifying(false);
     }
   };
-  // TODO: Map to canonical billing fields (plan, subscription_status) if backend adds them to signup payload
-  const isPremium = currentUser?.isPremium === true;
+  const isPremium = false;
   const router = useRouter();
   const searchParams = useSearchParams();
   const returnUrlParam = searchParams.get('returnUrl');
@@ -392,33 +346,38 @@ export default function SignupPage() {
   const handleSignup = async () => {
     setError('');
     setLoading(true);
-
     try {
-      // Backward compat: backend expects primary_trade (single). TODO: migrate fully to trade_categories.
-      const normalizedTrades =
-        tradeCategories.length > 0 ? normalizeTradesList(tradeCategories) : [];
-      const primaryTrade = normalizedTrades[0] ?? null;
-
-      await signup(visibleName?.trim() || '', email, password, primaryTrade ?? '', {
-        businessName,
-        abn,
-        abnEntityName: abnVerified ? abnEntityName ?? undefined : undefined,
-        abnEntityType: abnVerified ? abnEntityType ?? undefined : undefined,
-        abnVerified: abnVerified ? true : undefined,
-        location,
-        postcode,
-        locationLat: hasValidCoordPair(locationLat, locationLng) ? locationLat : undefined,
-        locationLng: hasValidCoordPair(locationLat, locationLng) ? locationLng : undefined,
-        availability: {},
-        tradeCategories,
-        trades: normalizedTrades,
-        legal_name: fullName,
-      });
-
+      const normalizedTrades = tradeCategories.length > 0 ? normalizeTradesList(tradeCategories) : [];
+      const primaryTrade = normalizedTrades[0] ?? null;		
+			const payload: any = {
+        name: fullName,
+				visibleName: visibleName?.trim() || null,
+				email,
+				password,
+				accountStatus: "active",
+				business: {
+					primaryTrade,
+					businessName,
+					abn,
+					abnEntityName,
+					abnEntityType,
+					abnVerified,
+					location,	
+					postcode,
+					locationLat,
+					locationLng,
+					availability: null, // TODO why's this here then?
+        	tradeCategories,
+					trades: normalizedTrades,
+				}
+			};
+			// TODO make sure that signup logs users in
+			// pretty sure it does
+			await getAxios().post("/api/auth/signup", payload);
+			// redirect to profile?
       router.push('/profile/edit');
     } catch (err: any) {
       console.error('[Signup] Signup error:', err);
-
       const msg = (err?.message || '').toLowerCase();
       if (msg.includes('already') || msg.includes('exists') || msg.includes('duplicate') || msg.includes('unique')) {
         setError('DUPLICATE_EMAIL');

@@ -1,17 +1,14 @@
+// vim: ts=2
 import { NextResponse } from 'next/server';
-import { createServerSupabase } from '@/lib/supabase-server';
-import { loadActiveTrades } from '@/lib/trades/load-active-trades';
-
+import { getDataService } from "@/lib/data/service";
 export const dynamic = 'force-dynamic';
-
 /** Public catalog for trade selectors and filters. */
 export async function GET() {
   try {
-    const supabase = createServerSupabase();
-    const trades = await loadActiveTrades(supabase);
-    return NextResponse.json({ trades });
+		const { trades } = await getDataService();
+		const results = await trades.getActiveTrades();
+    return NextResponse.json({ results });
   } catch (e) {
-    console.error('[api/trades] GET', e);
     return NextResponse.json({ error: 'Failed to load trades' }, { status: 500 });
   }
 }

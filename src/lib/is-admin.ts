@@ -1,9 +1,13 @@
-type UserLike =
-  | { is_admin?: boolean | null; role?: string | null }
-  | null
-  | undefined;
-
-export function isAdmin(user: UserLike): boolean {
-  if (!user) return false;
-  return user.is_admin === true;
+// vim: ts=2
+import * as jose from "jose";
+export const isAdmin = async (jwt:string): Promise<boolean> => {
+	return new Promise(async(resolve, reject)=>{
+		if(jwt === null || jwt === undefined){
+			resolve(false);
+			return;
+		}	
+		const claims = await jose.decodeJwt(jwt);
+		const check = claims.role?.toLowerCase() === "admin";
+		resolve(check);
+	});
 }

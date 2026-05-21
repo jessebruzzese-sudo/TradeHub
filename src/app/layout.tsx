@@ -1,14 +1,11 @@
+// vim: ts=2
 import './globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
-
-import { assertEnv } from '@/lib/env-check';
 import { AuthProvider } from '@/lib/auth';
-
-assertEnv();
-import { DevUnreadProvider } from '@/lib/dev-unread-context';
-import { NotificationsUnreadProvider } from '@/lib/notifications-unread-context';
 import { BillingSimulationBanner } from '@/components/billing-simulation-banner';
+import { Toaster } from "@/components/ui/sonner";
+import { ENV } from "@/lib/env";
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -48,11 +45,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className={inter.className}>
-        <BillingSimulationBanner />
         <AuthProvider>
-          <DevUnreadProvider>
-            <NotificationsUnreadProvider>{children}</NotificationsUnreadProvider>
-          </DevUnreadProvider>
+					<BillingSimulationBanner/>
+					<Toaster/>
+					{children}
         </AuthProvider>
       </body>
     </html>

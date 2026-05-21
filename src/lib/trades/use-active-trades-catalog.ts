@@ -25,10 +25,11 @@ export function useActiveTradesCatalog() {
       try {
         const res = await fetch('/api/trades', { cache: 'no-store' });
         const data = await res.json().catch(() => ({}));
+	console.log(data);
         if (!res.ok) {
           throw new Error(typeof data?.error === 'string' ? data.error : 'Failed to load trades');
         }
-        const list = Array.isArray(data?.trades) ? (data.trades as CatalogTrade[]) : [];
+        const list = Array.isArray(data?.results) ? (data.results as CatalogTrade[]) : [];
         if (!cancelled) setTrades(list);
       } catch (e) {
         if (!cancelled) {

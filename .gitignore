@@ -8,6 +8,12 @@ node_modules
 .env.*.local
 .vercel
 .vercel.json
+
+# links
+drizzle.local.config.ts
+data_users.ts
+def_users.ts
+
 # Supabase local temp
 supabase/.temp/
 tsconfig.tsbuildinfo

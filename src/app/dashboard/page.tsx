@@ -1,10 +1,10 @@
+// vim: ts=2
 'use client';
-
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-
+import { getAxios } from "@/lib/utils";
 import { AppLayout } from '@/components/app-nav';
 import { UserAvatar } from '@/components/user-avatar';
 import { Button } from '@/components/ui/button';
@@ -16,11 +16,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-
 import { useAuth } from '@/lib/auth';
+import { isAdmin } from "@/lib/is-admin";
 import { useDevUnread } from '@/lib/dev-unread-context';
 import { isAbnVerified, abnLabel } from '@/lib/abn-utils';
-import { isAdmin } from '@/lib/is-admin';
 import { isPremiumForDiscovery } from '@/lib/discovery';
 import { getPrimaryUserCoordinates } from '@/lib/location/get-user-coordinates';
 import { getSafeReturnUrl, safeRouterReplace } from '@/lib/safe-nav';
@@ -53,7 +52,6 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { primaryButtonClass } from '@/components/ui/primary-button';
 
-
 function norm(v?: string | null) {
   return String(v || '').trim().toLowerCase();
 }
@@ -81,6 +79,7 @@ function StatusChipsContent({
   isPublicProfile: boolean;
   onTogglePublicProfile: (value: boolean) => void;
 }) {
+	const [checked, setChecked] = useState<boolean>(isPublicProfile);
   return (
     <>
       <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs text-slate-700 shadow-sm">
@@ -178,7 +177,7 @@ function StatusChipsContent({
       <div
         className={`inline-flex items-center gap-3 rounded-full border px-3 py-1.5 text-xs shadow-sm transition-colors
           ${
-            isPublicProfile
+							checked
               ? 'border-slate-200 bg-white/90 text-slate-700'
               : 'border-red-200 bg-red-50/80 text-slate-700'
           }
@@ -209,20 +208,19 @@ function StatusChipsContent({
         <div className="flex items-center gap-2">
           <span
             className={`text-xs font-medium ${
-              isPublicProfile ? 'text-emerald-600' : 'text-red-600'
+              checked ? 'text-emerald-600' : 'text-red-600'
             }`}
           >
-            {isPublicProfile ? 'Public' : 'Private'}
+            {checked ? 'Public' : 'Private'}
           </span>
-
           <Switch
-            checked={isPublicProfile}
-            onCheckedChange={onTogglePublicProfile}
+            checked={checked}
+            onCheckedChange={()=>{onTogglePublicProfile(!checked);setChecked(!checked);}}
           />
         </div>
       </div>
 
-      {!isPublicProfile && (
+      {!checked && (
         <p className="mt-2 w-full text-xs text-red-500 sm:text-slate-500">
           Private profiles won&apos;t appear in discovery.
         </p>
@@ -232,129 +230,101 @@ function StatusChipsContent({
 }
 
 export default function DashboardPage() {
+
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { session, currentUser, isLoading, refreshUser } = useAuth();
-
-  const hasSession = !!session?.user;
-
-  const role = useMemo(() => norm(currentUser?.role), [currentUser?.role]);
-  const isAdminUser = isAdmin(currentUser);
-  const isContractor = role === 'contractor';
-  const isSubcontractor = role === 'subcontractor';
-  // Admin accounts should retain full operator dashboard actions.
-  const showContractorSections = isContractor || isAdminUser;
-
-  const firstName =
-    (currentUser?.name || (currentUser as any)?.fullName || (currentUser as any)?.businessName || '').split(' ')[0] ||
-    'there';
-  const isPublicProfileRaw =
-    (currentUser as any)?.is_public_profile ?? (currentUser as any)?.isPublicProfile;
-
-  const isPublicProfile = typeof isPublicProfileRaw === 'boolean' ? isPublicProfileRaw : true;
-
-  const userForDiscovery = useMemo(
-    () =>
-      currentUser
-        ? {
-            plan: currentUser.plan ?? null,
-            subscription_status: currentUser.subscriptionStatus ?? null,
-            complimentary_premium_until: currentUser.complimentaryPremiumUntil ?? null,
-          }
-        : null,
-    [currentUser]
-  );
-  const isPremium = Boolean(isPremiumForDiscovery(userForDiscovery));
-
-  const hasLocation = useMemo(() => {
-    if (!currentUser) return false;
-    const nameHints = [
-      (currentUser as any)?.location_name,
-      (currentUser as any)?.locationName,
-      (currentUser as any)?.suburb,
-    ];
-    if (nameHints.some((v) => typeof v === 'string' && v.trim())) return true;
-    if (String(currentUser.location ?? '').trim()) return true;
-    if (
-      getPrimaryUserCoordinates({
-        location_lat: currentUser.lat,
-        location_lng: currentUser.lng,
-      })
-    )
-      return true;
-    if (!isPremium) return false;
-    if (String(currentUser.searchLocation ?? '').trim() || String(currentUser.searchPostcode ?? '').trim())
-      return true;
-    const sl = currentUser.searchLat;
-    const sg = currentUser.searchLng;
-    return (
-      typeof sl === 'number' &&
-      Number.isFinite(sl) &&
-      typeof sg === 'number' &&
-      Number.isFinite(sg)
-    );
-  }, [currentUser, isPremium]);
-  const freeRadiusKm = 20;
-  const discoveryLabel = isPremium ? 'Premium radius' : `${freeRadiusKm}km radius`;
-
-  const abnVerified = isAbnVerified(currentUser);
-  const abnLabelText = abnLabel(currentUser);
-
-  const planLabel = isPremium ? 'Premium' : 'Free';
-
-  const accountStatusLabel = String(
-    (currentUser as any)?.account_status ?? (currentUser as any)?.accountStatus ?? 'active'
-  );
+  const { jwt } = useAuth();
+  const hasSession = jwt !== null && jwt !== undefined;
+	const apiClient = getAxios(jwt);
+	
+	{/* STATE */}
+	const [currentUser, setCurrentUser] = useState<any>(null);
+	const [isLoading, setIsLoading] = useState<boolean>(true);
   const [stats, setStats] = useState<Record<string, number>>({});
   const [newJobsCount, setNewJobsCount] = useState(0);
   const [statusAccordionOpen, setStatusAccordionOpen] = useState(false);
   const [locationUpsellOpen, setLocationUpsellOpen] = useState(false);
   const [availDates, setAvailDates] = useState<string[]>([]);
-  const [availLoading, setAvailLoading] = useState(false);
+  const [availLoading, setAvailLoading] = useState(true);
   const [savedLocations, setSavedLocations] = useState<{ id: string }[] | null>(null);
-  const { override: devUnreadOverride } = useDevUnread();
-  const profileViews7d = Number((stats as any)?.profileViews7d ?? 0);
-  const unreadMessages =
-    devUnreadOverride != null ? devUnreadOverride : Number((stats as any)?.unreadMessages ?? 0);
 
-  useEffect(() => {
-    if (!hasSession) return;
-    fetch('/api/profile/views-count')
-      .then((res) => (res.ok ? res.json() : {}))
-      .then((data: { viewsLast7Days?: number }) => {
-        setStats((s) => ({
-          ...s,
-          profileViews7d: typeof data?.viewsLast7Days === 'number' ? data.viewsLast7Days : 0,
-        }));
-      })
-      .catch(() => {});
-  }, [hasSession]);
+	{/*  DERIVED STATE */}
+  const profileViews7d = 0; // TODO from stats
+  const unreadMessages = 0; // TODO from dev unread override
+  const accountStatusLabel = currentUser?.accountStatus ?? "loading"; 
+  const userForDiscovery = useMemo(
+    () =>
+      currentUser
+        ? {
+            plan: currentUser?.plan ?? null,
+            subscription_status: currentUser?.subscriptionStatus ?? null,
+            complimentary_premium_until: currentUser?.complimentaryPremiumUntil ?? null,
+          }
+        : null,
+    [currentUser]
+  );
+  const isPremium = Boolean(isPremiumForDiscovery(userForDiscovery));
+  const hasLocation = useMemo(() => {
+    if (!currentUser) return false;
+    if ((currentUser?.location ?? '').trim()) return true;
+  }, [currentUser, isPremium]);
 
-  useEffect(() => {
-    if (!hasSession) return;
-
-    const loadNewJobs = async () => {
-      try {
-        const res = await fetch('/api/dashboard/new-jobs');
-        const data = await res.json();
-        setNewJobsCount(typeof data?.count === 'number' ? data.count : 0);
-      } catch (err) {
-        console.error('Failed to load new jobs count', err);
-        setNewJobsCount(0);
-      }
-    };
-
-    void loadNewJobs();
-  }, [hasSession]);
-
-  const canPostJobListing = Boolean(currentUser && canCreateJob(currentUser));
-
+	const role = currentUser?.role ?? "unknown";
+  const isAdminUser = role?.toLowerCase() === "admin";
+  // Admin accounts should retain full operator dashboard actions.
+  const showContractorSections = true;
+  const canPostJobListing = true;
   const savedLocationsCount = (hasLocation ? 1 : 0) + (savedLocations ?? []).length;
   const hasMultipleLocations = savedLocationsCount >= 2;
+  const freeRadiusKm = 20;
+  const discoveryLabel = isPremium ? 'Premium radius' : `${freeRadiusKm}km radius`;
+  const abnVerified = isAbnVerified(currentUser);
+  const abnLabelText = abnLabel(currentUser);
+  const planLabel = isPremium ? 'Premium' : 'Free';
+  const firstName = ( 
+		currentUser?.visibleName || 
+		currentUser?.name || 
+		currentUser?.business?.businessName ||
+		"").split(' ')[0];
+
+	// hook to check session
+	// i.e. user is logged in
+  useEffect(() => {
+    if (!hasSession) {
+      const returnUrl = getSafeReturnUrl('/dashboard', '/dashboard');
+      safeRouterReplace(router, `/login?returnUrl=${encodeURIComponent(returnUrl)}`, '/login');
+    }
+  }, [isLoading, hasSession, router]);
+	
+	// hook to load data
+	// user, profile, jobs ...
+	useEffect(()=>{
+		if(!isLoading){
+			return;
+		}
+		apiClient.get("/api/me").then((response)=>{
+			const user_ = response.data;
+			setCurrentUser(user_);
+			setIsLoading(false);
+		});
+	}, [isLoading]);
+
+	const nextAvailable = useMemo(() => {
+    const today = startOfDay(new Date());
+    const future = availDates
+      .map((d) => new Date(d))
+      .filter((d) => !isAfter(today, d)); // d >= today
+    if (future.length === 0) return null;
+    future.sort((a, b) => a.getTime() - b.getTime());
+    return future[0];
+  }, [availDates]);
+
+  const nextAvailableLabel = useMemo(() => {
+    return nextAvailable ? format(nextAvailable, 'EEE d MMM') : null;
+  }, [nextAvailable]);
 
   const nextStep = useMemo(() => {
     const encode = (p: string) => encodeURIComponent(p);
-
     // 1) Add locations (0 or 1 saved) — hide when user already has 2+ locations
     if (!hasMultipleLocations) {
       return {
@@ -402,52 +372,53 @@ export default function DashboardPage() {
     isAdminUser,
     abnVerified,
     isPremium,
-    freeRadiusKm,
-    isContractor,
+    freeRadiusKm
   ]);
 
-  const onTogglePublicProfile = async (value: boolean) => {
+	{ /* START HOOKS */ }
+	
+	{ /*
+  useEffect(() => {
+    if (!hasSession) return;
+    fetch('/api/profile/views-count')
+      .then((res) => (res.ok ? res.json() : {}))
+      .then((data: { viewsLast7Days?: number }) => {
+        setStats((s) => ({
+          ...s,
+          profileViews7d: typeof data?.viewsLast7Days === 'number' ? data.viewsLast7Days : 0,
+        }));
+      })
+      .catch(() => {});
+  }, [hasSession]);
+
+  useEffect(() => {
+    if (!hasSession) return;
+    const loadNewJobs = async () => {
+      try {
+        const res = await fetch('/api/dashboard/new-jobs');
+        const data = await res.json();
+        setNewJobsCount(typeof data?.count === 'number' ? data.count : 0);
+      } catch (err) {
+        console.error('Failed to load new jobs count', err);
+        setNewJobsCount(0);
+      }
+    };
+    void loadNewJobs();
+  }, [hasSession]);
+
+*/ }
+
+  const onTogglePublicProfile = async (value:boolean) => {
     try {
-      const supabase = getBrowserSupabase();
-      const uid = session?.user?.id || (currentUser as any)?.id;
-      if (!supabase || !uid) return;
-
-      const { data, error } = await supabase
-        .from('users')
-        .update({ is_public_profile: value } as never)
-        .eq('id', uid)
-        .select('id, is_public_profile')
-        .maybeSingle();
-
-      if (error) {
-        console.error('toggle public profile update error', error);
-        toast.error(error.message || 'Failed to update profile visibility');
-        return;
-      }
-
-      const result = data as { id?: string; is_public_profile?: boolean } | null;
-      if (!result?.id) {
-        console.error('toggle public profile: no row returned (likely RLS or id mismatch)', { uid, data });
-        toast.error('Could not update profile visibility (no row updated).');
-        return;
-      }
-
-      console.log('toggle result', data);
-      await refreshUser?.();
+			currentUser.public = value;
+			const payload = {"public": value};
+			await apiClient.put(`/api/me/visibility`, payload);
       toast.success(value ? 'Profile is now public' : 'Profile is now private');
     } catch (e) {
       console.error(e);
       toast.error('Failed to update profile visibility');
     }
   };
-
-  useEffect(() => {
-    if (isLoading) return;
-    if (!hasSession) {
-      const returnUrl = getSafeReturnUrl('/dashboard', '/dashboard');
-      safeRouterReplace(router, `/login?returnUrl=${encodeURIComponent(returnUrl)}`, '/login');
-    }
-  }, [isLoading, hasSession, router]);
 
   useEffect(() => {
     const upgraded = searchParams.get('upgraded') === '1' || searchParams.get('upgrade') === 'success';
@@ -457,11 +428,10 @@ export default function DashboardPage() {
     }
   }, [searchParams, router]);
 
+	{ /*
   useEffect(() => {
-    if (!hasSession || !currentUser?.id) return;
-
+    if (!hasSession) return;
     let cancelled = false;
-
     (async () => {
       try {
         setAvailLoading(true);
@@ -492,9 +462,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!hasSession || !currentUser?.id) return;
-
     let cancelled = false;
-
     fetch('/api/profile/locations')
       .then((res) => (res.ok ? res.json() : { locations: [] }))
       .then((data: { locations?: { id: string }[] }) => {
@@ -510,32 +478,11 @@ export default function DashboardPage() {
       cancelled = true;
     };
   }, [hasSession, currentUser?.id]);
-
-  const nextAvailable = useMemo(() => {
-    const today = startOfDay(new Date());
-
-    const future = availDates
-      .map((d) => new Date(d))
-      .filter((d) => !isAfter(today, d)); // d >= today
-
-    if (future.length === 0) return null;
-
-    future.sort((a, b) => a.getTime() - b.getTime());
-    return future[0];
-  }, [availDates]);
-
-  const nextAvailableLabel = useMemo(() => {
-    return nextAvailable ? format(nextAvailable, 'EEE d MMM') : null;
-  }, [nextAvailable]);
-
-  if (isLoading) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center text-sm text-gray-600">
-        Loading dashboard…
-      </div>
-    );
-  }
-
+	
+	*/ }
+		
+	{ /*END HOOKS */ }
+	
   if (!hasSession) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center text-sm text-gray-600">
@@ -544,60 +491,11 @@ export default function DashboardPage() {
     );
   }
 
-  if (!currentUser) {
+  if (isLoading) {
     return (
-      <AppLayout>
-        <div className="relative min-h-[60vh] overflow-hidden bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200">
-          {/* Dotted overlay */}
-          <div
-            className="pointer-events-none absolute inset-0 opacity-25"
-            style={{
-              backgroundImage: 'radial-gradient(rgba(0,0,0,0.12) 1px, transparent 1px)',
-              backgroundSize: '24px 24px',
-            }}
-          />
-          {/* Watermark */}
-          <img
-            src="/TradeHub-Mark-blackout.svg"
-            alt=""
-            className="pointer-events-none absolute bottom-[-200px] right-[-200px] h-[1600px] w-[1600px] opacity-[0.04]"
-          />
-          <div className="relative flex min-h-[60vh] flex-col items-center justify-center px-4 py-12">
-            <Card className="w-full max-w-md rounded-2xl border border-slate-200 bg-white/95 shadow-lg backdrop-blur-md">
-              <CardContent className="flex flex-col items-center p-8 text-center sm:p-10">
-                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-blue-600">
-                  <Loader2 className="h-7 w-7 animate-spin" />
-                </div>
-                <h2 className="text-xl font-semibold tracking-tight text-slate-900">
-                  Setting up your TradeHub profile
-                </h2>
-                <p className="mt-2 text-sm text-slate-600">
-                  We&apos;re preparing your account. This usually only takes a moment.
-                </p>
-                <p className="mt-4 text-xs text-slate-500">
-                  If this takes longer than expected, try again or reload the page.
-                </p>
-                <div className="mt-6 flex flex-wrap justify-center gap-3">
-                  <Button
-                    onClick={async () => {
-                      try {
-                        await refreshUser();
-                      } catch (e) {
-                        console.error(e);
-                      }
-                    }}
-                  >
-                    Retry
-                  </Button>
-                  <Button variant="outline" onClick={() => window.location.reload()}>
-                    Reload
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </AppLayout>
+      <div className="flex min-h-[60vh] items-center justify-center text-sm text-gray-600">
+        Loading dashboard…
+      </div>
     );
   }
 
@@ -666,7 +564,7 @@ export default function DashboardPage() {
                               Profile
                               <span
                                 className={`h-2 w-2 shrink-0 rounded-full ${
-                                  isPublicProfile ? 'bg-emerald-500' : 'bg-red-500'
+                                  currentUser.public ? 'bg-emerald-500' : 'bg-red-500'
                                 }`}
                                 aria-hidden
                               />
@@ -710,7 +608,7 @@ export default function DashboardPage() {
                             discoveryLabel={discoveryLabel}
                             nextAvailableLabel={nextAvailableLabel}
                             availLoading={availLoading}
-                            isPublicProfile={isPublicProfile}
+                            isPublicProfile={currentUser.public}
                             onTogglePublicProfile={onTogglePublicProfile}
                           />
                         </div>
@@ -729,7 +627,7 @@ export default function DashboardPage() {
                       discoveryLabel={discoveryLabel}
                       nextAvailableLabel={nextAvailableLabel}
                       availLoading={availLoading}
-                      isPublicProfile={isPublicProfile}
+                      isPublicProfile={currentUser.public}
                       onTogglePublicProfile={onTogglePublicProfile}
                     />
                   </div>
@@ -911,18 +809,16 @@ export default function DashboardPage() {
                   href="/subcontractors"
                   icon={<Users className="h-5 w-5" />}
                 />
-                {!isSubcontractor && (
-                  <ActionCard
-                    title="My Profile"
-                    description="View and edit your professional details."
+                <ActionCard
+										title="My Profile"
+                   	description="View and edit your professional details."
                     href="/profile"
                     icon={<User className="h-5 w-5" />}
                   />
-                )}
               </>
             )}
-            {isSubcontractor && (
-              <>
+            {!isAdminUser && (
+							<>
                 <ActionCard
                   title="Find Jobs"
                   description="Browse jobs that match your trade and radius."
@@ -942,7 +838,7 @@ export default function DashboardPage() {
                   icon={<User className="h-5 w-5" />}
                 />
               </>
-            )}
+							)}
             {isAdminUser && (
               <>
                 <ActionCard
@@ -1038,7 +934,6 @@ export default function DashboardPage() {
                 />
               </>
             )}
-            {isSubcontractor && (
               <>
                 <SecondaryToolCard
                   title="Messages"
@@ -1059,10 +954,8 @@ export default function DashboardPage() {
                   icon={<User className="h-4 w-4" />}
                 />
               </>
-            )}
           </div>
         </div>
-
         </div>
       </div>
     </AppLayout>

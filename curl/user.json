@@ -1,0 +1,17 @@
+{
+	"name": "Tim Alford",
+	"email": "tim.alford2010+test1@gmail.com",
+	"password": "AWEsome_1024",
+	"visibleName": "Tim",
+	"business": {
+		"businessName": "Tim's Tools",
+		"abn": "123123123",
+		"abnEntityName": "Tim's Tools",
+		"abnEntityType": "Sole Trader",
+		"abnVerified": true,
+		"location": "31 College Avenue, Traralgon, Victoria 3844",
+		"postcode": "3844",
+		"locationLat": "-34",
+		"locationLng": "122"
+	}
+}
