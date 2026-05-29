@@ -1,23 +1,22 @@
 // @ts-nocheck
+// vim: ts=2
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useContext } from 'react';
+import UserContext from "@/lib/user-context";
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ShieldCheck, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react';
-
 import { useAuth } from '@/lib/auth';
-import { getBrowserSupabase } from '@/lib/supabase-client';
 import { getSafeReturnUrl, safeRouterPush } from '@/lib/safe-nav';
-import { hasValidABN } from '@/lib/abn-utils';
 import { normalizeAbnForDb } from '@/lib/abn-normalize';
 import { toast } from 'sonner';
-
 import { UnauthorizedAccess } from '@/components/unauthorized-access';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { getAxios } from "@/lib/utils";
 
 type VerifyResponse =
   | { ok: true; abn: string; entityName?: string; businessName?: string; status?: string }
@@ -28,11 +27,6 @@ async function persistAbnVerification(params: {
   entityName?: string | null;
   verified: boolean;
 }) {
-  const supabase = getBrowserSupabase();
-
-  const { data: userRes, error: userErr } = await supabase.auth.getUser();
-  if (userErr || !userRes?.user) throw new Error('NOT_AUTHENTICATED');
-
   const userId = userRes.user.id;
   const nowIso = new Date().toISOString();
   const abnDigits = normalizeAbnForDb(params.abn);
@@ -85,7 +79,9 @@ function formatAbnPretty(input: string) {
 }
 
 export default function VerifyBusinessPage() {
-  const { currentUser, refreshUser } = useAuth();
+
+  const { jwt } = useAuth();
+	const UserSession = useContext(UserContext);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -94,56 +90,63 @@ export default function VerifyBusinessPage() {
     return getSafeReturnUrl(returnUrlParam, '/dashboard');
   }, [searchParams]);
 
+	const [currentUser, setCurrentUser] = useState<any|null>(UserSession.user);
   const [abn, setAbn] = useState('');
   const [businessName, setBusinessName] = useState('');
   const [statusMsg, setStatusMsg] = useState<string>('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+	const [isCheckingABN, setIsCheckingABN] = useState<boolean>(false); // is check happening now
 
-  // Prefill from currentUser (best-effort; names may differ depending on your user model)
+	const isLoggedIn = jwt !== null && jwt !== undefined;
+	const isLoading = currentUser === null;
+
   useEffect(() => {
-    if (!currentUser) return;
+		if(!isLoggedIn)
+			return;
+		if(currentUser !== null)
+			return;
+		if(UserSession.user === null){
+			getAxios(jwt).
+				get("/api/me").
+					then((response_)=>{
+						const data = response_.data;
+						setCurrentUser(data);
+						UserSession.user = data;
+					}).catch((err_)=>{
+						console.error(`Failed to load user, ${err_}`);
+					});
+		}
+  }, [currentUser]);
 
-    const existingBiz =
-      // common shapes across TradeHub iterations
-      (currentUser as any)?.business_name ??
-      (currentUser as any)?.businessName ??
-      '';
-
-    const existingAbn =
-      (currentUser as any)?.abn ??
-      '';
-
-    if (existingBiz && !businessName) setBusinessName(String(existingBiz));
-    if (existingAbn && !abn) setAbn(formatAbnPretty(String(existingAbn)));
-  }, [currentUser, abn, businessName]);
-
-  if (!currentUser) {
+  if (!isLoggedIn) {
     return <UnauthorizedAccess redirectTo="/login" />;
   }
 
-  const isVerified = hasValidABN(currentUser);
+  const isVerified = currentUser?.business?.abnVerified ?? false;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setStatusMsg('');
-    setLoading(true);
+		setIsCheckingABN(true);
 
     const cleaned = normalizeAbn(abn);
 
     if (!cleaned) {
       setError('Please enter your ABN');
-      setLoading(false);
+			setIsCheckingABN(false);
       return;
     }
     if (!/^\d{11}$/.test(cleaned)) {
       setError('ABN must be 11 digits');
-      setLoading(false);
+			setIsCheckingABN(false);
       return;
     }
 
     try {
+			// call abn verification end point
+			// which in tern calls ABR end point
+			// server to server
       const res = await fetch('/api/abn/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -154,47 +157,52 @@ export default function VerifyBusinessPage() {
 
       if (!res.ok) {
         setError('error' in data && data.error ? data.error : 'ABN verification failed. Please try again.');
-        persistAbnVerification({
-          abn: cleaned,
-          entityName: null,
-          verified: false,
-        }).catch(() => {});
-        setLoading(false);
+				try{
+					const delta = {
+						abn: data.abn,
+						abnVerified: false,
+						abnEntityName: null,
+						abnEntityType: null,
+						abnGstActiveDate: null
+					};	
+					await getAxios(jwt).put("/api/me/business", delta);
+				}catch(err_){
+				}
+				setIsCheckingABN(false);
         return;
       }
 
       if (!data || 'error' in data) {
         throw new Error(data?.error ?? 'ABN verification failed');
       }
-
       try {
-        await persistAbnVerification({
-          abn: cleaned,
-          entityName:
-            'entityName' in data
-              ? data.entityName
-              : 'businessName' in data
-                ? data.businessName
-                : undefined,
-          verified: true,
-        });
+				const delta = {
+					abn: data.abn,
+					abnEntityName: data.entityName,
+					abnEntityType: data.entityType,
+					abnVerified: data.success,
+					abnGstActiveDate: data.gst
+				};
+				await getAxios(jwt).put("/api/me/business", delta);
       } catch (e) {
         toast.error('ABN verified, but could not save verification. Please try again.');
-        setLoading(false);
+				setIsCheckingABN(false);
         return;
       }
-
       const biz = ('entityName' in data ? data.entityName : undefined) ?? ('businessName' in data ? data.businessName : undefined);
       if (biz) setBusinessName(String(biz));
       setStatusMsg('ABN verified successfully.');
-
-      await refreshUser?.();
+			setIsCheckingABN(false);
+			// setting user to null should cause the dashboard
+			// to reload the user details, therefore updating
+			// the application context
+			UserSession.user = null;
       router.refresh();
       safeRouterPush(router, returnUrl, '/dashboard');
     } catch (err) {
       console.error('[Verify Business] Error:', err);
       setError('Failed to verify ABN. Please try again.');
-      setLoading(false);
+			setIsCheckingABN(false);
     }
   };
 
@@ -242,7 +250,7 @@ export default function VerifyBusinessPage() {
                   isVerified ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-800',
                 ].join(' ')}
               >
-                {isVerified ? 'Verified' : String(currentStatus).replace(/_/g, ' ')}
+                {isVerified ? "Verified" : "Not Verified"}
               </span>
             </div>
             {isVerified ? (
@@ -304,11 +312,11 @@ export default function VerifyBusinessPage() {
             </div>
 
             <div className="flex flex-col gap-3">
-              <Button type="submit" disabled={loading} className="w-full">
-                {loading ? 'Verifying...' : isVerified ? 'Re-verify ABN' : 'Verify ABN'}
+              <Button type="submit" disabled={isCheckingABN} className="w-full">
+                {isCheckingABN ? 'Verifying...' : isVerified ? 'Re-verify ABN' : 'Verify ABN'}
               </Button>
 
-              <Button type="button" variant="outline" onClick={handleSkip} className="w-full" disabled={loading}>
+              <Button type="button" variant="outline" onClick={handleSkip} className="w-full" disabled={isCheckingABN}>
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Not now
               </Button>

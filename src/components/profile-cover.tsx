@@ -1,14 +1,14 @@
+// vim: ts=2
 'use client';
 
-import { useRef, useState } from 'react';
+import { getAxios } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
+import { useRef, useState, useEffect } from 'react';
 import Image from 'next/image';
 import Cropper, { Area } from 'react-easy-crop';
 import { toast } from 'sonner';
 import { Camera, Trash2 } from 'lucide-react';
-
-import { getBrowserSupabase } from '@/lib/supabase-client';
 import { getCroppedImageBlob } from '@/lib/crop-image';
-
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Slider } from '@/components/ui/slider';
@@ -16,49 +16,37 @@ import { Slider } from '@/components/ui/slider';
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
-function extractCoversPathFromUrl(url?: string | null): string | null {
-  if (!url) return null;
-
-  const cleaned = String(url).split('?')[0];
-
-  // If it's already a storage path (e.g. "userId/cover_123.png")
-  if (!cleaned.startsWith('http')) return cleaned.replace(/^\/+/, '');
-
-  try {
-    const u = new URL(cleaned);
-    const parts = u.pathname.split('/covers/');
-    if (parts.length < 2) return null;
-    return parts[1].replace(/^\/+/, '') || null;
-  } catch {
-    return null;
-  }
-}
-
 type Point = { x: number; y: number };
 
-export function ProfileCover({
-  userId,
-  coverUrl,
-  onCoverUpdate,
-}: {
-  userId: string;
-  coverUrl?: string;
-  onCoverUpdate: (url: string | null) => Promise<void> | void;
-}) {
-  const supabase = getBrowserSupabase();
+export const ProfileCover = (props) => {
+
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const [isUploading, setIsUploading] = useState(false);
-
+	const { jwt } = useAuth();
+	const [isUploading, setIsUploading] = useState(false);
   const [open, setOpen] = useState(false);
   const [imageSrc, setImageSrc] = useState<string | null>(null);
-
   const [crop, setCrop] = useState<Point>({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+	const isLoading = imageSrc === null;
 
   const CROP_W = 1500;
   const CROP_H = 500;
+
+	useEffect(()=>{
+		if(!isLoading){
+			return;	
+		}		
+		getAxios(jwt).
+			get("/api/me/profile/cover").
+				then((response_)=>{
+					const { data, mime } = response_.data; // json, {data:<BASE64>,mime:<STRING>}
+					const url = `data:${mime};base64,${data}`; 
+					setImageSrc(url);
+				}).catch((err_)=>{
+					console.error(err_);
+				});
+	}, [imageSrc]);
 
   const onCropComplete = (_: Area, pixels: Area) => setCroppedAreaPixels(pixels);
 
@@ -90,14 +78,12 @@ export function ProfileCover({
       setOpen(true);
     };
     reader.readAsDataURL(file);
-
     // allow reselect same file
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleSave = async () => {
     if (!imageSrc || !croppedAreaPixels) return;
-
     setIsUploading(true);
     try {
       const blob = await getCroppedImageBlob(imageSrc, croppedAreaPixels as any, 512, {
@@ -106,33 +92,16 @@ export function ProfileCover({
         mimeType: 'image/png',
         quality: 0.92,
       });
-
-      const bucket = 'covers';
-      const oldPath = extractCoversPathFromUrl(coverUrl ?? null);
-      const filePath = `${userId}/cover_${Date.now()}.png`;
-
-      const { error: uploadError } = await supabase.storage
-        .from(bucket)
-        .upload(filePath, blob, { cacheControl: '3600', upsert: false, contentType: 'image/png' });
-
-      if (uploadError) throw uploadError;
-
-      const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
-      const freshUrl = `${data.publicUrl}?v=${Date.now()}`;
-
-      // best-effort: delete previous cover file
-      if (oldPath && oldPath !== filePath && oldPath.startsWith(`${userId}/`)) {
-        try {
-          await supabase.storage.from(bucket).remove([oldPath]);
-        } catch (e) {
-          console.warn('[ProfileCover] failed to remove old cover (best effort)', e);
-        }
-      }
-
-      await onCoverUpdate(freshUrl);
-      toast.success('Cover image updated');
+			const base64Image = Buffer.from(await blob.arrayBuffer()).toString("base64");
+			const payload = { data: base64Image, mime: "image/png" };
+			try{
+				await getAxios(jwt).put("/api/me/profile/cover", payload);
+     		toast.success('Cover image updated');
+			}catch(err__){
+				throw err__;
+			}
       setOpen(false);
-      setImageSrc(null);
+      setImageSrc(`data:image/png;base64,${base64Image}`);
     } catch (err: any) {
       console.error('[ProfileCover] save failed', err);
       toast.error(err?.message || 'Failed to update cover image');
@@ -144,12 +113,6 @@ export function ProfileCover({
   const handleRemove = async () => {
     try {
       setIsUploading(true);
-
-      const oldPath = extractCoversPathFromUrl(coverUrl ?? null);
-      if (oldPath && oldPath.startsWith(`${userId}/`)) {
-        await supabase.storage.from('covers').remove([oldPath]);
-      }
-
       await onCoverUpdate(null);
       toast.success('Cover image removed');
     } catch (e) {
@@ -165,15 +128,9 @@ export function ProfileCover({
       <div className="relative overflow-hidden rounded-2xl border bg-slate-200">
         {/* Cover */}
         <div className="relative h-[162px] sm:h-[198px] md:h-[234px] w-full">
-          {coverUrl ? (
-            <Image src={coverUrl} alt="" fill className="object-cover" unoptimized />
-          ) : (
-            <div className="absolute inset-0 bg-gradient-to-br from-slate-200 via-slate-100 to-slate-300" />
-          )}
-
-          {/* subtle overlay so buttons stay readable */}
-          <div className="absolute inset-0 bg-black/0 hover:bg-black/5 transition" />
-
+        	<Image src={imageSrc} 
+							alt="cover-image" onClick={(event)=>{event.preventDefault();}} 
+							fill className="object-cover" unoptimized />
           {/* Actions */}
           <div className="absolute right-3 top-3 flex items-center gap-2">
             <Button
@@ -188,7 +145,7 @@ export function ProfileCover({
               Change cover
             </Button>
 
-            {coverUrl ? (
+            {imageSrc ? (
               <Button
                 type="button"
                 size="sm"

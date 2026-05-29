@@ -1,4 +1,5 @@
 // @ts-nocheck
+// vim: ts=2
 'use client';
 
 import Link from 'next/link';
@@ -17,6 +18,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { getAxios } from "@/lib/utils";
 import { UnauthorizedAccess } from '@/components/unauthorized-access';
 import { notifyContractorsAboutAvailability } from '@/lib/notification-utils';
 
@@ -25,7 +27,7 @@ export default function AvailabilityPage() {
   const { jwt } = useAuth();
   const router = useRouter();
 		
-	const [isLoading, setIsLoading] = useState<boolean>(false);
+	const [isLoading, setIsLoading] = useState<boolean>(true);
 	const [currentUser, setCurrentUser] = useState<any|null>(null);
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
   const [description, setDescription] = useState('');
@@ -33,93 +35,83 @@ export default function AvailabilityPage() {
   const [isRefining, setIsRefining] = useState(false);
   const [pricingType, setPricingType] = useState<string>('');
   const [pricingAmount, setPricingAmount] = useState<string>('');
-  const [showPricingPublicly, setShowPricingPublicly] = useState(false);
+  const [showPricing, setShowPricing] = useState(false);
 
   const userId = currentUser?.id ?? null;
 
   const loadAvailability = useCallback(async () => {
-    if (!isLoading) return;
-    try {
-			const response_ = await apiClient.get("/api/me/availability");
-			const availability = response_.data; // description with dates ...
-			const dates: string[] = availability.dates; 
-			const description: string = availability.description;
-      if (dates != null && dates.length > 0) {
-        const dates_ = dates.map((item: any) => new Date(item));
-        setSelectedDates(dates_);
-        setDescription(description);
-      }
-    } catch (err) {
-      console.error('Error loading availability:', err);
-    }
+  	if (!isLoading) return;
+		const response_ = await getAxios(jwt).get("/api/me/availability");
+		const availability: any = response_.data; // description with dates ...
+		const dates: string[] = availability.dates; 
+		const description: string = availability.description;
+		if (dates != null && dates.length > 0) {
+			const dates_ = dates.map((item: any) => new Date(item));
+			setSelectedDates(dates_);
+			setDescription(description);
+		}
   }, [isLoading]);
-
+	
+	const loadPricing = useCallback(async()=>{
+		if(!isLoading) return;
+		const response_ = await getAxios(jwt).get("/api/me/pricing");
+		const { price, priceType, showPricing } = response_.data;
+		setPricingType(priceType);
+		setPricingAmount(price);
+		setShowPricing(showPricing);
+	}, [isLoading]);
+	
+	// merge availability and pricing
+	// into a single effect
   useEffect(() => {
     if (!isLoading) return;
-    loadAvailability();
-  }, [isLoading, loadAvailability]);
+		try{
+    	loadAvailability();
+			loadPricing();
+		}catch(err_){
+			console.error(`Failed to load pricing and/or availability, ${err_}`);
+		}finally{
+			setIsLoading(false);
+		}
+  }, [isLoading, loadAvailability, loadPricing]);
 
-  useEffect(() => {
-    if (!currentUser) return;
-    const pt = (currentUser as any)?.pricingType ?? (currentUser as any)?.pricing_type ?? '';
-    setPricingType(pt === 'from_hourly' ? 'hourly' : pt ? String(pt) : '');
-    const pa = (currentUser as any)?.pricingAmount ?? (currentUser as any)?.pricing_amount;
-    setPricingAmount(pa != null ? String(pa) : '');
-    const showProfile = (currentUser as any)?.showPricingOnProfile ?? (currentUser as any)?.show_pricing_on_profile ?? false;
-    const showListings = (currentUser as any)?.showPricingInListings ?? (currentUser as any)?.show_pricing_in_listings ?? false;
-    setShowPricingPublicly(showProfile || showListings);
-  }, [currentUser?.id]);
-
-  const handleSave = async () => {
-    if (!currentUser) return;
-
-    const amountNum = pricingAmount.trim() ? Number(pricingAmount) : null;
+  const handleSave = () => {
+		// price validation
+		const trimmed = `${pricingAmount}`?.trim() ?? null;
+		const amountNum = trimmed === null || `${trimmed}` === "null" ? null : Number(trimmed);
     if (pricingType && (pricingType === 'hourly' || pricingType === 'day') && amountNum != null && (amountNum <= 0 || !Number.isFinite(amountNum))) {
       toast.error('Please enter a valid positive amount.');
       return;
     }
-
     setSaving(true);
     try {
-      const dateStrings = selectedDates.map((d) => d.toISOString().split('T')[0]);
-      const payload: Record<string, unknown> = {
+      const dateStrings = selectedDates.map((d) => d.toISOString());
+      const payload: any = {
         dates: dateStrings,
         description: description.trim(),
       };
-
       if (pricingType) {
-        payload.pricingType = pricingType;
-        payload.pricingAmount =
-          (pricingType === 'hourly' || pricingType === 'day') && pricingAmount.trim()
-            ? Number(pricingAmount) || null
-            : null;
-        payload.showPricingOnProfile = showPricingPublicly;
-        payload.showPricingInListings = showPricingPublicly;
+				payload.pricing = {
+					priceType: pricingType,	
+					price: amountNum,
+					showPricing: showPricing
+				};
       } else {
-        payload.pricingType = null;
-        payload.pricingAmount = null;
-        payload.showPricingOnProfile = false;
-        payload.showPricingInListings = false;
+				payload.pricing = {
+					priceType: null,	
+					price: null,
+					showPricing: false
+				};
       }
-
-      const res = await fetch('/api/availability', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        if (res.status === 403 && data.error) {
-          toast.error(data.error);
-          return;
-        }
-        throw new Error(data.error || 'Failed to save');
-      }
-
-      await notifyContractorsAboutAvailability(currentUser, selectedDates);
-      toast.success('Subcontracting dates updated successfully');
-      router.push('/dashboard');
+			getAxios(jwt).
+				post("/api/me/availability", payload).
+				then((response)=>{
+      		toast.success('Subcontracting dates updated successfully');
+     			router.push('/dashboard');
+				}).catch((err_)=>{
+      		console.error('Error saving availability:', err_);
+      		toast.error('Failed to save subcontracting dates. Please try again.');
+				});
     } catch (err) {
       console.error('Error saving availability:', err);
       toast.error('Failed to save subcontracting dates. Please try again.');
@@ -171,7 +163,7 @@ export default function AvailabilityPage() {
     }
   }
 
-	const isLoggedIn = jwt === null || jwt === undefined;
+	const isLoggedIn = (jwt !== null && jwt !== undefined);
 
   if (!isLoggedIn) {
     return <UnauthorizedAccess redirectTo="/login" />;
@@ -325,8 +317,8 @@ export default function AvailabilityPage() {
                   <div className="flex items-center gap-2">
                     <Switch
                       id="showPricingPublicly"
-                      checked={showPricingPublicly}
-                      onCheckedChange={setShowPricingPublicly}
+                      checked={showPricing}
+                      onCheckedChange={setShowPricing}
                     />
                     <Label htmlFor="showPricingPublicly" className="text-sm font-medium text-slate-700 cursor-pointer">
                       Show pricing publicly

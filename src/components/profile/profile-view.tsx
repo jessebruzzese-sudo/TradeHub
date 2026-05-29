@@ -1,8 +1,13 @@
 // @ts-nocheck
+// vim: ts=2
 'use client';
 
+import { getAxios } from "@/lib/utils";
 import Image from 'next/image';
 import Link from 'next/link';
+// lucide.dev/guide/react/migration
+// migrated from v0 to 1
+// social media icons removed
 import {
   Star,
   Shield,
@@ -17,10 +22,7 @@ import {
   BadgeCheck,
   Mail,
   Globe,
-  Instagram,
-  Facebook,
-  Linkedin,
-  Youtube,
+	Radio,
   Info,
   CalendarDays,
   Calendar,
@@ -50,16 +52,13 @@ import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { isAdmin } from '@/lib/is-admin';
 import { isPremiumForDiscovery } from '@/lib/discovery';
-import { getStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
-import { getBrowserSupabase } from '@/lib/supabase-client';
 import { shouldShowProBadge } from '@/lib/subscription-utils';
 import { BILLING_SIM_ALLOWED, getSimulatedPremium, clearSimulatedPremium } from '@/lib/billing-sim';
 import { useSimulatedPremium } from '@/lib/use-simulated-premium';
 import { MVP_FREE_MODE } from '@/lib/feature-flags';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { ProfileStrengthCalc } from '@/lib/profile-strength-types';
 import ProfileSummaryTrustBar from '@/components/profile/ProfileSummaryTrustBar';
 import ProfileStrengthSection from '@/components/profile/ProfileStrengthSection';
 import { buildProfileStrengthCanonical } from '@/lib/profile-strength/canonical-ui';
@@ -73,39 +72,6 @@ function applyProfileStrengthApiPayload(j: unknown, setStrengthCalc: (c: Profile
   if (typeof o.total !== 'number' || !Number.isFinite(o.total)) return;
   setStrengthCalc(j as ProfileStrengthCalc);
 }
-
-type ProfileViewMode = 'self' | 'public';
-
-export type PublicProfileData = {
-  id: string;
-  name?: string | null;
-  business_name?: string | null;
-  avatar?: string | null;
-  cover_url?: string | null;
-  trades?: string[] | null;
-  location?: string | null;
-  postcode?: string | null;
-  mini_bio?: string | null;
-  bio?: string | null;
-  rating?: number | null;
-  reliability_rating?: number | null;
-  completed_jobs?: number | null;
-  member_since?: string | null;
-  abn_status?: string | null;
-  abn_verified_at?: string | null;
-  premium_now?: boolean | null;
-  website?: string | null;
-  instagram?: string | null;
-  facebook?: string | null;
-  linkedin?: string | null;
-  tiktok?: string | null;
-  youtube?: string | null;
-  abn?: string | null;
-  business_name_display?: string | null;
-  pricing_type?: string | null;
-  pricing_amount?: number | null;
-  show_pricing_on_profile?: boolean | null;
-};
 
 function proofHrefWebsite(raw: string | null | undefined) {
   const v = (raw || '').trim();
@@ -202,7 +168,7 @@ function reliabilityToPercent(r: number | null | undefined): number | null {
 
 export function ProfileView({
   mode,
-  profile,
+	profile,
   isMe: isMeProp,
   strengthCalc: strengthCalcProp,
   viewerLikeState: viewerLikeStateProp,
@@ -210,7 +176,7 @@ export function ProfileView({
   embedInParentLayout = false,
 }: {
   mode: ProfileViewMode;
-  profile: any;
+	profile:any,
   isMe?: boolean;
   /** Server-fetched breakdown; if omitted, client loads `/api/profile/[id]/strength`. */
   strengthCalc?: ProfileStrengthCalc | null;
@@ -225,16 +191,13 @@ export function ProfileView({
   embedInParentLayout?: boolean;
 }) {
   const isSelf = mode === 'self' || !!isMeProp;
-  const { currentUser, session, updateUser, refreshUser } = useAuth();
+  const { jwt } = useAuth();
   const router = useRouter();
-  const store = useMemo(() => getStore(), []);
-  const supabase = useMemo(() => getBrowserSupabase(), []);
-  const sb: any = supabase;
   const [isSimulated, setSimulated] = useSimulatedPremium();
   const [portalLoading, setPortalLoading] = useState(false);
 
   const profileUserId = profile?.id ?? null;
-  const viewerAuthId = currentUser?.id ?? session?.user?.id ?? null;
+  const viewerAuthId = profile?.id ?? null; // TODO grab user id from token claims?
   const e2eStrengthUi =
     typeof process !== 'undefined' &&
     process.env.NODE_ENV !== 'production' &&
@@ -249,20 +212,16 @@ export function ProfileView({
     e2eStrengthUi ||
     (!!viewerAuthId && !!profileUserId && viewerAuthId === profileUserId) ||
     e2eServerOnlyOwner;
-  const [upCount, setUpCount] = useState<number>(0);
-  const [downCount, setDownCount] = useState<number>(0);
-  const [myRating, setMyRating] = useState<1 | -1 | null>(null);
-  const [isSubmittingRating, setIsSubmittingRating] = useState(false);
-  const canRate =
-    !!currentUser?.id &&
-    !!profileUserId &&
-    currentUser.id !== profileUserId &&
-    myRating === null &&
-    !isSubmittingRating;
 
+  const p = profile as any;
+
+  const [upCount, setUpCount] = useState<number>(p?.profile?.upVotes ?? 0);
+  const [downCount, setDownCount] = useState<number>(p?.profile?.downVotes ?? 0);
+  const [isSubmittingRating, setIsSubmittingRating] = useState(false);
+  const canRate = profileUserId !== viewerAuthId;
   const [availDates, setAvailDates] = useState<string[]>([]);
   const [availDesc, setAvailDesc] = useState<string>('');
-  const [availLoading, setAvailLoading] = useState(false);
+  const [availLoading, setAvailLoading] = useState(true);
   const [alertsUpsellOpen, setAlertsUpsellOpen] = useState(false);
   const [strengthCalc, setStrengthCalc] = useState<ProfileStrengthCalc | null>(strengthCalcProp ?? null);
   const [likeInitial, setLikeInitial] = useState<{ liked: boolean; count: number } | null>(
@@ -279,23 +238,8 @@ export function ProfileView({
     if (!showProfileStrengthSection) return;
     const id = (profile as any)?.id as string | undefined;
     if (!id) return;
-    let cancelled = false;
-    fetch(`/api/profile/${id}/strength`, { credentials: 'include' })
-      .then(async (r) => {
-        let j: unknown;
-        try {
-          j = await r.json();
-        } catch {
-          return;
-        }
-        if (cancelled || !r.ok) return;
-        applyProfileStrengthApiPayload(j, setStrengthCalc);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [profileUserId, strengthCalcProp, showProfileStrengthSection, isSelf ? currentUser : null]);
+    applyProfileStrengthApiPayload(null, setStrengthCalc);
+  }, [profileUserId, strengthCalcProp, showProfileStrengthSection]);
 
   useEffect(() => {
     if (viewerLikeStateProp != null) {
@@ -305,78 +249,29 @@ export function ProfileView({
 
   useEffect(() => {
     if (viewerLikeStateProp != null) return;
-    if (!profileUserId || !currentUser?.id || currentUser.id === profileUserId) {
+    if (!profileUserId || viewerAuthId === profileUserId) {
       setLikeInitial(null);
       return;
     }
     let cancelled = false;
-    fetch(`/api/profile/${profileUserId}/like`, { credentials: 'include' })
-      .then((r) => r.json())
-      .then((j) => {
-        if (cancelled) return;
-        setLikeInitial({
-          liked: !!j.liked,
-          count: typeof j.likesCount === 'number' ? j.likesCount : 0,
-        });
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [viewerLikeStateProp, profileUserId, currentUser?.id]);
+		//TODO handling liking
+  }, [viewerLikeStateProp, profileUserId]);
 
   useEffect(() => {
-    const id = (profile as any)?.id;
-    if (!id) return;
-
-    let cancelled = false;
-
-    (async () => {
-      try {
-        setAvailLoading(true);
-        const supabase = getBrowserSupabase();
-        let descFromRows = '';
-
-        const { data: rows, error } = await supabase
-          .from('subcontractor_availability')
-          .select('date, description')
-          .eq('user_id', id)
-          .order('date', { ascending: true });
-
-        if (cancelled) return;
-        if (!error && rows) {
-          setAvailDates(rows.map((r: any) => r.date));
-          const firstWithDesc = rows.find((r: any) => r.description && String(r.description).trim() !== '');
-          if (firstWithDesc?.description) {
-            descFromRows = String(firstWithDesc.description);
-            setAvailDesc(descFromRows);
-          }
-        }
-
-        if (!cancelled) {
-          const { data: u } = await supabase
-            .from('users')
-            .select('availability_description')
-            .eq('id', id)
-            .maybeSingle();
-
-          if (u?.availability_description && !descFromRows.trim()) {
-            setAvailDesc(u.availability_description);
-          }
-        }
-      } catch (e) {
-        console.error('[profile] load availability failed', e);
-        if (!cancelled) setAvailDates([]);
-      } finally {
-        if (!cancelled) setAvailLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [(profile as any)?.id]);
+    if (!availLoading) return;
+		getAxios(jwt).
+			get("/api/me/availability").
+				then((response_)=>{
+					const availability = response_.data;
+					const dates = availability.dates;
+					const desc = availability.description;
+					setAvailDates(dates);
+					setAvailDesc(desc);
+					setAvailLoading(false);
+				}).catch((err_)=>{
+					console.error(`Failed to load availability, ${err_}`);
+				});
+  }, [availLoading]);
 
   const nextAvailable = useMemo(() => {
     const future = availDates
@@ -394,79 +289,14 @@ export function ProfileView({
     return future.length;
   }, [availDates, today]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadRatings() {
-      if (!currentUser?.id || !profileUserId) return;
-
-      const { data: mine } = await sb
-        .from('user_ratings')
-        .select('value')
-        .eq('target_user_id', profileUserId)
-        .eq('rater_user_id', currentUser.id)
-        .maybeSingle();
-
-      const mineValue = (mine as any)?.value;
-      if (!cancelled && (mineValue === 1 || mineValue === -1)) setMyRating(mineValue);
-
-      const { count: up } = await sb
-        .from('user_ratings')
-        .select('*', { count: 'exact', head: true })
-        .eq('target_user_id', profileUserId)
-        .eq('value', 1);
-
-      const { count: down } = await sb
-        .from('user_ratings')
-        .select('*', { count: 'exact', head: true })
-        .eq('target_user_id', profileUserId)
-        .eq('value', -1);
-
-      if (!cancelled) {
-        setUpCount(up ?? 0);
-        setDownCount(down ?? 0);
-      }
-    }
-
-    loadRatings();
-    return () => {
-      cancelled = true;
-    };
-  }, [currentUser?.id, profileUserId, supabase]);
-
   async function submitRating(value: 1 | -1) {
-    if (!currentUser?.id || !profileUserId) return;
-    if (currentUser.id === profileUserId) return;
-
-    setIsSubmittingRating(true);
-    try {
-      const { error } = await sb.from('user_ratings').insert({
-        target_user_id: profileUserId,
-        rater_user_id: currentUser.id,
-        value,
-      });
-
-      if (error) {
-        if ((error as any).code === '23505') {
-          setMyRating(value);
-          return;
-        }
-        console.error('rating insert error', error);
-        return;
-      }
-
-      setMyRating(value);
-      if (value === 1) setUpCount((n) => n + 1);
-      if (value === -1) setDownCount((n) => n + 1);
-    } finally {
-      setIsSubmittingRating(false);
-    }
+    if (!profileUserId) return;
+    if (viewerAuthId === profileUserId) return;
   }
 
-  const reviews = isSelf && profile?.id ? store.getReviewsByRecipient(profile.id) : [];
+  const reviews = [];
   const reliabilityReviews = reviews.filter((r: any) => r.isReliabilityReview);
   const standardReviews = reviews.filter((r: any) => !r.isReliabilityReview);
-
   const userForDiscovery = isSelf && profile
     ? {
         plan: (profile as any).plan ?? null,
@@ -479,7 +309,7 @@ export function ProfileView({
       }
     : null;
   const isPremiumForDiscoveryCheck = userForDiscovery ? isPremiumForDiscovery(userForDiscovery) : false;
-  const showUpgradeNudge = isSelf && profile && !isPremiumForDiscoveryCheck && !isAdmin(profile);
+  const showUpgradeNudge = isSelf && profile && !isPremiumForDiscoveryCheck && !isAdmin(jwt);
   const showBillingSimulation = isSelf && BILLING_SIM_ALLOWED;
   const isUsingSimulation = showBillingSimulation && getSimulatedPremium();
   const hasRealPremium = isSelf && profile ? shouldShowProBadge(profile) : false;
@@ -488,7 +318,7 @@ export function ProfileView({
     if (hasRealPremium) return 'Pro Plan';
     return 'Free Plan';
   })();
-  const dashboardPath = isSelf && profile ? (isAdmin(profile) ? '/admin' : '/dashboard') : '/dashboard';
+  const dashboardPath = isSelf && profile ? (isAdmin(jwt) ? '/admin' : '/dashboard') : '/dashboard';
 
   const handleResetSimulation = () => {
     clearSimulatedPremium();
@@ -498,23 +328,12 @@ export function ProfileView({
 
   const handleAvatarUpdate = async (newAvatarUrl: string) => {
     if (!isSelf || !profile?.id) return;
-    // Optimistic local update for immediate UI refresh.
-    store.updateUser(profile.id, { avatar: `${newAvatarUrl}?v=${Date.now()}` });
-    try {
-      await updateUser?.({ avatar: newAvatarUrl });
-    } catch (e: any) {
-      console.error('[profile] avatar db update failed', e);
-      throw new Error(e?.message ?? 'Failed to save profile photo');
-    }
   };
 
-  const p = profile as any;
-
   // Pricing: use profile from API, or currentUser when viewing own profile (auth has full data)
-  const pricingSource = isSelf ? (currentUser as any) : p;
-  const showPricing = pricingSource?.show_pricing_on_profile === true || pricingSource?.showPricingOnProfile === true;
-  const pricingType = pricingSource?.pricing_type ?? pricingSource?.pricingType ?? null;
-  const pricingAmount = pricingSource?.pricing_amount != null ? Number(pricingSource.pricing_amount) : (pricingSource?.pricingAmount != null ? Number(pricingSource.pricingAmount) : null);
+  const showPricing = p?.business?.showPricing ?? false
+  const pricingType = p?.business?.priceType ?? null;
+  const pricingAmount = p?.business?.price ?? null;
   const pricingLabel = (() => {
     if (!showPricing || !pricingType) return null;
     if (pricingType === 'hourly' && pricingAmount != null && pricingAmount > 0) return `$${pricingAmount}/hr`;
@@ -524,31 +343,21 @@ export function ProfileView({
     if (pricingType === 'quote_on_request') return 'Pricing on enquiry';
     return null;
   })();
-  const isVerified = hasValidABN(p);
-  const displayName =
-    (p?.name ?? p?.full_name ?? '').trim() ||
-    (p?.email ? p.email.split('@')[0] : '') ||
-    (p?.business_name ?? '').trim() ||
-    'Profile';
-  const shouldShowBusinessName =
-    p?.showBusinessNameOnProfile === true || p?.show_business_name_on_profile === true;
-  const businessName = shouldShowBusinessName
-    ? ((p?.businessName ?? p?.business_name) || '').trim()
-    : '';
-  const shouldShowAbn =
-    p?.showAbnOnProfile === true || p?.show_abn_on_profile === true;
-  const abnToShow = shouldShowAbn ? ((p?.abn ?? '').trim()) : '';
-  const primaryTrade = p?.primaryTrade ?? p?.primary_trade ?? p?.trades?.[0] ?? null;
-  const allTrades = (p?.trades ?? []) as string[];
-  const otherTrades = primaryTrade
-    ? allTrades.filter((t) => t && t.trim() !== primaryTrade.trim())
-    : allTrades;
-  const miniBio = p?.mini_bio ?? p?.miniBio ?? null;
-  const bio = p?.bio ?? null;
-  const rating = p?.rating ?? null;
-  const reliabilityRating = p?.reliabilityRating ?? p?.reliability_rating ?? null;
-  const showProBadge = !!(p?.premium_now ?? p?.isPremium ?? hasRealPremium);
-  const links = (p?.links ?? {}) as Record<string, any>;
+  const isVerified = p?.business?.abnVerified ?? false;
+  const displayName = p.displayName || p.name;
+  const shouldShowBusinessName = p?.profile?.showBusinessName ?? false;
+  const businessName = p?.business?.businessName;
+  const shouldShowAbn = p?.profile?.showAbn ?? false;
+  const abnToShow = p?.business?.abn ?? null;
+  const primaryTrade = p?.business?.trades[0] ?? null;
+  const allTrades = ( p?.business?.trades ?? [] ) as string[];
+  const otherTrades = [];
+  const miniBio = p?.profile?.miniBio ?? null;
+  const bio = p?.profile?.bio ?? null;
+  const rating = p?.profile?.rating ?? null;
+  const reliabilityRating = p?.profile?.reliabilityRating ?? null;
+  const showProBadge = !!( p?.profile?.premium ?? false );
+  const links = ( p?.profile?.links ?? {} ) as Record<string, any>;
   const normalizedLinks = {
     website: links.website ?? links.Website ?? p?.website_url ?? p?.website ?? null,
     instagram: links.instagram ?? links.Instagram ?? p?.instagram_url ?? p?.instagram ?? null,
@@ -559,10 +368,10 @@ export function ProfileView({
   };
   const socials = [
     { key: 'website', label: 'Website', Icon: Globe },
-    { key: 'instagram', label: 'Instagram', Icon: Instagram },
-    { key: 'facebook', label: 'Facebook', Icon: Facebook },
-    { key: 'linkedin', label: 'LinkedIn', Icon: Linkedin },
-    { key: 'youtube', label: 'YouTube', Icon: Youtube },
+    { key: 'instagram', label: 'Instagram', Icon: Radio },
+    { key: 'facebook', label: 'Facebook', Icon: Radio },
+    { key: 'linkedin', label: 'LinkedIn', Icon: Radio },
+    { key: 'youtube', label: 'YouTube', Icon: Radio },
   ] as const;
   const hasAnyLinks = socials.some(({ key }) => (normalizedLinks as any)?.[key]) || (normalizedLinks as any)?.tiktok;
 
@@ -572,7 +381,7 @@ export function ProfileView({
       ? 0
       : Number((1 + (upCount / totalVotes) * 4).toFixed(1));
 
-  const avg = Number((p?.rating_avg ?? starAverage) || 0);
+  const avg = Number(starAverage);
   const profileStrengthCanonical = buildProfileStrengthCanonical({
     strengthCalc,
     profile: p as Record<string, unknown>,
@@ -605,25 +414,12 @@ export function ProfileView({
               </Link>
             ) : (
               <div className="flex flex-wrap items-center justify-end gap-2">
-                {!isSelf && profileUserId && currentUser?.id && currentUser.id !== profileUserId && (
+                {!isSelf && (
                   <LikeProfileButton
                     profileUserId={profileUserId}
                     initialLiked={likeInitial?.liked ?? false}
                     initialLikesCount={likeInitial?.count ?? 0}
-                    onUpdated={() => {
-                      fetch(`/api/profile/${profileUserId}/strength`, { credentials: 'include' })
-                        .then(async (r) => {
-                          let j: unknown;
-                          try {
-                            j = await r.json();
-                          } catch {
-                            return;
-                          }
-                          if (!r.ok) return;
-                          applyProfileStrengthApiPayload(j, setStrengthCalc);
-                        })
-                        .catch(() => {});
-                    }}
+                    onUpdated={()=>{ }}
                   />
                 )}
                 <Button
@@ -658,18 +454,13 @@ export function ProfileView({
             <div className="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white">
               <div className="relative">
                 {isSelf ? (
-                  <ProfileCover
-                    userId={profile.id}
-                    coverUrl={p?.coverUrl ?? p?.cover_url ?? undefined}
-                    onCoverUpdate={async (url) => {
-                      await updateUser?.({ coverUrl: url });
-                    }}
-                  />
+                  <ProfileCover />
                 ) : (
                   <div className="relative overflow-hidden rounded-2xl border bg-slate-200">
                     <div className="relative h-[162px] sm:h-[198px] md:h-[234px] w-full">
-                      {(p?.cover_url ?? p?.coverUrl) ? (
-                        <Image src={p.cover_url ?? p.coverUrl} alt="" fill className="object-cover" unoptimized />
+											{/* TODO construct public URL for cover images */}
+                      {(p?.profile?.coverDataUrl ?? null) ? (
+                        <Image src={`/api/public/profiles/${p?.profile?.id}/cover`} alt="" fill className="object-cover" unoptimized />
                       ) : (
                         <div className="absolute inset-0 bg-gradient-to-br from-slate-200 via-slate-100 to-slate-300" />
                       )}
@@ -680,10 +471,7 @@ export function ProfileView({
                 <div className="absolute left-6 -bottom-14 z-10">
                   <div className="rounded-full bg-white p-1 shadow-sm ring-1 ring-gray-200">
                     <ProfileAvatar
-                      userId={profile.id}
-                      currentAvatarUrl={p?.avatar ?? undefined}
                       userName={displayName || 'TradeHub user'}
-                      onAvatarUpdate={handleAvatarUpdate}
                       editable={isSelf}
                       size={120}
                     />
@@ -1149,22 +937,8 @@ export function ProfileView({
                           <Switch
                             checked={(profile as any)?.receiveTradeAlerts ?? (profile as any)?.receive_trade_alerts ?? false}
                             onCheckedChange={async (checked) => {
-                              if (profile?.id && currentUser?.id === profile.id) {
-                                try {
-                                  const res = await fetch('/api/profile/trade-alerts', {
-                                    method: 'PATCH',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ enabled: checked }),
-                                  });
-                                  if (!res.ok) {
-                                    const data = await res.json().catch(() => ({}));
-                                    throw new Error(data?.error ?? 'Failed to update');
-                                  }
-                                  await refreshUser?.();
-                                } catch (e) {
-                                  console.warn('Could not save alert preference:', e);
-                                  toast.error('Could not save. Please try again.');
-                                }
+                              if (profile?.id && viewerAuthId === profile.id) {
+																// TODO trade alerts
                               }
                             }}
                           />
@@ -1262,13 +1036,7 @@ export function ProfileView({
                         onClick={async () => {
                           setPortalLoading(true);
                           try {
-                            const res = await fetch('/api/billing/portal', { method: 'POST' });
-                            const data = await res.json().catch(() => ({}));
-                            if (res.ok && data?.url) {
-                              window.location.href = data.url;
-                              return;
-                            }
-                            alert(data?.error || 'Could not open billing portal');
+														// TODO billing portal
                           } finally {
                             setPortalLoading(false);
                           }

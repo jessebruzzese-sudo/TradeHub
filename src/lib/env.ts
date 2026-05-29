@@ -1,4 +1,7 @@
 // vim: ts=2
+export type TradeHubStore = {
+	images: string;
+};
 export type TradeHubJWT = {
 	secret: string;
 };
@@ -10,6 +13,7 @@ export type TradeHubDatabase = {
 	password: string;
 };
 export type TradeHubEnv = {
+	store: TradeHubStore;
 	database: TradeHubDatabase;
 	jwt: TradeHubJWT;
 };
@@ -23,6 +27,9 @@ const load = (key:string) => {
 	return value;
 };
 export const ENV: TradeHubEnv = {
+	store: {
+		images: load("IMAGE_FILE_STORE")	
+	},
 	database: {
 		host: load("POSTGRES_HOST"),
 		port: load("POSTGRES_PORT"),

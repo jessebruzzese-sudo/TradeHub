@@ -5,9 +5,16 @@ import { cookies } from "next/headers";
 import * as jose from "jose";
 import * as z from "zod";
 
+const PricingSchema = z.object({
+	priceType: z.string().nullable(),
+	price: z.number().nullable(),
+	showPricing: z.boolean()
+});
+
 const AvailabilitySchema = z.object({
 	dates: z.string().array(),
-	description: z.string()
+	description: z.string(),
+	pricing: PricingSchema
 });
 
 export async function GET(request: NextRequest) {

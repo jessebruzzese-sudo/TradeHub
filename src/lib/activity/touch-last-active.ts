@@ -6,16 +6,3 @@ export function isLastActiveStale(lastActiveAt: string | null | undefined, now =
   if (!Number.isFinite(parsed.getTime())) return true;
   return now.getTime() - parsed.getTime() >= SIX_HOURS_MS;
 }
-
-export async function touchLastActiveIfStale(supabase: any, userId: string): Promise<boolean> {
-  const { data, error } = await supabase.rpc('touch_last_active_if_stale', { p_user_id: userId });
-  if (error) {
-    if (error.code === '42703') {
-      return false;
-    }
-    console.warn('[activity] touch_last_active_if_stale RPC failed', error);
-    return false;
-  }
-  return data === true;
-}
-

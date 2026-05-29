@@ -14,6 +14,10 @@ drizzle.local.config.ts
 data_users.ts
 def_users.ts
 
+# curl
+curl/admin.json
+curl/creds.json
+
 # Supabase local temp
 supabase/.temp/
 tsconfig.tsbuildinfo

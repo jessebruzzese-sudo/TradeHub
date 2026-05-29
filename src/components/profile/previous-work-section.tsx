@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ChevronDown, ChevronUp, MapPin, Plus } from 'lucide-react';
-
 import { formatRelativeTime } from '@/lib/completed-work-dates';
 import { getTradeIcon } from '@/lib/trade-icons';
 import { Button } from '@/components/ui/button';
@@ -27,15 +26,8 @@ export function PreviousWorkSection({ userId, isSelf, primaryTradeLabel }: Props
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/profile/previous-work?userId=${encodeURIComponent(userId)}`, {
-        credentials: 'include',
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setItems([]);
-        return;
-      }
-      setItems(Array.isArray(data?.items) ? data.items : []);
+			// TODO previous work
+    	setItems([]);
     } catch {
       setItems([]);
     } finally {

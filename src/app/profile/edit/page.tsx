@@ -1,15 +1,14 @@
+// vim: ts=2
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useContext } from 'react';
+import UserContext from "@/lib/user-context";
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ChevronDown, Lock, MapPin, Globe, Plus, Trash2, X, Loader2, Star, ExternalLink } from 'lucide-react';
-import { SiInstagram, SiFacebook, SiLinkedin, SiTiktok, SiYoutube } from 'react-icons/si';
-
+import { Radio, ChevronDown, Lock, MapPin, Globe, Plus, Trash2, X, Loader2, Star, ExternalLink } from 'lucide-react';
 import { AppLayout } from '@/components/app-nav';
 import { ProfileAvatar } from '@/components/profile-avatar';
-
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -19,12 +18,10 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
-
 import { RefinePillButton } from '@/components/ai/RefinePillButton';
 import { PremiumUpsellBar } from '@/components/premium-upsell-bar';
 import { SuburbAutocomplete } from '@/components/suburb-autocomplete';
 import { useAuth } from '@/lib/auth';
-import { getBrowserSupabase } from '@/lib/supabase-client';
 import { isAdmin } from '@/lib/is-admin';
 import { useActiveTradesCatalog } from '@/lib/trades/use-active-trades-catalog';
 import { normalizeTrade, normalizeTradesList } from '@/lib/trades/normalizeTrade';
@@ -70,15 +67,16 @@ function normalizePrimaryLocationSource(user: any): {
   };
 }
 export default function EditProfilePage() {
-  const { session, currentUser, isLoading, updateUser } = useAuth();
+  const { jwt } = useAuth();
   const router = useRouter();
-  const hasSession = !!session?.user;
+  const hasSession = jwt !== null && jwt !== undefined;
+	const UserSession = useContext(UserContext);
 
   useEffect(() => {
-    if (!isLoading && !currentUser) {
+    if (!hasSession) {
       router.replace(`/login?returnUrl=${encodeURIComponent('/profile/edit')}`);
     }
-  }, [currentUser, isLoading, router]);
+  }, [hasSession]);
 
   const cardClass =
     'mb-5 rounded-2xl border border-slate-200/70 bg-white/75 p-5 shadow-sm backdrop-blur ' +
@@ -91,6 +89,7 @@ export default function EditProfilePage() {
     'flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white/70 shadow-sm';
 
   // Controlled values (always defined so hooks are stable)
+	const [currentUser, setCurrentUser] = useState<any|null>(UserSession.user);
   const [name, setName] = useState<string>('');
   const [miniBio, setMiniBio] = useState<string>('');
   const [businessName, setBusinessName] = useState<string>('');
@@ -167,63 +166,24 @@ export default function EditProfilePage() {
 
   // Load trades from API
   useEffect(() => {
-    if (!hasSession || !currentUser?.id) return;
-    let cancelled = false;
-    (async () => {
-      setTradesLoading(true);
-      try {
-        const res = await fetch('/api/profile/trades');
-        const data = await res.json().catch(() => ({}));
-        if (cancelled) return;
-        if (res.ok && Array.isArray(data?.trades)) {
-          setUserTrades(data.trades);
-        }
-      } finally {
-        if (!cancelled) setTradesLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [hasSession, currentUser?.id]);
-
-  // Sync primaryTrade when userTrades loads; fallback to currentUser for legacy
-  useEffect(() => {
-    if (userTrades.length > 0) {
-      const primary = userTrades.find((t) => t.is_primary) ?? userTrades[0];
-      setPrimaryTrade(primary.trade);
-    } else if (!tradesLoading && currentUser?.primaryTrade) {
-      setPrimaryTrade(currentUser.primaryTrade);
-      setUserTrades([{ id: null, trade: currentUser.primaryTrade, is_primary: true }]);
-    }
-  }, [userTrades, currentUser?.primaryTrade, tradesLoading]);
+    if (!hasSession) return;
+		// TODO load trades
+  }, [hasSession]);
 
   // Load additional locations from API (Premium users only)
   useEffect(() => {
-    if (!hasSession || !currentUser?.id) return;
-    let cancelled = false;
-    (async () => {
-      setLocationsLoading(true);
-      try {
-        const res = await fetch('/api/profile/locations');
-        const data = await res.json().catch(() => ({}));
-        if (cancelled) return;
-        if (res.ok && Array.isArray(data?.locations)) {
-          setAdditionalLocations(data.locations);
-        }
-      } finally {
-        if (!cancelled) setLocationsLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [hasSession, currentUser?.id]);
+    if (!hasSession) return;
+		// TODO load locations	
+  }, [hasSession]);
 
   // Hydrate form state once user is available (and on user switch)
   useEffect(() => {
-    if (!currentUser) return;
+    if (!hasSession) return;
     const canonicalLocation = normalizePrimaryLocationSource(currentUser as any);
 
     setName(currentUser.name ?? '');
     setMiniBio((currentUser as any)?.miniBio ?? (currentUser as any)?.mini_bio ?? '');
-    setBusinessName(currentUser.businessName ?? '');
+    setBusinessName(currentUser.business.businessName ?? '');
     setBio(currentUser.bio ?? '');
     setPrimaryTrade((currentUser.primaryTrade as string | undefined) ?? ((currentUser as any)?.trades?.[0] as string | undefined) ?? '');
     setIsPublicProfile(currentUser.isPublicProfile ?? false);
@@ -231,9 +191,7 @@ export default function EditProfilePage() {
     setPostcode(canonicalLocation.postcode);
     setLocationLat(canonicalLocation.lat);
     setLocationLng(canonicalLocation.lng);
-
     setTradesText(((currentUser.trades ?? []) as string[]).join(', '));
-
     setWebsite((currentUser as any)?.website ?? '');
     setInstagram((currentUser as any)?.instagram ?? '');
     setFacebook((currentUser as any)?.facebook ?? '');
@@ -293,7 +251,7 @@ export default function EditProfilePage() {
     setPricingAmount(pa != null ? String(pa) : '');
     setShowPricingOnProfile((currentUser as any)?.showPricingOnProfile ?? (currentUser as any)?.show_pricing_on_profile ?? false);
     setShowPricingInListings((currentUser as any)?.showPricingInListings ?? (currentUser as any)?.show_pricing_in_listings ?? false);
-  }, [currentUser]);
+  }, [hasSession]);
 
   useEffect(() => {
     if (!googleLookupMode) return;
@@ -634,20 +592,12 @@ export default function EditProfilePage() {
     );
   }
 
-  const isAbnVerified = hasValidABN(currentUser);
+  const isAbnVerified = currentUser?.business?.abnVerified ?? false;
   const abnVerified = isAbnVerified;
   const abnNumber = (currentUser?.abn || '').toString();
-  const verifiedEntityName =
-    (currentUser as any)?.abnEntityName ??
-    (currentUser as any)?.abn_entity_name ??
-    currentUser.businessName ??
-    null;
-  const verifiedAbnNumber =
-    (currentUser as any)?.abn ??
-    (currentUser as any)?.abn_number ??
-    null;
-  const businessNameDisplay = (verifiedEntityName ?? currentUser?.businessName ?? '').toString();
-
+  const verifiedEntityName = currentUser?.business?.abnEntityName ?? null;
+  const verifiedAbnNumber = currentUser?.business?.abn ?? null;
+  const businessNameDisplay = (verifiedEntityName ?? currentUser?.business?.businessName ?? '').toString();
   const primaryTradeValue = primaryTrade || selectedTrades[0] || '';
   const canEditTrades = canChangePrimaryTrade(currentUser);
 
@@ -667,10 +617,8 @@ export default function EditProfilePage() {
   const normalizeHandleOrUrl = (raw: string, baseUrl: string) => {
     const v = (raw || '').trim();
     if (!v) return '';
-
     if (v.startsWith('http://') || v.startsWith('https://')) return v;
     if (v.includes('.') || v.includes('/')) return ensureHttps(v);
-
     const handle = v.startsWith('@') ? v.slice(1) : v;
     if (!handle) return '';
     return `${baseUrl.replace(/\/$/, '')}/${handle}`;
@@ -747,15 +695,6 @@ export default function EditProfilePage() {
     }
   };
 
-  const handleAvatarUpdate = async (newAvatarUrl: string) => {
-    try {
-      await updateUser({ avatar: newAvatarUrl });
-    } catch (error: any) {
-      console.error('[profile/edit] avatar db update failed', error);
-      throw new Error(error?.message ?? 'Failed to save profile photo');
-    }
-  };
-
   const handleRefineBio = async () => {
     const raw = String(bio ?? '').trim();
     if (!raw) return;
@@ -801,7 +740,7 @@ export default function EditProfilePage() {
     const normalizedTrades = normalizeTradesList(selectedTrades);
     const effectivePrimary =
       normalizeTrade(primaryTrade?.trim() || '') || normalizedTrades[0] || '';
-    if (!effectivePrimary && !isAdmin(currentUser)) {
+    if (!effectivePrimary && !isAdmin(jwt)) {
       toast.error('Please select your primary trade');
       return;
     }
@@ -1000,10 +939,7 @@ export default function EditProfilePage() {
                     {/* Ring + shadow container (now reserves space correctly) */}
                     <div className="relative overflow-hidden rounded-full ring-2 ring-slate-900/10 shadow-md transition-all duration-300 group-hover:ring-blue-500/25 group-hover:shadow-lg">
                       <ProfileAvatar
-                        userId={currentUser.id}
-                        currentAvatarUrl={currentUser.avatar ?? undefined}
                         userName={currentUser.name ?? 'User'}
-                        onAvatarUpdate={handleAvatarUpdate}
                         size={154}
                       />
                     </div>
@@ -1096,7 +1032,7 @@ export default function EditProfilePage() {
                   <span className="text-sm text-slate-700">Show mobile number on profile</span>
                 </div>
               </div>
-              {!isAdmin(currentUser) && (
+              {!isAdmin(jwt) && (
                 <div>
                   <Label htmlFor="businessName" className="text-sm font-medium text-slate-800">Business Name</Label>
                   <Input
@@ -1221,7 +1157,7 @@ export default function EditProfilePage() {
                     <Label htmlFor="linkedin" className="text-sm font-medium text-slate-800">LinkedIn</Label>
                     <div className="mt-1 flex items-center gap-2">
                       <div className={linkIconBoxClass}>
-                        <SiLinkedin className="h-4 w-4 text-slate-700" aria-hidden="true" />
+                        <Radio className="h-4 w-4 text-slate-700" aria-hidden="true" />
                       </div>
                       <Input
                         id="linkedin"
@@ -1237,7 +1173,7 @@ export default function EditProfilePage() {
                     <Label htmlFor="tiktok" className="text-sm font-medium text-slate-800">TikTok</Label>
                     <div className="mt-1 flex items-center gap-2">
                       <div className={linkIconBoxClass}>
-                        <SiTiktok className="h-4 w-4 text-slate-700" aria-hidden="true" />
+                        <Radio className="h-4 w-4 text-slate-700" aria-hidden="true" />
                       </div>
                       <Input
                         id="tiktok"
@@ -1253,7 +1189,7 @@ export default function EditProfilePage() {
                     <Label htmlFor="youtube" className="text-sm font-medium text-slate-800">YouTube</Label>
                     <div className="mt-1 flex items-center gap-2">
                       <div className={linkIconBoxClass}>
-                        <SiYoutube className="h-4 w-4 text-slate-700" aria-hidden="true" />
+                        <Radio className="h-4 w-4 text-slate-700" aria-hidden="true" />
                       </div>
                       <Input
                         id="youtube"
@@ -1474,7 +1410,7 @@ export default function EditProfilePage() {
             </div>
           </div>
 
-          {!isAdmin(currentUser) && currentUser.role === 'subcontractor' && (
+          {!isAdmin(jwt) && (
           <div className={cardClass}>
             <div className="mb-3">
               <h2 className="text-sm font-semibold text-slate-900">Pricing</h2>
@@ -1539,7 +1475,7 @@ export default function EditProfilePage() {
           </div>
           )}
 
-          {!isAdmin(currentUser) && (
+          {!isAdmin(jwt) && (
           <div className={cardClass}>
             <div className="mb-3">
               <h2 className="text-sm font-semibold text-slate-900">Trades</h2>
@@ -1700,7 +1636,7 @@ export default function EditProfilePage() {
           </div>
           )}
 
-          {!isAdmin(currentUser) && (
+          {!isAdmin(jwt) && (
           <div id="location" className={cardClass}>
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
@@ -1848,7 +1784,7 @@ export default function EditProfilePage() {
           </div>
           )}
 
-          {!isAdmin(currentUser) && (
+          {!isAdmin(jwt) && (
           <div id="public-profile" className={cardClass}>
             <div className="mb-3">
               <h2 className="text-sm font-semibold text-slate-900">Public profile</h2>

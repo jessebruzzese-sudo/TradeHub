@@ -5,7 +5,7 @@ import {
   FileText,
   Globe,
   Heart,
-  Instagram,
+  Radio,
   Star,
 } from 'lucide-react';
 
@@ -156,7 +156,7 @@ export function getMissingProfileImprovementItems(
       href: '/profile/edit',
       completed: !!input.hasInstagram,
       priority: 7,
-      icon: Instagram,
+      icon: Radio,
     },
   ];
 

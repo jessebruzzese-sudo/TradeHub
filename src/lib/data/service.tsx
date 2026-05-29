@@ -8,6 +8,7 @@ import * as usersRepo from "@/lib/data/repos/users";
 import * as tradesRepo from "@/lib/data/repos/trades";
 import * as businessRepo from "@/lib/data/repos/business";
 import * as availabilityRepo from "@/lib/data/repos/availability";
+import * as profileRepo from "@/lib/data/repos/profile";
 const MAX_CONNECTIONS = 10;
 const IDLE_TIMEOUT = 10;
 const pgPool = new Pool({
@@ -38,7 +39,8 @@ export const getDataService = async () => {
 			users: usersRepo,
 			trades: tradesRepo,
 			business: businessRepo,
-			availability: availabilityRepo
+			availability: availabilityRepo,
+			profile: profileRepo
 		});
 	});
 };

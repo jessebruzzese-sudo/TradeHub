@@ -9,11 +9,15 @@ export const businessTable = pgTable("business", {
 	abn: text("abn"),
 	abnEntityName: text("abn_entity_name"),
 	abnEntityType: text("abn_entity_type"),
-	abnVerified: text("abn_verified"),
+	abnGstActiveDate: date("abn_gst_active_date"),
+	abnVerified: boolean("abn_verified").default(false),
 	location: text("location"), // address, move locations details to own table?
 	postcode: text("postcode"),
 	locationLat: text("latitude"),
-	locationLng: text("longitude")
+	locationLng: text("longitude"),
+	price: real("price"),
+	showPricing: boolean("show_pricing").default(false),
+	priceType: text("price_type")
 });
 
 export const businessTradeTable = pgTable("business_trade", {

@@ -47,24 +47,12 @@ export function AvailabilityCalendar({
 
   const handleDateSelect = (date: Date | undefined) => {
     if (!date) return;
-
     if (isAfter(date, maxDate)) {
       setShowUpgradePrompt(true);
-      return;
+      return false;
     }
-
     setShowUpgradePrompt(false);
-
-    const dateStr = date.toISOString().split('T')[0];
-    const isSelected = selectedDates.some(
-      d => d.toISOString().split('T')[0] === dateStr
-    );
-
-    if (isSelected) {
-      onDatesChange(selectedDates.filter(d => d.toISOString().split('T')[0] !== dateStr));
-    } else {
-      onDatesChange([...selectedDates, date]);
-    }
+		return true;
   };
 
   const disabledMatcher = (date: Date) => {
@@ -99,18 +87,15 @@ export function AvailabilityCalendar({
       {/* Calendar panel — Google-style widget */}
       <div className="flex justify-center px-2 py-4 md:py-5">
         <div className="w-full max-w-[400px] rounded-[28px] border border-slate-200/70 bg-white px-7 py-7 shadow-[0_4px_20px_rgba(15,23,42,0.06)]">
+					{/* confirm max selection days */}
           <DayPicker
-	    animate
+						animate
             mode="multiple"
             selected={selectedDates}
-            onSelect={(dates) => {
-              if (dates) {
-                const validDates = (Array.isArray(dates) ? dates : [dates]).filter(
-                  d => !isAfter(d, maxDate) && !isBefore(d, today)
-                );
-                onDatesChange(validDates);
-              }
-            }}
+            onSelect={(dates)=>{
+							const allowed = dates.filter(handleDateSelect);
+							onDatesChange(allowed);
+						}}
           />
         </div>
       </div>

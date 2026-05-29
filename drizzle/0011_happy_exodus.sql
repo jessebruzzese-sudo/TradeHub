@@ -1,0 +1,1 @@
+ALTER TABLE "business" ADD COLUMN "abn_gst_active_date" date;

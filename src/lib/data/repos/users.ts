@@ -3,7 +3,9 @@
 import { or, and, eq, sql, isNull, inArray, asc } from "drizzle-orm";
 import { usersTable, rolesTable } from "@/lib/data/defs/users";
 import { businessTable, businessTradeTable } from "@/lib/data/defs/business";
+import { profileTable } from "@/lib/data/defs/profile";
 import { getDB, getDataService } from "@/lib/data/service";
+import { formatISO } from "date-fns";
 import * as bcrypt from "bcrypt";
 
 const CUSTOMER_ROLE_ID = 2;	
@@ -12,11 +14,16 @@ const SALT_ROUNDS = 10;
 const userReducer = (a, c) => {
 	const key = c.id;
 	if(a[key] === undefined)
-		a[key] = { ...c.users, role: c.roles.name, business: null };
+		a[key] = { ...c.users, role: c.roles.name, business: null, profile: null };
 	// business is optional
 	const businessId = c?.business?.id ?? null;
 	if(businessId !== null){	
 		a[key].business = {...c.business, trades: {}};
+	}
+	// profile is optional
+	const profileId = c?.profile?.id ?? null;
+	if(profileId !== null){
+		a[key].profile = { ...c.profile };
 	}
 	// accumulate trades
 	const tradeId = c?.business_trade?.tradeId ?? null;
@@ -26,12 +33,17 @@ const userReducer = (a, c) => {
 	return a;
 };
 
-const addUserT = async (payload:any, businessId:string, roleId:integer, trx:any) => {
+export const updateLastActive = async (email:string) => {
+	return (await getDB()).update(usersTable).set({lastActiveAt:new Date()}).where(eq(usersTable.email, email));
+};
+
+const addUserT = async (payload:any, businessId:string, profileId:string, roleId:integer, trx:any) => {
 	return new Promise(async(resolve, reject)=>{
 		const hashed = await bcrypt.hash(payload.password, SALT_ROUNDS);
 		const values = {
 			roleId,
 			businessId,
+			profileId,
 			email: payload.email,
 			password: hashed,
 			name: payload.name,
@@ -53,15 +65,16 @@ const addUserT = async (payload:any, businessId:string, roleId:integer, trx:any)
 
 export const addBusinessUser = async (payload:any) => {
 	return new Promise(async(resolve, reject)=>{
-		const { business } = await getDataService();
+		const { business, profile } = await getDataService();
 		const db = await getDB();	
 		let userId = null;
 		try{
 			userId = await db.transaction(async(trx)=>{
+				const profileId = await profile.addProfileT(trx);
 				const businessId = await business.addBusinessT(payload.business, trx);
 				if(businessId === null)
 					throw new Error("Failed to create business record");
-				return await addUserT(payload, businessId, CUSTOMER_ROLE_ID, trx);
+				return await addUserT(payload, businessId, profileId, CUSTOMER_ROLE_ID, trx);
 			});
 		}catch(err_){
 			reject(err_);
@@ -114,6 +127,7 @@ export const getUserProfile = async (email:string) => {
 			results = await db.select()
 				.from(usersTable)
 				.innerJoin(rolesTable, eq(usersTable.roleId, rolesTable.id))
+				.leftJoin(profileTable, eq(usersTable.profileId, profileTable.id))
 				.leftJoin(businessTable, eq(usersTable.businessId, businessTable.id))
 				.leftJoin(businessTradeTable, eq(businessTable.id, businessTradeTable.businessId))
 				.where(eq(usersTable.email, email));

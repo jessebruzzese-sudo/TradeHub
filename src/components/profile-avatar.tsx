@@ -1,6 +1,9 @@
 'use client';
+// vim: ts=2
 
-import { useRef, useState } from 'react';
+import { useAuth } from "@/lib/auth-context";
+import { getAxios } from "@/lib/utils";
+import { useRef, useState, useEffect } from 'react';
 import Image from 'next/image';
 import Cropper from 'react-easy-crop';
 import type { Area } from 'react-easy-crop';
@@ -10,11 +13,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Slider } from '@/components/ui/slider';
 
 interface ProfileAvatarProps {
-  userId: string;
-  currentAvatarUrl?: string;
   userName: string;
-  onAvatarUpdate: (newAvatarUrl: string) => void | Promise<void>;
-  editable?: boolean;
+	editable: boolean;
   /** Pixel size (width/height). Default 96. Use e.g. 116 for ~20% larger on profile header. */
   size?: number;
 }
@@ -24,21 +24,40 @@ const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 const HEIC_TYPES = ['image/heic', 'image/heif'];
 
 export function ProfileAvatar({
-  userId,
-  currentAvatarUrl,
   userName,
-  onAvatarUpdate,
-  editable = true,
+	editable,
   size = 96,
 }: ProfileAvatarProps) {
+	
+	const { jwt } = useAuth();
   const [isUploading, setIsUploading] = useState(false);
   const [cropOpen, setCropOpen] = useState(false);
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isAutoCenteringRef = useRef(false);
+	const isLoading = imageSrc === null;
+
+	useEffect(()=>{
+		if(!isLoading){
+			return;
+		}
+		getAxios(jwt).
+			get(`/api/me/profile/avatar`).
+				then((response_)=>{
+					const image = response_.data;
+					const data = image.data;
+					const mime = image.mime;
+					const url = `data:${mime};base64,${data}`;
+					setImageSrc(url);
+				}).catch((err_)=>{
+					console.error("Failed to load avatar");
+				});
+	}, [imageSrc]);
+
   const formatSbError = (err: unknown): string => {
     if (!err) return '';
     if (typeof err === 'string') return err;
@@ -111,11 +130,9 @@ export function ProfileAvatar({
     const reader = new FileReader();
     reader.onload = () => {
       const src = reader.result as string;
-
       setImageSrc(src);
       setCrop({ x: 0, y: 0 });
       setCroppedAreaPixels(null);
-
       const img = document.createElement('img');
       img.onload = () => {
         const fitZoom = computeCircleFitZoom(img.width, img.height, CROP_BOX);
@@ -134,11 +151,7 @@ export function ProfileAvatar({
 
   const handleSaveCrop = async () => {
     if (!imageSrc || !croppedAreaPixels) return;
-
     setIsUploading(true);
-
-    const bucket = 'avatars';
-    const filePath = `${userId}/avatar.jpg`;
     let lastOp:
       | 'auth.getSession'
       | 'crop.getBlob'
@@ -147,46 +160,22 @@ export function ProfileAvatar({
       | 'db.updateUser'
       | 'done'
       | null = null;
-
     try {
-	/*
-      lastOp = 'auth.getSession';
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) throw sessionError;
-      if (!sessionData?.session?.user?.id) {
-        throw new Error('Please log in again to upload your profile photo.');
-      }
-
-      lastOp = 'crop.getBlob';
-      const blob = await getCroppedImageBlob(imageSrc, croppedAreaPixels, 512, {
-        background: '#FFFFFF',
-        mimeType: 'image/jpeg',
+      const blob = await getCroppedImageBlob(imageSrc, croppedAreaPixels as any, 512, {
+        outputWidth: CROP_BOX,
+        outputHeight: CROP_BOX,
+        mimeType: 'image/png',
         quality: 0.92,
       });
-
-      lastOp = 'storage.upload';
-      const { error: uploadError } = await supabase.storage
-        .from(bucket)
-        .upload(filePath, blob, {
-          cacheControl: '3600',
-          upsert: true,
-          contentType: 'image/jpeg',
-        });
-
-      if (uploadError) throw uploadError;
-
-      lastOp = 'storage.getPublicUrl';
-      const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
-      const freshUrl = `${data.publicUrl}?v=${Date.now()}`;
-
-      lastOp = 'db.updateUser';
-      await onAvatarUpdate(freshUrl);
-      lastOp = 'done';
-      toast.success('Profile photo updated successfully');
-
-      setCropOpen(false);
-      setImageSrc(null);
-	*/
+			const base64Image = Buffer.from(await blob.arrayBuffer()).toString("base64");
+			const payload = { data: base64Image, mime: "image/png" };
+			try{
+				await getAxios(jwt).put("/api/me/profile/avatar", payload);
+     		toast.success('Avatar updated');
+				setCropOpen(false);
+			}catch(err__){
+				throw err__;
+			}
     } catch (error: unknown) {
       console.error('[ProfileAvatar] crop upload failed', {
         userId,
@@ -238,8 +227,8 @@ export function ProfileAvatar({
         style={{ width: size, height: size }}
         onClick={handleClick}
       >
-        {currentAvatarUrl ? (
-          <Image src={currentAvatarUrl} alt={userName} fill className="object-cover" unoptimized sizes={`${size}px`} />
+        {imageSrc ? (
+          <Image src={imageSrc} alt={userName} fill className="object-cover" unoptimized sizes={`${size}px`} />
         ) : (
           <div className="text-slate-900 text-3xl font-semibold">{initials}</div>
         )}

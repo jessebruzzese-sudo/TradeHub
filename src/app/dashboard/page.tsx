@@ -1,6 +1,7 @@
 // vim: ts=2
 'use client';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useContext } from 'react';
+import UserContext from "@/lib/user-context";
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
@@ -10,6 +11,7 @@ import { UserAvatar } from '@/components/user-avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
+import { useActivityPing } from "@/hooks/useActivityPing";
 import {
   Tooltip,
   TooltipContent,
@@ -19,14 +21,12 @@ import {
 import { useAuth } from '@/lib/auth';
 import { isAdmin } from "@/lib/is-admin";
 import { useDevUnread } from '@/lib/dev-unread-context';
-import { isAbnVerified, abnLabel } from '@/lib/abn-utils';
 import { isPremiumForDiscovery } from '@/lib/discovery';
 import { getPrimaryUserCoordinates } from '@/lib/location/get-user-coordinates';
 import { getSafeReturnUrl, safeRouterReplace } from '@/lib/safe-nav';
 import { getBrowserSupabase } from '@/lib/supabase-client';
 import { canCreateJob } from '@/lib/permissions';
 import { JOB_POST_CONTRACTOR_ROLE_MESSAGE } from '@/lib/jobs/job-post-role-messages';
-
 import { startOfDay, isAfter, format } from 'date-fns';
 import {
   Calendar,
@@ -234,21 +234,22 @@ export default function DashboardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { jwt } = useAuth();
+	const UserSession = useContext(UserContext);
   const hasSession = jwt !== null && jwt !== undefined;
 	const apiClient = getAxios(jwt);
 	
 	{/* STATE */}
-	const [currentUser, setCurrentUser] = useState<any>(null);
-	const [isLoading, setIsLoading] = useState<boolean>(true);
+	const [currentUser, setCurrentUser] = useState<any|null>(UserSession.user);
   const [stats, setStats] = useState<Record<string, number>>({});
   const [newJobsCount, setNewJobsCount] = useState(0);
   const [statusAccordionOpen, setStatusAccordionOpen] = useState(false);
   const [locationUpsellOpen, setLocationUpsellOpen] = useState(false);
-  const [availDates, setAvailDates] = useState<string[]>([]);
+  const [availDates, setAvailDates] = useState<string[]|null>(null);
   const [availLoading, setAvailLoading] = useState(true);
   const [savedLocations, setSavedLocations] = useState<{ id: string }[] | null>(null);
 
 	{/*  DERIVED STATE */}
+	const isLoading = currentUser === null;
   const profileViews7d = 0; // TODO from stats
   const unreadMessages = 0; // TODO from dev unread override
   const accountStatusLabel = currentUser?.accountStatus ?? "loading"; 
@@ -278,8 +279,8 @@ export default function DashboardPage() {
   const hasMultipleLocations = savedLocationsCount >= 2;
   const freeRadiusKm = 20;
   const discoveryLabel = isPremium ? 'Premium radius' : `${freeRadiusKm}km radius`;
-  const abnVerified = isAbnVerified(currentUser);
-  const abnLabelText = abnLabel(currentUser);
+  const abnVerified = currentUser?.business?.abnVerified ?? false;
+  const abnLabelText = currentUser?.business?.abn ?? "";
   const planLabel = isPremium ? 'Premium' : 'Free';
   const firstName = ( 
 		currentUser?.visibleName || 
@@ -294,22 +295,49 @@ export default function DashboardPage() {
       const returnUrl = getSafeReturnUrl('/dashboard', '/dashboard');
       safeRouterReplace(router, `/login?returnUrl=${encodeURIComponent(returnUrl)}`, '/login');
     }
-  }, [isLoading, hasSession, router]);
+  }, [hasSession, router]);
 	
-	// hook to load data
-	// user, profile, jobs ...
+	// hook to load user
 	useEffect(()=>{
-		if(!isLoading){
+		if(currentUser !== null){
 			return;
 		}
-		apiClient.get("/api/me").then((response)=>{
-			const user_ = response.data;
-			setCurrentUser(user_);
-			setIsLoading(false);
+		// check if user needs to be loaded
+		if(UserSession.user === null){
+			// user not set this session
+			// need to grab from api
+			apiClient.get("/api/me").then((response)=>{
+				const user_ = response.data;
+				setCurrentUser(user_);
+				UserSession.user = user_;
+			});
+			return;
+		}
+		setCurrentUser(UserSession.user);
+	}, [currentUser]);
+	
+	// hook to load dates	
+	useEffect(()=>{
+		if(availDates !== null){
+			return;
+		}
+ 		apiClient.get("/api/me/availability").then((response_)=>{
+			const data = response_.data;
+			const dates = data.dates;
+			setAvailDates(dates);
+			setAvailLoading(false);	
 		});
-	}, [isLoading]);
-
+	}, [availDates]);
+	
+	// update  last active timestamp
+	useActivityPing(jwt);
+	
+	// take memo of most recent upcoming
+	// date of availability
 	const nextAvailable = useMemo(() => {
+		if(availDates === null){
+			return;
+		}
     const today = startOfDay(new Date());
     const future = availDates
       .map((d) => new Date(d))
@@ -319,6 +347,7 @@ export default function DashboardPage() {
     return future[0];
   }, [availDates]);
 
+	// format the next available date
   const nextAvailableLabel = useMemo(() => {
     return nextAvailable ? format(nextAvailable, 'EEE d MMM') : null;
   }, [nextAvailable]);

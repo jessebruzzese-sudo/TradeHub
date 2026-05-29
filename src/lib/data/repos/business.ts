@@ -6,7 +6,25 @@ import { tradesTable } from "@/lib/data/defs/trades";
 import { usersTable } from "@/lib/data/defs/users";
 import { getDB, getDataService } from "@/lib/data/service";
 
-export const getUserBusinessId = async (email:string) => {
+
+export const setPricingT = async (businessId:string, pricing:any, trx:any) => {
+	return trx.update(businessTable).set({...pricing}).where(eq(businessTable.id, businessId));
+};
+
+export const updateBusiness = async (email:string, delta:any) => {
+	return new Promise(async(resolve, reject)=>{
+		const id = await getUserBusinessId(email);	
+		if(id === null){
+			reject(new Error(`User is not linked with a business`));
+			return;
+		}
+		const db = await getDB();
+		await db.update(businessTable).set(delta).where(eq(businessTable.id, id));
+		resolve(true);
+	});
+};
+
+export const getPricing = async (email:string) => {
 	return new Promise(async(resolve, reject)=>{
 		const db = await getDB();
 		let results = null;
@@ -19,8 +37,37 @@ export const getUserBusinessId = async (email:string) => {
 			reject(err_);
 			return;
 		}
-		const businessId = results[0]?.business?.id ?? null;
-		resolve(businessId);
+		const pricing = {
+			price: results[0]?.business?.price ?? null,
+			priceType: results[0]?.business?.priceType ?? null,
+			showPricing: results[0]?.business?.showPricing ?? false
+		};
+		resolve(pricing);
+	});
+};
+
+export const getUserBusiness = async (email:string) => {
+	return new Promise(async(resolve, reject)=>{
+		const db = await getDB();
+		let results = null;
+		try{
+			results = await db.select().
+				from(usersTable).
+				leftJoin(businessTable, eq(usersTable.businessId, businessTable.id)).
+				where(eq(usersTable.email, email));
+		}catch(err_){
+			reject(err_);
+			return;
+		}
+		const business = results[0]?.business ?? null;
+		resolve(business);
+	});
+};
+
+export const getUserBusinessId = async (email:string) => {
+	return new Promise(async(resolve, reject)=>{
+		const business = await getUserBusiness(email);
+		resolve(business?.id ?? null);
 	});
 };
 

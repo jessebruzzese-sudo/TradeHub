@@ -1,6 +1,7 @@
 'use client';
 // vim: ts=2
 import * as jose from "jose";
+import { useDeleteCookie } from "cookies-next";
 import React, {
   createContext,
   useCallback,
@@ -10,7 +11,6 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { useActivityPing } from '@/hooks/useActivityPing';
 import { userDataService } from "@/libs/data/service";
 import {
   hasSubcontractorPremium,
@@ -66,6 +66,7 @@ function normalizeSubscriptionStatus(s?: string | null): string | null {
 export function AuthContextProvider({ children }: { children: React.ReactNode }) {
 
   const [jwt, setJWT] = useState<string | null>(null);
+	const deleteCookie = useDeleteCookie();
 
   const login: AuthCtx['login'] = useCallback(
     async (email, password) => {
@@ -82,7 +83,7 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
   const logout: AuthCtx['logout'] = useCallback(
     async () => {
 			return new Promise(async(resolve, reject)=>{
-				// deleteCookie(...)
+				deleteCookie("authorization");
     		setJWT(null);
 				resolve();
 			});

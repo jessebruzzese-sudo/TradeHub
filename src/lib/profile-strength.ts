@@ -1,10 +1,8 @@
-import { createServiceSupabase } from '@/lib/supabase/server';
 import type { ProfileStrengthCalc } from '@/lib/profile-strength-types';
 import {
   profileStrengthBandFromTotal,
   sumProfileStrengthCategoryPoints,
 } from '@/lib/profile-strength/compute-total';
-import { formatPostgrestError, formatUnknownError } from '@/lib/supabase/postgrest-errors';
 import { ensurePublicUserRowById } from '@/lib/ensure-public-user-server';
 
 export type { ProfileStrengthCalc };
@@ -168,19 +166,7 @@ export function parseProfileStrengthRpcResult(data: unknown): ProfileStrengthCal
  * (The cookie-based `createServerSupabase()` client cannot execute this RPC.)
  */
 export async function refreshProfileStrength(userId: string) {
-  const supabase = (await createServiceSupabase()) as any;
-
-  const { error } = await supabase.rpc('refresh_profile_strength', {
-    p_user_id: userId,
-  });
-
-  if (error) {
-    console.error('refresh_profile_strength failed', {
-      userId,
-      error,
-    });
-    return { ok: false as const, error: error.message };
-  }
+	// TODO figure out what this does??
   return { ok: true as const };
 }
 
@@ -190,17 +176,10 @@ async function logUsersRowPresence(
   userId: string,
   context: string
 ): Promise<{ usersRowFound: boolean; userProbeError: string | null }> {
-  const { data: userProbe, error: userProbeErr } = await supabase
-    .from('users')
-    .select('id')
-    .eq('id', userId)
-    .maybeSingle();
-  if (process.env.NODE_ENV === 'development') {
-    console.debug('[profile-strength] users probe', { requestedUserId: userId, context, usersRowFound: !!userProbe });
-  }
+	// TODO figure out what this does...
   return {
-    usersRowFound: !!userProbe,
-    userProbeError: userProbeErr ? formatPostgrestError(userProbeErr) : null,
+    usersRowFound: true,
+    userProbeError: null,
   };
 }
 
@@ -209,106 +188,8 @@ async function logUsersRowPresence(
  * Never throws; returns `emptyProfileStrengthCalc()` on RPC/parse failure so the UI can still render.
  */
 export async function fetchProfileStrengthCalc(userId: string): Promise<ProfileStrengthCalc> {
-  const fallback = emptyProfileStrengthCalc();
-  const logBase = { requestedUserId: userId, source: 'calculate_profile_strength' as const };
-
-  try {
-    const supabase = (await createServiceSupabase()) as any;
-
-    const runRpc = () => supabase.rpc('calculate_profile_strength', { p_user_id: userId });
-
-    let { data, error } = await runRpc();
-    let repairedPublicUserRow = false;
-
-    if (!error && rpcEnvelopeErrorCode(data) === 'user_not_found') {
-      console.warn('[profile-strength] user_not_found from RPC; attempting public.users repair', {
-        ...logBase,
-        profileStrengthPath: 'user_not_found_pre_repair' as const,
-        rawPreview: rpcPayloadPreview(data, 400),
-      });
-      const repair = await ensurePublicUserRowById(supabase, userId);
-      if (!repair.ok) {
-        console.error('[profile-strength] ensurePublicUserRowById failed after user_not_found', {
-          ...logBase,
-          cause: formatUnknownError(repair.cause),
-        });
-      } else {
-        repairedPublicUserRow = true;
-        ({ data, error } = await runRpc());
-      }
-    }
-
-    if (error) {
-      const probe = await logUsersRowPresence(supabase, userId, 'rpc_error');
-      const path: ProfileStrengthFetchPath = 'rpc_error_fallback';
-      console.error('[profile-strength] calculate_profile_strength RPC error', {
-        ...logBase,
-        ...probe,
-        profileStrengthPath: path,
-        rpcError: formatPostgrestError(error),
-        rpcCode: (error as { code?: string })?.code,
-        rawDataType: data === null || data === undefined ? String(data) : typeof data,
-        rawPreview: rpcPayloadPreview(data, 400),
-      });
-      return fallback;
-    }
-
-    const envelopeErr = rpcEnvelopeErrorCode(data);
-
-    const parsed = parseProfileStrengthRpcResult(data);
-    if (!parsed) {
-      const probe = await logUsersRowPresence(supabase, userId, 'parse_failed');
-      const path: ProfileStrengthFetchPath = 'parse_fallback';
-      console.error('[profile-strength] parseProfileStrengthRpcResult returned null', {
-        ...logBase,
-        ...probe,
-        profileStrengthPath: path,
-        peeledPreview: rpcPayloadPreview(peelRpcJsonRoot(data), 500),
-      });
-      return fallback;
-    }
-
-    const peeled = peelRpcJsonRoot(data);
-    const topKeys =
-      peeled && typeof peeled === 'object' && !Array.isArray(peeled)
-        ? Object.keys(peeled as object).sort().join(',')
-        : typeof peeled;
-
-    const path: ProfileStrengthFetchPath =
-      envelopeErr === 'user_not_found'
-        ? 'user_not_found_fallback'
-        : 'rpc_success';
-
-    const usersProbe =
-      path === 'user_not_found_fallback'
-        ? await logUsersRowPresence(supabase, userId, 'user_not_found_summary')
-        : null;
-
-    const summary = {
-      ...logBase,
-      profileStrengthPath: path,
-      repairedPublicUserRow,
-      usersRowLikelyPresent: envelopeErr !== 'user_not_found',
-      ...(usersProbe ?? {}),
-      total: parsed.total,
-      band: parsed.band,
-      rpcEnvelopeError: envelopeErr,
-      peeledTopKeys: topKeys,
-    };
-    if (path === 'user_not_found_fallback') {
-      console.warn('[profile-strength] fetchProfileStrengthCalc', summary);
-    } else if (process.env.NODE_ENV === 'development') {
-      console.info('[profile-strength] fetchProfileStrengthCalc', summary);
-    }
-
-    return parsed;
-  } catch (e) {
-    console.error('[profile-strength] Unexpected error in fetchProfileStrengthCalc', {
-      ...logBase,
-      profileStrengthPath: 'unexpected_fallback' as ProfileStrengthFetchPath,
-      details: formatUnknownError(e),
-      stack: e instanceof Error ? e.stack : undefined,
-    });
-    return fallback;
-  }
+	return new Promise(async(resolve, reject)=>{
+		const fallback = emptyProfileStrengthCalc();
+		resolve(fallback);
+	});
 }

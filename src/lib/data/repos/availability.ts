@@ -20,7 +20,6 @@ export const getAvailability = async (email:string) => {
 			reject(err_);
 			return;
 		}
-		console.log(results);
 		// availability isn't set on account creation
 		// need to after, therefore could be null
 		if(results.length === 0){
@@ -48,12 +47,17 @@ export const getAvailability = async (email:string) => {
 export const addAvailability = async (payload:any, email:string) => {
 	return new Promise(async(resolve, reject)=>{
 		const db = await getDB();
-		const businessId = await (await getDataService()).business.getUserBusinessId(email);
+		const { business } = await getDataService();
+		const businessId = await business.getUserBusinessId(email);
 		if(businessId === null){
 			reject(new Error("User is not mapped to a business"));
 			return;
 		}
-		await db.insert(availabilityTable).values({...payload, businessId: businessId});
+		await db.transaction(async(trx)=>{
+			await trx.delete(availabilityTable).where(eq(availabilityTable.businessId, businessId));
+			await trx.insert(availabilityTable).values({...payload, businessId: businessId});
+			await business.setPricingT(businessId, payload.pricing, trx);
+		});
 		resolve(true);
 	});	
 }
