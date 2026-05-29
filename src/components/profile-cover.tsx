@@ -128,9 +128,11 @@ export const ProfileCover = (props) => {
       <div className="relative overflow-hidden rounded-2xl border bg-slate-200">
         {/* Cover */}
         <div className="relative h-[162px] sm:h-[198px] md:h-[234px] w-full">
+					{imageSrc && 
         	<Image src={imageSrc} 
 							alt="cover-image" onClick={(event)=>{event.preventDefault();}} 
 							fill className="object-cover" unoptimized />
+					}
           {/* Actions */}
           <div className="absolute right-3 top-3 flex items-center gap-2">
             <Button
