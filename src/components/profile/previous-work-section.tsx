@@ -1,9 +1,11 @@
+// vim: ts=2
 'use client';
-
+import { getAxios } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
 import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ChevronDown, ChevronUp, MapPin, Plus } from 'lucide-react';
+import { ChevronDown, ChevronUp, MapPin, Plus, LoaderCircle } from 'lucide-react';
 import { formatRelativeTime } from '@/lib/completed-work-dates';
 import { getTradeIcon } from '@/lib/trade-icons';
 import { Button } from '@/components/ui/button';
@@ -19,33 +21,33 @@ type Props = {
 };
 
 export function PreviousWorkSection({ userId, isSelf, primaryTradeLabel }: Props) {
-  const [items, setItems] = useState<PreviousWorkListItem[]>([]);
-  const [loading, setLoading] = useState(true);
+
+	const { jwt } = useAuth();
+  const [items, setItems] = useState<any|null>(null);
   const [expanded, setExpanded] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-			// TODO previous work
-    	setItems([]);
-    } catch {
-      setItems([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [userId]);
+  useEffect(()=>{
+		if(items !== null){
+			return;
+		}
+		if(isSelf){
+			getAxios(jwt).
+				get("/api/me/works").
+					then((response)=>{
+						const data = response.data;
+						setItems(data);
+					}).catch((err)=>{
+						console.error(err);
+					});
+		}	
+  }, [items]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  useEffect(() => {
-    setExpanded(false);
-  }, [userId]);
-
-  const hasMoreThanCollapsed = items.length > COLLAPSED_VISIBLE;
-  const displayedItems =
-    expanded || !hasMoreThanCollapsed ? items : items.slice(0, COLLAPSED_VISIBLE);
+	const loading = items === null;
+  const hasMoreThanCollapsed = (items?.length ?? 0) > COLLAPSED_VISIBLE;
+  let displayedItems = [];
+	if(!loading){
+		displayedItems = expanded || !hasMoreThanCollapsed ? items : items.slice(0, COLLAPSED_VISIBLE);
+	}
   const showViewAll = isSelf && hasMoreThanCollapsed;
   const TradeIcon = primaryTradeLabel ? getTradeIcon(primaryTradeLabel) : null;
 

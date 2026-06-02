@@ -1,19 +1,31 @@
+// vim: ts=2
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
-
+import { cookies } from "next/headers";
 export const runtime = 'nodejs';
+import * as jose from "jose";
 
 export async function POST(req: Request) {
+	const store = await cookies();
+	const cookie = store.get("authorization") ?? null;
+	const jwt = cookie?.value ?? null;
+	if(jwt === null){
+		return NextResponse.json({ error: "Not authorized" }, { status: 401 });
+	}
+	try{
+		await jose.decodeJwt(jwt);
+	}catch(err__){
+		return NextResponse.json({ error: "Not authorized" }, { status: 401 });
+	}
+	if (!process.env.OPENAI_API_KEY) {
+		return NextResponse.json({ error: 'AI not configured' }, { status: 500 });
+	}
   try {
-    if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json({ error: 'AI not configured' }, { status: 500 });
-    }
     const body = await req.json().catch(() => ({}));
     const text = String(body?.text ?? '').trim();
     if (!text) {
       return NextResponse.json({ error: 'text required' }, { status: 400 });
     }
-
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',

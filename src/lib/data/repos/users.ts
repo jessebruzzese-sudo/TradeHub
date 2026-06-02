@@ -2,8 +2,9 @@
 'use server'
 import { or, and, eq, sql, isNull, inArray, asc } from "drizzle-orm";
 import { usersTable, rolesTable } from "@/lib/data/defs/users";
-import { businessTable, businessTradeTable } from "@/lib/data/defs/business";
+import { businessTable, businessTradeTable, googlePlacesTable } from "@/lib/data/defs/business";
 import { profileTable } from "@/lib/data/defs/profile";
+import { workTable } from "@/lib/data/defs/works";
 import { getDB, getDataService } from "@/lib/data/service";
 import { formatISO } from "date-fns";
 import * as bcrypt from "bcrypt";
@@ -18,17 +19,27 @@ const userReducer = (a, c) => {
 	// business is optional
 	const businessId = c?.business?.id ?? null;
 	if(businessId !== null){	
-		a[key].business = {...c.business, trades: {}};
+		a[key].business = {...c.business, trades: {}, place: null};
+	}
+	// google place is optional
+	const placeId = c?.google_places?.placeId ?? null;
+	if(placeId !== null){
+		a[key].business.googlePlace = {...c.google_places};
 	}
 	// profile is optional
 	const profileId = c?.profile?.id ?? null;
 	if(profileId !== null){
-		a[key].profile = { ...c.profile };
+		a[key].profile = { ...c.profile, works: { } };
 	}
 	// accumulate trades
 	const tradeId = c?.business_trade?.tradeId ?? null;
 	if(tradeId !== null){
 		a[key].business.trades[tradeId] = 1;
+	}
+	// accumulate works
+	const workId = c?.work?.id ?? null;
+	if(workId !== null){
+		a[key].profile.works[workId] = { ...c.work };
 	}
 	return a;
 };
@@ -128,7 +139,9 @@ export const getUserProfile = async (email:string) => {
 				.from(usersTable)
 				.innerJoin(rolesTable, eq(usersTable.roleId, rolesTable.id))
 				.leftJoin(profileTable, eq(usersTable.profileId, profileTable.id))
+				.leftJoin(workTable, eq(workTable.profileId, profileTable.id))
 				.leftJoin(businessTable, eq(usersTable.businessId, businessTable.id))
+				.leftJoin(googlePlacesTable, eq(businessTable.id, googlePlacesTable.businessId))
 				.leftJoin(businessTradeTable, eq(businessTable.id, businessTradeTable.businessId))
 				.where(eq(usersTable.email, email));
 		}catch(err_){
@@ -148,6 +161,11 @@ export const getUserProfile = async (email:string) => {
 				const tradeIds = Object.keys(mapped.business.trades);
 				const tradeNames = tradeIds.map((j,k)=>{ return tradeMapping[j]; });	
 				mapped.business.trades = tradeNames;
+			}
+			if(mapped.profile !== null){
+				let works = mapped.profile.works;
+				works = Object.keys(works).map((j,k)=>{ return works[j] });
+				mapped.profile.works = works;
 			}
 			return mapped;
 		});

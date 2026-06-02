@@ -30,7 +30,7 @@ export async function POST(req: Request) {
 	// generate jwt
 	const alg = "HS256";
 	const secret = new TextEncoder().encode(ENV.jwt.secret);
-	const claims = { email: user.email, role: user.role };
+	const claims = { email: user.email, role: user.role, id: user.id };
 	const jwt = await new jose.SignJWT(claims).
 		setProtectedHeader({alg}).
 		setIssuedAt().

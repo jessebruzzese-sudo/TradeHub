@@ -1,0 +1,1 @@
+ALTER TABLE "google_places" ALTER COLUMN "place_id" DROP NOT NULL;

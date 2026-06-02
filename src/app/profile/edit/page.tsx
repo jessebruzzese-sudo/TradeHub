@@ -128,14 +128,15 @@ export default function EditProfilePage() {
   const [youtube, setYoutube] = useState<string>(UserSession.user?.profile?.youtube ?? "");
 
 	// Google shit
-  const [googleBusinessUrl, setGoogleBusinessUrl] = useState('');
-  const [googleBusinessName, setGoogleBusinessName] = useState('');
-  const [googlePlaceId, setGooglePlaceId] = useState('');
-  const [googleRating, setGoogleRating] = useState('');
-  const [googleReviewCount, setGoogleReviewCount] = useState('');
+	const place = UserSession.user?.business?.googlePlace ?? null;
+  const [googleBusinessUrl, setGoogleBusinessUrl] = useState(place?.mapsUrl ?? "");
+  const [googleBusinessName, setGoogleBusinessName] = useState(place?.businessName ?? "");
+  const [googlePlaceId, setGooglePlaceId] = useState(place?.placeId ?? "");
+  const [googleRating, setGoogleRating] = useState(place?.googleRating ?? "");
+  const [googleReviewCount, setGoogleReviewCount] = useState(place?.reviewCount ?? "");
   const [googleListingVerificationStatus, setGoogleListingVerificationStatus] = useState<string>('UNVERIFIED');
   const [googleListingRejectionReason, setGoogleListingRejectionReason] = useState('');
-  const [googleBusinessAddress, setGoogleBusinessAddress] = useState('');
+  const [googleBusinessAddress, setGoogleBusinessAddress] = useState(place?.businessAddress ?? null);
   const [googleSearchQuery, setGoogleSearchQuery] = useState('');
   const [googleSearchResults, setGoogleSearchResults] = useState<GoogleBusinessSearchResult[]>([]);
   const [googleSearchLoading, setGoogleSearchLoading] = useState(false);
@@ -270,23 +271,19 @@ export default function EditProfilePage() {
       setGoogleSearchResults([]);
       setGoogleDropdownOpen(false);
       setGoogleHighlightedIndex(-1);
-      await updateUser({
-        googleBusinessUrl: details.googleMapsUrl || null,
-        googleBusinessName: details.name || null,
-        googleBusinessAddress: details.address || null,
-        googlePlaceId: details.placeId || result.placeId || null,
-        googleRating:
-          details.rating != null && Number.isFinite(Number(details.rating))
-            ? Number(details.rating)
-            : null,
-        googleReviewCount:
-          details.reviewCount != null && Number.isFinite(Number(details.reviewCount))
-            ? Number(details.reviewCount)
-            : null,
-        googleListingClaimedByUser: true,
-      } as any);
+      const googlePayload = {
+       	mapsUrl: details?.googleMapsUrl ?? null,
+        businessName: details?.name ?? null,
+        businessAddress: details?.address ?? null,
+        placeId: details?.placeId ?? null,
+        rating: details?.rating ?? null,
+        reviewCount: details?.reviewCount ?? null,
+        claimed: true
+      };
+			await getAxios(jwt).post("/api/me/business/google-listing", googlePayload);
       toast.success('Google business listing linked');
-    } catch {
+    } catch(err_) {
+			console.error(err_);
       toast.error('Could not load selected Google listing');
     } finally {
       setGoogleSelectionLoading(false);
@@ -309,15 +306,7 @@ export default function EditProfilePage() {
     setGoogleDropdownOpen(false);
     setGoogleHighlightedIndex(-1);
     try {
-      await updateUser({
-        googleBusinessUrl: null,
-        googleBusinessName: null,
-        googleBusinessAddress: null,
-        googlePlaceId: null,
-        googleRating: null,
-        googleReviewCount: null,
-        googleListingClaimedByUser: false,
-      } as any);
+			await getAxios(jwt).delete("/api/me/business/google-listing");
       toast.success('Google business listing removed');
     } catch {
       toast.error('Could not remove Google business listing');
@@ -701,15 +690,6 @@ export default function EditProfilePage() {
         linkedin: normalizeLinkedin(linkedin?.trim() ?? null),
         tiktok: normalizeTiktok(tiktok?.trim() ?? null),
         youtube: normalizeYoutube(youtube?.trim() ?? null),
-        googleBusinessUrl: googleBusinessUrl.trim() || null,
-        googleBusinessName: googleBusinessName.trim() || null,
-        googlePlaceId: googlePlaceId.trim() || null,
-        googleBusinessAddress: googleBusinessAddress.trim() || null,
-        googleRating: googleRating.trim() && !Number.isNaN(Number(googleRating)) ? Number(googleRating) : null,
-        googleReviewCount: googleReviewCount.trim() && !Number.isNaN(parseInt(googleReviewCount, 10))
-            ? parseInt(googleReviewCount, 10)
-            : null,
-        googleListingClaimedByUser: !!(googlePlaceId.trim() || googleBusinessUrl.trim()),
         showPhone: showPhoneOnProfile,
         showEmail: showEmailOnProfile,
         showAbn: showAbnOnProfile,

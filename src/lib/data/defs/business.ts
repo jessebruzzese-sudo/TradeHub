@@ -1,5 +1,9 @@
 // vim: ts=2
-import { unique, pgTable, boolean, text, uuid, date, timestamp, integer, real } from "drizzle-orm/pg-core";
+import { 
+	unique, pgTable, boolean, 
+	text, uuid, date, timestamp, 
+	integer, real 
+} from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { tradesTable } from "@/lib/data/defs/trades";
 
@@ -20,7 +24,18 @@ export const businessTable = pgTable("business", {
 	priceType: text("price_type")
 });
 
+export const googlePlacesTable = pgTable("google_places", {
+	placeId: text("place_id"),
+	businessId: uuid("business_id").notNull().references(()=>businessTable.id),
+	mapsUrl: text("maps_url"),
+	businessName: text("business_name"),
+	businessAddress: text("business_address"),
+	rating: real("rating"),
+	reviewCount: real("review_count"),
+	claimed: boolean("claimed")
+}, (table)=>[unique({name:"uc_place_business", columns:[table.placeId, table.businessId]})]);
+
 export const businessTradeTable = pgTable("business_trade", {
 	businessId: uuid("business_id").notNull().references(()=>businessTable.id),
 	tradeId: uuid("trade_id").notNull().references(()=>tradesTable.id)
-}, (table)=>[unique({name: "uc_business_trade", columns:[businessTable.id, tradesTable.id]})]);
+}, (table)=>[unique({name: "uc_business_trade", columns:[table.businessId, table.tradeId]})]);

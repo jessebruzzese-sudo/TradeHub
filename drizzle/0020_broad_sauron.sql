@@ -1,0 +1,1 @@
+ALTER TABLE "work_image" DROP COLUMN "file_path";

@@ -50,7 +50,6 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { PremiumUpsellBar } from '@/components/premium-upsell-bar';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
-import { isAdmin } from '@/lib/is-admin';
 import { isPremiumForDiscovery } from '@/lib/discovery';
 import { cn } from '@/lib/utils';
 import { shouldShowProBadge } from '@/lib/subscription-utils';
@@ -63,15 +62,6 @@ import ProfileSummaryTrustBar from '@/components/profile/ProfileSummaryTrustBar'
 import ProfileStrengthSection from '@/components/profile/ProfileStrengthSection';
 import { buildProfileStrengthCanonical } from '@/lib/profile-strength/canonical-ui';
 import LikeProfileButton from '@/components/profile/LikeProfileButton';
-
-/** Apply strength API JSON; ignore error bodies and non-OK responses so UI keeps client-side fallback. */
-function applyProfileStrengthApiPayload(j: unknown, setStrengthCalc: (c: ProfileStrengthCalc) => void) {
-  if (!j || typeof j !== 'object') return;
-  const o = j as Record<string, unknown>;
-  if ('error' in o && o.error != null) return;
-  if (typeof o.total !== 'number' || !Number.isFinite(o.total)) return;
-  setStrengthCalc(j as ProfileStrengthCalc);
-}
 
 function proofHrefWebsite(raw: string | null | undefined) {
   const v = (raw || '').trim();
@@ -214,6 +204,7 @@ export function ProfileView({
     e2eServerOnlyOwner;
 
   const p = profile as any;
+	const isProfileUserAdmin = p.role === "admin";
 
   const [upCount, setUpCount] = useState<number>(p?.profile?.upVotes ?? 0);
   const [downCount, setDownCount] = useState<number>(p?.profile?.downVotes ?? 0);
@@ -223,24 +214,10 @@ export function ProfileView({
   const [availDesc, setAvailDesc] = useState<string>('');
   const [availLoading, setAvailLoading] = useState(true);
   const [alertsUpsellOpen, setAlertsUpsellOpen] = useState(false);
-  const [strengthCalc, setStrengthCalc] = useState<ProfileStrengthCalc | null>(strengthCalcProp ?? null);
   const [likeInitial, setLikeInitial] = useState<{ liked: boolean; count: number } | null>(
     viewerLikeStateProp ?? null
   );
   const today = startOfDay(new Date());
-
-  useEffect(() => {
-    setStrengthCalc(strengthCalcProp ?? null);
-  }, [strengthCalcProp, profileUserId]);
-
-  useEffect(() => {
-    if (strengthCalcProp != null) return;
-    if (!showProfileStrengthSection) return;
-    const id = (profile as any)?.id as string | undefined;
-    if (!id) return;
-    applyProfileStrengthApiPayload(null, setStrengthCalc);
-  }, [profileUserId, strengthCalcProp, showProfileStrengthSection]);
-
   useEffect(() => {
     if (viewerLikeStateProp != null) {
       setLikeInitial(viewerLikeStateProp);
@@ -309,7 +286,7 @@ export function ProfileView({
       }
     : null;
   const isPremiumForDiscoveryCheck = userForDiscovery ? isPremiumForDiscovery(userForDiscovery) : false;
-  const showUpgradeNudge = isSelf && profile && !isPremiumForDiscoveryCheck && !isAdmin(jwt);
+  const showUpgradeNudge = isSelf && profile && !isPremiumForDiscoveryCheck && !isProfileUserAdmin;
   const showBillingSimulation = isSelf && BILLING_SIM_ALLOWED;
   const isUsingSimulation = showBillingSimulation && getSimulatedPremium();
   const hasRealPremium = isSelf && profile ? shouldShowProBadge(profile) : false;
@@ -318,7 +295,7 @@ export function ProfileView({
     if (hasRealPremium) return 'Pro Plan';
     return 'Free Plan';
   })();
-  const dashboardPath = isSelf && profile ? (isAdmin(jwt) ? '/admin' : '/dashboard') : '/dashboard';
+  const dashboardPath = isSelf && profile ? (isProfileUserAdmin ? '/admin' : '/dashboard') : '/dashboard';
 
   const handleResetSimulation = () => {
     clearSimulatedPremium();
@@ -356,7 +333,7 @@ export function ProfileView({
   const bio = p?.profile?.bio ?? null;
   const rating = p?.profile?.rating ?? null;
   const reliabilityRating = p?.profile?.reliabilityRating ?? null;
-  const showProBadge = !!( p?.profile?.premium ?? false );
+  const showProBadge = p?.profile?.premium ?? false;
   const links = ( p?.profile?.links ?? {} ) as Record<string, any>;
   const normalizedLinks = {
     website: links.website ?? links.Website ?? p?.website_url ?? p?.website ?? null,
@@ -383,7 +360,7 @@ export function ProfileView({
 
   const avg = Number(starAverage);
   const profileStrengthCanonical = buildProfileStrengthCanonical({
-    strengthCalc,
+    strengthCalc: null,
     profile: p as Record<string, unknown>,
   });
   const reliabilityPct = reliabilityToPercent(reliabilityRating);
@@ -678,7 +655,7 @@ export function ProfileView({
 
                 {showProfileStrengthSection ? (
                   <div className="mt-6 space-y-4">
-                    <ProfileStrengthSection strengthCalc={strengthCalc} profile={p} />
+                    <ProfileStrengthSection strengthCalc={null} profile={p} />
                   </div>
                 ) : null}
 
@@ -976,7 +953,7 @@ export function ProfileView({
               </div>
             )}
 
-            {isSelf && p?.role === 'subcontractor' && (
+            {isSelf && (
               <div className="mb-6 rounded-xl border border-gray-200 bg-white p-6">
                 <div className="mb-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">

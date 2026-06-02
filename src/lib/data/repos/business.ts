@@ -1,7 +1,7 @@
 // vim: ts=2
 'use server'
 import { or, and, eq, sql, isNull, inArray, asc } from "drizzle-orm";
-import { businessTable, businessTradeTable } from "@/lib/data/defs/business";
+import { businessTable, businessTradeTable, googlePlacesTable } from "@/lib/data/defs/business";
 import { tradesTable } from "@/lib/data/defs/trades";
 import { usersTable } from "@/lib/data/defs/users";
 import { getDB, getDataService } from "@/lib/data/service";
@@ -73,6 +73,22 @@ export const getUserBusinessId = async (email:string) => {
 	return new Promise(async(resolve, reject)=>{
 		const business = await getUserBusiness(email);
 		resolve(business?.id ?? null);
+	});
+};
+
+export const addGooglePlace = async (place:any) => {
+	return new Promise(async(resolve, reject)=>{
+		const db = await getDB();
+		await db.transaction(async(trx)=>{
+			const results = await trx.select({placeId:googlePlacesTable.placeId}).
+				from(googlePlacesTable).
+				where(eq(place.placeId, googlePlacesTable.placeId));
+			if(results.length > 0){
+				throw new Error(`Google place is already being referenced`);
+			}
+			await trx.insert(googlePlacesTable).values(place);
+		});
+		resolve(true);
 	});
 };
 

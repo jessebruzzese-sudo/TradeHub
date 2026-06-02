@@ -1,5 +1,7 @@
+// vim: ts=2
 'use client';
 
+import { getAxios } from "@/lib/utils";
 import UserContext from "@/lib/user-context";
 import Image from 'next/image';
 import Link from 'next/link';
@@ -130,6 +132,15 @@ export default function CreateCompletedWorkPage() {
       setIsRefiningDescription(false);
     }
   }
+	
+	const readImageFile = async (file:File) => {
+		return new Promise(async(resolve, reject)=>{
+			const reader = new FileReader();
+			reader.addEventListener("load", resolve);
+			reader.addEventListener("error", reject);
+			reader.readAsDataURL(file);
+		});	
+	};
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,7 +156,6 @@ export default function CreateCompletedWorkPage() {
       return;
     }
     setTitleError(null);
-
     const cap = caption.trim();
     if (!cap) {
       toast.error('Please add a description for this project.');
@@ -163,39 +173,34 @@ export default function CreateCompletedWorkPage() {
       toast.error('Add at least one image (up to 5).');
       return;
     }
-
+		// read image files
+		const p = /^data:([^;]+);base64,(.*)$/;
+		const imageObjects = [];
+		for(const f of files){
+			const event = await readImageFile(f);
+			const result = event.target.result;
+			const match = p.exec(result);
+			if(match){
+				const mime = match[1];
+				const data = match[2];
+				imageObjects.push({mime, data});
+			}
+		}
     setSubmitting(true);
-    try {
-      const fd = new FormData();
-      fd.append('title', ttl);
-      fd.append('caption', cap);
-      if (location.trim()) fd.append('location', location.trim());
-      files.forEach((f) => fd.append('images', f));
-
-      const res = await fetch('/api/profile/previous-work', {
-        method: 'POST',
-        body: fd,
-        credentials: 'include',
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        error?: string;
-        details?: string;
-        errorId?: string;
-      };
-      if (!res.ok) {
-        const msg = typeof data?.error === 'string' ? data.error : 'Could not publish work.';
-        const details = typeof data?.details === 'string' ? data.details.trim() : '';
-        if (details) {
-          toast.error(msg, { description: details, duration: 10_000 });
-        } else {
-          toast.error(msg);
-        }
-        return;
-      }
-      router.push('/works?created=1');
-    } finally {
-      setSubmitting(false);
-    }
+		const payload = {
+			title: title.trim(),
+			caption: caption.trim(),
+			location: location?.trim() ?? null,
+			images: imageObjects
+		};
+		getAxios(jwt).post("/api/me/works", payload).
+			then((response)=>{
+				setSubmitting(false);
+      	router.push('/works?created=1');
+			}).catch((err_)=>{
+				console.error(err_);
+				setSubmitting(false);
+			});
   };
 
   const heroShell = (

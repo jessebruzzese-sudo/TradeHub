@@ -134,6 +134,41 @@
       "when": 1780036184047,
       "tag": "0018_wandering_typhoid_mary",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1780364395341,
+      "tag": "0019_common_night_nurse",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1780374793643,
+      "tag": "0020_broad_sauron",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1780382138098,
+      "tag": "0021_many_weapon_omega",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1780382251340,
+      "tag": "0022_safe_talisman",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1780399222835,
+      "tag": "0023_futuristic_pepper_potts",
+      "breakpoints": true
     }
   ]
 }

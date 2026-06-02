@@ -1,0 +1,1 @@
+ALTER TABLE "google_places" ADD CONSTRAINT "google_places_business_id_business_id_fk" FOREIGN KEY ("business_id") REFERENCES "public"."business"("id") ON DELETE no action ON UPDATE no action;

@@ -49,7 +49,7 @@ function abnPointsFromProfile(profile: Record<string, unknown>): number {
 
 function likesPointsFromCount(likesN: number): number {
   const n = Math.max(0, likesN);
-  return Math.min(10, 10 * (1 - 1 / (1 + n / 16.0)));
+  return Math.min(10, 10 * (n / 16.0));
 }
 
 /**
@@ -105,7 +105,7 @@ export function computeProfileStrengthCategoriesFromProfile(
     }
     googlePts = Math.min(20, googlePts);
   }
-  const likesN = num(profile.profile_likes_count ?? profile.profileLikesCount ?? profile.likes_count, 0);
+  const likesN = profile?.profile?.upVotes ?? 0;
   const likes = Math.floor(likesPointsFromCount(likesN));
   let comp = 0;
   const avatar = profile?.profile?.avatarDataUrl ?? null;
@@ -118,9 +118,11 @@ export function computeProfileStrengthCategoriesFromProfile(
   const location = profile?.business?.location ?? null;
   if (location) comp += 2;
   const pricingType = profile?.business?.priceType ?? null;
-  if (pricingType.length > 0) comp += 2;
+  if (pricingType) comp += 2;
   const miniBio = profile?.profile?.miniBio ?? null;
   if (miniBio.length >= 20) comp += 2;
+	const works = profile?.profile?.works ?? [];
+	if (works.length > 0) comp += 2;
   const completeness = Math.min(13, comp);
   const abn = abnPointsFromProfile(profile);
   return { activity, links, google: googlePts, likes, completeness, abn };

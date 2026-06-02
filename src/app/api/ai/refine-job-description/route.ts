@@ -4,10 +4,10 @@ import OpenAI from 'openai';
 export const runtime = 'nodejs';
 
 export async function POST(req: Request) {
+	if (!process.env.OPENAI_API_KEY) {
+		return NextResponse.json({ error: 'AI not configured' }, { status: 500 });
+	}
   try {
-    if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json({ error: 'AI not configured' }, { status: 500 });
-    }
     const body = await req.json().catch(() => ({}));
     const text = String(body?.text ?? '').trim();
     if (!text) {

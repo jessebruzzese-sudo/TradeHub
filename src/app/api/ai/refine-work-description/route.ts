@@ -1,25 +1,26 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
-
-import { createServerSupabase } from '@/lib/supabase-server';
+import { cookies } from "next/headers";
 import { PREVIOUS_WORK_CAPTION_MAX } from '@/lib/previous-work';
-
+import * as jose from "jose";
 export const runtime = 'nodejs';
 
 export async function POST(req: Request) {
+	const store = await cookies();
+	const cookie = store.get("authorization") ?? null;
+	const jwt = cookie?.value ?? null;
+	if(jwt === null){
+		return NextResponse.json({ error: "Not authorized" }, { status: 401 });
+	}
+	try{
+		await jose.decodeJwt(jwt);
+	}catch(err__){
+		return NextResponse.json({ error: "Not authorized" }, { status: 401 });
+	}
   try {
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json({ error: 'AI not configured' }, { status: 500 });
     }
-
-    const supabase = createServerSupabase();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user?.id) {
-      return NextResponse.json({ error: 'You need to be signed in.' }, { status: 401 });
-    }
-
     const body = await req.json().catch(() => ({}));
     const text = String(body?.text ?? '').trim();
     if (!text) {
