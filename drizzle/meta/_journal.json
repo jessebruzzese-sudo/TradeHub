@@ -113,6 +113,27 @@
       "when": 1779885929109,
       "tag": "0015_sad_apocalypse",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1780031353097,
+      "tag": "0016_skinny_the_fury",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1780032773043,
+      "tag": "0017_sturdy_gunslinger",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1780036184047,
+      "tag": "0018_wandering_typhoid_mary",
+      "breakpoints": true
     }
   ]
 }

@@ -154,3 +154,39 @@ export const getUserProfile = async (email:string) => {
 		resolve(users[0]);
 	});
 };
+
+const updateUserT = async (trx:any, payload:any, email:string) => {	
+	const values = { name: payload.name };
+	return trx.update(usersTable).set(values).
+		where(eq(usersTable.email, email)).
+		returning({businessId: usersTable.businessId, profileId: usersTable.profileId});
+};
+
+export const updateUserProfile = async (payload:any, email:string) => {
+	return new Promise(async(resolve, reject)=>{
+		const db = await getDB();		
+		const { business, profile } = await getDataService();
+		await db.transaction(async(trx)=>{
+			const results = await updateUserT(trx, payload, email);
+			console.log(JSON.stringify(results));
+			const businessId = results[0]?.businessId ?? null;
+			const profileId = results[0]?.profileId ?? null;
+			if(profileId === null){
+				reject(new Error("Failed to find profile to update"));
+				return;
+			}
+			if(businessId === null){
+				reject(new Error("Failed to find business to update"));
+				return;
+			}
+			await profile.updateProfileT(trx, payload, profileId);
+			const delta = {
+				price: payload.price,
+				priceType: payload.priceType,
+				showPricing: payload.showPricing
+			};
+			await business.updateBusinessT(trx, delta, businessId);
+		});	
+		resolve(true);
+	});
+};

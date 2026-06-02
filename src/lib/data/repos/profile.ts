@@ -53,3 +53,17 @@ export const addProfileT = async (trx:any) => {
 		resolve(profileId);
 	});	
 };
+
+export const updateProfileT = async (trx:any, payload:any, profileId:string) => {
+	return trx.update(profileTable).
+		set({
+			phone: payload.phone,
+			bio: payload.bio, miniBio: payload.miniBio, 
+			website: payload.website, facebook: payload.facebook, 
+			instagram: payload.instagram, tiktok: payload.tiktok, 
+			youtube: payload.youtube, linkedin: payload.linkedin,
+			showPhone: payload.showPhone, showEmail: payload.showEmail, 
+			showAbn: payload.showAbn, showBusinessName: payload.showBusinessName, 
+			showListingPrice: payload.showListingPrice
+		}).where(eq(profileTable.id, profileId));
+};

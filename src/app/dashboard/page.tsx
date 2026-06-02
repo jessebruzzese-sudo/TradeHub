@@ -306,7 +306,7 @@ export default function DashboardPage() {
 		if(UserSession.user === null){
 			// user not set this session
 			// need to grab from api
-			apiClient.get("/api/me").then((response)=>{
+			apiClient.get("/api/me").then(async(response)=>{
 				const user_ = response.data;
 				setCurrentUser(user_);
 				UserSession.user = user_;

@@ -1,0 +1,1 @@
+ALTER TABLE "profile" ADD COLUMN "show_listing_price" boolean DEFAULT false;

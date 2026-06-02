@@ -1,9 +1,10 @@
 'use client';
 
+import UserContext from "@/lib/user-context";
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useContext } from 'react';
 import { MapPin, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -28,19 +29,25 @@ import type { PreviousWorkListItem } from '@/lib/previous-work';
 import { cn } from '@/lib/utils';
 
 export default function CompletedWorksIndexPage() {
-  const { currentUser, isLoading } = useAuth();
+
+  const { jwt } = useAuth();
+	const UserSession = useContext(UserContext);
   const router = useRouter();
   const searchParams = useSearchParams();
+
+	const [currentUser, setCurrentUser] = useState(UserSession.user);
   const [items, setItems] = useState<PreviousWorkListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PreviousWorkListItem | null>(null);
+	
+	const hasSession = jwt !== undefined && jwt !== null;
 
   useEffect(() => {
-    if (!isLoading && !currentUser) {
+    if (!hasSession) {
       router.replace(`/login?returnUrl=${encodeURIComponent('/works')}`);
     }
-  }, [currentUser, isLoading, router]);
+  }, [hasSession]);
 
   useEffect(() => {
     if (searchParams.get('created') !== '1') return;
@@ -49,8 +56,7 @@ export default function CompletedWorksIndexPage() {
     router.replace('/works', { scroll: false });
   }, [searchParams, router]);
 
-  const primaryTradeLabel =
-    (currentUser?.primaryTrade && String(currentUser.primaryTrade).trim()) || null;
+  const primaryTradeLabel = currentUser?.business?.trades[0] ?? null;
   const TradeIcon = primaryTradeLabel ? getTradeIcon(primaryTradeLabel) : null;
 
   const load = useCallback(async () => {
@@ -98,7 +104,7 @@ export default function CompletedWorksIndexPage() {
     }
   };
 
-  if (isLoading || !currentUser) {
+  if (!currentUser) {
     return (
       <AppLayout transparentBackground>
         <CompletedWorksGradientShell className="max-w-5xl">

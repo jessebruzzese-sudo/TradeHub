@@ -11,33 +11,12 @@ function num(v: unknown, fallback = 0): number {
 
 /** Same coalesce order as activity scoring (snake + camel). */
 export function effectiveLastActiveIsoFromProfile(profile: Record<string, unknown>): string | null {
-  const u = profile;
-  const activityDate =
-    str(u.last_active_at) ||
-    str(u.lastActiveAt) ||
-    str(u.last_seen_at) ||
-    str(u.lastSeenAt) ||
-    str(u.updated_at) ||
-    str(u.updatedAt) ||
-    str(u.created_at) ||
-    str(u.createdAt) ||
-    null;
-  return activityDate;
+  return profile?.lastActiveAt ?? null;
 }
 
 function activityPointsFromProfileDate(profile: Record<string, unknown>): number {
   const u = profile;
-  const activityDate =
-    str(u.last_active_at) ||
-    str(u.lastActiveAt) ||
-    str(u.last_seen_at) ||
-    str(u.lastSeenAt) ||
-    str(u.updated_at) ||
-    str(u.updatedAt) ||
-    str(u.created_at) ||
-    str(u.createdAt) ||
-    null;
-
+  const activityDate = u?.lastActiveAt ?? null;
   if (process.env.NODE_ENV === 'development') {
     console.log('ACTIVITY DEBUG', {
       last_active_at: u.last_active_at ?? u.lastActiveAt,
@@ -62,11 +41,7 @@ function activityPointsFromProfileDate(profile: Record<string, unknown>): number
 }
 
 function abnPointsFromProfile(profile: Record<string, unknown>): number {
-  const verifiedFlag =
-    profile.abn_verified === true ||
-    profile.abnVerified === true ||
-    profile.is_abn_verified === true ||
-    profile.isAbnVerified === true;
+  const verifiedFlag = profile?.business?.abnVerified ?? false;
   const status = str(profile.abn_status ?? profile.abnStatus).toUpperCase();
   if (verifiedFlag || status === 'VERIFIED') return 10;
   return 0;
@@ -85,12 +60,10 @@ export function computeProfileStrengthCategoriesFromProfile(
   profile: Record<string, unknown>
 ): ProfileStrengthCategoryParts {
   const activity = activityPointsFromProfileDate(profile);
-
-  const w = str(profile.website_url ?? profile.website ?? profile.websiteUrl);
-  const i = str(profile.instagram_url ?? profile.instagram ?? profile.instagramUrl);
-  const f = str(profile.facebook_url ?? profile.facebook ?? profile.facebookUrl);
-  const l = str(profile.linkedin_url ?? profile.linkedin ?? profile.linkedinUrl);
-
+  const w = profile?.profile?.website ?? null;
+  const i = profile?.profile?.instagram ?? null;
+  const f = profile?.profile?.facebook ?? null;
+  const l = profile?.profile?.linkedin ?? null;
   let linkPts = 0;
   if (w) linkPts += 6;
   if (i) linkPts += 3;
@@ -99,7 +72,6 @@ export function computeProfileStrengthCategoriesFromProfile(
   const linkCount = [w, i, f, l].filter(Boolean).length;
   if (linkCount >= 2) linkPts += 2;
   const links = Math.min(15, Math.floor(linkPts));
-
   const g = str(profile.google_business_url ?? profile.googleBusinessUrl);
   const googleStatus = str(profile.google_listing_verification_status ?? profile.googleListingVerificationStatus).toUpperCase();
   const googleRatingValue = num(
@@ -113,7 +85,6 @@ export function computeProfileStrengthCategoriesFromProfile(
       profile.googleBusinessReviewCount,
     NaN
   );
-
   let googlePts = 0;
   if (g) {
     googlePts += 4;
@@ -134,31 +105,23 @@ export function computeProfileStrengthCategoriesFromProfile(
     }
     googlePts = Math.min(20, googlePts);
   }
-
   const likesN = num(profile.profile_likes_count ?? profile.profileLikesCount ?? profile.likes_count, 0);
   const likes = Math.floor(likesPointsFromCount(likesN));
-
   let comp = 0;
-  const avatar = str(profile.avatar);
+  const avatar = profile?.profile?.avatarDataUrl ?? null;
   if (avatar) comp += 2;
-  const bio = str(profile.bio);
+  const bio = profile?.profile?.bio ?? null;
   if (bio.length >= 40) comp += 3;
-  const trades = profile.trades;
-  const primaryTrade = str(
-    profile.primary_trade ??
-      profile.primaryTrade ??
-      (Array.isArray(trades) && trades.length ? trades[0] : '')
-  );
+  const trades = profile?.business?.trades ?? [];
+  const primaryTrade = trades[0] ?? null;
   if (primaryTrade) comp += 2;
-  const location = str(profile.location);
+  const location = profile?.business?.location ?? null;
   if (location) comp += 2;
-  const pricingType = str(profile.pricing_type ?? profile.pricingType);
+  const pricingType = profile?.business?.priceType ?? null;
   if (pricingType.length > 0) comp += 2;
-  const miniBio = str(profile.mini_bio ?? profile.miniBio);
+  const miniBio = profile?.profile?.miniBio ?? null;
   if (miniBio.length >= 20) comp += 2;
   const completeness = Math.min(13, comp);
-
   const abn = abnPointsFromProfile(profile);
-
   return { activity, links, google: googlePts, likes, completeness, abn };
 }

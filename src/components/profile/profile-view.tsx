@@ -523,13 +523,13 @@ export function ProfileView({
                     </div>
 
                     <div className="mt-3 flex flex-wrap items-center gap-2">
-                      {businessName ? (
+                      {shouldShowBusinessName && businessName ? (
                         <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-medium text-slate-800 shadow-sm">
                           <Building2 className="h-4 w-4 text-slate-600" />
                           <span>{businessName}</span>
                         </div>
                       ) : null}
-                      {abnToShow ? (
+                      {shouldShowAbn && abnToShow ? (
                         <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-800 shadow-sm">
                           <BadgeCheck className="h-4 w-4 text-emerald-700" />
                           <span>ABN: {abnToShow}</span>

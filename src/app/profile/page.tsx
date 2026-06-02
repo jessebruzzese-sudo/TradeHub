@@ -26,8 +26,11 @@ export default function ProfilePage() {
 		getAxios(jwt).
 			get("/api/me").
 				then((response_)=>{
-					setProfile(response_.data);
+					const user_ = response_.data;
+					setProfile(user_);
+					UserSession.user = user_;
 				}).catch((err_)=>{
+					console.error(err_);
 					setProfile(null);
 				});
 	}, [profile]);

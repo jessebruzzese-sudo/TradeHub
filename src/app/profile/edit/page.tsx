@@ -1,32 +1,45 @@
 // vim: ts=2
 'use client';
-
+import { getAxios } from "@/lib/utils";
 import React, { useEffect, useMemo, useState, useContext } from 'react';
 import UserContext from "@/lib/user-context";
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Radio, ChevronDown, Lock, MapPin, Globe, Plus, Trash2, X, Loader2, Star, ExternalLink } from 'lucide-react';
+import { 
+	Radio, ChevronDown, Lock, MapPin, 
+	Globe, Plus, Trash2, X, 
+	Loader2, Star, ExternalLink 
+} from 'lucide-react';
 import { AppLayout } from '@/components/app-nav';
 import { ProfileAvatar } from '@/components/profile-avatar';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { 
+	Dialog, DialogContent, 
+	DialogDescription, DialogHeader, DialogTitle 
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { 
+	Select, SelectContent, SelectItem, 
+	SelectTrigger, SelectValue 
+} from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
 import { RefinePillButton } from '@/components/ai/RefinePillButton';
 import { PremiumUpsellBar } from '@/components/premium-upsell-bar';
 import { SuburbAutocomplete } from '@/components/suburb-autocomplete';
 import { useAuth } from '@/lib/auth';
-import { isAdmin } from '@/lib/is-admin';
 import { useActiveTradesCatalog } from '@/lib/trades/use-active-trades-catalog';
 import { normalizeTrade, normalizeTradesList } from '@/lib/trades/normalizeTrade';
 import { cn } from '@/lib/utils';
-import { canCustomSearchLocation, canMultiTrade, canChangePrimaryTrade } from '@/lib/capability-utils';
+import { 
+	canCustomSearchLocation, 
+	canMultiTrade, 
+	canChangePrimaryTrade 
+} from '@/lib/capability-utils';
 import { hasValidABN } from '@/lib/abn-utils';
 import { normalizeAbnForDb } from '@/lib/abn-normalize';
 import { MVP_FREE_MODE } from '@/lib/feature-flags';
@@ -53,11 +66,11 @@ function normalizePrimaryLocationSource(user: any): {
   lat: number | null;
   lng: number | null;
 } {
-  const suburb = String(user?.location ?? '').trim();
-  const postcode = String(user?.postcode ?? '').trim();
+  const suburb = String(user?.business?.location ?? "").trim();
+  const postcode = String(user?.business?.postcode ?? "").trim();
   const primary = getPrimaryUserCoordinates({
-    location_lat: user?.location_lat,
-    location_lng: user?.location_lng,
+    location_lat: user?.business?.latitude,
+    location_lng: user?.business?.longitude,
   });
   return {
     suburb,
@@ -67,10 +80,12 @@ function normalizePrimaryLocationSource(user: any): {
   };
 }
 export default function EditProfilePage() {
+
   const { jwt } = useAuth();
   const router = useRouter();
   const hasSession = jwt !== null && jwt !== undefined;
 	const UserSession = useContext(UserContext);
+	const isAdmin = UserSession?.user?.role === "admin";
 
   useEffect(() => {
     if (!hasSession) {
@@ -90,28 +105,29 @@ export default function EditProfilePage() {
 
   // Controlled values (always defined so hooks are stable)
 	const [currentUser, setCurrentUser] = useState<any|null>(UserSession.user);
-  const [name, setName] = useState<string>('');
-  const [miniBio, setMiniBio] = useState<string>('');
-  const [businessName, setBusinessName] = useState<string>('');
-  const [bio, setBio] = useState<string>('');
-  const [primaryTrade, setPrimaryTrade] = useState<string>('');
-  const [isPublicProfile, setIsPublicProfile] = useState<boolean>(false);
-  const [location, setLocation] = useState<string>('');
-  const [postcode, setPostcode] = useState<string>('');
-  const [locationLat, setLocationLat] = useState<number | null>(null);
-  const [locationLng, setLocationLng] = useState<number | null>(null);
+  const [name, setName] = useState<string>(UserSession.user?.name ?? "");
+  const [miniBio, setMiniBio] = useState<string>(UserSession.user?.profile?.miniBio ?? "");
+  const [businessName, setBusinessName] = useState<string>(UserSession.user?.business?.businessName ?? "");
+  const [bio, setBio] = useState<string>(UserSession.user?.profile?.bio ?? "");
+  const [primaryTrade, setPrimaryTrade] = useState<string>(UserSession.user?.business?.trades[0] ?? null);
+  const [isPublicProfile, setIsPublicProfile] = useState<boolean>(UserSession.user?.public ?? false);
+  const [location, setLocation] = useState<string>(UserSession.user?.business?.location ?? "");
+  const [postcode, setPostcode] = useState<string>(UserSession.user?.business?.postcode ?? "");
+  const [locationLat, setLocationLat] = useState<number | null>(UserSession.user?.business?.locationLat ?? null);
+  const [locationLng, setLocationLng] = useState<number | null>(UserSession.user?.business?.locationLng ?? null);
 
   // free-text skills field (comma separated)
-  const [tradesText, setTradesText] = useState<string>('');
+  const [tradesText, setTradesText] = useState<string>((UserSession.user?.business?.trades ?? []).join(", "));
 
   // Links (website + socials)
-  const [website, setWebsite] = useState<string>('');
-  const [instagram, setInstagram] = useState<string>('');
-  const [facebook, setFacebook] = useState<string>('');
-  const [linkedin, setLinkedin] = useState<string>('');
-  const [tiktok, setTiktok] = useState<string>('');
-  const [youtube, setYoutube] = useState<string>('');
+  const [website, setWebsite] = useState<string>(UserSession.user?.profile?.website ?? "");
+  const [instagram, setInstagram] = useState<string>(UserSession.user?.profile?.instagram ?? "");
+  const [facebook, setFacebook] = useState<string>(UserSession.user?.profile?.facebook ?? "");
+  const [linkedin, setLinkedin] = useState<string>(UserSession.user?.profile?.linkedin ?? "");
+  const [tiktok, setTiktok] = useState<string>(UserSession.user?.profile?.tiktok ?? "");
+  const [youtube, setYoutube] = useState<string>(UserSession.user?.profile?.youtube ?? "");
 
+	// Google shit
   const [googleBusinessUrl, setGoogleBusinessUrl] = useState('');
   const [googleBusinessName, setGoogleBusinessName] = useState('');
   const [googlePlaceId, setGooglePlaceId] = useState('');
@@ -130,16 +146,16 @@ export default function EditProfilePage() {
   const [googleHighlightedIndex, setGoogleHighlightedIndex] = useState(-1);
   const googleSearchWrapRef = React.useRef<HTMLDivElement | null>(null);
 
-  const [phone, setPhone] = useState<string>('');
-  const [showPhoneOnProfile, setShowPhoneOnProfile] = useState<boolean>(false);
-  const [showEmailOnProfile, setShowEmailOnProfile] = useState<boolean>(false);
-  const [showAbnOnProfile, setShowAbnOnProfile] = useState<boolean>(false);
-  const [showBusinessNameOnProfile, setShowBusinessNameOnProfile] = useState<boolean>(false);
+  const [phone, setPhone] = useState<string>(UserSession.user?.profile?.phone ?? "");
+  const [showPhoneOnProfile, setShowPhoneOnProfile] = useState<boolean>(UserSession.user?.profile?.showPhone ?? false);
+  const [showEmailOnProfile, setShowEmailOnProfile] = useState<boolean>(UserSession.user?.profile?.showEmail ?? false);
+  const [showAbnOnProfile, setShowAbnOnProfile] = useState<boolean>(UserSession.user?.profile?.showAbn ?? true);
+  const [showBusinessNameOnProfile, setShowBusinessNameOnProfile] = useState<boolean>(UserSession.user?.profile?.showBusinessName ?? false);
 
-  const [pricingType, setPricingType] = useState<string>('');
-  const [pricingAmount, setPricingAmount] = useState<string>('');
-  const [showPricingOnProfile, setShowPricingOnProfile] = useState<boolean>(false);
-  const [showPricingInListings, setShowPricingInListings] = useState<boolean>(false);
+  const [pricingType, setPricingType] = useState<string>(UserSession.user?.business?.priceType ?? "");
+  const [pricingAmount, setPricingAmount] = useState<string>(String(UserSession.user?.business?.price ?? ""));
+  const [showPricingOnProfile, setShowPricingOnProfile] = useState<boolean>(UserSession.user?.business?.showPricing ?? false);
+  const [showPricingInListings, setShowPricingInListings] = useState<boolean>(UserSession.user?.profile?.showListingPrice ?? false);
 
   const [isSaving, setIsSaving] = useState(false);
   const [savedTick, setSavedTick] = useState(false);
@@ -164,93 +180,10 @@ export default function EditProfilePage() {
   const [addTradeOpen, setAddTradeOpen] = useState(false);
   const { names: catalogTradeNames, loading: catalogTradesLoading } = useActiveTradesCatalog();
 
-  // Load trades from API
-  useEffect(() => {
-    if (!hasSession) return;
-		// TODO load trades
-  }, [hasSession]);
-
   // Load additional locations from API (Premium users only)
   useEffect(() => {
     if (!hasSession) return;
 		// TODO load locations	
-  }, [hasSession]);
-
-  // Hydrate form state once user is available (and on user switch)
-  useEffect(() => {
-    if (!hasSession) return;
-    const canonicalLocation = normalizePrimaryLocationSource(currentUser as any);
-
-    setName(currentUser.name ?? '');
-    setMiniBio((currentUser as any)?.miniBio ?? (currentUser as any)?.mini_bio ?? '');
-    setBusinessName(currentUser.business.businessName ?? '');
-    setBio(currentUser.bio ?? '');
-    setPrimaryTrade((currentUser.primaryTrade as string | undefined) ?? ((currentUser as any)?.trades?.[0] as string | undefined) ?? '');
-    setIsPublicProfile(currentUser.isPublicProfile ?? false);
-    setLocation(canonicalLocation.suburb);
-    setPostcode(canonicalLocation.postcode);
-    setLocationLat(canonicalLocation.lat);
-    setLocationLng(canonicalLocation.lng);
-    setTradesText(((currentUser.trades ?? []) as string[]).join(', '));
-    setWebsite((currentUser as any)?.website ?? '');
-    setInstagram((currentUser as any)?.instagram ?? '');
-    setFacebook((currentUser as any)?.facebook ?? '');
-    setLinkedin((currentUser as any)?.linkedin ?? '');
-    setTiktok((currentUser as any)?.tiktok ?? '');
-    setYoutube((currentUser as any)?.youtube ?? '');
-
-    setGoogleBusinessUrl(
-      (currentUser as any)?.googleBusinessUrl ?? (currentUser as any)?.google_business_url ?? ''
-    );
-    setGoogleBusinessName(
-      (currentUser as any)?.googleBusinessName ?? (currentUser as any)?.google_business_name ?? ''
-    );
-    setGooglePlaceId(
-      (currentUser as any)?.googlePlaceId ?? (currentUser as any)?.google_place_id ?? ''
-    );
-    const gr = (currentUser as any)?.googleRating ?? (currentUser as any)?.google_rating;
-    setGoogleRating(gr != null && gr !== '' ? String(gr) : '');
-    const grc = (currentUser as any)?.googleReviewCount ?? (currentUser as any)?.google_review_count;
-    setGoogleReviewCount(grc != null && grc !== '' ? String(grc) : '');
-    setGoogleBusinessAddress(
-      (currentUser as any)?.googleBusinessAddress ?? (currentUser as any)?.google_business_address ?? ''
-    );
-    setGoogleListingVerificationStatus(
-      String(
-        (currentUser as any)?.googleListingVerificationStatus ??
-          (currentUser as any)?.google_listing_verification_status ??
-          'UNVERIFIED'
-      ).toUpperCase()
-    );
-    setGoogleListingRejectionReason(
-      (currentUser as any)?.googleListingRejectionReason ?? (currentUser as any)?.google_listing_rejection_reason ?? ''
-    );
-    const hasLinkedGoogle = !!String(
-      (currentUser as any)?.googlePlaceId ??
-      (currentUser as any)?.google_place_id ??
-      (currentUser as any)?.googleBusinessUrl ??
-      (currentUser as any)?.google_business_url ??
-      ''
-    ).trim();
-    setGoogleLookupMode(!hasLinkedGoogle);
-    setGoogleSearchQuery('');
-    setGoogleSearchResults([]);
-    setGoogleSearchError(null);
-    setGoogleDropdownOpen(false);
-    setGoogleHighlightedIndex(-1);
-
-    setPhone((currentUser as any)?.phone ?? '');
-    setShowPhoneOnProfile((currentUser as any)?.showPhoneOnProfile ?? (currentUser as any)?.show_phone_on_profile ?? false);
-    setShowEmailOnProfile((currentUser as any)?.showEmailOnProfile ?? (currentUser as any)?.show_email_on_profile ?? false);
-    setShowAbnOnProfile((currentUser as any)?.showAbnOnProfile ?? (currentUser as any)?.show_abn_on_profile ?? false);
-    setShowBusinessNameOnProfile((currentUser as any)?.showBusinessNameOnProfile ?? (currentUser as any)?.show_business_name_on_profile ?? false);
-
-    const pt = (currentUser as any)?.pricingType ?? (currentUser as any)?.pricing_type ?? '';
-    setPricingType(pt ? String(pt) : '');
-    const pa = (currentUser as any)?.pricingAmount ?? (currentUser as any)?.pricing_amount;
-    setPricingAmount(pa != null ? String(pa) : '');
-    setShowPricingOnProfile((currentUser as any)?.showPricingOnProfile ?? (currentUser as any)?.show_pricing_on_profile ?? false);
-    setShowPricingInListings((currentUser as any)?.showPricingInListings ?? (currentUser as any)?.show_pricing_in_listings ?? false);
   }, [hasSession]);
 
   useEffect(() => {
@@ -442,11 +375,7 @@ export default function EditProfilePage() {
   useEffect(() => {
     if (!currentUser) return;
     const verified = hasValidABN(currentUser);
-    const entityName =
-      (currentUser as any)?.abnEntityName ??
-      (currentUser as any)?.abn_entity_name ??
-      currentUser.businessName ??
-      '';
+    const entityName = currentUser?.business?.abnEntityName ?? null;
     if (verified && entityName) {
       setBusinessName(entityName);
     }
@@ -583,22 +512,13 @@ export default function EditProfilePage() {
     setPrimaryTrade(trade);
   };
 
-  // Avoid rendering controlled inputs before user exists (after hooks are declared)
-  if (!currentUser) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-slate-500">
-        Redirecting...
-      </div>
-    );
-  }
-
   const isAbnVerified = currentUser?.business?.abnVerified ?? false;
   const abnVerified = isAbnVerified;
-  const abnNumber = (currentUser?.abn || '').toString();
+  const abnNumber = (currentUser?.business?.abn ?? "").toString();
   const verifiedEntityName = currentUser?.business?.abnEntityName ?? null;
   const verifiedAbnNumber = currentUser?.business?.abn ?? null;
   const businessNameDisplay = (verifiedEntityName ?? currentUser?.business?.businessName ?? '').toString();
-  const primaryTradeValue = primaryTrade || selectedTrades[0] || '';
+  const primaryTradeValue = primaryTrade ?? "";
   const canEditTrades = canChangePrimaryTrade(currentUser);
 
   const ensureHttps = (raw: string) => {
@@ -736,23 +656,19 @@ export default function EditProfilePage() {
 
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-
     const normalizedTrades = normalizeTradesList(selectedTrades);
     const effectivePrimary =
       normalizeTrade(primaryTrade?.trim() || '') || normalizedTrades[0] || '';
-    if (!effectivePrimary && !isAdmin(jwt)) {
+    if (!effectivePrimary && !isAdmin) {
       toast.error('Please select your primary trade');
       return;
     }
-
     const tradesToSave = normalizedTrades.length > 0 ? normalizedTrades : [effectivePrimary];
     if (tradesToSave.length > 1 && !isMultiTradeEnabled) {
       toast.error('Multiple trades require Premium');
       return;
     }
-
     setIsSaving(true);
-
     try {
       // Free users: primary trade is locked; skip trades API. Premium users: sync trades.
       if (canEditTrades) {
@@ -771,50 +687,42 @@ export default function EditProfilePage() {
           return;
         }
       }
-
       const cleanedAbn = normalizeAbnForDb(abnNumber || '') ?? '';
       const enteredAbn = cleanedAbn.length > 0;
 
       const payload: Record<string, unknown> = {
-        name: name.trim() ? name.trim() : undefined,
-        mini_bio: miniBio.trim() ? miniBio.trim() : null,
-        bio: bio.trim() ? bio.trim() : undefined,
-
-        businessName: isAbnVerified ? undefined : (businessName.trim() ? businessName.trim() : undefined),
-        isPublicProfile,
-
-        website: normalizeWebsite(website) || undefined,
-        instagram: instagram.trim() ? normalizeInstagram(instagram) : undefined,
-        facebook: facebook.trim() ? normalizeFacebook(facebook) : undefined,
-        linkedin: linkedin.trim() ? normalizeLinkedin(linkedin) : undefined,
-        tiktok: tiktok.trim() ? normalizeTiktok(tiktok) : undefined,
-        youtube: youtube.trim() ? normalizeYoutube(youtube) : undefined,
-
+        name: name?.trim() ?? null,
+        miniBio: miniBio?.trim() ?? null,
+        bio: bio?.trim() ?? null,
+        phone: phone?.trim() ?? null,
+        website: normalizeWebsite(website?.trim() ?? null),
+        instagram: normalizeInstagram(instagram?.trim() ?? null),
+        facebook: normalizeFacebook(facebook?.trim() ?? null),
+        linkedin: normalizeLinkedin(linkedin?.trim() ?? null),
+        tiktok: normalizeTiktok(tiktok?.trim() ?? null),
+        youtube: normalizeYoutube(youtube?.trim() ?? null),
         googleBusinessUrl: googleBusinessUrl.trim() || null,
         googleBusinessName: googleBusinessName.trim() || null,
         googlePlaceId: googlePlaceId.trim() || null,
         googleBusinessAddress: googleBusinessAddress.trim() || null,
-        googleRating:
-          googleRating.trim() && !Number.isNaN(Number(googleRating)) ? Number(googleRating) : null,
-        googleReviewCount:
-          googleReviewCount.trim() && !Number.isNaN(parseInt(googleReviewCount, 10))
+        googleRating: googleRating.trim() && !Number.isNaN(Number(googleRating)) ? Number(googleRating) : null,
+        googleReviewCount: googleReviewCount.trim() && !Number.isNaN(parseInt(googleReviewCount, 10))
             ? parseInt(googleReviewCount, 10)
             : null,
         googleListingClaimedByUser: !!(googlePlaceId.trim() || googleBusinessUrl.trim()),
-
-        phone: phone.trim() ? phone.trim() : null,
-        show_phone_on_profile: !!showPhoneOnProfile,
-        show_email_on_profile: !!showEmailOnProfile,
-        showAbnOnProfile: !!showAbnOnProfile,
-        showBusinessNameOnProfile: !!showBusinessNameOnProfile,
-
-        pricingType: pricingType || null,
-        pricingAmount: pricingType && pricingType !== 'quote_on_request' && pricingAmount.trim()
+        showPhone: showPhoneOnProfile,
+        showEmail: showEmailOnProfile,
+        showAbn: showAbnOnProfile,
+        showBusinessName: showBusinessNameOnProfile,
+        showPricing: showPricingOnProfile,
+        showListingPrice: showPricingInListings,
+        priceType: pricingType || null,
+        price: pricingType && pricingType !== 'quote_on_request' && pricingAmount.trim()
           ? Number(pricingAmount) || null
           : null,
-        showPricingOnProfile: pricingType ? !!showPricingOnProfile : false,
-        showPricingInListings: pricingType ? !!showPricingInListings : false,
+      };
 
+		/*
         ...(canEditPrimaryLocation
           ? {
               location: location.trim() || null,
@@ -823,23 +731,16 @@ export default function EditProfilePage() {
               locationLng,
             }
           : {}),
-
-        abn: enteredAbn ? cleanedAbn : null,
-      };
-
-      // Strip ABN verification state — only verify-business / admin / explicit flows set verified flags
-      delete (payload as any).abn_verified;
-      delete (payload as any).abnVerified;
-      delete (payload as any).abn_verified_at;
-      delete (payload as any).abn_status;
-      delete (payload as any).verified_abn;
-
-      await updateUser(payload as any);
-
+*/	
+	
+			// persist changes
+			// clear context variables	
+			// therefore making the profile page load the user again
+			await getAxios(jwt).put("/api/me", payload);
+			UserSession.user = null;
       toast.success('Profile updated successfully');
       setSavedTick(true);
-      setTimeout(() => setSavedTick(false), 2000);
-      setTimeout(() => router.push('/profile'), 2100);
+      router.push('/profile');
     } catch (error) {
       console.error('Profile save failed', error);
       toast.error('Failed to update profile');
@@ -1032,7 +933,7 @@ export default function EditProfilePage() {
                   <span className="text-sm text-slate-700">Show mobile number on profile</span>
                 </div>
               </div>
-              {!isAdmin(jwt) && (
+              {!isAdmin && (
                 <div>
                   <Label htmlFor="businessName" className="text-sm font-medium text-slate-800">Business Name</Label>
                   <Input
@@ -1125,7 +1026,7 @@ export default function EditProfilePage() {
                     <Label htmlFor="instagram" className="text-sm font-medium text-slate-800">Instagram</Label>
                     <div className="mt-1 flex items-center gap-2">
                       <div className={linkIconBoxClass}>
-                        <SiInstagram className="h-4 w-4 text-slate-700" aria-hidden="true" />
+                        <Radio className="h-4 w-4 text-slate-700" aria-hidden="true" />
                       </div>
                       <Input
                         id="instagram"
@@ -1141,7 +1042,7 @@ export default function EditProfilePage() {
                     <Label htmlFor="facebook" className="text-sm font-medium text-slate-800">Facebook</Label>
                     <div className="mt-1 flex items-center gap-2">
                       <div className={linkIconBoxClass}>
-                        <SiFacebook className="h-4 w-4 text-slate-700" aria-hidden="true" />
+                        <Radio className="h-4 w-4 text-slate-700" aria-hidden="true" />
                       </div>
                       <Input
                         id="facebook"
@@ -1410,7 +1311,7 @@ export default function EditProfilePage() {
             </div>
           </div>
 
-          {!isAdmin(jwt) && (
+          {!isAdmin && (
           <div className={cardClass}>
             <div className="mb-3">
               <h2 className="text-sm font-semibold text-slate-900">Pricing</h2>
@@ -1475,7 +1376,7 @@ export default function EditProfilePage() {
           </div>
           )}
 
-          {!isAdmin(jwt) && (
+          {!isAdmin && (
           <div className={cardClass}>
             <div className="mb-3">
               <h2 className="text-sm font-semibold text-slate-900">Trades</h2>
@@ -1616,7 +1517,6 @@ export default function EditProfilePage() {
               )}
 
               {/* Optional free-text skills (profile copy only) */}
-              {currentUser.role === 'subcontractor' && (
                 <div>
                   <Label htmlFor="tradesText" className="text-sm font-medium text-slate-800">Additional Trade Skills</Label>
                   <Input
@@ -1631,12 +1531,11 @@ export default function EditProfilePage() {
                     Optional: List specific skills or specializations (separate with commas)
                   </p>
                 </div>
-              )}
             </div>
           </div>
           )}
 
-          {!isAdmin(jwt) && (
+          {!isAdmin && (
           <div id="location" className={cardClass}>
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
@@ -1784,7 +1683,7 @@ export default function EditProfilePage() {
           </div>
           )}
 
-          {!isAdmin(jwt) && (
+          {!isAdmin && (
           <div id="public-profile" className={cardClass}>
             <div className="mb-3">
               <h2 className="text-sm font-semibold text-slate-900">Public profile</h2>

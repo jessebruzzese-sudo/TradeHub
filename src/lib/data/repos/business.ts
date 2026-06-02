@@ -6,9 +6,12 @@ import { tradesTable } from "@/lib/data/defs/trades";
 import { usersTable } from "@/lib/data/defs/users";
 import { getDB, getDataService } from "@/lib/data/service";
 
-
 export const setPricingT = async (businessId:string, pricing:any, trx:any) => {
 	return trx.update(businessTable).set({...pricing}).where(eq(businessTable.id, businessId));
+};
+
+export const updateBusinessT = async (trx:any, delta:any, businessId:string) => {
+	return trx.update(businessTable).set(delta).where(eq(businessTable.id, businessId));
 };
 
 export const updateBusiness = async (email:string, delta:any) => {
@@ -19,7 +22,9 @@ export const updateBusiness = async (email:string, delta:any) => {
 			return;
 		}
 		const db = await getDB();
-		await db.update(businessTable).set(delta).where(eq(businessTable.id, id));
+		await db.transaction(async(trx)=>{
+			await updateBusinessT(trx, delta, id);
+		});
 		resolve(true);
 	});
 };

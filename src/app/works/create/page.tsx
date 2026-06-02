@@ -1,9 +1,10 @@
 'use client';
 
+import UserContext from "@/lib/user-context";
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useContext } from 'react';
 import { ImagePlus, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -29,32 +30,38 @@ import { refineWorkDescription } from '@/lib/ai/refine-work-description';
 import { cn } from '@/lib/utils';
 
 export default function CreateCompletedWorkPage() {
-  const { currentUser, isLoading } = useAuth();
+
+  const { jwt } = useAuth();
   const router = useRouter();
-  const [title, setTitle] = useState('');
+	const UserSession = useContext(UserContext);
+
+	const [currentUser, setCurrentUser] = useState(UserSession.user);
+  const [title, setTitle] = useState("");
   const [titleError, setTitleError] = useState<string | null>(null);
-  const [caption, setCaption] = useState('');
-  const [location, setLocation] = useState('');
-  const [postcode, setPostcode] = useState('');
+  const [caption, setCaption] = useState("");
+  const [location, setLocation] = useState("");
+  const [postcode, setPostcode] = useState("");
+
   /** Captured when user picks a Places result; not sent to API yet (same as jobs flow). */
   const locationExtrasRef = useRef<{
     lat: number | null;
     lng: number | null;
     placeId: string | null;
   }>({ lat: null, lng: null, placeId: null });
+
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [isRefiningDescription, setIsRefiningDescription] = useState(false);
 
-  const primaryTradeLabel =
-    (currentUser?.primaryTrade && String(currentUser.primaryTrade).trim()) || null;
+  const primaryTradeLabel = currentUser?.business?.trades[0] ?? null;
   const TradeIcon = primaryTradeLabel ? getTradeIcon(primaryTradeLabel) : null;
+	const hasSession = jwt !== null && jwt !== undefined;
 
   useEffect(() => {
-    if (!isLoading && !currentUser) {
+    if (!hasSession) {
       router.replace(`/login?returnUrl=${encodeURIComponent('/works/create')}`);
     }
-  }, [currentUser, isLoading, router]);
+  }, [hasSession]);
 
   const previewUrls = useMemo(() => files.map((f) => URL.createObjectURL(f)), [files]);
 
@@ -213,7 +220,7 @@ export default function CreateCompletedWorkPage() {
     </>
   );
 
-  if (isLoading || !currentUser) {
+  if (!currentUser) {
     return (
       <AppLayout>
         <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-blue-600 via-blue-700 to-slate-900">
