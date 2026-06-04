@@ -92,6 +92,12 @@ export const addGooglePlace = async (place:any) => {
 	});
 };
 
+export const deleteGooglePlace = async (businessId:string) => {
+	const db = await getDB();
+	return db.delete(googlePlacesTable).
+		where(eq(googlePlacesTable.businessId, businessId));
+};
+
 export const addBusinessT = async (business:any, trx:any) => {
 	return new Promise(async(resolve, reject)=>{
 		const values = {

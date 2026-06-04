@@ -15,6 +15,28 @@ const GooglePlaceSchema = z.object({
 	claimed: z.boolean()
 });
 
+export async function DELETE(request: NextRequest) {
+	const store = await cookies();
+	const cookie = store.get("authorization") ?? null;
+	const jwt = cookie?.value ?? null;
+	const claims = await jose.decodeJwt(jwt);
+	const email = claims.email;
+	let result = null;
+	const { business } = await getDataService();
+	const businessId = await business.getUserBusinessId(email);
+	if(businessId === null){
+		return NextResponse.json({msg:"Could not find this users business"}, {status:500});
+	}
+	try{
+		await business.deleteGooglePlace(businessId);
+		return NextResponse.json({ok:true}, {status:200});	
+	}catch(err_){
+		console.error(err_);
+		return NextResponse.json({msg:"Failed to unlink place from business", error:err_}, 
+			{status:500});
+	}
+}
+
 export async function POST(request: NextRequest) {
 	const store = await cookies();
 	const cookie = store.get("authorization") ?? null;

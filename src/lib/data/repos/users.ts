@@ -19,7 +19,7 @@ const userReducer = (a, c) => {
 	// business is optional
 	const businessId = c?.business?.id ?? null;
 	if(businessId !== null){	
-		a[key].business = {...c.business, trades: {}, place: null};
+		a[key].business = {...c.business, trades: {}, googlePlace: null};
 	}
 	// google place is optional
 	const placeId = c?.google_places?.placeId ?? null;

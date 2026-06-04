@@ -72,19 +72,12 @@ export function computeProfileStrengthCategoriesFromProfile(
   const linkCount = [w, i, f, l].filter(Boolean).length;
   if (linkCount >= 2) linkPts += 2;
   const links = Math.min(15, Math.floor(linkPts));
-  const g = str(profile.google_business_url ?? profile.googleBusinessUrl);
-  const googleStatus = str(profile.google_listing_verification_status ?? profile.googleListingVerificationStatus).toUpperCase();
-  const googleRatingValue = num(
-    profile.google_business_rating ?? profile.google_rating ?? profile.googleRating ?? profile.googleBusinessRating,
-    NaN
-  );
-  const googleReviewCountValue = num(
-    profile.google_business_review_count ??
-      profile.google_review_count ??
-      profile.googleReviewCount ??
-      profile.googleBusinessReviewCount,
-    NaN
-  );
+	const place = profile?.business?.googlePlace ?? null;	
+  const g = place?.mapsUrl ?? null;
+  const claimedByUser = place?.claimed ?? false;
+	const googleStatus = claimedByUser ? "SELF_CONFIRMED" : "UNVERIFIED";
+  const googleRatingValue = place?.rating ?? 0;
+  const googleReviewCountValue = place?.reviewCount ?? 0;
   let googlePts = 0;
   if (g) {
     googlePts += 4;
@@ -95,10 +88,7 @@ export function computeProfileStrengthCategoriesFromProfile(
       googlePts += 3;
     } else if (googleStatus === 'VERIFIED') {
       googlePts += 8;
-      const abnOk =
-        profile.abn_verified === true ||
-        profile.abnVerified === true ||
-        str(profile.abn_status ?? profile.abnStatus).toUpperCase() === 'VERIFIED';
+      const abnOk = profile?.business?.abnVerified ?? false;
       if (abnOk && googleRatingValue >= 4.5 && googleReviewCountValue >= 10) {
         googlePts += 1;
       }
