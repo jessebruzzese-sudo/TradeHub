@@ -3,6 +3,20 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import Axios from "axios";
 import { ENV } from "@/lib/env";
+import * as jose from "jose";
+
+export const getClaims = async (token:string) => {
+	return new Promise(async(resolve, reject)=>{
+		let claims = null;
+		try{
+			claims = await jose.decodeJwt(token);
+		}catch(err){
+			// ignore this for now
+			// let callee decice what to do
+		}
+		resolve(claims);
+	});
+};
 
 export const getAxios = (token:string|null) => {
 	return Axios.create({
@@ -13,6 +27,25 @@ export const getAxios = (token:string|null) => {
 			"Content-Type": "application/json"
 		}
 	});
+};
+export const getMimeForFile = (path:string) => {
+	const tokens = path?.split("/") ?? [];
+	console.log(path);
+	if(tokens.length === 0){
+		throw new Error(`Failed to split path ${path} into tokens`);
+	}
+	const name = tokens[tokens.length-1];
+	const ext = name.substr(name.indexOf(".")+1);
+	const known = {
+		"png": "image/png",
+		"jpg": "image/jpg",
+		"bmp": "image/bmp"
+	};
+	const mime = known[ext] ?? null;
+	if(mime === null){
+		throw new Error(`Failed to determine mime for extension ${ext}`);	
+	}
+	return mime;
 };
 export const getImageExtension = (mime:string) => {
 	const known = {

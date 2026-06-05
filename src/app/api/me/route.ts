@@ -54,11 +54,11 @@ export async function GET(request: NextRequest) {
 	const cookie = store.get("authorization") ?? null;
 	const jwt = cookie?.value ?? null;
 	const claims = await jose.decodeJwt(jwt);
-	const email = claims.email;
+	const userId = claims.id;
 	let userProfile = null;
 	try{
 		const { users } = await getDataService();
-		userProfile = await users.getUserProfile(email);
+		userProfile = await users.getUserProfile(userId);
 	}catch(err_){
 		console.error(err_);
 		return NextResponse.json({msg:"Failed to query user profile"}, { status: 500 });

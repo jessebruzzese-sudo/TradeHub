@@ -3,6 +3,7 @@
 import { or, and, eq, sql, isNull, inArray, asc } from "drizzle-orm";
 import { getDB } from "@/lib/data/service";
 import { workTable, workImageTable } from "@/lib/data/defs/works";
+import { usersTable } from "@/lib/data/defs/users";
 import { getImageExtension } from "@/lib/utils";
 import { ENV } from "@/lib/env";
 import { writeFile } from "node:fs/promises";
@@ -51,6 +52,45 @@ export const deleteWork = async (workId:string) => {
 	});
 };
 
+export const getWorkById = async (workId:string) => {
+	return new Promise(async(resolve, reject)=>{
+		const db = await getDB();
+		const results = await db.select().
+			from(workTable).
+			innerJoin(workImageTable, eq(workTable.id, workImageTable.workId)).
+			innerJoin(usersTable, eq(workTable.profileId, usersTable.profileId)).
+			where(eq(workTable.id, workId));
+		// let client decide what to do with no results
+		if(results.length === 0){
+			resolve(null);
+			return;
+		}
+		const item = results[0];	
+		const userId = item?.users?.id ?? null;
+		if(userId === null){
+			resolve(null);
+			return;
+		}
+		const grouped = results.reduce(worksReducer, {});
+		const mapped = Object.keys(grouped).map((e:any,i:integer)=>{
+			const w = grouped[e];
+			const imgs = Object.keys(w.images).map((j,k)=>{
+				return w.images[j];
+			});
+			delete w["images"];
+			w.images = imgs;
+			return w;
+		});
+		if(mapped.length > 1){
+			reject(new Error("There should only be one work item"));
+			return;
+		}
+		// inject id of owning user
+		const workItem = {...mapped[0], userId };
+		resolve(workItem);
+	});
+};
+
 export const getWork = async (profileId:string) => {
 	return new Promise(async(resolve, reject)=>{
 		const db = await getDB();
@@ -63,6 +103,7 @@ export const getWork = async (profileId:string) => {
 			return;
 		}
 		const grouped = results.reduce(worksReducer, {});
+		// TODO put this into function
 		const mapped = Object.keys(grouped).map((e:any,i:integer)=>{
 			const w = grouped[e];
 			const imgs = Object.keys(w.images).map((j,k)=>{
@@ -70,7 +111,6 @@ export const getWork = async (profileId:string) => {
 			});
 			delete w["images"];
 			w.images = imgs;
-			// TODO sort w.images
 			return w;
 		});
 		resolve(mapped);

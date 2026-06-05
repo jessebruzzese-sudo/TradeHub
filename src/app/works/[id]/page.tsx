@@ -1,5 +1,6 @@
+// vim: ts=2
 'use client';
-
+import { getAxios, getClaims} from "@/lib/utils";
 import Image from 'next/image';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -21,48 +22,45 @@ export default function CompletedWorkDetailPage() {
   const params = useParams();
   const router = useRouter();
   const rawId = typeof params?.id === 'string' ? params.id : '';
-  const { currentUser } = useAuth();
+  const { jwt } = useAuth(); // logged in user
 
   const [item, setItem] = useState<PreviousWorkListItem | null>(null);
-  const [owner, setOwner] = useState<PreviousWorkOwnerSummary | null>(null);
-  const [loading, setLoading] = useState(true);
+	const [owner, setOwner] = useState<any|null>(null);
+  const [ownerId, setOwnerId] = useState<string | null>(null);
+	const [currentUserId, setCurrentUserId] = useState<string|null>(null);
   const [notFound, setNotFound] = useState(false);
   const [imgIdx, setImgIdx] = useState(0);
-
-  const load = useCallback(async () => {
-    if (!rawId) return;
-    setLoading(true);
-    setNotFound(false);
-    try {
-      const res = await fetch(`/api/profile/previous-work/${encodeURIComponent(rawId)}`, {
-        credentials: 'include',
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setNotFound(true);
-        setItem(null);
-        setOwner(null);
-        return;
-      }
-      setItem(data?.item ?? null);
-      setOwner(data?.owner ?? null);
-      setImgIdx(0);
-    } catch {
-      setNotFound(true);
-      setItem(null);
-      setOwner(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [rawId]);
+		
+	const loading = item === null;
 
   useEffect(() => {
-    void load();
-  }, [load]);
+		if(item !== null){
+			return;
+		}
+		getAxios(jwt).
+			get(`/api/works/${rawId}`).
+			then(async(response)=>{
+				const data = response.data;
+				const { id } = await getClaims(jwt); // current user
+				const ownerId = data?.userId ?? null; // owner of works
+				if(ownerId === null){
+					throw new Error(`Works has no userId`);
+				}
+				let owner = await getAxios(jwt).get(`/api/profile/${ownerId}`);
+				owner = owner.data;
+				setOwnerId(ownerId);
+				setCurrentUserId(id);
+				setOwner(owner);
+				setItem(data);
+			}).catch((err_)=>{
+				// TODO handle not found
+				console.error(err_);
+			});
+  }, [item]);
 
   const imgs = item?.images ?? [];
   const imgCount = imgs.length;
-  const currentUrl = imgs[imgIdx]?.url ?? '';
+  const currentUrl = imgs[imgIdx]?.url ?? null;
 
   const goPrev = useCallback(() => {
     if (imgCount <= 1) return;
@@ -88,9 +86,9 @@ export default function CompletedWorkDetailPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, [goPrev, goNext]);
 
-  const primaryTradeLabel = owner?.primaryTrade?.trim() || null;
+  const primaryTradeLabel = owner?.business?.primaryTrade?.trim() ?? null;
   const TradeIcon = primaryTradeLabel ? getTradeIcon(primaryTradeLabel) : null;
-  const isOwner = !!(currentUser?.id && owner?.id && currentUser.id === owner.id);
+  const isOwner = currentUserId === ownerId;
   const postedDateLabel = item?.created_at ? formatPostedDate(item.created_at) : null;
 
   return (
@@ -227,9 +225,9 @@ export default function CompletedWorkDetailPage() {
                     href={getPublicProfileHref(owner.id)}
                     className="mt-3 flex items-center gap-3 rounded-lg transition hover:bg-white/80"
                   >
-                    <UserAvatar avatarUrl={owner.avatar} userName={owner.displayName} size="lg" />
+                    <UserAvatar avatarUrl={owner?.profile?.avatarDataUrl} userName={owner?.visibleName} size="lg" />
                     <div className="min-w-0 text-left">
-                      <p className="truncate text-sm font-semibold text-slate-900">{owner.displayName}</p>
+                      <p className="truncate text-sm font-semibold text-slate-900">{owner?.name}</p>
                       {primaryTradeLabel ? (
                         <p className="truncate text-xs text-slate-500">{primaryTradeLabel}</p>
                       ) : null}

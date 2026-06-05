@@ -47,6 +47,22 @@ export async function POST(request: NextRequest) {
 	}
 }
 
+export const loadWorkImages = async (work:any) => {
+	return new Promise(async(resolve, reject)=>{
+		const mapping = {};
+		for(const i of work.images){
+			const ext = getImageExtension(i.mime);
+			const file = `${i.id}.${ext}`;
+			const filePath = `${ENV.store.images}/${file}`;
+			const buffer = await readFile(filePath);
+			const url = `data:${i.mime};base64,${buffer.toString('base64')}`;
+			mapping[i.id] = url;
+		}
+		resolve(mapping);
+	});
+};
+
+
 export async function GET(request: NextRequest) {
 	const claims = await getClaims();
 	const { profile, works } = await getDataService();
@@ -55,14 +71,9 @@ export async function GET(request: NextRequest) {
 	// TODO think about lazing loading images
 	// or better, use something like redis for caching...
 	for(const w of results){
+		const mapping = await loadWorkImages(w);
 		for(const i of w.images){
-			const ext = getImageExtension(i.mime);
-			const file = `${i.id}.${ext}`;
-			const filePath = `${ENV.store.images}/${file}`;
-			const buffer = await readFile(filePath);
-			const url = `data:${i.mime};base64,${buffer.toString('base64')}`;
-			// set data url for frontend
-			i.url = url;
+			i.url = mapping[i.id];
 		}
 	}
 	return NextResponse.json(results, {status: 200});

@@ -130,7 +130,7 @@ export const setVisibility = async (email:string, visibility:boolean) => {
 	});
 };
 
-export const getUserProfile = async (email:string) => {
+export const getUserProfile = async (userId:string) => {
 	return new Promise(async(resolve, reject)=>{
 		const db = await getDB();
 		let results = null;
@@ -143,7 +143,7 @@ export const getUserProfile = async (email:string) => {
 				.leftJoin(businessTable, eq(usersTable.businessId, businessTable.id))
 				.leftJoin(googlePlacesTable, eq(businessTable.id, googlePlacesTable.businessId))
 				.leftJoin(businessTradeTable, eq(businessTable.id, businessTradeTable.businessId))
-				.where(eq(usersTable.email, email));
+				.where(eq(usersTable.id, userId));
 		}catch(err_){
 			reject(err_);
 			return;
