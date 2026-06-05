@@ -7,11 +7,11 @@
  */
 
 import Link from 'next/link';
+import UserContext from "@/lib/user-context";
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useContext, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Briefcase, Plus, Info, ArrowRight, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-
 import { AppLayout } from '@/components/app-nav';
 import { JobCard } from '@/components/job-card';
 import { PremiumUpsellBar } from '@/components/premium-upsell-bar';
@@ -28,9 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-
 import { useAuth } from '@/lib/auth';
-import { getBrowserSupabase } from '@/lib/supabase-client';
 import { isPremiumForDiscovery } from '@/lib/discovery';
 import { hasPremiumAccess } from '@/lib/billing/has-premium-access';
 import { buildLoginUrl } from '@/lib/url-utils';
@@ -87,7 +85,9 @@ function normalizeJobRow(row: Record<string, unknown>): Record<string, unknown> 
 }
 
 export default function JobsPage() {
-  const { currentUser, isLoading } = useAuth();
+  const { jwt } = useAuth();
+	const UserSession = useContext(UserContext);	
+	const currentUser = UserSession?.user ?? null;
   const router = useRouter();
   const hasRedirected = useRef(false);
 
@@ -103,9 +103,12 @@ export default function JobsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteConfirmJobId, setDeleteConfirmJobId] = useState<string | null>(null);
+		
+	const isLoading = currentUser === null;
+	const hasSession = jwt !== null && jwt !== undefined;
 
   const showAbnTrustNotice = useMemo(
-    () => !!currentUser && !hasValidABN(currentUser),
+    () => !(currentUser?.business?.abnVerified ?? false),
     [currentUser]
   );
 
@@ -137,7 +140,8 @@ export default function JobsPage() {
       return;
     }
     try {
-      const res = await fetch('/api/jobs/post-limit', { credentials: 'include' });
+			// job post limit
+      const res = {};
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setPostLimitInfo(null);
@@ -162,7 +166,10 @@ export default function JobsPage() {
     void refreshPostLimit();
   }, [refreshPostLimit]);
 
-  const canPostJobAsContractor = canCreateJob(currentUser);
+	// this should always be true
+	// contractors and sub-contractors don't exist anymore
+	// everyone is just a user
+  const canPostJobAsContractor = true;
 
   const atFreeJobLimit =
     !isPremium &&
@@ -171,19 +178,20 @@ export default function JobsPage() {
     (postLimitInfo.usedInWindow ?? 0) >= (postLimitInfo.maxFree ?? 1);
 
   const freeJobUsageLine =
-    postLimitInfo && !postLimitInfo.unlimited && postLimitInfo.maxFree != null && postLimitInfo.windowDays != null
+    postLimitInfo && !postLimitInfo.unlimited && 
+			postLimitInfo.maxFree != null && postLimitInfo.windowDays != null
       ? `${Math.min(postLimitInfo.usedInWindow ?? 0, postLimitInfo.maxFree)} of ${postLimitInfo.maxFree} free job posts used in the last ${postLimitInfo.windowDays} days.`
       : null;
 
   const allowedRadiusKm = isPremium ? 100 : 20;
-  const TradeIcon = getTradeIcon(currentUser?.primaryTrade ?? undefined);
+  const TradeIcon = getTradeIcon(currentUser?.business?.primaryTrade ?? null);
 
   const viewerTrades = useMemo(() => {
-    const t = (currentUser as any)?.trades;
+    const t = currentUser?.business?.trades;
     if (Array.isArray(t) && t.length > 0) {
       return t.filter((x: string) => typeof x === 'string' && x.trim()).map((x: string) => x.trim());
     }
-    const pt = (currentUser as any)?.primaryTrade ?? (currentUser as any)?.primary_trade;
+    const pt = currentUser?.business?.primaryTrade ?? null;
     return pt ? [String(pt).trim()] : [];
   }, [currentUser]);
 
@@ -194,35 +202,22 @@ export default function JobsPage() {
     const run = async () => {
       if (!currentUser?.id) return;
       if (tab !== 'find') return;
-
       setLoadingJobs(true);
       setJobsError(null);
-
       try {
-        const supabase = getBrowserSupabase();
-
-        const { data, error } = await (supabase as any).rpc('get_jobs_visible_to_viewer', {
-          viewer_id: currentUser.id,
-          trade_filter: tradeFilterForRpc,
-          limit_count: 50,
-          offset_count: 0,
-        });
-
+				const data = [];
+				const error = false;
         if (error) {
           console.error('[jobs] rpc error', error);
           setVisibleJobs([]);
           setJobsError(error.message || 'Could not load jobs');
           return;
         }
-
         const rows = Array.isArray(data) ? data : [];
         const contractorIds = Array.from(new Set(rows.map((r: any) => r?.contractor_id).filter(Boolean)));
         let posterMap: Record<string, any> = {};
         if (contractorIds.length > 0) {
-          const { data: usersData } = await supabase
-            .from('users')
-            .select('id, name, business_name, avatar, rating')
-            .in('id', contractorIds);
+					const usersData = [];
           if (Array.isArray(usersData)) {
             const users = usersData as { id: string }[];
             posterMap = Object.fromEntries(users.map((u) => [u.id, u]));
@@ -249,31 +244,16 @@ export default function JobsPage() {
   useEffect(() => {
     const run = async () => {
       if (tab !== 'posts') return;
-
       if (!currentUser?.id) {
         setMyPostsDb([]);
         return;
       }
-
       setLoadingMyPosts(true);
       setMyPostsError(null);
-
       try {
-        const supabase = getBrowserSupabase();
-
-        const { data, error } = await supabase
-          .from('jobs')
-          .select(`
-            *,
-            poster:contractor_id(id, name, business_name, avatar, rating)
-          `)
-          .eq('contractor_id', currentUser.id)
-          .gte('created_at', jobsListingWindowStartIso())
-          .order('created_at', { ascending: false })
-          .limit(50);
-
+				const data = [];
+				const error = false;
         if (error) throw error;
-
         const rows = Array.isArray(data) ? data : [];
         setMyPostsDb(rows.map((r) => normalizeJobRow(r as Record<string, unknown>)));
       } catch (e: unknown) {
@@ -293,13 +273,11 @@ export default function JobsPage() {
       toast.error('You must be logged in.');
       return;
     }
-
     setDeletingId(jobId);
-
     try {
-      const res = await fetch(`/api/jobs/${jobId}`, { method: 'DELETE' });
+			// TODO delete job
+      const res = {};
       const data = await res.json().catch(() => ({}));
-
       if (!res.ok) {
         const msg =
           (typeof data?.error === 'string' ? data.error : null) ??
@@ -307,7 +285,6 @@ export default function JobsPage() {
         toast.error(msg);
         return;
       }
-
       toast.success('Job deleted');
       setMyPostsDb((prev: any[]) => (prev ?? []).filter((j) => j.id !== jobId));
       void refreshPostLimit();
@@ -365,10 +342,8 @@ export default function JobsPage() {
   useEffect(() => {
     if (isLoading) return;
     if (hasRedirected.current) return;
-
     if (!currentUser) {
       hasRedirected.current = true;
-
       // defensive safety check
       if (router) {
         safeRouterPush(router, buildLoginUrl('/jobs'), buildLoginUrl('/jobs'));
@@ -433,7 +408,7 @@ export default function JobsPage() {
   }
 
   // If user is not authed, redirect effect runs; show a small fallback
-  if (!currentUser) {
+  if (!hasSession) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center text-sm text-gray-600">
         Redirecting to login…
@@ -565,9 +540,6 @@ export default function JobsPage() {
                         <Plus className="h-4 w-4" />
                         Post Job
                       </Button>
-                      <span className="text-right text-xs text-amber-900">
-                        Contractor accounts post jobs; use Find Work to browse and apply.
-                      </span>
                     </div>
                   ) : (
                     <Link href="/jobs/create">
