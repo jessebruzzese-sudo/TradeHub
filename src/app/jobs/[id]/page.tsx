@@ -57,7 +57,7 @@ import { getJobLifecycleState, canWithdrawApplication, canTransitionToStatus } f
 import { createSystemMessage, shouldAddSystemMessage } from '@/lib/messaging-utils';
 import { needsBusinessVerification, redirectToVerifyBusiness, getVerifyBusinessUrl } from '@/lib/verification-guard';
 import { hasValidABN } from '@/lib/abn-utils';
-import { canEditJob, ownsJob } from '@/lib/permissions';
+import { canEditJob } from '@/lib/permissions';
 import { JOB_EDIT_CONTRACTOR_ROLE_MESSAGE } from '@/lib/jobs/job-post-role-messages';
 import { jobsListingWindowStartIso } from '@/lib/jobs/listing-window';
 import { getPublicProfileHref } from '@/lib/url-utils';
@@ -261,6 +261,7 @@ export default function JobDetailPage() {
 	
 	const [currentUser, setCurrentUser] = useState(UserSession?.user ?? null);
 	const [job, setJob] = useState(null);
+	const [applications, setApplications] = useState([]);
   const [showApplyDialog, setShowApplyDialog] = useState(false);
   const [applicationMessage, setApplicationMessage] = useState('');
   const [showCancelDialog, setShowCancelDialog] = useState(false);
@@ -307,24 +308,13 @@ export default function JobDetailPage() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [lightboxOpen, lightboxItems.length]);
 
-	// TODO jobs need poster information
-	// maybe call poster - owner?
-  const poster = null;
-  const posterPremium = poster
-    ? hasPremiumAccess({
-        plan: poster.plan,
-        subscriptionStatus: poster.subscriptionStatus,
-        complimentaryPremiumUntil: poster.complimentaryPremiumUntil,
-      })
-    : false;
-
-	// TODO load applications
-  const applications = [];
+  const poster = job?.owner ?? null;
+  const posterPremium = poster?.premium ?? false;
 
   // “My application” = any application made by the current user (single-account model)
   const myApplication = applications.find((a) => a.subcontractorId === currentUser?.id);
   const isAdminUser = currentUser?.role === "admin";
-  const isMyJob = job && currentUser ? ownsJob(currentUser, job) : false;
+  const isMyJob = job && currentUser && job.owner.id === currentUser.id;
   const lifecycleState = job ? getJobLifecycleState(job, applications.length > 0) : null;
 
   // In single-account model: anyone who is NOT the job owner can apply (unless admin overrides are supported elsewhere)
@@ -516,9 +506,6 @@ export default function JobDetailPage() {
       redirectToVerifyBusiness(router, returnUrl);
       return;
     }
-    trackEvent('job_apply_clicked', {
-      jobId: job.id,
-    });
     const newApplication = {
       id: `app-${Date.now()}`,
       jobId: job.id,
@@ -859,7 +846,7 @@ export default function JobDetailPage() {
 
                   {/* Avatar (larger) */}
                   <UserAvatar
-                    avatarUrl={poster?.avatar}
+                    avatarUrl={`/api/profile/${poster?.profileId}/avatar`}
                     userName={poster?.name || 'TradeHub user'}
                     size="xl"
                   />
@@ -871,7 +858,7 @@ export default function JobDetailPage() {
                       </p>
 
                       {/* Verified badge */}
-                      {poster && hasValidABN(poster) && (
+                      {poster && poster.abnVerified && (
                         <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-800">
                           <BadgeCheck className="h-3.5 w-3.5 text-blue-600" />
                           Verified
@@ -885,11 +872,11 @@ export default function JobDetailPage() {
                       </p>
                     )}
 
-                    {poster && typeof (poster as any)?.rating === 'number' && (
+                    {poster && poster?.rating && (
                       <div className="mt-1 flex items-center gap-1 text-xs text-slate-500">
                         <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
                         <span className="font-medium text-slate-700">
-                          {(poster as any).rating.toFixed(1)}
+                          {poster?.rating}
                         </span>
                       </div>
                     )}

@@ -331,7 +331,6 @@ export function ProfileView({
   const otherTrades = [];
   const miniBio = p?.profile?.miniBio ?? null;
   const bio = p?.profile?.bio ?? null;
-  const rating = p?.profile?.rating ?? null;
   const reliabilityRating = p?.profile?.reliabilityRating ?? null;
   const showProBadge = p?.profile?.premium ?? false;
   const links = ( p?.profile?.links ?? {} ) as Record<string, any>;
@@ -351,13 +350,11 @@ export function ProfileView({
     { key: 'youtube', label: 'YouTube', Icon: Radio },
   ] as const;
   const hasAnyLinks = socials.some(({ key }) => (normalizedLinks as any)?.[key]) || (normalizedLinks as any)?.tiktok;
-
   const totalVotes = upCount + downCount;
   const starAverage =
     totalVotes === 0
       ? 0
       : Number((1 + (upCount / totalVotes) * 4).toFixed(1));
-
   const avg = Number(starAverage);
   const profileStrengthCanonical = buildProfileStrengthCanonical({
     strengthCalc: null,

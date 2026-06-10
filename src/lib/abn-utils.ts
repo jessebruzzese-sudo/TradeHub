@@ -22,10 +22,9 @@ export type ABNUser = {
  */
 export function hasValidABN(user: ABNUser | null): boolean {
   if (!user) return false;
-  const abn = user.abn ?? '';
+  const abn = user?.business?.abn ?? '';
   if (!abn || String(abn).trim().length === 0) return false;
-  const status = String(user.abnStatus ?? user.abn_status ?? '').trim().toUpperCase();
-  return status === 'VERIFIED';
+	return user?.business?.abnVerified;
 }
 
 /** Alias for `hasValidABN` — use for "is this user ABN verified?" gating checks. */

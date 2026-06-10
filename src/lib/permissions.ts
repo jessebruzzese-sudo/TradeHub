@@ -20,10 +20,10 @@ type UserLike = {
   additionalTradesUnlocked?: boolean;
 } | null;
 
-/** Aligned with RLS on `jobs` INSERT/UPDATE/DELETE for own rows (`role = 'contractor'`). */
+// no role separation anymore for constractors and
+// sub contractors
 export function hasContractorRoleForJobPosting(user: UserLike): boolean {
-  if (!user) return false;
-  return String(user.role ?? '').trim().toLowerCase() === 'contractor';
+	return true;
 }
 
 type JobLike = { id?: string; contractorId?: string | null } | null | undefined;
@@ -33,8 +33,8 @@ export function isLoggedIn(user: UserLike): boolean {
 }
 
 export function ownsJob(user: UserLike, job: JobLike): boolean {
-  if (!user?.id || !job?.contractorId) return false;
-  return job.contractorId === user.id;
+  if (!user?.id) return false;
+  return job.owner.id === user.id;
 }
 
 export function canCreateJob(user: UserLike): boolean {

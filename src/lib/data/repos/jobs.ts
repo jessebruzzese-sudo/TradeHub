@@ -5,6 +5,8 @@ import { getDB } from "@/lib/data/service";
 import { deleteJobAttachments } from "@/lib/images/service";
 import { jobsTable, jobAttachmentsTable } from "@/lib/data/defs/jobs";
 import { usersTable } from "@/lib/data/defs/users";
+import { profileTable } from "@/lib/data/defs/profile";
+import { businessTable } from "@/lib/data/defs/business";
 import { writeFile, mkdir } from "node:fs/promises";
 import { ENV } from "@/lib/env";
 import { subDays } from "date-fns";
@@ -16,10 +18,23 @@ const jobsReducer = (a, c) => {
 		const ownerId = c.users.id;
 		const name = c.users.name;
 		const visibleName = c.users.visibleName;
+		const upVotes = c?.profile?.upVotes ?? 0;
+		const downVotes = c?.profile?.downVotes ?? 0;
+		const totalVotes = upVotes + downVotes;
+		const rating = ((upVotes/totalVotes)*4)+1;
+		const abnVerified = c?.business?.abnVerified ?? false;
+		const businessName = c?.business?.businessName ?? null;
 		a[key] = {...c.jobs, attachments: {}, owner: {}};
+		// populate owner information
+		// jobs need this too ...
 		a[key].owner["id"] = ownerId;
 		a[key].owner["profileId"] = profileId;
 		a[key].owner["name"] = visibleName ?? name;
+		a[key].owner["abnVerified"] = true;
+		a[key].owner["upVotes"] = upVotes;
+		a[key].owner["downVotes"] = downVotes;
+		a[key].owner["rating"] = rating;
+		a[key].owner["businessName"] = businessName;
 	}
 	const attKey = c?.job_attachments?.id ?? null;	
 	if(attKey !== null && a[key].attachments[attKey] === undefined){
@@ -62,6 +77,8 @@ export const getUserJobs = async (userId:string) => {
 		const db = await getDB();			
 		const results = await db.select().from(jobsTable).
 			innerJoin(usersTable, eq(usersTable.profileId, jobsTable.profileId)).
+			innerJoin(profileTable, eq(profileTable.id, usersTable.profileId)).
+			innerJoin(businessTable, eq(businessTable.id, usersTable.businessId)).
 			leftJoin(jobAttachmentsTable, eq(jobAttachmentsTable.jobId, jobsTable.id)).
 			where(eq(usersTable.id, userId));
 		resolve(getJobObjects(results));
@@ -85,6 +102,8 @@ export const getJob = async (jobId:string) => {
 		const db = await getDB();			
 		const results = await db.select().from(jobsTable).
 			innerJoin(usersTable, eq(usersTable.profileId, jobsTable.profileId)).
+			innerJoin(profileTable, eq(profileTable.id, usersTable.profileId)).
+			innerJoin(businessTable, eq(businessTable.id, usersTable.businessId)).
 			leftJoin(jobAttachmentsTable, eq(jobAttachmentsTable.jobId, jobsTable.id)).
 			where(eq(jobsTable.id, jobId));
 		resolve(getJobObjects(results));
