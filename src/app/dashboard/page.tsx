@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState, useContext } from 'react';
 import UserContext from "@/lib/user-context";
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { redirect, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { getAxios } from "@/lib/utils";
 import { AppLayout } from '@/components/app-nav';
@@ -239,7 +239,7 @@ export default function DashboardPage() {
 	const apiClient = getAxios(jwt);
 	
 	{/* STATE */}
-	const [currentUser, setCurrentUser] = useState<any|null>(UserSession.user);
+	const [currentUser, setCurrentUser] = useState<any|null>(UserSession?.user ?? null);
   const [stats, setStats] = useState<Record<string, number>>({});
   const [newJobsCount, setNewJobsCount] = useState(0);
   const [statusAccordionOpen, setStatusAccordionOpen] = useState(false);
@@ -264,11 +264,11 @@ export default function DashboardPage() {
         : null,
     [currentUser]
   );
-  const isPremium = Boolean(isPremiumForDiscovery(userForDiscovery));
+  const isPremium = currentUser?.profile?.premium ?? false;
   const hasLocation = useMemo(() => {
     if (!currentUser) return false;
-    if ((currentUser?.location ?? '').trim()) return true;
-  }, [currentUser, isPremium]);
+    if ((currentUser?.business?.location ?? '').trim()) return true;
+  }, [currentUser]);
 
 	const role = currentUser?.role ?? "unknown";
   const isAdminUser = role?.toLowerCase() === "admin";
@@ -288,15 +288,6 @@ export default function DashboardPage() {
 		currentUser?.business?.businessName ||
 		"").split(' ')[0];
 
-	// hook to check session
-	// i.e. user is logged in
-  useEffect(() => {
-    if (!hasSession) {
-      const returnUrl = getSafeReturnUrl('/dashboard', '/dashboard');
-      safeRouterReplace(router, `/login?returnUrl=${encodeURIComponent(returnUrl)}`, '/login');
-    }
-  }, [hasSession, router]);
-	
 	// hook to load user
 	useEffect(()=>{
 		if(currentUser !== null){
@@ -457,67 +448,11 @@ export default function DashboardPage() {
     }
   }, [searchParams, router]);
 
-	{ /*
-  useEffect(() => {
-    if (!hasSession) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        setAvailLoading(true);
-        const supabase = getBrowserSupabase();
-
-        const { data, error } = await supabase
-          .from('subcontractor_availability')
-          .select('date')
-          .eq('user_id', currentUser.id)
-          .order('date', { ascending: true });
-
-        if (cancelled) return;
-        if (error) throw error;
-
-        setAvailDates((data || []).map((r: any) => r.date));
-      } catch (e) {
-        console.error('[dashboard] load availability failed', e);
-        if (!cancelled) setAvailDates([]);
-      } finally {
-        if (!cancelled) setAvailLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [hasSession, currentUser?.id]);
-
-  useEffect(() => {
-    if (!hasSession || !currentUser?.id) return;
-    let cancelled = false;
-    fetch('/api/profile/locations')
-      .then((res) => (res.ok ? res.json() : { locations: [] }))
-      .then((data: { locations?: { id: string }[] }) => {
-        if (cancelled) return;
-        const locs = Array.isArray(data?.locations) ? data.locations : [];
-        setSavedLocations(locs);
-      })
-      .catch(() => {
-        if (!cancelled) setSavedLocations([]);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [hasSession, currentUser?.id]);
-	
-	*/ }
-		
 	{ /*END HOOKS */ }
 	
   if (!hasSession) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center text-sm text-gray-600">
-        Redirecting to login…
-      </div>
-    );
+		redirect("/login");
+		return;
   }
 
   if (isLoading) {

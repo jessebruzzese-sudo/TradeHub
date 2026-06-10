@@ -2,13 +2,13 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
-import { createServerSupabase, createServiceSupabase } from '@/lib/supabase-server';
 import { getAppUrl } from '@/lib/stripe';
 import { getStripe } from '@/lib/stripe/server';
 import { getPremiumPriceId } from '@/lib/stripe/plans';
 import { hasPremiumAccess } from '@/lib/billing/has-premium-access';
 
 export async function POST() {
+/*
   const priceId = getPremiumPriceId();
   if (!priceId) {
     return NextResponse.json(
@@ -110,6 +110,6 @@ export async function POST() {
   if (!session.url) {
     return NextResponse.json({ error: 'Failed to create checkout session' }, { status: 500 });
   }
-
-  return NextResponse.json({ url: session.url });
+*/
+  return NextResponse.json({ url: null });
 }

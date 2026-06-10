@@ -18,55 +18,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { getAxios } from "@/lib/utils";
 
-type VerifyResponse =
-  | { ok: true; abn: string; entityName?: string; businessName?: string; status?: string }
-  | { error: string };
-
-async function persistAbnVerification(params: {
-  abn: string;
-  entityName?: string | null;
-  verified: boolean;
-}) {
-  const userId = userRes.user.id;
-  const nowIso = new Date().toISOString();
-  const abnDigits = normalizeAbnForDb(params.abn);
-  if (!abnDigits) throw new Error('PERSIST_FAILED');
-
-  if (params.verified) {
-    const { error } = await supabase
-      .from('users')
-      .update({
-        abn: abnDigits,
-        abn_status: 'VERIFIED',
-        abn_verified: true,
-        abn_verified_at: nowIso,
-        business_name: params.entityName ?? null,
-      })
-      .eq('id', userId);
-
-    if (error) {
-      console.error('[abn] persist verified failed', error);
-      throw new Error('PERSIST_FAILED');
-    }
-    return;
-  }
-
-  const { error } = await supabase
-    .from('users')
-    .update({
-      abn: abnDigits,
-      abn_status: 'UNVERIFIED',
-      abn_verified: false,
-      abn_verified_at: null,
-    })
-    .eq('id', userId);
-
-  if (error) {
-    console.error('[abn] persist unverified failed', error);
-    throw new Error('PERSIST_FAILED');
-  }
-}
-
 function normalizeAbn(input: string) {
   return (input || '').replace(/\s+/g, '');
 }
@@ -153,7 +104,7 @@ export default function VerifyBusinessPage() {
         body: JSON.stringify({ abn: cleaned }),
       });
 
-      const data = (await res.json().catch(() => ({}))) as VerifyResponse;
+      const data = (await res.json().catch(() => ({})));
 
       if (!res.ok) {
         setError('error' in data && data.error ? data.error : 'ABN verification failed. Please try again.');

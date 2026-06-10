@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getStripe, isStripeConfigured } from '@/lib/stripe/server';
 import { MVP_FREE_MODE } from '@/lib/feature-flags';
-import { createServerSupabase, createServiceSupabase } from '@/lib/supabase-server';
 import { getAppUrl } from '@/lib/stripe';
 
 export async function POST(req: Request) {
+	/*
   if (MVP_FREE_MODE) {
     return NextResponse.json({ error: 'Billing disabled during MVP launch' }, { status: 403 });
   }
@@ -85,6 +85,6 @@ export async function POST(req: Request) {
   if (!url) {
     return NextResponse.json({ error: 'Failed to create portal session' }, { status: 500 });
   }
-
-  return NextResponse.json({ url });
+*/
+  return NextResponse.json({ url:null });
 }

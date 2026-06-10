@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { createServerSupabase } from '@/lib/supabase-server';
 import {
   getViewerCenter,
   getDiscoveryRadiusKm,
@@ -12,19 +11,6 @@ import { applyExcludeTestAccountsFilters } from '@/lib/test-account';
 import { getDisplayTradeListFromUserRow } from '@/lib/trades/user-trades';
 import { getPrimaryUserCoordinates } from '@/lib/location/get-user-coordinates';
 
-type UserRow = {
-  id: string;
-  plan?: string | null;
-  location_lat?: number | null;
-  location_lng?: number | null;
-  search_lat?: number | null;
-  search_lng?: number | null;
-  primary_trade?: string | null;
-  additional_trades?: string[] | string | null;
-  subscription_status?: string | null;
-  complimentary_premium_until?: string | null;
-};
-
 function getCandidateCoords(row: UserRow): { lat: number; lng: number } | null {
   return getPrimaryUserCoordinates(row);
 }
@@ -36,6 +22,7 @@ function getTradesFromRow(row: UserRow): string[] {
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+/*
   try {
     const supabase = createServerSupabase();
     const {
@@ -160,4 +147,10 @@ export async function GET() {
       { status: 500 }
     );
   }
+	*/
+    return NextResponse.json({
+      totalAccountsRounded: 0,
+      totalAccountsExact: 0,
+      trades: 0
+    });
 }

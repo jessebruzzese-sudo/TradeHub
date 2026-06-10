@@ -1,13 +1,12 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
-import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   let step = 'start';
   try {
+/*
     const { password } = await req.json().catch(() => ({}));
 
     if (!password || typeof password !== 'string' || !password.trim()) {
@@ -198,6 +197,8 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ success: true, scrub: scrubError ? 'failed' : 'ok', scrubError });
+	*/
+    return NextResponse.json({ success: true });
   } catch (e: any) {
     console.error('[api/account/delete] error', e);
     return NextResponse.json(

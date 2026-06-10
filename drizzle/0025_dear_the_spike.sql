@@ -1,0 +1,1 @@
+ALTER TABLE "business_trade" RENAME COLUMN "primary" TO "is_primary";

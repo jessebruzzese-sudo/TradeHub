@@ -1,6 +1,5 @@
 // @ts-nocheck - Supabase client type inference
 import { NextResponse } from 'next/server';
-import { createServiceSupabase } from '@/lib/supabase-server';
 import {
   adminAuthErrorResponseOrNull,
   requireAdmin,
@@ -8,25 +7,12 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-async function getUserNames(supabase: ReturnType<typeof createServiceSupabase>, ids: string[]): Promise<Record<string, string>> {
-  const unique = Array.from(new Set(ids)).filter(Boolean);
-  if (unique.length === 0) return {};
-  const { data } = await supabase
-    .from('users')
-    .select('id, name')
-    .in('id', unique);
-  const map: Record<string, string> = {};
-  for (const u of data ?? []) {
-    map[u.id] = u.name ?? 'Unknown';
-  }
-  return map;
-}
-
 export async function GET(
   _request: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
   try {
+	/*
     await requireAdmin();
     const { id: userId } = await ctx.params;
 
@@ -114,6 +100,7 @@ export async function GET(
         createdAt: b.created_at,
       })),
     });
+		*/
   } catch (err) {
     const auth = adminAuthErrorResponseOrNull(err);
     if (auth) return auth;

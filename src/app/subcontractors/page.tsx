@@ -2,7 +2,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import UserContext from "@/lib/user-context";
+import { useEffect, useMemo, useState, useContext } from 'react';
 import { AppLayout } from '@/components/app-nav';
 import { TradeGate } from '@/components/trade-gate';
 import { PremiumUpsellBar } from '@/components/premium-upsell-bar';
@@ -18,22 +19,10 @@ import { Search, Lightbulb, Users, ArrowLeft, MapPin, BadgeCheck, Crown, ArrowRi
 import { UserAvatar } from '@/components/user-avatar';
 import { UnauthorizedAccess } from '@/components/unauthorized-access';
 import { useActiveTradesCatalog } from '@/lib/trades/use-active-trades-catalog';
-import { getBrowserSupabase } from '@/lib/supabase-client';
 import { cn } from '@/lib/utils';
 import { getPublicProfileHref } from '@/lib/url-utils';
 import { debugProfileCardData } from '@/lib/profile-debug';
 import { format } from 'date-fns';
-
-type ProfileCard = {
-  id: string;
-  display_name: string;
-  business_name: string | null;
-  suburb: string | null;
-  trade_categories: string[];
-  is_verified: boolean;
-  avatar_url: string | null;
-  isPremium?: boolean;
-};
 
 /** Display order for empty-state chips; labels must exist in `public.trades` / `/api/trades`. */
 const POPULAR_TRADE_ORDER = [
@@ -149,24 +138,31 @@ function SubcontractorCard({ sub }: { sub: ProfileCard }) {
 }
 
 export default function SubcontractorsPage() {
-  const { currentUser, isLoading } = useAuth();
-  const { names: catalogTradeNames } = useActiveTradesCatalog();
-  const popularTradesForChips = useMemo(
-    () => POPULAR_TRADE_ORDER.filter((t) => catalogTradeNames.includes(t)),
-    [catalogTradeNames]
-  );
+
+  const { jwt } = useAuth();
+	const UserSession = useContext(UserContext);
+	const [currentUser, setCurrentUser] = useState(UserSession?.user ?? null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedTrade, setSelectedTrade] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('distance-closest');
   const [filterBy, setFilterBy] = useState<string>('all');
-  const [availLoading, setAvailLoading] = useState(false);
+  const [availLoading, setAvailLoading] = useState(true);
   const [nextAvailable, setNextAvailable] = useState<Date | null>(null);
   const [profiles, setProfiles] = useState<ProfileCard[]>([]);
   const [profilesLoading, setProfilesLoading] = useState(true);
   const [profilesError, setProfilesError] = useState<string | null>(null);
   const [outsideRadiusCount, setOutsideRadiusCount] = useState(0);
   const [allowedRadiusKm, setAllowedRadiusKm] = useState(20);
+	const [catalogTradeNames, setCatalogTradeNames] = useState([]);
 
+	const isLoading = currentUser === null;
+	const hasSession = jwt !== undefined && jwt !== null;
+
+  const popularTradesForChips = useMemo(
+    () => POPULAR_TRADE_ORDER.filter((t) => catalogTradeNames.includes(t)),
+    [catalogTradeNames]
+  );
+	
   const nextAvailableLabel = useMemo(() => {
     if (!nextAvailable) return null;
     return format(nextAvailable, 'EEE d MMM');
@@ -187,8 +183,8 @@ export default function SubcontractorsPage() {
         : null,
     [currentUser]
   );
-  const isPremium = isPremiumForDiscovery(userForDiscovery);
-  const primaryTrade = (currentUser as any)?.primaryTrade ?? (currentUser as any)?.primary_trade ?? null;
+  const isPremium = currentUser?.profile?.premium ?? false;
+  const primaryTrade = currentUser?.business?.primaryTrade ?? null;
 
   // Free users: locked to primary trade only. Premium: can browse across trades.
   const effectiveTrade = isPremium ? selectedTrade : (primaryTrade || 'all');
@@ -277,47 +273,8 @@ export default function SubcontractorsPage() {
   }, [profiles, searchQuery, filterBy, sortBy]);
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function loadAvailability() {
-      if (!currentUser?.id) {
-        setNextAvailable(null);
-        return;
-      }
-
-      setAvailLoading(true);
-
-      try {
-        const supabase = getBrowserSupabase();
-        const today = new Date();
-        const todayStr = today.toISOString().slice(0, 10);
-
-        const { data, error } = await supabase
-          .from('subcontractor_availability')
-          .select('date')
-          .eq('user_id', currentUser.id)
-          .gte('date', todayStr)
-          .order('date', { ascending: true });
-
-        if (error) throw error;
-        if (cancelled) return;
-
-        const first = data?.[0]?.date ? new Date(data[0].date) : null;
-        setNextAvailable(first);
-      } catch (err) {
-        console.error('[subcontractors] availability load failed', err);
-        if (!cancelled) setNextAvailable(null);
-      } finally {
-        if (!cancelled) setAvailLoading(false);
-      }
-    }
-
-    loadAvailability();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [currentUser?.id]);
+		// TODO load availability
+  }, [currentUser]);
 
   if (isLoading) {
     return (
@@ -329,7 +286,7 @@ export default function SubcontractorsPage() {
     );
   }
 
-  if (!currentUser) {
+  if (!hasSession) {
     return <UnauthorizedAccess redirectTo="/login" />;
   }
 

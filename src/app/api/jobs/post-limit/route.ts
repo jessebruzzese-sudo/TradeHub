@@ -1,57 +1,40 @@
-import { NextResponse } from 'next/server';
-import { createServerSupabase, createServiceSupabase } from '@/lib/supabase-server';
-import { getTier } from '@/lib/plan-limits';
-import {
-  countJobsPostedInWindow,
-  FREE_JOB_POST_MAX_PER_WINDOW,
-  FREE_JOB_POST_WINDOW_DAYS,
-} from '../../../../lib/job-post-limits';
+// vim: ts=2
+import { NextRequest, NextResponse } from 'next/server';
+import { getDataService } from "@/lib/data/service";
+import { cookies } from "next/headers";
+import * as jose from "jose";
 
 export const dynamic = 'force-dynamic';
+
+const getClaims = async () => {
+	const store = await cookies();
+	const cookie = store.get("authorization") ?? null;
+	const jwt = cookie?.value ?? null;
+	return jose.decodeJwt(jwt);
+};
 
 /**
  * GET /api/jobs/post-limit — Free-tier usage for the signed-in contractor (rolling window).
  * Premium users: { unlimited: true }. Used by /jobs and /jobs/create UI only.
  */
-export async function GET() {
-  try {
-    const supabase = createServerSupabase();
-    const serviceSupabase = createServiceSupabase();
-    const {
-      data: { user },
-      error: authErr,
-    } = await supabase.auth.getUser();
-
-    if (authErr || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: profile, error: profileErr } = await (supabase as any)
-      .from('users')
-      .select(
-        'id, plan, subscription_status, complimentary_premium_until'
-      )
-      .eq('id', user.id)
-      .maybeSingle();
-
-    if (profileErr || !profile) {
-      return NextResponse.json({ error: 'Could not load profile' }, { status: 500 });
-    }
-
-    if (getTier(profile) === 'premium') {
-      return NextResponse.json({ unlimited: true });
-    }
-
-    const usedInWindow = await countJobsPostedInWindow(serviceSupabase, user.id);
-
+export const GET = async (request:NextRequest) => {
+	let claims = null;
+	try{
+		claims = await getClaims();
+	}catch(err_){
+    return NextResponse.json({ error: "Not authorized" }, { status: 401 });
+	}
+  try{
+		const { jobs } = await getDataService();
+		const count = await jobs.getJobCount(claims.id, 30);	
     return NextResponse.json({
       unlimited: false,
-      windowDays: FREE_JOB_POST_WINDOW_DAYS,
-      maxFree: FREE_JOB_POST_MAX_PER_WINDOW,
-      usedInWindow,
-    });
-  } catch (e) {
-    console.error('[api/jobs/post-limit]', e);
+      windowDays: 30,
+      maxFree: 1,
+      usedInWindow: count
+    }, { status: 200 });
+  }catch(err_){
+    console.error('[api/jobs/post-limit]', err_);
     return NextResponse.json({ error: 'Could not load post limit' }, { status: 500 });
   }
 }

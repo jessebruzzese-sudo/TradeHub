@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Job } from '@/lib/types';
 import StatusPill from './status-pill';
+import { ENV } from "@/lib/env";
 import { UserAvatar } from '@/components/user-avatar';
 import { Calendar, Clock, DollarSign, MapPin, Star } from 'lucide-react';
 import { format } from 'date-fns';
@@ -8,17 +9,12 @@ import { formatJobPriceDisplay } from '@/lib/job-pay-labels';
 
 function getPosterName(p: any): string {
   return (
-    p?.business_name ??
-    p?.businessName ??
-    p?.full_name ??
-    p?.fullName ??
-    p?.name ??
-    'Poster'
+    p?.name ?? 'Poster'
   );
 }
 
 function getPosterAvatar(p: any): string | undefined {
-  return p?.avatar_url ?? p?.avatarUrl ?? p?.avatar ?? undefined;
+  return `/api/profile/${p?.profileId}/avatar`;
 }
 
 function getPosterRating(p: any): { rating: number | null; count: number | null } {
@@ -40,8 +36,6 @@ interface JobCardProps {
 }
 
 type JobRpcExtras = {
-  distance_km?: number | null;
-  distanceKm?: number | null;
   poster_is_premium?: boolean | null;
   posterIsPremium?: boolean | null;
   poster_plan?: string | null;
@@ -50,16 +44,6 @@ type JobRpcExtras = {
 
 export function JobCard({ job, showStatus = true, extraActions }: JobCardProps) {
   const extra = job as unknown as JobRpcExtras;
-
-  const distanceKmRaw = extra?.distance_km ?? extra?.distanceKm ?? null;
-  const distanceKm =
-    typeof distanceKmRaw === 'number' && isFinite(distanceKmRaw) ? distanceKmRaw : null;
-
-  const distanceLabel =
-    typeof distanceKm === 'number' && isFinite(distanceKm)
-      ? `${distanceKm.toFixed(distanceKm < 10 ? 1 : 0)} km away`
-      : null;
-
   const posterIsPremium = Boolean(extra?.poster_is_premium ?? extra?.posterIsPremium ?? false);
   const posterPlan = (extra?.poster_plan ?? extra?.posterPlan ?? null) as string | null;
 
@@ -72,7 +56,7 @@ export function JobCard({ job, showStatus = true, extraActions }: JobCardProps) 
               <h3 className="font-semibold text-gray-900 mb-1 md:mb-0 line-clamp-2 md:line-clamp-1 break-words">{job.title}</h3>
               <p className="text-sm text-gray-600 truncate">{job.tradeCategory}</p>
               {(() => {
-                const p = (job as any)?.poster;
+                const p = job?.owner ?? {};
                 const name = getPosterName(p);
                 const avatar = getPosterAvatar(p);
                 const { rating, count } = getPosterRating(p);
@@ -128,12 +112,6 @@ export function JobCard({ job, showStatus = true, extraActions }: JobCardProps) 
                 <MapPin className="w-4 h-4 flex-shrink-0 text-sky-600" />
                 <span className="truncate">{job.location}</span>
               </div>
-              {distanceLabel && (
-                <div className="inline-flex w-fit items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-700">
-                  <MapPin className="h-3 w-3 text-sky-600" />
-                  {distanceLabel}
-                </div>
-              )}
             </div>
             <div className="flex items-center gap-1.5 min-w-0">
               <Calendar className="w-4 h-4 flex-shrink-0 text-indigo-600" />

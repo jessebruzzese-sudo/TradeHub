@@ -64,18 +64,6 @@ export default function LoginPage() {
   const searchParams = useSearchParams();
   const returnUrlParam = searchParams.get('returnUrl');
 
-  // If already logged in, redirect away from /login
-  useEffect(() => {
-    if (!isLoading && jwt) {
-     	isAdmin(jwt).then((adminResult)=>{
-				const defaultUrl = adminResult ? "/admin" : "/dashboard";
-      	const safeReturnUrl = getSafeReturnUrl(returnUrlParam, defaultUrl);
-      	console.log('[Login] Auto-redirecting logged-in user to:', safeReturnUrl);
-      	safeRouterReplace(router, safeReturnUrl, defaultUrl);
-			});
-    }
-  }, [isLoading, returnUrlParam, router]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');

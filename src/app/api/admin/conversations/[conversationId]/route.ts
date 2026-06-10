@@ -1,15 +1,8 @@
 import { NextResponse } from 'next/server';
-import type { Database } from '@/lib/database.types';
-import { createServiceSupabase } from '@/lib/supabase-server';
 import {
   adminAuthErrorResponseOrNull,
   requireAdmin,
 } from '@/lib/admin/require-admin';
-
-type ConversationRow = Pick<Database['public']['Tables']['conversations']['Row'], 'id' | 'contractor_id' | 'subcontractor_id' | 'job_id' | 'created_at'>;
-type MessageRow = Pick<Database['public']['Tables']['messages']['Row'], 'id' | 'sender_id' | 'text' | 'is_system_message' | 'created_at' | 'attachments'>;
-type UserReportRow = { id: string; reporter_id: string; reported_id: string; category: string; notes: string | null; status: string; created_at: string };
-type UserRow = Pick<Database['public']['Tables']['users']['Row'], 'id' | 'name'>;
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +11,7 @@ export async function GET(
   ctx: { params: Promise<{ conversationId: string }> }
 ) {
   try {
+	/*
     await requireAdmin();
     const { conversationId } = await ctx.params;
 
@@ -109,6 +103,12 @@ export async function GET(
         createdAt: m.created_at,
       })),
     });
+	*/
+		return NextResponse.json({
+			conversation: {},
+			messages: [],
+			reports: []
+		});
   } catch (err) {
     const auth = adminAuthErrorResponseOrNull(err);
     if (auth) return auth;

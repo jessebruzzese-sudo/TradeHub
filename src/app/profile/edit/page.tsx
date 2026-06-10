@@ -104,7 +104,7 @@ export default function EditProfilePage() {
     'flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white/70 shadow-sm';
 
   // Controlled values (always defined so hooks are stable)
-	const [currentUser, setCurrentUser] = useState<any|null>(UserSession.user);
+	const [currentUser, setCurrentUser] = useState<any|null>(UserSession?.user ?? null);
   const [name, setName] = useState<string>(UserSession.user?.name ?? "");
   const [miniBio, setMiniBio] = useState<string>(UserSession.user?.profile?.miniBio ?? "");
   const [businessName, setBusinessName] = useState<string>(UserSession.user?.business?.businessName ?? "");
@@ -820,7 +820,7 @@ export default function EditProfilePage() {
                     {/* Ring + shadow container (now reserves space correctly) */}
                     <div className="relative overflow-hidden rounded-full ring-2 ring-slate-900/10 shadow-md transition-all duration-300 group-hover:ring-blue-500/25 group-hover:shadow-lg">
                       <ProfileAvatar
-                        userName={currentUser.name ?? 'User'}
+                        userName={currentUser?.name ?? 'User'}
                         size={154}
                       />
                     </div>
@@ -872,7 +872,7 @@ export default function EditProfilePage() {
               </div>
               <div>
                 <Label htmlFor="email" className="text-sm font-medium text-slate-800">Email</Label>
-                <Input id="email" type="email" value={currentUser.email ?? ''} disabled className={`${inputClass} bg-slate-50`} />
+                <Input id="email" type="email" value={currentUser?.email ?? ''} disabled className={`${inputClass} bg-slate-50`} />
                 <p className="mt-1 text-xs text-slate-600">Email cannot be changed</p>
                 <div className="mt-3 flex items-center gap-2">
                   <input

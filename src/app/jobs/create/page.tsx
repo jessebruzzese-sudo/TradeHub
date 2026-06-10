@@ -1,19 +1,20 @@
 // @ts-nocheck
+// vim: ts=2
 'use client';
 
-/*
- * QA notes — Jobs create:
- * - Contractor role required (matches RLS on `jobs` INSERT/UPDATE/DELETE for own rows). Subcontractor/admin-without-contractor see inline message.
- * - ABN optional for posting (trust signal only).
- */
-
+import { getAxios } from "@/lib/utils";
+import UserContext from "@/lib/user-context";
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useContext, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { format as formatDate } from 'date-fns';
-import { Calendar as CalendarIcon, Camera, Clock, Loader2, Upload, X, FileText, Info } from 'lucide-react';
-
+import { 
+	Calendar as CalendarIcon, 
+	Camera, Clock,
+	Loader2, Upload, 
+	X, FileText, Info 
+} from 'lucide-react';
 import { AppLayout } from '@/components/app-nav';
 import { PageHeader } from '@/components/page-header';
 import { PremiumJobUpsellModal } from '@/components/premium-job-upsell-modal';
@@ -23,25 +24,32 @@ import { RefinePillButton } from '@/components/ai/RefinePillButton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { 
+	Select, SelectContent, 
+	SelectItem, SelectTrigger, 
+	SelectValue 
+} from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { PopoverContentWithDone } from '@/components/ui/popover-content-with-done';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Switch } from '@/components/ui/switch';
-
 import { SuburbAutocomplete } from '@/components/suburb-autocomplete';
-
 import { useAuth } from '@/lib/auth';
 import { isPremiumForDiscovery } from '@/lib/discovery';
-import { getBrowserSupabase } from '@/lib/supabase-client';
 import { getABNStatus, getABNStatusMessage, hasValidABN } from '@/lib/abn-utils';
 import { useActiveTradesCatalog } from '@/lib/trades/use-active-trades-catalog';
 import { safeRouterPush } from '@/lib/safe-nav';
 import { getVerifyBusinessUrl } from '@/lib/verification-guard';
 import { MVP_FREE_MODE } from '@/lib/feature-flags';
-import { FREE_JOB_POST_LIMIT_MESSAGE, JOB_POST_LIMIT_ERROR_CODE } from '@/lib/job-post-limits';
+import { 
+	FREE_JOB_POST_LIMIT_MESSAGE, 
+	JOB_POST_LIMIT_ERROR_CODE 
+} from '@/lib/job-post-limits';
 import { canCreateJob } from '@/lib/permissions';
-import { JOB_POST_CONTRACTOR_ROLE_CODE, JOB_POST_CONTRACTOR_ROLE_MESSAGE } from '@/lib/jobs/job-post-role-messages';
+import { 
+	JOB_POST_CONTRACTOR_ROLE_CODE, 
+	JOB_POST_CONTRACTOR_ROLE_MESSAGE 
+} from '@/lib/jobs/job-post-role-messages';
 
 type PayType = 'fixed' | 'hourly' | 'day_rate';
 
@@ -59,14 +67,14 @@ function formatTimeDisplay(time24: string): string {
 }
 
 export default function CreateJobPage() {
-  const { session, currentUser, isLoading } = useAuth();
-  const router = useRouter();
 
-  useEffect(() => {
-    if (currentUser === null) {
-      router.replace('/');
-    }
-  }, [currentUser, router]);
+  const { jwt } = useAuth();
+	const UserSession = useContext(UserContext);
+	const [currentUser, setCurrentUser] = useState(UserSession?.user ?? null);
+
+  const router = useRouter();
+	const hasSession = jwt !== undefined && jwt !== null;
+	const isLoading = currentUser === null;
 
   const hasRedirected = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -79,8 +87,8 @@ export default function CreateJobPage() {
   const [location, setLocation] = useState('');
   const [postcode, setPostcode] = useState('');
   const [jobPlaceId, setJobPlaceId] = useState<string | null>(null);
-  const [jobLat, setJobLat] = useState<number | null>(null);
-  const [jobLng, setJobLng] = useState<number | null>(null);
+  const [jobLat, setJobLat] = useState<any|null>(null);
+  const [jobLng, setJobLng] = useState<any|null>(null);
   const [startTime, setStartTime] = useState('07:00');
   const [durationDays, setDurationDays] = useState('1');
   const [payType, setPayType] = useState<PayType>('fixed');
@@ -131,16 +139,17 @@ export default function CreateJobPage() {
         : null,
     [currentUser]
   );
-  const isPremium = isPremiumForDiscovery(userForDiscovery);
+  const isPremium = currentUser?.profile?.premium ?? false;
   const { names: catalogTradeNames, loading: catalogTradesLoading } = useActiveTradesCatalog();
 
   const posterTrades = useMemo(() => {
-    const t = (currentUser as any)?.trades;
+    const t = currentUser?.business?.trades ?? [];
     if (Array.isArray(t) && t.length > 0) {
       return t.filter((x: string) => typeof x === 'string' && x.trim()).map((x: string) => x.trim());
     }
-    const pt = (currentUser as any)?.primaryTrade ?? (currentUser as any)?.primary_trade;
-    const at = (currentUser as any)?.additionalTrades ?? (currentUser as any)?.additional_trades;
+		// TODO populate additional trades
+    const pt = currentUser?.business?.primaryTrade ?? null;
+    const at = [];
     const out = pt ? [String(pt).trim()] : [];
     if (Array.isArray(at)) {
       at.forEach((x: string) => {
@@ -169,8 +178,8 @@ export default function CreateJobPage() {
       return;
     }
     try {
-      const res = await fetch('/api/jobs/post-limit', { credentials: 'include' });
-      const data = await res.json().catch(() => ({}));
+			// TODO job limit
+      const data = {};
       if (!res.ok) {
         setPostLimitInfo(null);
         return;
@@ -195,18 +204,15 @@ export default function CreateJobPage() {
   }, [refreshPostLimit]);
 
   useEffect(() => {
-    if (isLoading || hasRedirected.current) return;
-    if (!session?.user) {
+    if (!hasSession) {
       hasRedirected.current = true;
       const loginUrl = '/login?returnUrl=/jobs/create';
       safeRouterPush(router, loginUrl, '/login');
       return;
     }
-  }, [isLoading, session?.user, router]);
+  }, []);
 
-  if (!session?.user) return null;
-
-  if (isLoading || (session?.user && !currentUser)) {
+  if (isLoading) {
     return (
       <AppLayout>
         <div className="mx-auto flex max-w-4xl items-center justify-center p-8">
@@ -216,17 +222,9 @@ export default function CreateJobPage() {
     );
   }
 
-  if (!currentUser) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-slate-500">
-        Redirecting...
-      </div>
-    );
-  }
-
   const abnStatusDetail = getABNStatusMessage(currentUser);
-  const showAbnTrustNotice = currentUser && !hasValidABN(currentUser);
-  const canPostByRole = canCreateJob(currentUser);
+  const showAbnTrustNotice = !(currentUser?.business?.abnVerified ?? false);
+  const canPostByRole = true; // always true
 
   const atFreeJobLimit =
     !isPremium &&
@@ -284,36 +282,6 @@ export default function CreateJobPage() {
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  async function uploadJobFiles(supabase: any, jobId: string, files: File[]) {
-    const uploaded: any[] = [];
-
-    for (const file of files) {
-      const ext = file.name.split('.').pop() || 'bin';
-      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const path = `${jobId}/${Date.now()}_${crypto.randomUUID()}.${ext}`;
-
-      const { error: upErr } = await supabase.storage
-        .from('job-attachments')
-        .upload(path, file, {
-          cacheControl: '3600',
-          upsert: false,
-          contentType: file.type || 'application/octet-stream',
-        });
-
-      if (upErr) throw upErr;
-
-      uploaded.push({
-        bucket: 'job-attachments',
-        path,
-        name: safeName,
-        type: file.type || null,
-        size: file.size || null,
-      });
-    }
-
-    return uploaded;
-  }
-
   async function refineJobDescriptionWithAI() {
     const raw = String(description ?? '').trim();
     if (!raw) {
@@ -357,145 +325,104 @@ export default function CreateJobPage() {
     }
   }
 
+	const readJobFile = async (file:File) => {
+		return new Promise(async(resolve, reject)=>{
+			const reader = new FileReader();
+			reader.addEventListener("load", resolve);
+			reader.addEventListener("error", reject);
+			reader.readAsDataURL(file);
+		});
+	};
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (isSubmitting) return;
-
     if (!canPostByRole) {
       toast.error(JOB_POST_CONTRACTOR_ROLE_MESSAGE);
       return;
     }
-
     if (atFreeJobLimit) {
       toast.error(FREE_JOB_POST_LIMIT_MESSAGE);
       return;
     }
-
-    if (!title.trim()) return toast.error('Please enter a job title');
-    if (!tradeCategory.trim()) return toast.error('Please set a trade category');
-    if (!location.trim() || !postcode.trim()) return toast.error('Please select a location with postcode');
+    if (!title.trim()) 
+			return toast.error('Please enter a job title');
+    if (!tradeCategory.trim()) 
+			return toast.error('Please set a trade category');
+    if (!location.trim() || !postcode.trim()) 
+			return toast.error('Please select a location with postcode');
     if (jobLat == null || jobLng == null) {
       return toast.error('Please select a location from the dropdown so we can calculate distance.');
     }
-    if (!description.trim()) return toast.error('Please enter a job description');
+    if (!description.trim()) 
+			return toast.error('Please enter a job description');
     const rateNum = rate.trim() ? Number(rate) : null;
     if (rateNum != null && (!Number.isFinite(rateNum) || rateNum <= 0)) {
       return toast.error('Please enter a valid price / hourly rate');
     }
-
     let jobDates: Date[] = [];
     let duration: number;
-
     if (multipleDates) {
       if (!dateFrom || !dateTo) return toast.error('Please select both start and end dates');
       if (dateTo < dateFrom) return toast.error('End date cannot be earlier than start date');
-
       jobDates = [dateFrom];
       duration = Math.ceil((dateTo.getTime() - dateFrom.getTime()) / (1000 * 60 * 60 * 24)) + 1;
     } else {
       if (!singleDate) return toast.error('Please select a date');
-
       jobDates = [singleDate];
       duration = Math.max(1, parseInt(durationDays || '1', 10) || 1);
     }
-
-    try {
-      setIsSubmitting(true);
-      const datesIso = jobDates.map((d) => d.toISOString());
-
-      const res = await fetch('/api/jobs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim(),
-          trade_category: tradeCategory.trim(),
-          location: location.trim(),
-          postcode: postcode.trim(),
-          dates: datesIso,
-          start_time: startTime,
-          duration,
-          pay_type: payType,
-          rate: rateNum,
-          location_place_id: jobPlaceId,
-          location_lat: jobLat,
-          location_lng: jobLng,
-        }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        if (data?.code === JOB_POST_LIMIT_ERROR_CODE) {
-          toast.error(typeof data?.error === 'string' ? data.error : FREE_JOB_POST_LIMIT_MESSAGE);
-          void refreshPostLimit();
-          return;
-        }
-        if (data?.code === JOB_POST_CONTRACTOR_ROLE_CODE) {
-          toast.error(typeof data?.error === 'string' ? data.error : JOB_POST_CONTRACTOR_ROLE_MESSAGE);
-          return;
-        }
-        throw new Error(data?.error || 'Failed to create job');
-      }
-
-      const rawCreatedId = data?.id;
-      const createdJobId =
-        typeof rawCreatedId === 'string'
-          ? rawCreatedId.trim()
-          : rawCreatedId != null && rawCreatedId !== ''
-            ? String(rawCreatedId).trim()
-            : '';
-      if (!createdJobId) throw new Error('No job ID returned');
-
-      // Upload attachments (optional)
-      const supabase = getBrowserSupabase();
-      let uploaded: any[] = [];
-      if (selectedFiles.length > 0) {
-        uploaded = await uploadJobFiles(supabase, createdJobId, selectedFiles);
-      }
-
-      if (uploaded.length > 0) {
-        const { error: attachUpdateError } = await supabase
-          .from('jobs')
-          .update({
-            attachments: uploaded,
-            file_url: null,
-            file_name: uploaded?.[0]?.name ?? null,
-          })
-          .eq('id', createdJobId);
-
-        if (attachUpdateError) {
-          console.error('[jobs/create] failed to save attachments', attachUpdateError);
-          toast.error('Job posted, but attachments failed to save.');
-        }
-      }
-
-      setCreatedJobId(createdJobId);
-      toast.success('Job posted');
-
-      if (MVP_FREE_MODE) {
-        safeRouterPush(router, `/jobs/${createdJobId}`, '/jobs');
-      } else if (isPremium) {
-        // Premium users: no upsell, go straight to job
-        safeRouterPush(router, `/jobs/${createdJobId}`, '/jobs');
-      } else {
-        // Free users: show upsell modal
-        setShowSuccessModal(true);
-      }
-
-      // Fire-and-forget: send email alerts to eligible premium users (do not block on success)
-      fetch('/api/alerts/send-for-listing', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ listingType: 'job', listingId: createdJobId }),
-      }).catch((e) => console.warn('[jobs/create] alert send failed:', e));
-    } catch (err) {
-      console.error('[Jobs] insert failed:', err);
-      const msg = err instanceof Error ? err.message : 'Failed to post job. Please try again.';
-      toast.error(msg);
-    } finally {
-      setIsSubmitting(false);
-    }
+		setIsSubmitting(true);
+		const datesIso = jobDates.map((d) => d.toISOString());
+		const p = /^data:([^;]+);base64,(.*)$/;
+		const attachments = [];
+		for(const file of selectedFiles){
+			const event = await readJobFile(file);
+			const dataUrl = event.target.result;
+			const match = p.exec(dataUrl);
+			if(match){
+				const mime = match[1];
+				const data = match[2];
+				const attach = {
+					fileName: file.name,
+					data: data,
+					mime: mime
+				};
+				attachments.push(attach);
+			}else{
+				console.error(`Failed to match regex, input was ${dataUrl}`);
+			}
+		}
+		const jobPayload = {
+			title: title.trim(),
+			description: description.trim(),
+			tradeCategory: tradeCategory.trim(),
+			location: location.trim(),
+			postcode: postcode.trim(),
+			dates: datesIso, // array
+			startTime: startTime,
+			durationDays: duration,
+			payType: payType,
+			rate: rateNum,
+			placeId: jobPlaceId,
+			latitude: jobLat,
+			longitude: jobLng,
+			attachments
+		};
+		getAxios(jwt).
+			post("/api/jobs", jobPayload).
+			then((response)=>{
+				const data_ = response.data;
+				const createdJobId = data_.id;
+				setIsSubmitting(false);
+				setCreatedJobId(createdJobId);
+				toast.success('Job posted');
+				//safeRouterPush(router, `/jobs/${createdJobId}`, '/jobs');
+			}).catch((err)=>{
+				// TODO better error handling
+				toast.error("Failed to create new job");
+				setIsSubmitting(false);
+			});
   };
 
   return (
@@ -524,7 +451,7 @@ export default function CreateJobPage() {
 
         {/* Page content */}
         <div className="relative z-10 mx-auto w-full max-w-3xl px-4 py-8 pb-24 sm:px-6 lg:px-8">
-          <PageHeader backLink={{ href: '/jobs' }} title="Post a New Job" tone="dark" />
+          <PageHeader backLink={{ href: '/dashboard' }} title="Post a New Job" tone="dark" />
 
           {!canPostByRole && (
             <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
@@ -656,8 +583,8 @@ export default function CreateJobPage() {
                 onPostcodeChange={setPostcode}
                 onPlaceIdChange={setJobPlaceId}
                 onLatLngChange={(lat, lng) => {
-                  setJobLat(typeof lat === 'number' ? lat : null);
-                  setJobLng(typeof lng === 'number' ? lng : null);
+                  setJobLat(lat);
+                  setJobLng(lng);
                 }}
                 required
               />

@@ -1,6 +1,6 @@
+// vim: ts=2
 // @ts-nocheck
 'use client';
-
 /*
  * QA notes — Job edit:
  * - Owner with contractor role can save (matches hiring/job-post model, API, and RLS on `jobs` UPDATE). ABN optional for jobs.
@@ -9,9 +9,6 @@
 import { AppLayout } from '@/components/app-nav';
 import { PageHeader } from '@/components/page-header';
 import { useAuth } from '@/lib/auth';
-import { getStore } from '@/lib/store';
-import { canEditJob, ownsJob, hasContractorRoleForJobPosting } from '@/lib/permissions';
-import { JOB_EDIT_CONTRACTOR_ROLE_MESSAGE, JOB_POST_CONTRACTOR_ROLE_CODE } from '@/lib/jobs/job-post-role-messages';
 import { safeRouterPush } from '@/lib/safe-nav';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,7 +26,6 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format as formatDate } from 'date-fns';
 import { Calendar as CalendarIcon, X, Upload, FileText, Image as ImageIcon, Info } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
-import { getBrowserSupabase } from '@/lib/supabase-client';
 import { isPremiumForDiscovery } from '@/lib/discovery';
 import { useActiveTradesCatalog } from '@/lib/trades/use-active-trades-catalog';
 
@@ -67,13 +63,11 @@ function prettySize(bytes?: number) {
 }
 
 export default function EditJobPage() {
-  const { session, currentUser, isLoading } = useAuth();
+
+  const { jwt } = useAuth();
   const params = useParams();
   const router = useRouter();
-  const store = getStore();
   const jobId = params.id as string;
-
-  const job = store.getJobById(jobId);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -86,6 +80,8 @@ export default function EditJobPage() {
     rate: '',
     description: '',
   });
+
+	const [job, setJob] = useState(null);
   const [singleDate, setSingleDate] = useState<Date | undefined>(undefined);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
@@ -137,10 +133,11 @@ export default function EditJobPage() {
     [isPremium, catalogTradeNames, posterTrades]
   );
 
-  // Hydrate form when job becomes available (handles async store population).
   useEffect(() => {
-    if (!job || hydratedRef.current) return;
-    hydratedRef.current = true;
+    if (job !== null){ 
+			return; 
+		}
+		/*
     setFormData({
       title: job.title || '',
       tradeCategory: job.tradeCategory || posterTrades[0] || '',
@@ -155,23 +152,8 @@ export default function EditJobPage() {
     const firstDate = job.dates?.[0];
     setSingleDate(firstDate ? (firstDate instanceof Date ? firstDate : new Date(firstDate)) : undefined);
     setAttachments(Array.isArray((job as any).attachments) ? ((job as any).attachments as JobAttachment[]) : []);
-  }, [job, posterTrades]);
-
-  // Redirect only after profile has loaded (avoid redirect loops / gating during load).
-  useEffect(() => {
-    if (isLoading) return;
-    if (!job) {
-      safeRouterPush(router, '/jobs', '/jobs');
-      return;
-    }
-    if (!currentUser) return;
-    if (!ownsJob(currentUser, job)) {
-      safeRouterPush(router, `/jobs/${jobId}`, '/jobs');
-      return;
-    }
-  }, [isLoading, job, currentUser, jobId, router]);
-
-  if (!session?.user) return null;
+		*/
+  }, [job]);
 
   const isOwner = job && currentUser && ownsJob(currentUser, job);
   const canSaveListing = !!(currentUser && job && canEditJob(currentUser, job));
@@ -179,11 +161,11 @@ export default function EditJobPage() {
     !!currentUser && !!job && ownsJob(currentUser, job) && !hasContractorRoleForJobPosting(currentUser);
   const isRedirecting = !job || (currentUser && job && !ownsJob(currentUser, job));
 
-  if (isLoading || (session?.user && !currentUser) || isRedirecting) {
+  if (isLoading) {
     return (
       <AppLayout>
         <div className="mx-auto flex max-w-4xl items-center justify-center p-8">
-          <p className="text-sm text-gray-500">{isRedirecting ? 'Redirecting…' : 'Loading...'}</p>
+          <p className="text-sm text-gray-500">Loading...</p>
         </div>
       </AppLayout>
     );
@@ -238,36 +220,7 @@ export default function EditJobPage() {
     };
 
     try {
-      const res = await fetch(`/api/jobs/${jobId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        if (data?.code === JOB_POST_CONTRACTOR_ROLE_CODE) {
-          throw new Error(
-            typeof data?.error === 'string' ? data.error : JOB_EDIT_CONTRACTOR_ROLE_MESSAGE
-          );
-        }
-        throw new Error(data?.error || 'Failed to update job');
-      }
-
-      store.updateJob(jobId, {
-        title: formData.title,
-        description: formData.description,
-        tradeCategory: formData.tradeCategory,
-        location: formData.location,
-        postcode: formData.postcode,
-        dates: datesISO.map((d) => new Date(d)),
-        startTime: formData.startTime,
-        duration: multipleDates ? datesISO.length : durationDays,
-        payType: formData.payType as 'fixed' | 'hourly' | 'day_rate',
-        rate: formData.rate.trim() ? Number(formData.rate) : null,
-        attachments: attachments as any,
-      });
-
+			// TODO update job
       toast.success('Job updated successfully');
       safeRouterPush(router, `/jobs/${jobId}`, '/jobs');
     } catch (err) {
@@ -283,45 +236,9 @@ export default function EditJobPage() {
 
   async function handleAddAttachments(files: FileList | null) {
     if (!files || files.length === 0) return;
-
     setIsUploading(true);
     try {
-      const supabase = getBrowserSupabase();
-
-      const uploaded: JobAttachment[] = [];
-
-      for (const file of Array.from(files)) {
-        const ext = file.name.split('.').pop() || 'bin';
-        const cleanName = file.name.replace(/[^\w.\-() ]+/g, '_');
-        const path = `${jobId}/${Date.now()}_${crypto.randomUUID()}.${ext}`;
-
-        const { error: upErr } = await supabase.storage
-          .from('job-attachments')
-          .upload(path, file, {
-            cacheControl: '3600',
-            upsert: false,
-            contentType: file.type || undefined,
-          });
-
-        if (upErr) {
-          console.error('upload error', upErr);
-          toast.error(`Upload failed: ${file.name}`);
-          continue;
-        }
-
-        uploaded.push({
-          name: cleanName,
-          path,
-          size: file.size,
-          type: file.type,
-          bucket: 'job-attachments',
-        });
-      }
-
-      if (uploaded.length) {
-        setAttachments((prev) => [...prev, ...uploaded]);
-        toast.success(`Uploaded ${uploaded.length} file(s)`);
-      }
+			// TODO upload attachments
     } catch (e) {
       console.error(e);
       toast.error('Upload failed');

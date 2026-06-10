@@ -34,7 +34,7 @@ const userReducer = (a, c) => {
 	// accumulate trades
 	const tradeId = c?.business_trade?.tradeId ?? null;
 	if(tradeId !== null){
-		a[key].business.trades[tradeId] = 1;
+		a[key].business.trades[tradeId] = {...c.business_trade};
 	}
 	// accumulate works
 	const workId = c?.work?.id ?? null;
@@ -42,6 +42,18 @@ const userReducer = (a, c) => {
 		a[key].profile.works[workId] = { ...c.work };
 	}
 	return a;
+};
+
+export const getUserLocation = async (userId:string) => {
+	return new Promise(async(resolve, reject)=>{
+		const db = await getDB();
+		const rows = await db.select({latitide: businessTable.locationLat, longitude: businessTable.locationLng}).
+			from(usersTable).
+			innerJoin(businessTable, eq(businessTable.id, usersTable.businessId)).
+			where(eq(usersTable.id, userId));
+		const location = rows[0] ?? null;
+		resolve(location);
+	});
 };
 
 export const updateLastActive = async (email:string) => {
@@ -159,8 +171,14 @@ export const getUserProfile = async (userId:string) => {
 			const mapped = users[e]; 
 			if(mapped.business !== null){
 				const tradeIds = Object.keys(mapped.business.trades);
+				let primaryTradeId = tradeIds.find((x)=>mapped.business.trades[x].isPrimary) ?? null;
+				if(primaryTradeId === null){
+					console.error("Failed to find primary trade for business");
+					primaryTradeId = tradeIds[0];
+				}
 				const tradeNames = tradeIds.map((j,k)=>{ return tradeMapping[j]; });	
 				mapped.business.trades = tradeNames;
+				mapped.business.primaryTrade = tradeMapping[primaryTradeId];
 			}
 			if(mapped.profile !== null){
 				let works = mapped.profile.works;

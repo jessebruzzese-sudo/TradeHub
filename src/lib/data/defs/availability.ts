@@ -1,5 +1,9 @@
 // vim: ts=2
-import { unique, pgTable, boolean, text, uuid, date, timestamp, integer, real } from "drizzle-orm/pg-core";
+import { 
+	unique, pgTable, boolean, 
+	text, uuid, date, timestamp, 
+	integer, real 
+} from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { tradesTable } from "@/lib/data/defs/trades";
 import { businessTable } from "@/lib/data/defs/business";

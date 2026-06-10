@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { trackEvent } from '@/lib/analytics';
 import { useAuth } from '@/lib/auth';
 
 export type BillingPlanKey = 'BUSINESS_PRO_20' | 'SUBCONTRACTOR_PRO_10' | 'ALL_ACCESS_PRO_26';
@@ -11,7 +10,6 @@ export function useUpgradeCheckout(plan: BillingPlanKey = 'BUSINESS_PRO_20') {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleUpgrade = async (placement: string) => {
-    trackEvent('upgrade_cta_clicked', { placement });
     if (!currentUser) {
       window.location.href = '/signup';
       return;

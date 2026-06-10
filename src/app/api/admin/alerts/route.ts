@@ -3,7 +3,6 @@
  * Admin-only: recent listing_alert_sends rows for debugging.
  */
 import { NextResponse } from 'next/server';
-import { createServiceSupabase } from '@/lib/supabase-server';
 import { adminAuthErrorToResponse, requireAdmin } from '@/lib/admin/require-admin';
 
 export const dynamic = 'force-dynamic';
@@ -11,6 +10,7 @@ export const dynamic = 'force-dynamic';
 const LIMIT = 100;
 
 export async function GET() {
+	/*
   try {
     await requireAdmin();
   } catch (err) {
@@ -29,6 +29,6 @@ export async function GET() {
     console.error('[admin/alerts]', error);
     return NextResponse.json({ error: 'Failed to load alerts' }, { status: 500 });
   }
-
-  return NextResponse.json({ rows: rows ?? [] });
+	*/
+  return NextResponse.json({ rows: [] });
 }

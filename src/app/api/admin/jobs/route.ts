@@ -1,6 +1,4 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import type { Database } from '@/lib/database.types';
 import { requireAdmin, adminAuthErrorToResponse } from '@/lib/admin/require-admin';
 import { jobsListingWindowStartIso } from '@/lib/jobs/listing-window';
 
@@ -8,6 +6,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
+	/*
     try {
       await requireAdmin();
     } catch (err) {
@@ -77,8 +76,16 @@ export async function GET() {
       totalInListingWindow: totalJobCount ?? 0,
       jobs: jobsWithContractor,
     });
+	*/
+    return NextResponse.json({
+      ok: true,
+      count:  0,
+      totalInListingWindow: 0,
+      jobs: []
+    });
+	
   } catch (err) {
-    console.error('🔥 API ERROR:', err);
+    console.error(err);
     return NextResponse.json({ error: 'CRASHED' }, { status: 500 });
   }
 }

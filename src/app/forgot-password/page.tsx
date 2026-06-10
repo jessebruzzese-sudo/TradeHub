@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { ArrowLeft } from 'lucide-react';
 
 export default function ForgotPasswordPage() {
+
   const [email, setEmail] = useState('');
   const [submittedEmail, setSubmittedEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -21,19 +22,8 @@ export default function ForgotPasswordPage() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/auth/forgot-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-
-      const payload = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        setError(payload?.error || 'Unable to send reset link. Please try again.');
-        return;
-      }
-
+			// TODO handle forgot password
+			const email = 'a.b@c.com';
       setSubmittedEmail(email.trim());
       setSubmitted(true);
     } catch (err) {

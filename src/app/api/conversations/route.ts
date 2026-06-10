@@ -1,31 +1,8 @@
 // @ts-nocheck - Supabase client type inference
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabase, createServiceSupabase } from '@/lib/supabase-server';
 import { isLikelyTestAccount } from '@/lib/test-account';
 import { displayNameForMessagingParticipant } from '@/lib/messaging-participant-display';
 import { jobsListingWindowStartIso } from '@/lib/jobs/listing-window';
-
-/** Load target user for messaging bootstrap (RLS on `users` can hide rows from the caller). */
-async function loadTargetUserForMessaging(otherUserId: string): Promise<{
-  id: string;
-  email: string | null;
-  name: string | null;
-  deleted_at: string | null;
-} | null> {
-  const selectCols = 'id, email, name, deleted_at';
-  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    try {
-      const admin = createServiceSupabase();
-      const { data, error } = await admin.from('users').select(selectCols).eq('id', otherUserId).maybeSingle();
-      if (!error && data) return data;
-    } catch {
-      // fall through to user-scoped client
-    }
-  }
-  const supabase = createServerSupabase();
-  const { data } = await supabase.from('users').select(selectCols).eq('id', otherUserId).maybeSingle();
-  return data ?? null;
-}
 
 export const dynamic = 'force-dynamic';
 
@@ -36,6 +13,7 @@ export const dynamic = 'force-dynamic';
  * Returns the conversation. Handles 23505 race by re-selecting existing.
  */
 export async function POST(request: NextRequest) {
+/*
   try {
     const supabase = createServerSupabase();
     const {
@@ -156,6 +134,8 @@ export async function POST(request: NextRequest) {
     console.error('conversations POST error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
+	*/
+    return NextResponse.json({ ok:true }, { status: 200 });
 }
 
 /**
@@ -163,6 +143,7 @@ export async function POST(request: NextRequest) {
  * Returns all conversations for the current user with participant info and last message.
  */
 export async function GET() {
+	/*
   try {
     const supabase = createServerSupabase();
     const {
@@ -291,4 +272,6 @@ export async function GET() {
     console.error('conversations API error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
+	*/
+    return NextResponse.json({ ok:true}, { status: 200 });
 }

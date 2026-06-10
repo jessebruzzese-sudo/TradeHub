@@ -1,3 +1,4 @@
+// vim: ts=2
 'use client';
 
 /*
@@ -6,9 +7,10 @@
  * - Soft notice when unverified encourages optional verification as a trust signal.
  */
 
+import { getAxios } from "@/lib/utils";
 import Link from 'next/link';
 import UserContext from "@/lib/user-context";
-import { useRouter } from 'next/navigation';
+import { redirect, useRouter } from 'next/navigation';
 import { useContext, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Briefcase, Plus, Info, ArrowRight, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -87,24 +89,22 @@ function normalizeJobRow(row: Record<string, unknown>): Record<string, unknown> 
 export default function JobsPage() {
   const { jwt } = useAuth();
 	const UserSession = useContext(UserContext);	
-	const currentUser = UserSession?.user ?? null;
   const router = useRouter();
   const hasRedirected = useRef(false);
 
+	const [currentUser, setCurrentUser] = useState(UserSession?.user ?? null);
   const [tab, setTab] = useState<JobsTab>('find');
-  const [visibleJobs, setVisibleJobs] = useState<any[]>([]);
-  const [loadingJobs, setLoadingJobs] = useState(false);
+  const [visibleJobs, setVisibleJobs] = useState<any[]>(null);
   const [jobsError, setJobsError] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<'newest' | 'nearest'>('newest');
 
-  const [myPostsDb, setMyPostsDb] = useState<any[]>([]);
-  const [loadingMyPosts, setLoadingMyPosts] = useState(false);
+  const [myPosts, setMyPosts] = useState<any[]>(null);
   const [myPostsError, setMyPostsError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteConfirmJobId, setDeleteConfirmJobId] = useState<string | null>(null);
 		
-	const isLoading = currentUser === null;
+	const isLoading = currentUser === null || myPosts === null || visibleJobs === null;
 	const hasSession = jwt !== null && jwt !== undefined;
 
   const showAbnTrustNotice = useMemo(
@@ -124,7 +124,7 @@ export default function JobsPage() {
       }
     : null;
 
-  const isPremium = isPremiumForDiscovery(userForDiscovery);
+  const isPremium = currentUser?.profile?.premium ?? false;
 
   const [postLimitInfo, setPostLimitInfo] = useState<{
     unlimited: boolean;
@@ -140,13 +140,8 @@ export default function JobsPage() {
       return;
     }
     try {
-			// job post limit
-      const res = {};
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setPostLimitInfo(null);
-        return;
-      }
+      const response_ = await getAxios(null).get("/api/jobs/post-limit");
+			const data = response_.data;
       if (data.unlimited) {
         setPostLimitInfo({ unlimited: true });
         return;
@@ -160,7 +155,7 @@ export default function JobsPage() {
     } catch {
       setPostLimitInfo(null);
     }
-  }, [currentUser?.id, isPremium]);
+  }, [currentUser]);
 
   useEffect(() => {
     void refreshPostLimit();
@@ -197,76 +192,31 @@ export default function JobsPage() {
 
   const tradeFilterForRpc = viewerTrades.length > 0 ? viewerTrades.join('|') : null;
 
-  // Fetch Find Work jobs via RPC (server-enforced radius)
   useEffect(() => {
-    const run = async () => {
-      if (!currentUser?.id) return;
-      if (tab !== 'find') return;
-      setLoadingJobs(true);
-      setJobsError(null);
-      try {
-				const data = [];
-				const error = false;
-        if (error) {
-          console.error('[jobs] rpc error', error);
-          setVisibleJobs([]);
-          setJobsError(error.message || 'Could not load jobs');
-          return;
-        }
-        const rows = Array.isArray(data) ? data : [];
-        const contractorIds = Array.from(new Set(rows.map((r: any) => r?.contractor_id).filter(Boolean)));
-        let posterMap: Record<string, any> = {};
-        if (contractorIds.length > 0) {
-					const usersData = [];
-          if (Array.isArray(usersData)) {
-            const users = usersData as { id: string }[];
-            posterMap = Object.fromEntries(users.map((u) => [u.id, u]));
-          }
-        }
-        const rowsWithPoster = rows.map((r: any) => ({
-          ...r,
-          poster: r?.contractor_id ? posterMap[r.contractor_id] ?? null : null,
-        }));
-        setVisibleJobs(rowsWithPoster.map((r) => normalizeJobRow(r as Record<string, unknown>)));
-      } catch (e: any) {
-        console.error('[jobs] unexpected error', e);
-        setVisibleJobs([]);
-        setJobsError('Could not load jobs');
-      } finally {
-        setLoadingJobs(false);
-      }
-    };
+		if(visibleJobs !== null){
+			return;
+		}	
+		getAxios(null).get("/api/me/jobs/search").
+			then((response)=>{
+				const data = response.data;
+				setVisibleJobs(data);
+			}).catch((err_)=>{
+				setJobsError(err_);
+			});
+  }, [visibleJobs]);
 
-    run();
-  }, [currentUser?.id, tab, tradeFilterForRpc]);
-
-  // Fetch my posts from DB (owner view: jobs created by current user)
   useEffect(() => {
-    const run = async () => {
-      if (tab !== 'posts') return;
-      if (!currentUser?.id) {
-        setMyPostsDb([]);
-        return;
-      }
-      setLoadingMyPosts(true);
-      setMyPostsError(null);
-      try {
-				const data = [];
-				const error = false;
-        if (error) throw error;
-        const rows = Array.isArray(data) ? data : [];
-        setMyPostsDb(rows.map((r) => normalizeJobRow(r as Record<string, unknown>)));
-      } catch (e: unknown) {
-        console.error('[jobs] my posts load failed', e);
-        setMyPostsDb([]);
-        setMyPostsError(e instanceof Error ? e.message : 'Could not load your job posts');
-      } finally {
-        setLoadingMyPosts(false);
-      }
-    };
-
-    run();
-  }, [currentUser?.id, tab]);
+		if(myPosts != null){
+			return;
+		}
+		getAxios(null).get("/api/me/jobs").	
+			then((response)=>{
+				const data = response.data;
+				setMyPosts(data);
+			}).catch((error)=>{
+				setMyPostsError(error);
+			});
+  }, [myPosts]);
 
   async function handleDeleteJob(jobId: string) {
     if (!currentUser?.id) {
@@ -275,19 +225,11 @@ export default function JobsPage() {
     }
     setDeletingId(jobId);
     try {
-			// TODO delete job
-      const res = {};
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const msg =
-          (typeof data?.error === 'string' ? data.error : null) ??
-          (res.status === 403 ? 'You do not have permission to delete this job.' : 'Delete failed');
-        toast.error(msg);
-        return;
-      }
+			await getAxios(null).delete(`/api/jobs/${jobId}`);
       toast.success('Job deleted');
-      setMyPostsDb((prev: any[]) => (prev ?? []).filter((j) => j.id !== jobId));
-      void refreshPostLimit();
+      setMyPostsError(null);
+      setMyPosts(null);
+			void refreshPostLimit();
     } catch (err) {
       console.error('[jobs] delete failed', err);
       toast.error('Could not delete job.');
@@ -298,15 +240,9 @@ export default function JobsPage() {
     }
   }
 
-  const myPosts = useMemo(() => {
-    if (tab !== 'posts') return [];
-    return myPostsDb ?? [];
-  }, [myPostsDb, tab]);
-
   const availableJobs = useMemo(() => {
     if (tab !== 'find') return [];
     const rows = (visibleJobs ?? []).slice();
-
     const getNum = (v: unknown) => (typeof v === 'number' && isFinite(v) ? v : null);
     const isPrem = (j: Record<string, unknown>) =>
       hasPremiumAccess({
@@ -396,9 +332,10 @@ export default function JobsPage() {
       />
     );
   }
-
-  // ---- Renders (no TradeGate; never return null forever) ----
-
+  if (!hasSession) {
+		redirect("/login");
+		return;
+  }
   if (isLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center text-sm text-gray-600">
@@ -406,16 +343,6 @@ export default function JobsPage() {
       </div>
     );
   }
-
-  // If user is not authed, redirect effect runs; show a small fallback
-  if (!hasSession) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center text-sm text-gray-600">
-        Redirecting to login…
-      </div>
-    );
-  }
-
   return (
     <AppLayout>
       {/* Grey wrapper */}
@@ -443,7 +370,7 @@ export default function JobsPage() {
           {/* Header row */}
           <div className="mb-4 flex flex-col gap-2 sm:mb-6">
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center items-start justify-inbetween gap-2">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/70 shadow-sm ring-1 ring-black/5 backdrop-blur">
                   <Briefcase className="h-5 w-5 text-slate-800" />
                 </div>
@@ -452,6 +379,12 @@ export default function JobsPage() {
               <p className="mt-1 text-sm text-slate-600">
                 Find subcontracting work or post jobs to hire subcontractors
               </p>
+							<div className="items-stretch">
+        					<Link href={"/dashboard"}
+          					className={`inline-flex items-center text-sm mb-3 mt-3 transition-colors`}>
+          						Back to Dashboard
+        					</Link>
+							</div>
             </div>
           </div>
 
@@ -563,7 +496,7 @@ export default function JobsPage() {
                         <span>Showing jobs in your trade:</span>
                         <span className="inline-flex items-center gap-2 font-semibold text-slate-800">
                           {TradeIcon ? <TradeIcon className="h-4 w-4 text-blue-600" /> : null}
-                          {String(currentUser?.primaryTrade || 'Your trade')}
+                          {String(currentUser?.business?.primaryTrade || 'Your trade')}
                         </span>
                       </span>
 
@@ -606,7 +539,7 @@ export default function JobsPage() {
                     </div>
                   </div>
 
-                  {loadingJobs ? (
+                  {isLoading ? (
                     <div className="space-y-3">
                       {Array.from({ length: 6 }).map((_, i) => (
                         <div key={i} className="animate-pulse rounded-xl border border-slate-200 bg-white p-4">
@@ -658,7 +591,7 @@ export default function JobsPage() {
                 </TabsContent>
 
                 <TabsContent value="posts" className="mt-6">
-                  {loadingMyPosts ? (
+                  {isLoading ? (
                     <div className="space-y-3">
                       {Array.from({ length: 6 }).map((_, i) => (
                         <div key={i} className="animate-pulse rounded-xl border border-slate-200 bg-white p-4">
@@ -673,7 +606,7 @@ export default function JobsPage() {
                       <p className="text-sm font-medium text-red-900">Could not load your job posts</p>
                       <p className="mt-1 text-sm text-red-800">{myPostsError}</p>
                     </div>
-                  ) : myPosts.length > 0 ? (
+                  ) : myPosts && myPosts.length > 0 ? (
                     <div className="space-y-3">
                       {myPosts.map((job: any) => (
                         <JobRow

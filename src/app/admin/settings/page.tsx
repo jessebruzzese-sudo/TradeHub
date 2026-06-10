@@ -10,84 +10,31 @@ import { Textarea } from '@/components/ui/textarea';
 import { AlertCircle, Save, Loader2, ArrowLeft } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useRouter } from 'next/navigation';
-import { getBrowserSupabase } from '@/lib/supabase-client';
-
-interface FeatureFlag {
-  signups_enabled: boolean;
-  emails_enabled: boolean;
-  maintenance_mode: boolean;
-  maintenance_message: string;
-}
 
 export default function AdminSettingsPage() {
   const router = useRouter();
   const supabase = getBrowserSupabase();
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [flags, setFlags] = useState<FeatureFlag>({
-    signups_enabled: true,
-    emails_enabled: true,
-    maintenance_mode: false,
-    maintenance_message: 'We are performing scheduled maintenance. The platform will be back shortly.',
-  });
+  const [flags, setFlags] = useState(null);
 
-  const loadSettings = useCallback(async () => {
-    try {
-      const { data, error: fetchError } = await (supabase as any)
-        .from('admin_settings')
-        .select('key, value');
-
-      if (fetchError) throw fetchError;
-
-      if (data) {
-        const settingsMap: Partial<FeatureFlag> = {};
-        data.forEach((setting: any) => {
-          const value = setting.value;
-          const key = setting.key as keyof FeatureFlag;
-          if (key === 'maintenance_message') {
-            settingsMap[key] = typeof value === 'string' ? value : String(value);
-          } else if (key in settingsMap || key === 'signups_enabled' || key === 'emails_enabled' || key === 'maintenance_mode') {
-            settingsMap[key] = value === true || value === 'true';
-          }
-        });
-        setFlags((prev) => ({ ...prev, ...settingsMap }));
-      }
-    } catch (err) {
-      console.error('Error loading settings:', err);
-      setError('Failed to load settings');
-    } finally {
-      setLoading(false);
-    }
-  }, [supabase]);
+  const loading = flags === null;
 
   useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
+		if(flags !== null){
+			return;
+		}
+		// TODO load flags	
+  }, [flags]);
 
   const handleSave = async () => {
     setSaving(true);
     setError(null);
     setSuccess(false);
-
     try {
-      const updates = Object.entries(flags).map(([key, value]) => ({
-        key,
-        value: key === 'maintenance_message' ? value : value,
-      }));
-
-      for (const update of updates) {
-        const { error: updateError } = await (supabase as any)
-          .from('admin_settings')
-          .update({ value: update.value })
-          .eq('key', update.key);
-
-        if (updateError) throw updateError;
-      }
-
+			// TODO save flags
       setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
       console.error('Error saving settings:', err);
       setError('Failed to save settings');

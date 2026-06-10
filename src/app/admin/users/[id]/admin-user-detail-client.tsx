@@ -4,7 +4,6 @@ import { useRouter } from 'next/navigation';
 import { AppLayout } from '@/components/app-nav';
 import { useAuth } from '@/lib/auth';
 import { isAdmin } from '@/lib/is-admin';
-import { getStore } from '@/lib/store';
 import { UnauthorizedAccess } from '@/components/unauthorized-access';
 import { AdminNotesPanel } from '@/components/admin-notes-panel';
 import { AuditLogView } from '@/components/audit-log-view';
@@ -13,17 +12,27 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Shield, ShieldAlert, ShieldCheck, AlertCircle, CheckCircle, Flag, XCircle, MessageSquareOff, FileWarning, Ban } from 'lucide-react';
+import { 
+	Dialog, DialogContent, DialogHeader, 
+	DialogTitle, DialogDescription, 
+	DialogFooter 
+} from '@/components/ui/dialog';
+import { 
+	Select, SelectContent, SelectItem, 
+	SelectTrigger, SelectValue 
+} from '@/components/ui/select';
+import { 
+	ArrowLeft, Shield, ShieldAlert, 
+	ShieldCheck, AlertCircle, CheckCircle, 
+	Flag, XCircle, MessageSquareOff, 
+	FileWarning, Ban 
+} from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { createAuditLog } from '@/lib/admin-utils';
 import { AdminNote } from '@/lib/types';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import type { User } from '@/lib/types';
-import type { ProfileStrengthCalc } from '@/lib/profile-strength-types';
 import { ProfileView } from '@/components/profile/profile-view';
 
 interface AccountReview {
@@ -102,8 +111,7 @@ export function AdminUserDetailClient({
 }: AdminUserDetailClientProps) {
   const { currentUser } = useAuth();
   const router = useRouter();
-  const store = getStore();
-
+	
   const [accountReview, setAccountReview] = useState<AccountReview | null>(initialAccountReview);
   const [showAccountReviewDialog, setShowAccountReviewDialog] = useState(false);
   const [reviewAction, setReviewAction] = useState<'reviewed' | 'flagged' | 'suspended'>('reviewed');

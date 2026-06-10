@@ -6,13 +6,12 @@ import { profileTable } from "@/lib/data/defs/profile";
 import { usersTable } from "@/lib/data/defs/users";
 import { getDB, getDataService } from "@/lib/data/service";
 
-export const getProfileImages = async (email:string) => {
+export const getProfileImages = async (id:string) => {
 	return new Promise(async(resolve, reject)=>{
 		const results = await (await getDB()).
 			select({coverDataUrl: profileTable.coverDataUrl, avatarDataUrl: profileTable.avatarDataUrl}).
 			from(profileTable).
-			innerJoin(usersTable, eq(usersTable.profileId, profileTable.id)).
-			where(eq(usersTable.email, email));
+			where(eq(profileTable.id, id));
 		const cover = results[0]?.coverDataUrl ?? null;
 		const avatar = results[0]?.avatarDataUrl ?? null;
 		resolve({cover:cover, avatar:avatar});

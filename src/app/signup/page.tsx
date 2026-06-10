@@ -371,11 +371,9 @@ export default function SignupPage() {
 					trades: normalizedTrades,
 				}
 			};
-			// TODO make sure that signup logs users in
-			// pretty sure it does
+			// TODO check for auto login
 			await getAxios().post("/api/auth/signup", payload);
-			// redirect to profile?
-      router.push('/profile/edit');
+      router.push('/login');
     } catch (err: any) {
       console.error('[Signup] Signup error:', err);
       const msg = (err?.message || '').toLowerCase();

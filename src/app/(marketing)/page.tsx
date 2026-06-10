@@ -4,17 +4,17 @@ import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-
 import { HeroCard } from '@/components/marketing/HeroCard';
 import { HowItWorksBand } from '@/components/marketing/HowItWorksBand';
 import { useAuth } from '@/lib/auth';
 import { safeRouterPush } from '@/lib/safe-nav';
 
 export default function HomePage() {
+
   const [heroOpen, setHeroOpen] = useState(false);
   const router = useRouter();
-  const { session } = useAuth();
-  const isAuthed = !!session?.user;
+  const { jwt } = useAuth();
+  const isAuthed = jwt !== undefined && jwt !== null;
 
   const handleJoinFree = () => {
     if (isAuthed) {

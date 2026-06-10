@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabase, createServiceSupabase } from '@/lib/supabase-server';
 import { applyExcludeTestAccountsFilters } from '@/lib/test-account';
 import { loadActiveTradeNames } from '@/lib/trades/load-active-trades';
 import { normalizeTrade } from '@/lib/trades/normalizeTrade';
@@ -48,6 +47,7 @@ function classifyAccountType(emailInput: unknown, nameInput: unknown): 'qa' | 'r
 }
 
 export async function GET(request: NextRequest) {
+		/*
   try {
     const authSupabase = createServerSupabase();
     const serviceSupabase = createServiceSupabase();
@@ -147,4 +147,6 @@ export async function GET(request: NextRequest) {
     console.error('Admin users route error:', err);
     return NextResponse.json({ error: err?.message || 'Internal Server Error' }, { status: 500 });
   }
+		*/
+    return NextResponse.json({ users: [], trades: [] });
 }

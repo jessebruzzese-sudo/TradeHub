@@ -62,7 +62,11 @@ export async function GET(request: NextRequest) {
 	let images = null;
 	try{
 		const { profile } = await getDataService();
-		images = await profile.getProfileImages(email);
+		const profileId = await profile.getProfileId(email);
+		if(profileId === null){
+			throw new Error("Could not determine profile id  (null)");	
+		}
+		images = await profile.getProfileImages(profileId);
 	}catch(err_){
 		console.error(err_);
 		return NextResponse.json({msg:"Failed to query user profile"}, { status: 500 });

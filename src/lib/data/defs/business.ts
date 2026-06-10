@@ -37,5 +37,6 @@ export const googlePlacesTable = pgTable("google_places", {
 
 export const businessTradeTable = pgTable("business_trade", {
 	businessId: uuid("business_id").notNull().references(()=>businessTable.id),
-	tradeId: uuid("trade_id").notNull().references(()=>tradesTable.id)
+	tradeId: uuid("trade_id").notNull().references(()=>tradesTable.id),
+	isPrimary: boolean("is_primary").default(false)
 }, (table)=>[unique({name: "uc_business_trade", columns:[table.businessId, table.tradeId]})]);

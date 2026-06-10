@@ -1,14 +1,11 @@
 import { NextResponse } from 'next/server';
-import { createServiceSupabase } from '@/lib/supabase-server';
-import { createServerSupabase } from '@/lib/supabase-server';
-import { createEmailEvent } from '@/lib/email/create-email-event';
-import { shouldSendEmailNow } from '@/lib/email/rollout';
 
 type ForgotPasswordPayload = {
   email?: string;
 };
 
 export async function POST(req: Request) {
+/*
   try {
     const body = (await req.json()) as ForgotPasswordPayload;
     const email = body.email?.trim().toLowerCase();
@@ -102,4 +99,6 @@ export async function POST(req: Request) {
     console.error('[forgot-password] invalid request:', error);
     return NextResponse.json({ error: 'Invalid request payload' }, { status: 400 });
   }
+	*/
+    return NextResponse.json({ ok: true  });
 }

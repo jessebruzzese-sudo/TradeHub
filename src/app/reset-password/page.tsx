@@ -7,7 +7,6 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { getBrowserSupabase } from '@/lib/supabase-client';
 
 function getHashParams(): URLSearchParams {
   if (typeof window === 'undefined') return new URLSearchParams();
@@ -18,63 +17,17 @@ function getHashParams(): URLSearchParams {
 }
 
 export default function ResetPasswordPage() {
-  const router = useRouter();
-  const supabase = useMemo(() => getBrowserSupabase(), []);
 
+  const router = useRouter();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [status, setStatus] = useState<'checking' | 'ready' | 'invalid' | 'done'>('checking');
+  const [status, setStatus] = useState('checking');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-
-    (async () => {
-      try {
-        const hash = getHashParams();
-        const accessToken = hash.get('access_token');
-        const refreshToken = hash.get('refresh_token');
-        const type = hash.get('type');
-
-        if (accessToken && refreshToken && type === 'recovery') {
-          const { error: sessionErr } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          });
-          if (sessionErr) throw sessionErr;
-          // Remove sensitive tokens from URL after session is established.
-          if (typeof window !== 'undefined') {
-            window.history.replaceState({}, document.title, '/reset-password');
-          }
-          if (mounted) setStatus('ready');
-          return;
-        }
-
-        const { data, error: sessionErr } = await supabase.auth.getSession();
-        if (sessionErr) throw sessionErr;
-
-        if (!data.session) {
-          if (mounted) setStatus('invalid');
-          return;
-        }
-
-        if (mounted) setStatus('ready');
-      } catch (e) {
-        console.error('[reset-password] failed to initialize recovery session', e);
-        if (mounted) setStatus('invalid');
-      }
-    })();
-
-    return () => {
-      mounted = false;
-    };
-  }, [supabase.auth]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-
     if (password.length < 8) {
       setError('Password must be at least 8 characters.');
       return;
@@ -83,18 +36,10 @@ export default function ResetPasswordPage() {
       setError('Passwords do not match.');
       return;
     }
-
     setSubmitting(true);
     try {
-      const { error: updateErr } = await supabase.auth.updateUser({ password });
-      if (updateErr) {
-        setError(updateErr.message || 'Unable to reset password.');
-        return;
-      }
-      setStatus('done');
-      setTimeout(() => {
-        router.replace('/login');
-      }, 1200);
+			// TODO do reset password	
+			// change users password
     } catch (e) {
       console.error('[reset-password] updateUser failed', e);
       setError('Unable to reset password.');

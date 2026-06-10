@@ -1,6 +1,7 @@
 // vim: ts=2
 export type TradeHubStore = {
 	images: string;
+	jobs: string;
 };
 export type TradeHubJWT = {
 	secret: string;
@@ -28,7 +29,8 @@ const load = (key:string) => {
 };
 export const ENV: TradeHubEnv = {
 	store: {
-		images: load("IMAGE_FILE_STORE")	
+		images: load("IMAGE_FILE_STORE"),
+		jobs: load("JOB_FILE_STORE")
 	},
 	database: {
 		host: load("POSTGRES_HOST"),

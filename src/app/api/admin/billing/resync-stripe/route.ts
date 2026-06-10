@@ -1,16 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import type Stripe from 'stripe';
 import { getStripe, isStripeConfigured } from '../../../../../lib/stripe/server';
 import { withAdmin } from '../../../../../lib/admin/with-admin';
-
-function serviceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  );
-}
 
 function mapStripeStatusToDb(status: string): 'NONE' | 'ACTIVE' | 'PAST_DUE' | 'CANCELED' {
   const s = (status || '').toLowerCase();
@@ -26,6 +16,7 @@ export const POST = withAdmin(async (req: Request) => {
   if (!isStripeConfigured()) {
     return NextResponse.json({ error: 'Stripe is not configured' }, { status: 503 });
   }
+/*
 
   let stripe: Stripe;
   try {
@@ -113,9 +104,13 @@ export const POST = withAdmin(async (req: Request) => {
     }
 
     return NextResponse.json({ user: updated });
+		*/
+    return NextResponse.json({ user: null });
+	/*
   } catch (error) {
     console.error('admin resync-stripe route error:', error);
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
   }
+	*/
 });
 

@@ -1,16 +1,10 @@
 // vim: ts=2
 
 import { NextResponse, type NextRequest } from 'next/server';
+import { deleteCookie } from "cookies-next";
 import { headers, cookies } from "next/headers";
 import { ENV } from "@/lib/env";
 import * as jose from "jose";
-
-function applyResponseCookies(from: NextResponse, to: NextResponse) {
-  for (const cookie of from.cookies.getAll()) {
-    to.cookies.set(cookie);
-  }
-  return to;
-}
 
 const PROTECTED_ROUTES = [
   '/dashboard',
@@ -131,12 +125,8 @@ export async function proxy(request: NextRequest) {
 		isAuthenticated = true;
 		isAdmin = claims.role?.toLowerCase() === "admin";
 	}catch(err_){
-		//console.error(err_);
 		isAuthenticated = false;
 	}
-
-	//console.log(`[middleware] AUTH = ${isAuthenticated} ADMIN = ${isAdmin}`);
-
   // -------------------------
   // 1) ADMIN LOCKDOWN
   // -------------------------
@@ -152,8 +142,8 @@ export async function proxy(request: NextRequest) {
       const loginUrl = new URL('/login', request.url);
       const safeReturnUrl = validateReturnUrl(fullPath, '/dashboard');
       loginUrl.searchParams.set('returnUrl', safeReturnUrl);
-      const redirectResponse = NextResponse.redirect(loginUrl);
-      return applyResponseCookies(response, redirectResponse);
+			store.delete("authorization");
+      return NextResponse.redirect(loginUrl);
     }
     if (isAdmin !== true) {
       if (isApiRoute(pathname)) {
@@ -162,7 +152,8 @@ export async function proxy(request: NextRequest) {
           { status: 403 }
         );
       }
-      const redirectResponse = NextResponse.redirect(new URL('/dashboard', request.url));
+			store.delete("authorization");
+      const redirectResponse = NextResponse.redirect(new URL('/login', request.url));
       return applyResponseCookies(response, redirectResponse);
     }
   }
@@ -171,16 +162,10 @@ export async function proxy(request: NextRequest) {
   // 2) GENERAL PROTECTED ROUTES
   // -------------------------
   if (requiresAuthentication(pathname) && !isAuthenticated) {
+		store.delete("authorization");
     const fullPath = pathname + search;
     const loginUrl = new URL('/login', request.url);
-
-    if (pathname !== '/dashboard') {
-      const safeReturnUrl = validateReturnUrl(fullPath, '/dashboard');
-      loginUrl.searchParams.set('returnUrl', safeReturnUrl);
-    }
-
-    const redirectResponse = NextResponse.redirect(loginUrl);
-    return applyResponseCookies(response, redirectResponse);
+    return NextResponse.redirect(loginUrl);
   }
 
   // -------------------------
@@ -189,24 +174,15 @@ export async function proxy(request: NextRequest) {
   if (isAuthenticated && pathname === '/') {
     const url = request.nextUrl.clone();
     url.pathname = '/dashboard';
-    const redirectResponse = NextResponse.redirect(url);
-    return applyResponseCookies(response, redirectResponse);
+    return NextResponse.redirect(url);
   }
 
   // -------------------------
   // 4) AUTH ROUTES (logged in → leave login/signup)
   // -------------------------
   if (isAuthRoute(pathname) && isAuthenticated) {
-    const returnUrl = request.nextUrl.searchParams.get('returnUrl');
-    const safeReturnUrl = validateReturnUrl(returnUrl, '/dashboard');
-
-    if (safeReturnUrl !== '/dashboard') {
-      const redirectResponse = NextResponse.redirect(new URL(safeReturnUrl, request.url));
-      return applyResponseCookies(response, redirectResponse);
-    }
-
-    const redirectResponse = NextResponse.redirect(new URL('/dashboard', request.url));
-    return applyResponseCookies(response, redirectResponse);
+		store.delete("authorization");
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
   return response;

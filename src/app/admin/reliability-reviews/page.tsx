@@ -20,7 +20,6 @@ import {
 } from 'lucide-react';
 import { AdminReviewCase, AdminReviewStatus } from '@/lib/types';
 import Link from 'next/link';
-import { getBrowserSupabase } from '@/lib/supabase/browserClient';
 
 type ReviewCaseRow = AdminReviewCase & {
   subcontractorName: string;
@@ -35,6 +34,7 @@ export default function ReliabilityReviewsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+	/*
     async function fetchReviewCases() {
       try {
         const supabase = getBrowserSupabase();
@@ -67,14 +67,15 @@ export default function ReliabilityReviewsPage() {
         } else {
           setReviewCases([]);
         }
+         setReviewCases([]);
       } catch {
         setReviewCases([]);
       } finally {
         setLoading(false);
       }
-    }
-
-    fetchReviewCases();
+		*/
+   // }
+    //fetchReviewCases();
   }, []);
 
   if (!currentUser || !isAdmin(currentUser)) {

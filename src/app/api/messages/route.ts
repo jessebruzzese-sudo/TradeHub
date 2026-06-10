@@ -1,34 +1,9 @@
 // @ts-nocheck - Supabase client type inference
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabase, createServiceSupabase } from '@/lib/supabase-server';
 import { isLikelyTestAccount } from '@/lib/test-account';
 import { displayNameForMessagingParticipant } from '@/lib/messaging-participant-display';
 
 export const dynamic = 'force-dynamic';
-
-const MESSAGING_USER_COLS =
-  'id, name, avatar, email, business_name, show_business_name_on_profile';
-
-async function fetchMessagingParticipantRow(
-  otherUserId: string,
-  supabase: ReturnType<typeof createServerSupabase>
-) {
-  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    try {
-      const admin = createServiceSupabase();
-      const { data, error } = await admin
-        .from('users')
-        .select(MESSAGING_USER_COLS)
-        .eq('id', otherUserId)
-        .maybeSingle();
-      if (!error && data) return data;
-    } catch {
-      // fall through
-    }
-  }
-  const { data } = await supabase.from('users').select(MESSAGING_USER_COLS).eq('id', otherUserId).maybeSingle();
-  return data ?? null;
-}
 
 /**
  * GET /api/messages?conversationId=<id>
@@ -36,6 +11,7 @@ async function fetchMessagingParticipantRow(
  */
 export async function GET(request: NextRequest) {
   try {
+	/*
     const supabase = createServerSupabase();
     const {
       data: { user: authUser },
@@ -116,8 +92,13 @@ export async function GET(request: NextRequest) {
         otherUserAvatar: otherUser?.avatar ?? null,
       },
     });
+		*/
+    return NextResponse.json({
+			messages: [],	
+			conversation: {}
+		});
   } catch (err) {
-    console.error('messages API error:', err);
+    console.error(err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

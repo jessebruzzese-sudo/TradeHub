@@ -1,26 +1,15 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { withAdmin } from '../../../../../lib/admin/with-admin';
 
-function serviceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  );
-}
-
 export const POST = withAdmin(async (req: Request) => {
+	/*	
   try {
     const body = (await req.json()) as { emailOrId?: string };
     const emailOrId = body.emailOrId?.trim();
-
     if (!emailOrId) {
       return NextResponse.json({ error: 'emailOrId is required' }, { status: 400 });
     }
-
     const supabase = serviceClient();
-
     // Try lookup by id first
     let { data, error } = await supabase
       .from('users')
@@ -57,5 +46,7 @@ export const POST = withAdmin(async (req: Request) => {
     console.error('admin users lookup route error:', error);
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
   }
+	*/
+    return NextResponse.json({ user: null });
 });
 

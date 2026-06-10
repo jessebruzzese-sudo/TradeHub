@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { createServerSupabase } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,6 +7,7 @@ const MAX_LIST = 5000;
 
 export async function GET() {
   try {
+	/*
     const supabase = createServerSupabase();
     const {
       data: { user },
@@ -55,6 +55,8 @@ export async function GET() {
 
     const count = Array.isArray(rows) ? rows.length : 0;
     return NextResponse.json({ count });
+		*/
+    return NextResponse.json({ count:0 });
   } catch (err) {
     console.warn('[api/dashboard/new-jobs] failed:', err);
     return NextResponse.json({ count: 0 });

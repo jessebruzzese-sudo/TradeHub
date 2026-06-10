@@ -7,12 +7,14 @@ import {
 import { sql } from "drizzle-orm";
 import { businessTable } from "@/lib/data/defs/business";
 import { profileTable } from "@/lib/data/defs/profile";
+
 export const rolesTable = pgTable("roles", {
 	id: integer("id").notNull().primaryKey(),
 	name: text("name").unique()
 });
+
 export const usersTable = pgTable("users", {
-	id: uuid("id").notNull().default(sql`gen_random_uuid()`),
+	id: uuid("id").primaryKey().notNull().default(sql`gen_random_uuid()`),
 	email: text("email").notNull().unique(),
 	name: text("name").notNull(), // full name, profile?
 	visibleName: text("visible_name"), // display name, profile?

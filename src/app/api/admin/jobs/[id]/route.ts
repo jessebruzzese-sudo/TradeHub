@@ -1,6 +1,4 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import type { Database } from '@/lib/database.types';
 import { requireAdmin, adminAuthErrorToResponse } from '@/lib/admin/require-admin';
 import { jobsListingWindowStartIso } from '@/lib/jobs/listing-window';
 
@@ -11,6 +9,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+	/*
     try {
       await requireAdmin();
     } catch (err) {
@@ -80,8 +79,13 @@ export async function GET(
         cancelled_by_name: job.cancelled_by ? names[job.cancelled_by] ?? null : null,
       },
     });
+	*/
+    return NextResponse.json({
+      ok: true,
+      job: {}
+		});
   } catch (err) {
-    console.error('🔥 API ERROR:', err);
+    console.error(err);
     return NextResponse.json({ error: 'CRASHED' }, { status: 500 });
   }
 }

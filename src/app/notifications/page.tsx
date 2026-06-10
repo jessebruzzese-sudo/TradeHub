@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/empty-state';
 import { useAuth } from '@/lib/auth';
 import { useNotificationsUnread } from '@/lib/notifications-unread-context';
-import { getBrowserSupabase } from '@/lib/supabase-client';
 import { toast } from 'sonner';
 
 type Notification = {
@@ -94,7 +93,6 @@ function timeAgo(dateStr: string): string {
 
 export default function NotificationsPage() {
   const { currentUser } = useAuth();
-  const supabase = getBrowserSupabase();
   const { setHasUnread } = useNotificationsUnread();
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -106,13 +104,8 @@ export default function NotificationsPage() {
 
     setLoading(true);
     setError(null);
-
-    const { data, error: fetchError } = await supabase
-      .from('notifications')
-      .select('id, title, description, type, data, read, created_at, link')
-      .eq('user_id', currentUser.id)
-      .order('created_at', { ascending: false });
-
+		const data = [];
+		const fetchError = false;
     let list: Notification[] = [];
     if (fetchError) {
       console.error('Failed to fetch notifications:', fetchError);
@@ -127,7 +120,7 @@ export default function NotificationsPage() {
     }
     setHasUnread(list.some((n) => !n.read));
     setLoading(false);
-  }, [currentUser?.id, supabase, setHasUnread]);
+  }, [currentUser?.id, setHasUnread]);
 
   useEffect(() => {
     fetchNotifications();
@@ -135,13 +128,6 @@ export default function NotificationsPage() {
 
   const handleMarkAllRead = async () => {
     if (!currentUser?.id || notifications.length === 0) return;
-
-    const { error: updateError } = await supabase
-      .from('notifications')
-      .update({ read: true })
-      .eq('user_id', currentUser.id)
-      .eq('read', false);
-
     if (!updateError) {
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       setHasUnread(false);
@@ -152,14 +138,7 @@ export default function NotificationsPage() {
     const remaining = notifications.filter((n) => n.id !== id);
     setNotifications(() => remaining);
     setHasUnread(remaining.some((n) => !n.read));
-
     if (currentUser?.id) {
-      const { error } = await supabase
-        .from('notifications')
-        .delete()
-        .eq('id', id)
-        .eq('user_id', currentUser.id);
-
       if (error) {
         toast.error('Could not delete notification');
         fetchNotifications();

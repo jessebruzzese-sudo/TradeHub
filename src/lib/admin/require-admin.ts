@@ -1,8 +1,6 @@
-import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
 export type RequireAdminResult = {
-  user: any;
   profile: {
     id: string;
     is_admin: boolean;
@@ -11,55 +9,12 @@ export type RequireAdminResult = {
 
 export async function requireAdmin(): Promise<RequireAdminResult> {
   const cookieStore = await cookies();
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set() {},
-        remove() {},
-      },
-    }
-  );
-
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError) {
-    throw new Error('AUTH_ERROR');
-  }
-
-  if (!user) {
-    throw new Error('NO_USER');
-  }
-
-  const { data: me, error: profileError } = await supabase
-    .from('users')
-    .select('id,is_admin')
-    .eq('id', user.id)
-    .single();
-
-  if (profileError) {
-    throw new Error('USER_LOOKUP_FAILED');
-  }
-
-  if (!me) {
-    throw new Error('USER_NOT_FOUND');
-  }
-
-  if (me.is_admin !== true) {
-    throw new Error('NOT_ADMIN');
-  }
-
+		// TODO please fix
   return {
-    user,
-    profile: me,
+    profile: {
+			id: "AWESOME",
+			is_admin: false
+		}
   };
 }
 

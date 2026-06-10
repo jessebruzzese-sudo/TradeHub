@@ -10,6 +10,7 @@ import * as businessRepo from "@/lib/data/repos/business";
 import * as availabilityRepo from "@/lib/data/repos/availability";
 import * as profileRepo from "@/lib/data/repos/profile";
 import * as workRepo from "@/lib/data/repos/works";
+import * as jobRepo from "@/lib/data/repos/jobs";
 const MAX_CONNECTIONS = 10;
 const IDLE_TIMEOUT = 10;
 const pgPool = new Pool({
@@ -42,7 +43,8 @@ export const getDataService = async () => {
 			business: businessRepo,
 			availability: availabilityRepo,
 			profile: profileRepo,
-			works: workRepo
+			works: workRepo,
+			jobs: jobRepo
 		});
 	});
 };

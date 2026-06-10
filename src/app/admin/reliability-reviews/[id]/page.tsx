@@ -1,4 +1,5 @@
 // @ts-nocheck
+// vim: ts=2
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -6,13 +7,25 @@ import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { isAdmin } from '@/lib/is-admin';
 import { UnauthorizedAccess } from '@/components/unauthorized-access';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { 
+	Card, 
+	CardContent, 
+	CardDescription, 
+	CardHeader, 
+	CardTitle 
+} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { 
+	Select, 
+	SelectContent, 
+	SelectItem, 
+	SelectTrigger, 
+	SelectValue 
+} from '@/components/ui/select';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,12 +36,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { ArrowLeft, AlertCircle, CheckCircle2, Ban, XCircle, Inbox, Clock } from 'lucide-react';
+import { 
+	ArrowLeft, 
+	AlertCircle, 
+	CheckCircle2, 
+	Ban, 
+	XCircle, 
+	Inbox, 
+	Clock 
+} from 'lucide-react';
 import Link from 'next/link';
-import type { Database } from '@/lib/database.types';
-import { getBrowserSupabase } from '@/lib/supabase/browserClient';
-
-type AdminReviewCasesUpdate = Database['public']['Tables']['admin_review_cases']['Update'];
 
 interface ReviewCaseDetail {
   id: string;
@@ -70,6 +87,7 @@ export default function ReliabilityReviewDetailPage() {
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
+	/*
     async function fetchReviewCase() {
       try {
         const supabase = getBrowserSupabase();
@@ -130,6 +148,7 @@ export default function ReliabilityReviewDetailPage() {
     }
 
     fetchReviewCase();
+	*/
   }, [caseId]);
 
   if (!currentUser || !isAdmin(currentUser)) {
@@ -176,6 +195,7 @@ export default function ReliabilityReviewDetailPage() {
   };
 
   const handleConfirm = async () => {
+		/*
     try {
       const supabase = getBrowserSupabase();
       const statusMap = {
@@ -199,7 +219,7 @@ export default function ReliabilityReviewDetailPage() {
     } catch (err) {
       console.error('Failed to resolve case:', err);
     }
-
+	*/
     router.push('/admin/reliability-reviews');
   };
 

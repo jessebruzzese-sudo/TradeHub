@@ -121,6 +121,7 @@ export const addBusinessT = async (business:any, trx:any) => {
 		// create trade links
 		const trades = business.trades;
 		const mapping = await (await getDataService()).trades.getMapping(true);
+		let i = 0;
 		for(const trade of trades){
 			const tradeId = mapping[trade] ?? null; // NAME => ID
 			if(tradeId === null){
@@ -129,9 +130,11 @@ export const addBusinessT = async (business:any, trx:any) => {
 			}
 			const linkage = {
 				tradeId: tradeId,
-				businessId: businessId
+				businessId: businessId,
+				primary: i === 0
 			};
 			await trx.insert(businessTradeTable).values(linkage);
+			i += 1
 		}
 		resolve(businessId);
 	});

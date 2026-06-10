@@ -1,6 +1,7 @@
 // vim: ts=2
 import './globals.css';
 import type { Metadata } from 'next';
+import { Suspense } from "react";
 import { Inter } from 'next/font/google';
 import { AuthProvider } from '@/lib/auth';
 import { BillingSimulationBanner } from '@/components/billing-simulation-banner';
@@ -48,7 +49,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 				<BillingSimulationBanner/>
         <AuthProvider>
 					<Toaster/>
-					{children}
+					<Suspense>
+						{children}
+					</Suspense>
         </AuthProvider>
       </body>
     </html>

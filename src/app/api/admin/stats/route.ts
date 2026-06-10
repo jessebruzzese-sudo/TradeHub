@@ -3,44 +3,14 @@ export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
-import { createClient } from '@supabase/supabase-js';
 import { applyExcludeTestAccountsFilters } from '@/lib/test-account';
 import { jobsListingWindowStartIso } from '@/lib/jobs/listing-window';
 
 export const revalidate = 60;
 
-function authClient() {
-  // Uses ANON key + request cookies to identify the logged-in user
-  const cookieStore = cookies();
-
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll() {
-          // Route handlers don't need to set cookies for this use-case
-        },
-      },
-    }
-  );
-}
-
-function serviceClient() {
-  // Uses SERVICE ROLE key for privileged reads/counts (server-only)
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  );
-}
-
 export async function GET() {
   try {
+	/*
     const supabaseAuth = authClient();
 
     // 1) Must be logged in
@@ -116,6 +86,14 @@ export async function GET() {
       pendingVerifications: pendingVerificationsRes.count ?? 0,
       activeJobs: activeJobsRes.count ?? 0,
       totalJobs: totalJobsRes.count ?? 0,
+      generatedAt: new Date().toISOString(),
+    });
+		*/
+    return NextResponse.json({
+      totalUsers: 0,
+      pendingVerifications: 0,
+      activeJobs:  0,
+      totalJobs: 0,
       generatedAt: new Date().toISOString(),
     });
   } catch (err: any) {

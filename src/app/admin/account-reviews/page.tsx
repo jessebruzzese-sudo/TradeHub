@@ -23,7 +23,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { getBrowserSupabase } from '@/lib/supabase-client';
 import { AlertCircle, CheckCircle, Flag, User, Mail, Briefcase, MapPin, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
@@ -58,8 +57,7 @@ interface AccountReview {
 }
 
 export default function AccountReviewsPage() {
-  const { currentUser, isLoading } = useAuth();
-  const supabase = getBrowserSupabase();
+  const { jwt } = useAuth();
 
   const [reviews, setReviews] = useState<AccountReview[]>([]);
   const [loading, setLoading] = useState(true);

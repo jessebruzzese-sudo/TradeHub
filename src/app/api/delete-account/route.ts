@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 
 export async function POST(req: Request) {
   try {
+	/*
     const { userId } = await req.json();
 
     if (!userId) {
@@ -31,6 +31,8 @@ export async function POST(req: Request) {
 
     if (authError) throw authError;
 
+    return NextResponse.json({ success: true });
+	*/
     return NextResponse.json({ success: true });
 
   } catch (error: any) {

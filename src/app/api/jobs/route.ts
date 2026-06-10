@@ -1,35 +1,33 @@
+// vim: ts=2 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabase, createServiceSupabase } from '@/lib/supabase-server';
-import { loadActiveTradeNames, resolveTradeAgainstCatalog } from '@/lib/trades/load-active-trades';
-import { getTier } from '@/lib/plan-limits';
-import {
-  countJobsPostedInWindow,
-  FREE_JOB_POST_LIMIT_MESSAGE,
-  FREE_JOB_POST_MAX_PER_WINDOW,
-  JOB_POST_LIMIT_ERROR_CODE,
-  recordJobPostEvent,
-} from '@/lib/job-post-limits';
-import { refreshProfileStrength } from '@/lib/profile-strength';
-import { getListedTradesForJobEligibility } from '@/lib/trades/user-trades';
-import { hasContractorRoleForJobPosting } from '@/lib/permissions';
-import {
-  JOB_POST_CONTRACTOR_ROLE_CODE,
-  JOB_POST_CONTRACTOR_ROLE_MESSAGE,
-} from '@/lib/jobs/job-post-role-messages';
-
-function isJobsRlsOrPermissionError(err: { code?: string; message?: string } | null | undefined): boolean {
-  const code = String(err?.code ?? '');
-  const msg = String(err?.message ?? '').toLowerCase();
-  return (
-    code === '42501' ||
-    msg.includes('row-level security') ||
-    msg.includes('violates row-level security') ||
-    msg.includes('permission denied for table') ||
-    msg.includes('new row violates row-level security')
-  );
-}
-
+import { getDataService } from "@/lib/data/service";
+import { cookies } from "next/headers";
 export const dynamic = 'force-dynamic';
+import * as z from "zod";
+import * as jose from "jose";
+
+const AttachmentSchema = z.object({
+	fileName: z.string(),
+	data: z.string(),
+	mime: z.string()
+});
+
+const CreateJobSchema = z.object({
+	title: z.string(),
+	description: z.string(),
+	tradeCategory: z.string(),
+	location: z.string(),
+	postcode: z.string(),
+	placeId: z.string().nullable(),
+	longitude: z.number(),
+	latitude: z.number(),
+	dates: z.array(z.string()),	
+	startTime: z.string(),	
+	durationDays: z.number().int(),
+	payType: z.string(),
+	rate: z.number(),	
+	attachments: z.array(AttachmentSchema)
+});
 
 /**
  * POST /api/jobs — Create a job with server-side trade validation.
@@ -37,184 +35,91 @@ export const dynamic = 'force-dynamic';
  * - Premium users: trade_category may be any valid TradeHub trade.
  */
 export async function POST(request: NextRequest) {
-  try {
-    const supabase = createServerSupabase();
-    const serviceSupabase = createServiceSupabase();
-    const {
-      data: { user },
-      error: authErr,
-    } = await supabase.auth.getUser();
-
-    if (authErr || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const body = await request.json().catch(() => ({}));
-    const tradeCategory = typeof body?.trade_category === 'string' ? body.trade_category.trim() : '';
-
-    if (!tradeCategory) {
-      return NextResponse.json({ error: 'Trade category is required' }, { status: 400 });
-    }
-
-    let catalogNames: string[];
-    try {
-      catalogNames = await loadActiveTradeNames(supabase);
-    } catch {
-      return NextResponse.json({ error: 'Could not load trade catalog' }, { status: 500 });
-    }
-
-    const resolvedCategory = resolveTradeAgainstCatalog(tradeCategory, catalogNames);
-    if (!resolvedCategory) {
-      return NextResponse.json(
-        { error: `Invalid trade category. Must be one of: ${catalogNames.join(', ')}` },
-        { status: 400 }
-      );
-    }
-
-    const { data: profile, error: profileErr } = await (supabase as any)
-      .from('users')
-      .select('id, role, plan, subscription_status, complimentary_premium_until, primary_trade, additional_trades')
-      .eq('id', user.id)
-      .maybeSingle();
-
-    if (profileErr || !profile) {
-      return NextResponse.json({ error: 'Could not load profile' }, { status: 500 });
-    }
-
-    if (!hasContractorRoleForJobPosting(profile as { role?: string | null })) {
-      return NextResponse.json(
-        { error: JOB_POST_CONTRACTOR_ROLE_MESSAGE, code: JOB_POST_CONTRACTOR_ROLE_CODE },
-        { status: 403 }
-      );
-    }
-
-    const isPremium = getTier(profile) === 'premium';
-
-    if (!isPremium) {
-      const userTrades = getListedTradesForJobEligibility(profile as any);
-      if (!userTrades.includes(resolvedCategory)) {
-        return NextResponse.json(
-          { error: 'Free accounts can only post jobs in their listed trade(s). Upgrade to Premium to post in any trade.' },
-          { status: 403 }
-        );
-      }
-
-      let postedInWindow = 0;
-      try {
-        postedInWindow = await countJobsPostedInWindow(serviceSupabase, user.id);
-      } catch (countErr) {
-        console.error('[api/jobs] post limit count failed', countErr);
-        return NextResponse.json({ error: 'Could not check posting limit' }, { status: 500 });
-      }
-      if (postedInWindow >= FREE_JOB_POST_MAX_PER_WINDOW) {
-        return NextResponse.json(
-          { error: FREE_JOB_POST_LIMIT_MESSAGE, code: JOB_POST_LIMIT_ERROR_CODE },
-          { status: 403 }
-        );
-      }
-    }
-
-    const title = typeof body?.title === 'string' ? body.title.trim() : '';
-    const description = typeof body?.description === 'string' ? body.description.trim() : '';
-    const location = typeof body?.location === 'string' ? body.location.trim() : '';
-    const postcode = typeof body?.postcode === 'string' ? body.postcode.trim() : '';
-    const dates = body?.dates;
-    const startTime = typeof body?.start_time === 'string' ? body.start_time : '08:00';
-    const duration = typeof body?.duration === 'number' ? body.duration : 1;
-    const payType =
-      body?.pay_type === 'hourly' ? 'hourly' : body?.pay_type === 'day_rate' ? 'day_rate' : 'fixed';
-    const rateRaw = body?.rate;
-    const rate =
-      rateRaw == null || rateRaw === ''
-        ? null
-        : typeof rateRaw === 'number'
-          ? rateRaw
-          : Number(rateRaw);
-    const locationPlaceId = typeof body?.location_place_id === 'string' ? body.location_place_id : null;
-    const locationLat = typeof body?.location_lat === 'number' ? body.location_lat : null;
-    const locationLng = typeof body?.location_lng === 'number' ? body.location_lng : null;
-
-    if (!title || !description || !location || !postcode) {
-      return NextResponse.json({ error: 'Title, description, location, and postcode are required' }, { status: 400 });
-    }
-    if (!Array.isArray(dates) || dates.length === 0) {
-      return NextResponse.json({ error: 'At least one date is required' }, { status: 400 });
-    }
-    if (rate != null && (!Number.isFinite(rate) || rate <= 0)) {
-      return NextResponse.json({ error: 'Rate must be a positive number when provided' }, { status: 400 });
-    }
-    if (locationLat == null || locationLng == null) {
-      return NextResponse.json({ error: 'Location coordinates are required' }, { status: 400 });
-    }
-
-    const insertPayload = {
-      contractor_id: user.id,
-      title,
-      description,
-      trade_category: resolvedCategory,
-      location,
-      postcode,
-      dates,
-      start_time: startTime,
-      duration,
-      pay_type: payType,
-      rate: rate ?? 0,
-      attachments: null,
-      status: 'open',
-      location_place_id: locationPlaceId,
-      location_lat: locationLat,
-      location_lng: locationLng,
-    };
-
-    const { data: created, error: insertError } = await supabase
-      .from('jobs')
-      .insert(insertPayload)
-      .select('id')
-      .single();
-
-    if (insertError) {
-      console.error('[api/jobs] insert error:', insertError);
-      if (isJobsRlsOrPermissionError(insertError)) {
-        return NextResponse.json(
-          { error: JOB_POST_CONTRACTOR_ROLE_MESSAGE, code: JOB_POST_CONTRACTOR_ROLE_CODE },
-          { status: 403 }
-        );
-      }
-      return NextResponse.json(
-        { error: insertError?.message || 'Failed to create job' },
-        { status: 500 }
-      );
-    }
-
-    if (!isPremium) {
-      try {
-        await recordJobPostEvent(serviceSupabase, {
-          contractorId: user.id,
-          jobId: created.id,
-        });
-      } catch (eventErr) {
-        // Keep limits durable: if we cannot record usage, roll back the created job.
-        console.error('[api/jobs] failed to record job post event; rolling back job', eventErr);
-        const { error: rollbackErr } = await serviceSupabase.from('jobs').delete().eq('id', created.id);
-        if (rollbackErr) {
-          console.error('[api/jobs] rollback failed after event log failure', rollbackErr);
-        }
-        return NextResponse.json({ error: 'Failed to create job' }, { status: 500 });
-      }
-    }
-
-    await refreshProfileStrength(user.id);
-    const newId = created?.id != null ? String(created.id).trim() : '';
-    if (!newId) {
-      console.error('[api/jobs] insert missing id', created);
-      return NextResponse.json({ error: 'Failed to create job' }, { status: 500 });
-    }
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[api/jobs] POST ok', { jobId: newId });
-    }
-    return NextResponse.json({ id: newId });
-  } catch (err) {
-    console.error('[api/jobs] error:', err);
-    return NextResponse.json({ error: 'Failed to create job' }, { status: 500 });
-  }
+	const store = await cookies();
+	const cookie = store.get("authorization") ?? null;
+	const jwt = cookie?.value ?? null;
+	let claims = null;
+	try{
+		claims = await jose.decodeJwt(jwt);
+	}catch(err_){
+		return NextResponse.json(
+			{ error: "Not authorized" },
+			{ status: 401 }
+		);
+	}
+	// grab profile
+	let user_ = null;
+	const { users, jobs } = await getDataService();
+	try{
+		user_ = await users.getUserProfile(claims.id);
+	}catch(err_){
+		return NextResponse.json(
+			{ error: "Failed to query user profile" },
+			{ status: 500 }
+		);
+	}
+	if(user_ === null){
+		return NextResponse.json(
+			{ error: "Failed to find user profile (null)" },
+			{ status: 500 }
+		);
+	}
+	// parse payload
+	// validate with zod
+	let payload = null;
+	try{
+		payload = CreateJobSchema.parse(await request.json());
+	}catch(err_){
+		return NextResponse.json(
+			{ error: "Failed to parse payload" },
+			{ status: 400 }
+		);
+	}
+	// toggle validations off during testing
+	const DO_VALIDATIONS = true;
+	// check premium status
+	// premium accounts aren't limited to a trade
+	// free accounts are
+	const isPremium = user_.profile.premium;
+	if (!isPremium && DO_VALIDATIONS) {
+		const userTrades = user_.business.trades;
+		const resolvedCategory = payload.tradeCategory;
+		if (!userTrades.includes(resolvedCategory)) {
+			return NextResponse.json(
+				{ error: 'Free accounts can only post jobs in their listed trade(s). Upgrade to Premium to post in any trade.' },
+				{ status: 403 }
+			);
+		}
+		try {
+			// enforce free job count
+			// free users are allowed to post one job
+			// per month
+			const WINDOW_LENGTH = 30;
+			const n = await jobs.getJobCount(claims.id, 30);
+			if(n > 0){
+				return NextResponse.json(
+					{ error: "Too many jobs created, please try again later." },
+					{ status: 403 }
+				);
+			}
+		} catch (err_) {
+			console.error(err_);
+			return NextResponse.json(
+				{ error: "Failed to query job count", exception: err_ },
+				{ status: 500 }
+			);
+		}
+	}
+	// set profileId, create job
+	let newId = null;
+	payload.profileId = user_.profileId;
+	try{		
+		newId = await jobs.addJob(payload);	
+	}catch(err_){
+		return NextResponse.json(
+			{ error: "Failed to create new job record" },
+			{ status: 400 }
+		);
+	}
+	return NextResponse.json({ id: newId });
 }

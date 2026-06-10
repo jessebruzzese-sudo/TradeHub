@@ -1,4 +1,5 @@
 // @ts-nocheck
+// vim: ts=2
 'use client';
 
 /*
@@ -7,9 +8,9 @@
  * - Apply, select applicant, confirm hire, etc. still require verified ABN — copy and toasts say so clearly.
  */
 
+import { getAxios } from "@/lib/utils";
 import { AppLayout } from '@/components/app-nav';
 import { useAuth } from '@/lib/auth';
-import { getStore } from '@/lib/store';
 import type { PayType, JobStatus } from '@/lib/types';
 import { loadJobById, syncContractorIntoStore } from '@/lib/jobs/load-job-by-id';
 import { formatJobPriceDisplay } from '@/lib/job-pay-labels';
@@ -42,9 +43,9 @@ import {
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { format } from 'date-fns';
-import { useState, useEffect, useLayoutEffect, useMemo } from 'react';
+import UserContext from "@/lib/user-context";
+import { useContext, useState, useEffect, useLayoutEffect, useMemo } from 'react';
 import { toast } from 'sonner';
-import { getBrowserSupabase } from '@/lib/supabase-client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { CancelJobDialog } from '@/components/cancel-job-dialog';
@@ -56,11 +57,9 @@ import { getJobLifecycleState, canWithdrawApplication, canTransitionToStatus } f
 import { createSystemMessage, shouldAddSystemMessage } from '@/lib/messaging-utils';
 import { needsBusinessVerification, redirectToVerifyBusiness, getVerifyBusinessUrl } from '@/lib/verification-guard';
 import { hasValidABN } from '@/lib/abn-utils';
-import { isAdmin } from '@/lib/is-admin';
 import { canEditJob, ownsJob } from '@/lib/permissions';
 import { JOB_EDIT_CONTRACTOR_ROLE_MESSAGE } from '@/lib/jobs/job-post-role-messages';
 import { jobsListingWindowStartIso } from '@/lib/jobs/listing-window';
-import { trackEvent } from '@/lib/analytics';
 import { getPublicProfileHref } from '@/lib/url-utils';
 import { debugProfileCardData } from '@/lib/profile-debug';
 
@@ -73,65 +72,23 @@ function AttachmentRow({
 }) {
   const [url, setUrl] = useState<string | null>(null);
 
-  const supabase = useState(() => getBrowserSupabase())[0];
-
   useEffect(() => {
     let alive = true;
-
     async function run() {
       if (!attachment) return;
-
-      // Legacy: string url
-      if (typeof attachment === 'string') {
-        if (attachment.startsWith('blob:')) return;
-        if (alive) setUrl(attachment);
-        return;
-      }
-
-      // Schema: { name, path, size, type, bucket }
-      const bucket = attachment?.bucket ?? 'job-attachments';
-      const path = attachment?.path;
-
-      // If a direct URL was ever stored, use it
-      if (attachment?.url) {
-        if (alive) setUrl(String(attachment.url));
-        return;
-      }
-
-      if (!path) return;
-
-      const { data, error } = await supabase.storage
-        .from(bucket)
-        .createSignedUrl(path, 60 * 60); // 1 hour
-
-      if (!alive) return;
-
-      if (error) {
-        console.warn('Signed URL error', error);
-        return;
-      }
-
-      setUrl(data?.signedUrl ?? null);
+      setUrl(attachment?.url ?? null);
     }
-
     run();
     return () => {
       alive = false;
     };
-  }, [attachment, supabase]);
+  }, [attachment]);
 
-  const name =
-    typeof attachment === 'string'
-      ? attachment.split('/').pop() || 'Attachment'
-      : attachment?.name ?? attachment?.path?.split('/')?.pop() ?? 'Attachment';
-
-  const type = typeof attachment === 'string' ? '' : String(attachment?.type ?? '');
-  const size = typeof attachment === 'string' ? undefined : (typeof attachment?.size === 'number' ? attachment.size : undefined);
-
+  const name = attachment?.fileName ?? null;
+  const type = attachment?.mime ?? null;
+	const size = attachment?.size ?? null;
   const ext = (name.split('.').pop() || '').toLowerCase();
-  const isImage =
-    (type && type.startsWith('image/')) || ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic'].includes(ext);
-
+  const isImage = (type && type.startsWith('image/'));
   const isPdf = type === 'application/pdf' || ext === 'pdf';
 
   const prettySize =
@@ -266,27 +223,22 @@ function formatAu(date: Date) {
 function formatJobDatesDisplay(input: any): { label: string; badge?: string } | null {
   const dates = normalizeDates(input);
   if (!dates.length) return null;
-
   if (dates.length === 1) {
     return { label: formatAu(dates[0]) };
   }
-
   const first = dates[0];
   const last = dates[dates.length - 1];
   const consecutive = isConsecutiveDays(dates);
-
   if (consecutive) {
     const days = Math.round(
       (new Date(last).setHours(0, 0, 0, 0) - new Date(first).setHours(0, 0, 0, 0)) /
         (24 * 60 * 60 * 1000)
     ) + 1;
-
     return {
       label: `${formatAu(first)} - ${formatAu(last)}`,
       badge: `${days} day${days === 1 ? '' : 's'}`,
     };
   }
-
   // Non-consecutive picked dates (e.g. Mon/Wed/Fri)
   return {
     label: `Multiple dates (${dates.length})`,
@@ -295,17 +247,20 @@ function formatJobDatesDisplay(input: any): { label: string; badge?: string } | 
 }
 
 export default function JobDetailPage() {
-  const { currentUser } = useAuth();
+
+  const { jwt } = useAuth();
+	const UserSession = useContext(UserContext);
   const params = useParams();
   const router = useRouter();
-  const store = getStore();
   const jobId = useMemo(() => {
     const raw = params?.id;
     if (typeof raw === 'string') return raw.trim();
     if (Array.isArray(raw) && raw[0] != null) return String(raw[0]).trim();
     return '';
   }, [params?.id]);
-
+	
+	const [currentUser, setCurrentUser] = useState(UserSession?.user ?? null);
+	const [job, setJob] = useState(null);
   const [showApplyDialog, setShowApplyDialog] = useState(false);
   const [applicationMessage, setApplicationMessage] = useState('');
   const [showCancelDialog, setShowCancelDialog] = useState(false);
@@ -314,160 +269,31 @@ export default function JobDetailPage() {
   const [withdrawReason, setWithdrawReason] = useState('');
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
-  /** Start true so we never render "Job not found" before the first fetch/cache check runs. */
-  const [isLoadingJob, setIsLoadingJob] = useState(true);
-  /** Bumps after poster sync on cache hit so we re-read the module store (not a subscribed store). */
-  const [, setClientStoreEpoch] = useState(0);
   const [actionSubmitting, setActionSubmitting] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number>(0);
-  type LightboxItem = {
-    name: string;
-    url?: string;
-    bucket?: string;
-    path?: string;
-  };
-  const [lightboxItems, setLightboxItems] = useState<LightboxItem[]>([]);
-  const sb = useState(() => getBrowserSupabase())[0];
+  const [lightboxItems, setLightboxItems] = useState([]);
 
-  /** Avoid one frame of "Job not found" when [id] changes but prior load had finished (isLoadingJob was false). */
-  useLayoutEffect(() => {
-    if (!jobId) {
-      setIsLoadingJob(false);
-      return;
-    }
-    setIsLoadingJob(true);
-  }, [jobId]);
+	const isLoadingJob = job === null;
+	const hasSession = jwt !== undefined && jwt !== null;
 
   useEffect(() => {
-    if (!jobId) {
-      setIsLoadingJob(false);
-      return;
-    }
-
-    if (!currentUser?.id) {
-      return;
-    }
-
-    const existingJob: any = store.getJobById(jobId);
-
-    const cachedHasAttachments =
-      Array.isArray(existingJob?.attachments) && existingJob.attachments.length > 0;
-
-    const cachedHasDates = Array.isArray(existingJob?.dates) && existingJob.dates.length > 0;
-
-    if (existingJob && cachedHasAttachments && cachedHasDates) {
-      setIsLoadingJob(false);
-      if (existingJob.contractorId) {
-        void (async () => {
-          const supabase = getBrowserSupabase();
-          await syncContractorIntoStore(supabase, store, existingJob.contractorId);
-          setClientStoreEpoch((n) => n + 1);
-        })();
-      }
-      return;
-    }
-
-    let cancelled = false;
-    setIsLoadingJob(true);
-
-    (async () => {
-      try {
-        const supabase = getBrowserSupabase();
-        const { job: jobData, error: loadErr, source, selectUsed } = await loadJobById(supabase, jobId, {
-          viewerId: currentUser.id,
-        });
-
-        if (cancelled) return;
-
-        if (loadErr) {
-          console.error('[jobs/[id]] loadJobById exhausted attempts', { jobId, loadErr, source, selectUsed });
-        }
-
-        if (!jobData) {
-          return;
-        }
-
-        const rawDates: unknown[] = Array.isArray(jobData.dates) ? jobData.dates : [];
-        const dates: Date[] = rawDates
-          .filter(Boolean)
-          .map((d) => new Date(d as string))
-          .filter((d) => !isNaN(d.getTime()));
-
-        let durationDays = 0;
-        if (dates.length >= 2) {
-          const timestamps = dates.map((d) => d.getTime());
-          const earliest = Math.min(...timestamps);
-          const latest = Math.max(...timestamps);
-          durationDays = Math.round((latest - earliest) / (1000 * 60 * 60 * 24)) + 1;
-        } else if (dates.length === 1) {
-          durationDays = 1;
-        }
-
-        const job = {
-          id: String(jobData.id),
-          title: jobData.title,
-          description: jobData.description,
-          tradeCategory: jobData.trade_category,
-          contractorId: jobData.contractor_id,
-          location: jobData.location,
-          postcode: jobData.postcode,
-          dates,
-          payType: jobData.pay_type as PayType,
-          rate: jobData.rate ?? 0,
-          duration: durationDays > 0 ? durationDays : (jobData.duration ?? undefined),
-          status: jobData.status as unknown as JobStatus,
-          createdAt: new Date((jobData.created_at as string) ?? Date.now()),
-          cancelledAt: jobData.cancelled_at ? new Date(jobData.cancelled_at as string) : undefined,
-          cancelledBy: jobData.cancelled_by ?? undefined,
-          cancellationReason: jobData.cancellation_reason ?? undefined,
-          attachments: jobData.attachments,
-          startTime: jobData.start_time || undefined,
-          selectedSubcontractor: jobData.selected_subcontractor || undefined,
-          confirmedSubcontractor: jobData.confirmed_subcontractor || undefined,
-        };
-
-        if (existingJob) {
-          store.updateJob(String(jobData.id), {
-            description: jobData.description as string,
-            location: jobData.location as string,
-            postcode: jobData.postcode as string,
-            dates,
-            payType: jobData.pay_type as PayType,
-            rate: (jobData.rate as number) ?? 0,
-            duration: durationDays > 0 ? durationDays : (jobData.duration as number | undefined),
-            status: jobData.status as unknown as JobStatus,
-            cancelledAt: jobData.cancelled_at ? new Date(jobData.cancelled_at as string) : undefined,
-            cancelledBy: jobData.cancelled_by ?? undefined,
-            cancellationReason: jobData.cancellation_reason ?? undefined,
-            attachments: (jobData.attachments as any) ?? undefined,
-            startTime: jobData.start_time || undefined,
-            selectedSubcontractor: jobData.selected_subcontractor || undefined,
-            confirmedSubcontractor: jobData.confirmed_subcontractor || undefined,
-          });
-        } else {
-          store.jobs.push(job as any);
-        }
-
-        if (jobData.contractor_id) {
-          await syncContractorIntoStore(supabase, store, jobData.contractor_id as string);
-        }
-      } catch (error) {
-        console.error('Error loading job:', error);
-      } finally {
-        setIsLoadingJob(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [jobId, currentUser?.id]);
+		if(job !== null){
+			return;
+		}
+		getAxios(null).get(`/api/jobs/${jobId}`).
+			then((response_)=>{
+				const data = response_.data;
+				setJob(data);
+			}).catch((err_)=>{
+				console.error(err_);
+				toast.error("Failed to load job");
+			});
+  }, [job]);
 
   useEffect(() => {
     if (!lightboxOpen) return;
     const len = lightboxItems.length;
-
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setLightboxOpen(false);
       if (e.key === 'ArrowLeft' && len > 1) {
@@ -477,58 +303,13 @@ export default function JobDetailPage() {
         setLightboxIndex((i) => (i + 1) % len);
       }
     };
-
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [lightboxOpen, lightboxItems.length]);
 
-  useEffect(() => {
-    if (!lightboxOpen) return;
-    if (!lightboxItems.length) return;
-
-    const item = lightboxItems[lightboxIndex];
-    if (!item) return;
-
-    // Already have URL (string attachments or previously signed)
-    if (item.url) return;
-
-    // Need bucket+path to sign
-    if (!item.bucket || !item.path) return;
-
-    let alive = true;
-
-    (async () => {
-      const { data, error } = await sb.storage
-        .from(item.bucket!)
-        .createSignedUrl(item.path!, 60 * 60); // 1 hour
-
-      if (!alive) return;
-
-      if (error) {
-        console.warn('Lightbox signed URL error', error);
-        return;
-      }
-
-      const signedUrl = data?.signedUrl ?? null;
-      if (!signedUrl) return;
-
-      // Patch only the active item
-      setLightboxItems((prev) => {
-        const copy = [...prev];
-        const current = copy[lightboxIndex];
-        if (!current) return prev;
-        copy[lightboxIndex] = { ...current, url: signedUrl };
-        return copy;
-      });
-    })();
-
-    return () => {
-      alive = false;
-    };
-  }, [lightboxOpen, lightboxIndex, lightboxItems.length, sb, lightboxItems]);
-
-  const job = store.getJobById(jobId);
-  const poster = job?.contractorId ? store.getUserById(job.contractorId) : null;
+	// TODO jobs need poster information
+	// maybe call poster - owner?
+  const poster = null;
   const posterPremium = poster
     ? hasPremiumAccess({
         plan: poster.plan,
@@ -536,34 +317,35 @@ export default function JobDetailPage() {
         complimentaryPremiumUntil: poster.complimentaryPremiumUntil,
       })
     : false;
-  const applications = job ? store.getApplicationsByJob(job.id) : [];
+
+	// TODO load applications
+  const applications = [];
 
   // “My application” = any application made by the current user (single-account model)
   const myApplication = applications.find((a) => a.subcontractorId === currentUser?.id);
-
-  const isAdminUser = isAdmin(currentUser);
+  const isAdminUser = currentUser?.role === "admin";
   const isMyJob = job && currentUser ? ownsJob(currentUser, job) : false;
-
   const lifecycleState = job ? getJobLifecycleState(job, applications.length > 0) : null;
 
   // In single-account model: anyone who is NOT the job owner can apply (unless admin overrides are supported elsewhere)
-  const canApply = !!currentUser && !!job && !isMyJob && lifecycleState?.allowsApplications && !myApplication;
+  const canApply = currentUser && job && !isMyJob && lifecycleState?.allowsApplications && !myApplication;
 
   // Anyone (who is not job owner) can message poster as long as job isn’t closed/cancelled
-  const canMessage =
-    !!currentUser && !!job && !isMyJob && job.status !== 'cancelled' && job.status !== 'closed';
+  const canMessage = currentUser && job && !isMyJob && job.status !== 'cancelled' && job.status !== 'closed';
 
   const canWithdraw = myApplication
     ? canWithdrawApplication(myApplication.status, job?.status || 'open')
     : false;
 
   const viewerTrades = useMemo(() => {
-    const t = (currentUser as any)?.trades;
+		if(currentUser === null){
+			return;
+		}
+    const t = currentUser?.business?.trades;
     if (Array.isArray(t) && t.length > 0) {
       return t.filter((x: string) => typeof x === 'string' && x.trim()).map((x: string) => x.trim());
     }
-    const pt = (currentUser as any)?.primaryTrade ?? (currentUser as any)?.primary_trade;
-    const at = (currentUser as any)?.additionalTrades ?? (currentUser as any)?.additional_trades;
+    const pt = currentUser?.business?.primaryTrade;
     const out = pt ? [String(pt).trim()] : [];
     if (Array.isArray(at)) {
       at.forEach((x: string) => {
@@ -574,7 +356,7 @@ export default function JobDetailPage() {
     return out;
   }, [currentUser]);
 
-  if (isLoadingJob || !currentUser) {
+  if (isLoadingJob) {
     return (
       <AppLayout>
         {/* Grey wrapper (match /jobs) */}
@@ -884,24 +666,9 @@ export default function JobDetailPage() {
       return;
     }
     if (!job) return;
-
     setIsClosing(true);
-
     try {
-      const supabase = getBrowserSupabase();
-
-      const { error, count } = await supabase
-        .from('jobs')
-        .update({ status: 'closed' }, { count: 'exact' })
-        .eq('id', job.id)
-        .gte('created_at', jobsListingWindowStartIso());
-
-      if (error) throw error;
-      if (count === 0) {
-        toast.error('This job listing is no longer available.');
-        return;
-      }
-
+			// TODO close job
       toast.success('Job closed successfully');
       router.refresh();
     } catch (err) {
@@ -917,25 +684,21 @@ export default function JobDetailPage() {
       alert('Cannot complete job at this time');
       return;
     }
-
     const transition = canTransitionToStatus('confirmed', 'completed');
     if (!transition.allowed) {
       alert(transition.reason);
       return;
     }
-
     store.updateJob(job.id, { status: 'completed' });
     const confirmedApp = applications.find((a) => a.subcontractorId === job.confirmedSubcontractor);
     if (confirmedApp) {
       store.updateApplication(confirmedApp.id, { status: 'completed' });
     }
-
     const conversation = store.getConversationForJob(
       job.id,
       job.contractorId,
       job.confirmedSubcontractor ?? job.selectedSubcontractor
     );
-
     if (conversation) {
       const messages = store.getMessagesByConversation(conversation.id);
       if (shouldAddSystemMessage(messages, 'completed')) {
@@ -943,13 +706,11 @@ export default function JobDetailPage() {
         store.addMessage(systemMsg);
       }
     }
-
     router.refresh();
   };
 
   const handleCancelJob = (reason: string) => {
     const wasAccepted = job.status === 'accepted' || job.status === 'confirmed';
-
     store.updateJob(job.id, {
       status: 'cancelled',
       cancelledAt: new Date(),
@@ -957,13 +718,11 @@ export default function JobDetailPage() {
       cancellationReason: reason,
       wasAcceptedOrConfirmedBeforeCancellation: wasAccepted,
     });
-
     const conversation = store.getConversationForJob(
       job.id,
       job.contractorId,
       job.confirmedSubcontractor ?? job.selectedSubcontractor
     );
-
     if (conversation) {
       const messages = store.getMessagesByConversation(conversation.id);
       if (shouldAddSystemMessage(messages, 'cancelled')) {
@@ -971,7 +730,6 @@ export default function JobDetailPage() {
         store.addMessage(systemMsg);
       }
     }
-
     router.refresh();
   };
 
@@ -982,7 +740,6 @@ export default function JobDetailPage() {
       authorId: currentUser.id,
       createdAt: new Date(),
     });
-
     // Best-effort notification email side effect.
     try {
       if (review?.recipientId && review?.jobId) {

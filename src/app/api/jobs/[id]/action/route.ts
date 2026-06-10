@@ -1,11 +1,5 @@
 // @ts-nocheck - Supabase client type inference
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabase } from '@/lib/supabase-server';
-import { createEmailEvent } from '@/lib/email/create-email-event';
-import {
-  buildHireConfirmedTemplateData,
-  buildJobInviteTemplateData,
-} from '@/lib/email/email-template-data';
 import { jobsListingWindowStartIso } from '@/lib/jobs/listing-window';
 
 export const dynamic = 'force-dynamic';
@@ -25,6 +19,7 @@ export async function POST(
   ctx: { params: Promise<{ id: string }> }
 ) {
   try {
+	/*
     const supabase = createServerSupabase();
     const {
       data: { user: authUser },
@@ -267,7 +262,7 @@ export async function POST(
         console.error('[jobs/action] hire_confirmed email side effect failed', emailErr);
       }
     }
-
+*/
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('jobs action API error:', err);

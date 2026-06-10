@@ -1,0 +1,1 @@
+ALTER TABLE "business_trade" ADD COLUMN "primary" boolean DEFAULT false;
