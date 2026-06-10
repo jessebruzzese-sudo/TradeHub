@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDataService } from "@/lib/data/service";
 import { cookies } from "next/headers";
+import { haversineKm } from "@/lib/discovery";
 import * as jose from "jose";
 import * as z from "zod";
 
@@ -27,11 +28,10 @@ export async function GET(request: NextRequest){
 			return NextResponse.json({msg:"User is not linked with a business"}, {status: 500});
 		}
 		const location = { latitude: business.locationLat, longitude: business.locationLng };
-		console.log(`Finding jobs near ${JSON.stringify(location)}`);
 		const near = await jobs.getJobsNear(location, claims.id); // +/- 1 lat/long
 		const premium = profile?.profile?.premium ?? false;
 		const radius = premium ? 100 : 20;
-		const refined = near.filter((x)=>getHaversineDistance(x, location) <= radius);
+		const refined = near.filter((x)=>haversineKm(x.latitude, x.longitude, location.latitude, location.longitude) <= radius);
 		if(refined.length === 0){
 			return NextResponse.json([], {status: 200});
 		}

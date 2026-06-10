@@ -72,6 +72,19 @@ export const getJobsNear = async (location:any, userId:string) => {
 		);
 };
 
+export const getJobsForIds = async (ids:string[]) => {
+	return new Promise(async(resolve, reject)=>{
+		const db = await getDB();			
+		const results = await db.select().from(jobsTable).
+			innerJoin(usersTable, eq(usersTable.profileId, jobsTable.profileId)).
+			innerJoin(profileTable, eq(profileTable.id, usersTable.profileId)).
+			innerJoin(businessTable, eq(businessTable.id, usersTable.businessId)).
+			leftJoin(jobAttachmentsTable, eq(jobAttachmentsTable.jobId, jobsTable.id)).
+			where(inArray(jobsTable.id, ids));
+		resolve(getJobObjects(results));
+	});
+};
+
 export const getUserJobs = async (userId:string) => {
 	return new Promise(async(resolve, reject)=>{
 		const db = await getDB();			
