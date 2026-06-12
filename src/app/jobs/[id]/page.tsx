@@ -821,9 +821,10 @@ export default function JobDetailPage() {
                 });
                 return null;
               })()}
-
+					
+							{/* Note that poster.id is owner.id, which is user id and not profile id */}
               <Link
-                href={getPublicProfileHref(poster?.id ?? job.contractorId)}
+                href={getPublicProfileHref(poster.id)}
                 className="block group"
               >
                 <div
