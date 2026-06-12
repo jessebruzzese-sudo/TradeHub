@@ -19,11 +19,9 @@ interface SuburbAutocompleteProps {
   postcode: string;
   onSuburbChange: (suburb: string) => void;
   onPostcodeChange: (postcode: string) => void;
-
   // NEW (optional but recommended so jobs/search can store coords)
   onLatLngChange?: (lat: number | null, lng: number | null) => void;
   onPlaceIdChange?: (placeId: string | null) => void;
-
   required?: boolean;
   disabled?: boolean;
   className?: string;

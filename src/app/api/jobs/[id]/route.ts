@@ -93,174 +93,135 @@ export async function DELETE(request, context) {
     return NextResponse.json({ success: true });
 }
 
+const JobAttachmentSchema = z.object({
+	fileName: z.string(),
+	mime: z.string(),
+	data: z.string().optional(), // could exist (new)
+	id: z.string().optional() // could exist (existing)
+});
+
+const JobUpdateSchema = z.object({
+	title: z.string(),
+	description: z.string(),
+	tradeCategory: z.string(),
+	location: z.string(),
+	placeId: z.string().nullable(),
+	latitude: z.number(),
+	longitude: z.number(),
+	postcode: z.string(),
+	payType: z.string(),
+	rate: z.number(),
+	startTime: z.string(),
+	durationDays: z.number().int(),
+	dates: z.array(z.string().datetime()),
+	attachments: z.array(JobAttachmentSchema)
+});
+
 /**
- * PATCH /api/jobs/[id] — Update a job with server-side trade validation.
+ * PUT /api/jobs/[id] — Update a job with server-side trade validation.
  * - Free users: trade_category must be one of their listed trades.
  * - Premium users: trade_category may be any valid TradeHub trade.
  */
-export async function PATCH(
+export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-	/*
-  try {
+		const claims = await getClaims();
     const { id: jobId } = await params;
     if (!jobId) {
-      return NextResponse.json({ error: 'Job ID required' }, { status: 400 });
+      return NextResponse.json({ error: "Job ID required" }, { status: 400 });
     }
-
-    const supabase = createServerSupabase();
-    const {
-      data: { user },
-      error: authErr,
-    } = await supabase.auth.getUser();
-
-    if (authErr || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: job, error: jobErr } = await supabase
-      .from('jobs')
-      .select('id, contractor_id')
-      .eq('id', jobId)
-      .gte('created_at', jobsListingWindowStartIso())
-      .maybeSingle();
-
-    if (jobErr || !job) {
-      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
-    }
-
-    if (job.contractor_id !== user.id) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    const { data: actor, error: actorErr } = await supabase
-      .from('users')
-      .select('id, role')
-      .eq('id', user.id)
-      .maybeSingle();
-
-    if (actorErr || !actor) {
-      return NextResponse.json({ error: 'Could not load profile' }, { status: 500 });
-    }
-
-    if (!hasContractorRoleForJobPosting(actor as { role?: string | null })) {
-      return NextResponse.json(
-        { error: JOB_EDIT_CONTRACTOR_ROLE_MESSAGE, code: JOB_POST_CONTRACTOR_ROLE_CODE },
-        { status: 403 }
-      );
-    }
-
-    const body = await request.json().catch(() => ({}));
-    const tradeCategory = typeof body?.trade_category === 'string' ? body.trade_category.trim() : undefined;
-
-    let tradeCategoryResolved: string | undefined;
-
-    if (tradeCategory !== undefined) {
-      if (!tradeCategory) {
-        return NextResponse.json({ error: 'Trade category cannot be empty' }, { status: 400 });
-      }
-
-      let catalogNames: string[];
-      try {
-        catalogNames = await loadActiveTradeNames(supabase);
-      } catch {
-        return NextResponse.json({ error: 'Could not load trade catalog' }, { status: 500 });
-      }
-
-      const resolved = resolveTradeAgainstCatalog(tradeCategory, catalogNames);
-      if (!resolved) {
-        return NextResponse.json(
-          { error: `Invalid trade category. Must be one of: ${catalogNames.join(', ')}` },
-          { status: 400 }
-        );
-      }
-      tradeCategoryResolved = resolved;
-
-      const { data: profile, error: profileErr } = await (supabase as any)
-        .from('users')
-        .select('id, role, plan, subscription_status, complimentary_premium_until, primary_trade, additional_trades')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      if (profileErr || !profile) {
-        return NextResponse.json({ error: 'Could not load profile' }, { status: 500 });
-      }
-
-      const isPremium = getTier(profile) === 'premium';
-
-      if (!isPremium) {
-        const userTrades = getListedTradesForJobEligibility(profile as any);
-        if (!userTrades.includes(tradeCategoryResolved)) {
-          return NextResponse.json(
-            { error: 'Free accounts can only post jobs in their listed trade(s). Upgrade to Premium to post in any trade.' },
-            { status: 403 }
-          );
-        }
-      }
-    }
-
-    const title = typeof body?.title === 'string' ? body.title.trim() : undefined;
-    const description = typeof body?.description === 'string' ? body.description.trim() : undefined;
-    const location = typeof body?.location === 'string' ? body.location.trim() : undefined;
-    const postcode = typeof body?.postcode === 'string' ? body.postcode.trim() : undefined;
-    const dates = body?.dates;
-    const startTime = typeof body?.start_time === 'string' ? body.start_time : undefined;
-    const duration = body?.duration;
-    const payType =
-      body?.pay_type === 'hourly'
-        ? 'hourly'
-        : body?.pay_type === 'day_rate'
-          ? 'day_rate'
-          : body?.pay_type === 'fixed'
-            ? 'fixed'
-            : undefined;
-    const rate = typeof body?.rate === 'number' ? body.rate : body?.rate != null ? Number(body.rate) : undefined;
-    const attachments = body?.attachments;
-
-    const updatePayload: Record<string, unknown> = {};
-    if (title !== undefined) updatePayload.title = title;
-    if (description !== undefined) updatePayload.description = description;
-    if (tradeCategoryResolved !== undefined) updatePayload.trade_category = tradeCategoryResolved;
-    if (location !== undefined) updatePayload.location = location;
-    if (postcode !== undefined) updatePayload.postcode = postcode;
-    if (Array.isArray(dates)) updatePayload.dates = dates;
-    if (startTime !== undefined) updatePayload.start_time = startTime;
-    if (duration !== undefined) updatePayload.duration = duration;
-    if (payType !== undefined) updatePayload.pay_type = payType;
-    if (rate !== undefined)
-      updatePayload.rate = rate != null && Number.isFinite(rate) && rate > 0 ? rate : null;
-    if (attachments !== undefined) updatePayload.attachments = attachments;
-
-    if (Object.keys(updatePayload).length === 0) {
-      return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
-    }
-
-    updatePayload.updated_at = new Date().toISOString();
-
-    const { error: updateErr } = await supabase
-      .from('jobs')
-      .update(updatePayload)
-      .eq('id', jobId)
-      .eq('contractor_id', user.id)
-      .gte('created_at', jobsListingWindowStartIso());
-
-    if (updateErr) {
-      console.error('[api/jobs/[id]] update error:', updateErr);
-      if (isJobsRlsOrPermissionError(updateErr)) {
-        return NextResponse.json(
-          { error: JOB_EDIT_CONTRACTOR_ROLE_MESSAGE, code: JOB_POST_CONTRACTOR_ROLE_CODE },
-          { status: 403 }
-        );
-      }
-      return NextResponse.json({ error: updateErr?.message || 'Failed to update job' }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true });
-  } catch (err) {
-    console.error('[api/jobs/[id]] error:', err);
-    return NextResponse.json({ error: 'Failed to update job' }, { status: 500 });
-  }
-	*/
+		let payload = null;
+		try{	
+			payload = JobUpdateSchema.parse(await request.json());
+		}catch(err_){
+			console.error(`PUT\t/api/jobs/[id]\t${err_}`);
+      return NextResponse.json({ error: "Failed to parse payload" }, { status: 400 });
+		}
+		if(payload === null){
+      return NextResponse.json({ error: "Payload was null" }, { status: 500 });
+		}
+		const { users: usersRepo, jobs: jobsRepo } = await getDataService();
+		// look up job
+		let existingJob = null;
+		try{
+			existingJob = await jobsRepo.getJob(jobId);
+		}catch(err__){
+      return NextResponse.json({ error: `Failed to retrieve job ${jobId}` }, { status: 500 });
+		}
+		if(existingJob === null || existingJob.length === 0){
+      return NextResponse.json({ error: `Job ${jobId} doesn't exist` }, { status: 404 });
+		}
+		existingJob = existingJob[0];
+		// admin or owners can edit
+		const isAdmin = claims.role === "admin";
+		const canEdit = isAdmin || (!isAdmin && existingJob.owner.id === claims.id);
+		if(!canEdit){
+      return NextResponse.json({ error: "Forbidden, not allowed to edit this job." }, { status: 403 });
+		}
+		// grab profile
+		// checking premium status
+		const user_ = await usersRepo.getUserProfile(claims.id);
+		const premium = user_?.profile?.premium ?? false;
+		if(!premium){
+			const pt = user_?.business?.primaryTrade ?? null;	
+			if(pt === null){
+      	return NextResponse.json({ error: "Users primary trade is not set" }, { status: 500 });
+			}
+			if(pt !== payload.tradeCategory){
+      	return NextResponse.json({ error: "Free users can only post jobs with their primary trade" }, { status: 400 });
+			}
+		}else{
+			// TODO
+			// make sure that trade exist
+		}
+		// dry run for checking validations
+		// are working correctly, before testing transaction
+		const DRY = false;
+		if(DRY){
+    	return NextResponse.json({ 
+				success: true, 
+				isAdmin, 
+				premium,
+				ownerId: existingJob.owner.id, 
+				userId: claims.id, 
+				primaryTrade: user_?.business?.primaryTrade ?? null, 
+				tradeCategory: payload.tradeCategory 
+			});
+		}
+		try{
+			// fill existing job with payload data
+			for(const key of Object.keys(payload)){
+				if(key === "attachments"){
+					continue;
+				}
+				existingJob[key] = payload[key];
+			}
+			// synchronise attachments
+			// find existing attachments in payload
+			const delta = {};
+			const added = [];
+			for(const a of payload.attachments){
+				const id = a?.id ?? null;
+				a.create = false;
+				// check for no id
+				// if not set, means new attachment
+				if(id === null){
+					a.create = true;
+					added.push(a);
+					continue;
+				}
+				delta[id] = a;
+			}
+			for(const a of existingJob.attachments){
+				const exists = delta[a.id] ?? null;
+				a.delete = exists === null;
+			}
+			existingJob.attachments = [...existingJob.attachments, ...added];
+			await jobsRepo.updateJob(existingJob);
+		}catch(err_){
+			console.error(`PUT\t/api/jobs/[id]\t${err_}`);
+			return NextResponse.json({ error: "Failed to update job" }, { status: 500 });
+		}
     return NextResponse.json({ success: true });
 }

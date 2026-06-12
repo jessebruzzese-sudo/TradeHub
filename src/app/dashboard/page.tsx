@@ -759,7 +759,7 @@ export default function DashboardPage() {
                   title="Post a Job"
                   description={
                     canPostJobListing
-                      ? 'Create a job and reach relevant subcontractors. Contractor account required; ABN not required to post; free limits and profile trades still apply.'
+                      ? 'Create a job and reach relevant trades people.'
                       : JOB_POST_CONTRACTOR_ROLE_MESSAGE
                   }
                   href={canPostJobListing ? '/jobs/create' : '/jobs'}
@@ -796,9 +796,9 @@ export default function DashboardPage() {
                   icon={<ClipboardList className="h-5 w-5" />}
                 />
                 <ActionCard
-                  title="My Profile"
-                  description="View and edit your professional details."
-                  href="/profile"
+                  title="My Works"
+                  description="Let people know about your previous works."
+                  href="/works"
                   icon={<User className="h-5 w-5" />}
                 />
               </>

@@ -6,6 +6,9 @@
  * - Owner with contractor role can save (matches hiring/job-post model, API, and RLS on `jobs` UPDATE). ABN optional for jobs.
  */
 
+
+import { getAxios } from "@/lib/utils";
+import UserContext from "@/lib/user-context";
 import { AppLayout } from '@/components/app-nav';
 import { PageHeader } from '@/components/page-header';
 import { useAuth } from '@/lib/auth';
@@ -18,11 +21,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { SuburbAutocomplete } from '@/components/suburb-autocomplete';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useContext } from 'react';
 import { toast } from 'sonner';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { PopoverContentWithDone } from '@/components/ui/popover-content-with-done';
-import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { DayPicker } from 'react-day-picker';
+import "react-day-picker/style.css";
 import { format as formatDate } from 'date-fns';
 import { Calendar as CalendarIcon, X, Upload, FileText, Image as ImageIcon, Info } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
@@ -67,6 +71,7 @@ export default function EditJobPage() {
   const { jwt } = useAuth();
   const params = useParams();
   const router = useRouter();
+	const UserSession = useContext(UserContext);
   const jobId = params.id as string;
 
   const [formData, setFormData] = useState({
@@ -74,6 +79,9 @@ export default function EditJobPage() {
     tradeCategory: '',
     location: '',
     postcode: '',
+		placeId: null,
+		latitude: null,
+		longitude: null,
     startTime: '08:00',
     duration: '1',
     payType: 'fixed',
@@ -82,6 +90,7 @@ export default function EditJobPage() {
   });
 
 	const [job, setJob] = useState(null);
+	const [currentUser, setCurrentUser] = useState(UserSession?.user ?? null);
   const [singleDate, setSingleDate] = useState<Date | undefined>(undefined);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
@@ -93,31 +102,17 @@ export default function EditJobPage() {
 
   const hydratedRef = useRef(false);
 
-  const userForDiscovery = useMemo(
-    () =>
-      currentUser
-        ? {
-            plan: (currentUser as any).plan ?? null,
-            subscription_status:
-              (currentUser as any).subscriptionStatus ?? (currentUser as any).subscription_status ?? null,
-            complimentary_premium_until:
-              (currentUser as any).complimentaryPremiumUntil ??
-              (currentUser as any).complimentary_premium_until ??
-              null,
-          }
-        : null,
-    [currentUser]
-  );
-  const isPremium = isPremiumForDiscovery(userForDiscovery);
+	const isLoading = currentUser === null || job === null;
+  const isPremium = currentUser?.profile?.premium ?? false;
   const { names: catalogTradeNames, loading: catalogTradesLoading } = useActiveTradesCatalog();
 
   const posterTrades = useMemo(() => {
-    const t = (currentUser as any)?.trades;
+    const t = currentUser?.business?.trades;
     if (Array.isArray(t) && t.length > 0) {
       return t.filter((x: string) => typeof x === 'string' && x.trim()).map((x: string) => x.trim());
     }
-    const pt = (currentUser as any)?.primaryTrade ?? (currentUser as any)?.primary_trade;
-    const at = (currentUser as any)?.additionalTrades ?? (currentUser as any)?.additional_trades;
+    const pt = currentUser?.business?.primaryTrade ?? null;
+    const at = [];
     const out = pt ? [String(pt).trim()] : [];
     if (Array.isArray(at)) {
       at.forEach((x: string) => {
@@ -137,29 +132,42 @@ export default function EditJobPage() {
     if (job !== null){ 
 			return; 
 		}
-		/*
-    setFormData({
-      title: job.title || '',
-      tradeCategory: job.tradeCategory || posterTrades[0] || '',
-      location: job.location || '',
-      postcode: job.postcode || '',
-      startTime: job.startTime || '08:00',
-      duration: job.duration?.toString() || '1',
-      payType: job.payType || 'fixed',
-      rate: job.rate?.toString() || '',
-      description: job.description || '',
-    });
-    const firstDate = job.dates?.[0];
-    setSingleDate(firstDate ? (firstDate instanceof Date ? firstDate : new Date(firstDate)) : undefined);
-    setAttachments(Array.isArray((job as any).attachments) ? ((job as any).attachments as JobAttachment[]) : []);
-		*/
+		getAxios(null).get(`/api/jobs/${jobId}`).
+			then((response)=>{
+				const data = response.data;
+    		setFormData({
+      		title: data?.title ?? "",
+     			tradeCategory: data?.tradeCategory ?? "",
+      		location: data?.location ?? "",
+      		postcode: data?.postcode ?? "",
+					latitude: data?.latitude ?? null,
+					longitude: data?.longitude ?? null,
+					placeId: null,
+      		startTime: data?.startTime ?? '08:00',
+      		duration: data?.durationDays?.toString() || "1",
+      		payType: data?.payType ?? "fixed",
+      		rate: data?.rate?.toString() ?? "",
+      		description: data?.description ?? "",
+    		});
+    		const firstDate = data?.dates[0] ?? null;
+    		setSingleDate(firstDate ? new Date(firstDate) : null);
+				const att = data?.attachments ?? [];
+				const mappedAtts = att.map((e,i)=>{
+					return { ...e, type: e.mime, name: e.fileName };
+				});
+    		setAttachments(mappedAtts);
+				// set job last
+				// as this will trigger the hook again
+				setJob(data);
+			}).catch((error)=>{
+				toast.error("Failed to load job");
+			});
   }, [job]);
 
-  const isOwner = job && currentUser && ownsJob(currentUser, job);
-  const canSaveListing = !!(currentUser && job && canEditJob(currentUser, job));
-  const roleBlocksEditing =
-    !!currentUser && !!job && ownsJob(currentUser, job) && !hasContractorRoleForJobPosting(currentUser);
-  const isRedirecting = !job || (currentUser && job && !ownsJob(currentUser, job));
+  const isOwner = job && currentUser && currentUser.id === job.owner.id;
+  const canSaveListing = currentUser && job && currentUser.id === job.owner.id;
+  const roleBlocksEditing = false; // never true, no other roles appart from user and admin
+  const isRedirecting = !job || (currentUser && job && currentUser.id !== job.owner.id);
 
   if (isLoading) {
     return (
@@ -173,14 +181,9 @@ export default function EditJobPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser || !job || !ownsJob(currentUser, job)) {
+    if (!currentUser || !job || job.owner.id !== currentUser.id) {
       return;
     }
-    if (!canSaveListing) {
-      toast.error(JOB_EDIT_CONTRACTOR_ROLE_MESSAGE);
-      return;
-    }
-
     if (multipleDates) {
       if (!dateFrom || !dateTo) {
         toast.error('Please select both start and end dates');
@@ -208,22 +211,24 @@ export default function EditJobPage() {
     const payload: Record<string, unknown> = {
       title: formData.title,
       description: formData.description,
-      trade_category: formData.tradeCategory,
+      tradeCategory: formData.tradeCategory,
       location: formData.location,
+			placeId: formData.placeId,
+			latitude: formData.longitude,
+			longitude: formData.latitude,
       postcode: formData.postcode,
-      pay_type: formData.payType,
+      payType: formData.payType,
       rate: formData.rate.trim() ? Number(formData.rate) : null,
-      start_time: formData.startTime || null,
-      duration: multipleDates ? (datesISO.length || null) : durationDays,
+      startTime: formData.startTime || null,
+      durationDays: multipleDates ? (datesISO.length || null) : durationDays,
       dates: datesISO,
-      attachments,
+			attachments
     };
-
-    try {
-			// TODO update job
+    try{
+			await getAxios(null).put(`/api/jobs/${jobId}`, payload);
       toast.success('Job updated successfully');
       safeRouterPush(router, `/jobs/${jobId}`, '/jobs');
-    } catch (err) {
+    }catch (err){
       console.error('[jobs/edit] update failed', err);
       const msg = err instanceof Error ? err.message : 'Failed to save changes. Please try again.';
       toast.error(msg);
@@ -234,18 +239,33 @@ export default function EditJobPage() {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+	const readFile = async (file:File) => {
+		return new Promise(async(resolve, reject)=>{
+			const reader = new FileReader();
+			reader.addEventListener("load", resolve);
+			reader.addEventListener("error", reject);
+			reader.readAsDataURL(file);
+		});
+	};
+
   async function handleAddAttachments(files: FileList | null) {
     if (!files || files.length === 0) return;
-    setIsUploading(true);
-    try {
-			// TODO upload attachments
-    } catch (e) {
-      console.error(e);
-      toast.error('Upload failed');
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
+		const p = /^data:([^;]+);base64,(.*)$/;
+		const attachments_ = []; // local
+		for(const f of files){
+			const fileName = f.name;
+			const event = await readFile(f);	
+			const url = event.target.result;
+			const match = p.exec(url);	
+			if(match){
+				const mime = match[1];
+				const data = match[2];
+				attachments_.push({mime, data, fileName, name:fileName, type:mime});
+			}else{
+				console.error(`Could not match regex, url was ${url}`);
+			}
+		}
+		setAttachments([...attachments, ...attachments_]);
   }
 
   function removeAttachment(idx: number) {
@@ -278,22 +298,6 @@ export default function EditJobPage() {
         {/* Page content */}
         <div className="relative z-10 mx-auto w-full max-w-4xl px-4 py-10 pb-16 md:pb-20">
           <PageHeader backLink={{ href: `/jobs/${jobId}` }} title="Edit Job" tone="dark" />
-
-          {roleBlocksEditing && (
-            <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
-              <div className="flex items-start gap-3">
-                <Info className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" aria-hidden />
-                <div className="space-y-2 text-sm text-amber-950">
-                  <p className="font-medium">Contractor account required</p>
-                  <p>{JOB_EDIT_CONTRACTOR_ROLE_MESSAGE}</p>
-                  <Button asChild size="sm" variant="outline" className="mt-1 border-amber-300 bg-white">
-                    <Link href={`/jobs/${jobId}`}>Back to job</Link>
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-
           <div className="rounded-2xl bg-white shadow-[0_25px_80px_rgba(0,0,0,0.25)] hover:shadow-[0_25px_80px_rgba(0,0,0,0.35)] transition-shadow p-6 sm:p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Section: Job details */}
@@ -353,6 +357,8 @@ export default function EditJobPage() {
                 postcode={formData.postcode}
                 onSuburbChange={(value) => handleChange('location', value)}
                 onPostcodeChange={(value) => handleChange('postcode', value)}
+								onLatLngChange={(latitude, longitude)=>{handleChange("latitude", latitude);handleChange("longitude", longitude);}}
+								onPlaceIdChange={(placeId)=>handleChange("placeId", placeId)}
                 required
               />
             </div>
@@ -386,12 +392,12 @@ export default function EditJobPage() {
                         </Button>
                       </PopoverTrigger>
                       <PopoverContentWithDone className="w-auto" align="start">
-                        <CalendarComponent
-                          mode="single"
-                          selected={singleDate}
-                          onSelect={setSingleDate}
-                          initialFocus
-                        />
+												<DayPicker
+            							animate
+            							mode="single"
+            							selected={singleDate}
+            							onSelect={setSingleDate}
+          							/>
                       </PopoverContentWithDone>
                     </Popover>
                   </div>
@@ -434,12 +440,12 @@ export default function EditJobPage() {
                         </Button>
                       </PopoverTrigger>
                       <PopoverContentWithDone className="w-auto" align="start">
-                        <CalendarComponent
-                          mode="single"
-                          selected={dateFrom}
-                          onSelect={setDateFrom}
-                          initialFocus
-                        />
+												<DayPicker
+            							animate
+            							mode="single"
+            							selected={dateFrom}
+            							onSelect={setDateFrom}
+          							/>
                       </PopoverContentWithDone>
                     </Popover>
                   </div>
@@ -456,13 +462,13 @@ export default function EditJobPage() {
                         </Button>
                       </PopoverTrigger>
                       <PopoverContentWithDone className="w-auto" align="start">
-                        <CalendarComponent
-                          mode="single"
-                          selected={dateTo}
-                          onSelect={setDateTo}
+												<DayPicker
+            							animate
+            							mode="single"
+            							selected={dateTo}
+            							onSelect={setDateTo}
                           disabled={(date) => (dateFrom ? date < dateFrom : false)}
-                          initialFocus
-                        />
+          							/>
                       </PopoverContentWithDone>
                     </Popover>
                   </div>

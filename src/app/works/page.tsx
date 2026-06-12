@@ -1,5 +1,7 @@
+// vim: ts=2
 'use client';
 
+import { getAxios } from "@/lib/utils";
 import UserContext from "@/lib/user-context";
 import Image from 'next/image';
 import Link from 'next/link';
@@ -7,7 +9,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState, useContext } from 'react';
 import { MapPin, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-
 import { AppLayout } from '@/components/app-nav';
 import { CompletedWorksGradientShell } from '@/components/works/completed-works-gradient-shell';
 import { PageHeader } from '@/components/page-header';
@@ -35,19 +36,13 @@ export default function CompletedWorksIndexPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-	const [currentUser, setCurrentUser] = useState(UserSession.user);
-  const [items, setItems] = useState<PreviousWorkListItem[]>([]);
-  const [loading, setLoading] = useState(true);
+	const [currentUser, setCurrentUser] = useState(UserSession?.user ?? null);
+  const [items, setItems] = useState<PreviousWorkListItem[]>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PreviousWorkListItem | null>(null);
-	
-	const hasSession = jwt !== undefined && jwt !== null;
 
-  useEffect(() => {
-    if (!hasSession) {
-      router.replace(`/login?returnUrl=${encodeURIComponent('/works')}`);
-    }
-  }, [hasSession]);
+	const isLoading = currentUser === null || items === null;
+	const hasSession = jwt !== undefined && jwt !== null;
 
   useEffect(() => {
     if (searchParams.get('created') !== '1') return;
@@ -59,60 +54,32 @@ export default function CompletedWorksIndexPage() {
   const primaryTradeLabel = currentUser?.business?.trades[0] ?? null;
   const TradeIcon = primaryTradeLabel ? getTradeIcon(primaryTradeLabel) : null;
 
-  const load = useCallback(async () => {
-    if (!currentUser?.id) return;
-    setLoading(true);
-    try {
-      const res = await fetch(
-        `/api/profile/previous-work?userId=${encodeURIComponent(currentUser.id)}`,
-        { credentials: 'include' }
-      );
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setItems([]);
-        return;
-      }
-      setItems(Array.isArray(data?.items) ? data.items : []);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentUser?.id]);
-
   useEffect(() => {
-    if (currentUser?.id) void load();
-  }, [load, currentUser?.id]);
+		if(items !== null){
+			return;
+		}	
+		getAxios(null).get("/api/me/works").
+			then((response)=>{
+				const data = response.data;
+				setItems(data);
+			}).catch((error)=>{
+				toast.error("Failed to load works");
+			});
+  }, [items]);
 
   const confirmDelete = async () => {
     const id = deleteTarget?.id;
     if (!id) return;
     setDeletingId(id);
     try {
-      const res = await fetch(`/api/profile/previous-work/${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(typeof data?.error === 'string' ? data.error : 'Could not remove work.');
-        return;
-      }
+			// TODO remove work
       toast.success('Completed work removed');
-      setItems((prev) => prev.filter((x) => x.id !== id));
+      setItems(null);
       setDeleteTarget(null);
     } finally {
       setDeletingId(null);
     }
   };
-
-  if (!currentUser) {
-    return (
-      <AppLayout transparentBackground>
-        <CompletedWorksGradientShell className="max-w-5xl">
-          <div className="h-10 w-48 animate-pulse rounded-lg bg-white/20" />
-        </CompletedWorksGradientShell>
-      </AppLayout>
-    );
-  }
 
   return (
     <AppLayout transparentBackground>
@@ -135,7 +102,7 @@ export default function CompletedWorksIndexPage() {
           }
         />
 
-        {loading ? (
+        {isLoading ? (
           <div className="grid gap-4 sm:grid-cols-2">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="aspect-[4/3] animate-pulse rounded-xl bg-white/15" />

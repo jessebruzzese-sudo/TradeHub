@@ -43,6 +43,33 @@ const jobsReducer = (a, c) => {
 	return a;
 };
 
+export const updateJob = async (job:any) => {
+	return new Promise(async(resolve, reject)=>{
+		// make sure that job has id
+		// i.e. is an existing job and not a payload
+		const jobId = job?.id ?? null;
+		if(jobId === null){
+			reject(new Error("Job object doesn't have id"));
+			return;
+		}
+		const db = await getDB();
+		await db.transaction(async(trx)=>{
+			for(const a of job.attachments){
+				if(a.delete){
+					await trx.delete(jobAttachmentsTable).where(eq(jobAttachmentsTable.id, a.id));
+					continue;
+				}
+				if(a.create){
+					const path = `${ENV.store.jobs}/${jobId}`;
+					await addJobAttachmentT(trx, {...a, jobId}, path);
+				}
+			}
+			await trx.update(jobsTable).set(job).where(eq(jobsTable.id, jobId));
+		});
+		resolve(true);
+	});
+};
+
 export const getJobsNear = async (location:any, userId:string) => {
 	const minLat = location.latitude - 1;
 	const maxLat = location.latitude + 1;
@@ -162,19 +189,22 @@ export const addJob = async (job:any) => {
 			}
 			for(const a of job.attachments){
 				const copy = {...a, jobId: jobId_ }; // fileName, jobId
-				results = await trx.insert(jobAttachmentsTable).
-					values(copy).
-					returning({id: jobAttachmentsTable.id});
-				const attId  = results[0]?.id ?? null;
-				const filePath = `${path}/${attId}`;
-				const binary = Buffer.from(a.data, "base64");
-				// write data to file store
-				await writeFile(filePath, binary);
+				await addJobAttachmentT(trx, copy, path);
 			}
 			return jobId_;
 		});
 		resolve(jobId);
 	});
+};
+
+const addJobAttachmentT = async (trx:any, attachment:any, path:string) => {
+	const results = await trx.insert(jobAttachmentsTable).
+		values(attachment).
+		returning({id: jobAttachmentsTable.id});
+	const attId  = results[0]?.id ?? null;
+	const filePath = `${path}/${attId}`;
+	const binary = Buffer.from(attachment.data, "base64");
+	return writeFile(filePath, binary);
 };
 
 export const getJobCount = async (userId:string, days:integer) => {
