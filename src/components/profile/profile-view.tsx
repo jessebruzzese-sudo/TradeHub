@@ -433,8 +433,8 @@ export function ProfileView({
                   <div className="relative overflow-hidden rounded-2xl border bg-slate-200">
                     <div className="relative h-[162px] sm:h-[198px] md:h-[234px] w-full">
 											{/* TODO construct public URL for cover images */}
-                      {(p?.profile?.coverDataUrl ?? null) ? (
-                        <Image src={`/api/public/profiles/${p?.profile?.id}/cover`} alt="" fill className="object-cover" unoptimized />
+                      {(p?.profile?.id ?? null) ? (
+                        <Image src={`/api/profile/${p?.profile?.id}/cover`} alt="" fill className="object-cover" unoptimized />
                       ) : (
                         <div className="absolute inset-0 bg-gradient-to-br from-slate-200 via-slate-100 to-slate-300" />
                       )}
