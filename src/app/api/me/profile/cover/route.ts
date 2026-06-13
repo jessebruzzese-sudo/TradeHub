@@ -44,7 +44,7 @@ export async function PUT(request: NextRequest) {
 	}
 	try{
 		const { profile } = await getDataService();
-		const profileId = await profile.getProfileId(email);
+		const profileId = await profile.getProfileId(claims.id);
 		await profile.setProfileCover(profileId, filePath);
 	}catch(err_){
 		console.error(err_);
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
 	let images = null;
 	try{
 		const { profile } = await getDataService();
-		const profileId = await profile.getProfileId(email);
+		const profileId = await profile.getProfileId(claims.id);
 		if(profileId === null){
 			throw new Error("Could not determine profile id (null)");
 		}

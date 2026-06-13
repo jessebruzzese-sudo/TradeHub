@@ -1,6 +1,7 @@
 // vim: ts=2
 "use client";
 import { getAxios } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
 import { useState, useEffect } from "react";
 import { redirect, useParams } from 'next/navigation';
 import { ProfileView } from '@/components/profile/profile-view';
@@ -12,9 +13,11 @@ const PublicProfileByIdPage = () => {
 
 	const params = useParams();
   const profileId = params?.id?.trim();
-	const [profile, setProfile] = useState<any|null>(null);
-	const [exists, setExists] = useState<boolean>(true);
+	const { jwt } = useAuth();
+	const [ profile, setProfile ] = useState<any|null>(null);
+	const [ exists, setExists ] = useState<boolean>(true);
 	const loading = profile === null;
+	const hasSession = jwt  !== undefined && jwt !== null;
 	
 	useEffect(()=>{
 		if(!exists){
@@ -34,6 +37,11 @@ const PublicProfileByIdPage = () => {
 				setExists(false);
 			});
 	}, [profile]);
+		
+	if(!hasSession){
+		redirect("/login");
+		return;
+	}
 	
   if (!profileId) {
     redirect('/dashboard');

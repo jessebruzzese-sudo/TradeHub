@@ -30,7 +30,7 @@ const WorkSchema = z.object({
 export async function POST(request: NextRequest) {
 	const claims = await getClaims();
 	const { profile, works } = await getDataService();
-	const profileId = await profile.getProfileId(claims.email);
+	const profileId = await profile.getProfileId(claims.id);
 	let work = null;
 	try{
 		work = WorkSchema.parse(await request.json());
@@ -66,7 +66,7 @@ export const loadWorkImages = async (work:any) => {
 export async function GET(request: NextRequest) {
 	const claims = await getClaims();
 	const { profile, works } = await getDataService();
-	const profileId = await profile.getProfileId(claims.email);
+	const profileId = await profile.getProfileId(claims.id);
 	const results = await works.getWork(profileId);
 	// TODO think about lazing loading images
 	// or better, use something like redis for caching...

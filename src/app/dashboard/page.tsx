@@ -768,7 +768,7 @@ export default function DashboardPage() {
                   disabledHint={!canPostJobListing ? JOB_POST_CONTRACTOR_ROLE_MESSAGE : undefined}
                 />
                 <ActionCard
-                  title="Browse Subcontractors"
+                  title="Browse Profiles"
                   description="Find available trades near you."
                   href="/subcontractors"
                   icon={<Users className="h-5 w-5" />}

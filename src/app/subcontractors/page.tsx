@@ -1,4 +1,5 @@
 // @ts-nocheck
+// vim: ts=2
 'use client';
 
 import Link from 'next/link';
@@ -168,21 +169,6 @@ export default function SubcontractorsPage() {
     return format(nextAvailable, 'EEE d MMM');
   }, [nextAvailable]);
 
-  const userForDiscovery = useMemo(
-    () =>
-      currentUser
-        ? {
-            plan: (currentUser as any).plan ?? null,
-            subscription_status:
-              (currentUser as any).subscriptionStatus ?? (currentUser as any).subscription_status ?? null,
-            complimentary_premium_until:
-              (currentUser as any).complimentaryPremiumUntil ??
-              (currentUser as any).complimentary_premium_until ??
-              null,
-          }
-        : null,
-    [currentUser]
-  );
   const isPremium = currentUser?.profile?.premium ?? false;
   const primaryTrade = currentUser?.business?.primaryTrade ?? null;
 

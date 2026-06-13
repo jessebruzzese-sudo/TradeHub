@@ -72,10 +72,12 @@ export default function CompletedWorksIndexPage() {
     if (!id) return;
     setDeletingId(id);
     try {
-			// TODO remove work
+			await getAxios(null).delete(`/api/me/works/${id}`);
       toast.success('Completed work removed');
       setItems(null);
       setDeleteTarget(null);
+		} catch(err_) {
+			toast.error("Failed to delete");
     } finally {
       setDeletingId(null);
     }

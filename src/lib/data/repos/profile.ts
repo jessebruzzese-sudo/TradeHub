@@ -18,11 +18,11 @@ export const getProfileImages = async (id:string) => {
 	});
 };
 
-export const getProfileId = async (email:string) => {
+export const getProfileId = async (userId:string) => {
 	return new Promise(async(resolve, reject)=>{
 		const results = await (await getDB()).select({profileId: usersTable.profileId}).
 			from(usersTable).
-			where(eq(usersTable.email, email));
+			where(eq(usersTable.id, userId));
 		const profileId = results[0]?.profileId ?? null;
 		resolve(profileId);
 	});

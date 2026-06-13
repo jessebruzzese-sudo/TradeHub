@@ -1,17 +1,18 @@
+// vim: ts=2
 'use client';
 
 import Link from 'next/link';
+import UserContext from "@/lib/user-context";
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { isAdmin } from '@/lib/is-admin';
 import { LogOut, MoreHorizontal, Bell, Lock, Shield } from 'lucide-react';
+import { useContext } from "react";
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { GlobalFooter } from '@/components/global-footer';
 import { getStore } from '@/lib/store';
 import { hasValidABN } from '@/lib/abn-utils';
 import { useDevUnread } from '@/lib/dev-unread-context';
-import { useNotificationsUnread } from '@/lib/notifications-unread-context';
 import Image from 'next/image';
 import { MobileBottomNav, MobileDrawer } from '@/components/mobile-navigation';
 import {
@@ -23,29 +24,35 @@ import {
 } from '@/lib/nav-config';
 
 export function TopBar() {
-  const { currentUser, logout } = useAuth();
-  const { hasUnread: notificationsHasUnread } = useNotificationsUnread();
+
+	const UserSession = useContext(UserContext);	
+	const currentUser = UserSession?.user ?? null;
+	const { jwt, logout } = useAuth();
+	const isAdmin = (currentUser?.role ?? "user") === "admin";
 
   if (!currentUser) {
     return null;
   }
 
+	const doLogout = () => {
+		UserSession.user = null;
+		logout();
+	};
+
   return (
     <div className="border-b border-gray-200 bg-white sticky top-0 z-40 safe-area-inset-top">
       <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          {!isAdmin(currentUser) && <MobileDrawer />}
+          {!isAdmin && <MobileDrawer />}
           <Link href="/" className="flex items-center min-w-0">
             <Image src="/TradeHub -Horizontal-Main.svg" alt="TradeHub" width={140} height={25} className="h-8 w-auto max-w-full" />
           </Link>
         </div>
         <div className="flex items-center gap-2">
-          {!isAdmin(currentUser) && (
+          {!isAdmin && (
             <Link href="/notifications" className="hidden md:flex relative p-2 hover:bg-gray-100 rounded-lg transition-colors min-w-[44px] min-h-[44px] items-center justify-center">
               <Bell className="w-5 h-5 text-gray-700" />
-              {notificationsHasUnread && (
                 <div className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" aria-label="Unread notifications" />
-              )}
             </Link>
           )}
           <DropdownMenu>
@@ -56,7 +63,7 @@ export function TopBar() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem disabled className="truncate max-w-[200px]">{currentUser.name || 'TradeHub user'}</DropdownMenuItem>
-              {!isAdmin(currentUser) && (
+              {!isAdmin && (
                 <>
                   <DropdownMenuItem asChild>
                     <Link href="/profile">Profile</Link>
@@ -66,7 +73,7 @@ export function TopBar() {
                   </DropdownMenuItem>
                 </>
               )}
-              <DropdownMenuItem onClick={() => logout()}>
+              <DropdownMenuItem onClick={doLogout}>
                 <LogOut className="w-4 h-4 mr-2" />
                 Log out
               </DropdownMenuItem>
@@ -80,21 +87,21 @@ export function TopBar() {
 
 
 export function SideNav() {
-  const { currentUser } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
-  const store = getStore();
-  const { override: devUnreadOverride } = useDevUnread();
+	const UserSession = useContext(UserContext);	
+	const currentUser = UserSession?.user ?? null;
+	const { jwt, logout } = useAuth();
+	const isAdmin = (currentUser?.role ?? "user") === "admin";
 
   if (!currentUser) {
     return null;
   }
 
   const onAdminRoute = pathname.startsWith('/admin');
-  const navKey = onAdminRoute && isAdmin(currentUser) ? 'admin' : 'business';
-  const unreadCount =
-    devUnreadOverride != null ? devUnreadOverride : store.getUnreadConversationCount(currentUser.id);
-  const isVerified = hasValidABN(currentUser);
+  const navKey = onAdminRoute && isAdmin ? 'admin' : 'business';
+  const unreadCount = 0;
+  const isVerified =  currentUser?.business?.abnVerified ?? false;
 
   const navLinkClass = (href: string, locked?: boolean) =>
     `flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors relative ${
@@ -187,7 +194,7 @@ export function SideNav() {
   }
 
   const accountItems = [...getAccountItems()];
-  if (isAdmin(currentUser)) {
+  if (isAdmin) {
     accountItems.push({ label: 'Admin', href: '/admin', icon: Shield });
   }
 
@@ -217,14 +224,17 @@ export function SideNav() {
 }
 
 export function BottomNav() {
-  const { currentUser } = useAuth();
   const pathname = usePathname();
+	const UserSession = useContext(UserContext);	
+	const currentUser = UserSession?.user ?? null;
+	const { jwt, logOut } = useAuth();
+	const isAdmin = ( currentUser?.role ?? "user" ) === "admin";
 
   if (!currentUser) {
     return null;
   }
 
-  if (isAdmin(currentUser)) {
+  if (isAdmin) {
     return (
       <div className="md:hidden fixed bottom-0 left-0 right-0 border-t border-gray-200 bg-white z-50 safe-area-inset-bottom">
         <div className="flex justify-around items-stretch">
@@ -258,9 +268,14 @@ export function AppLayout({
   children,
   transparentBackground = false,
 }: AppLayoutProps) {
-  const { currentUser } = useAuth();
 
-  if (!currentUser) {
+	const UserSession = useContext(UserContext);	
+	const currentUser = UserSession?.user ?? null;
+	const { jwt } = useAuth();
+	const isAdmin = ( currentUser?.role ?? "user" ) === "admin";
+	const hasSession = jwt !== undefined && jwt !== null;
+
+  if (!currentUser || !hasSession) {
     return (
       <>
         {children}
