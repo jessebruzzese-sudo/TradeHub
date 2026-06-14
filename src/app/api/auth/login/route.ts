@@ -22,6 +22,13 @@ export async function POST(req: Request) {
 	if(user === null){
 		return NextResponse.json({ error: 'Invalid username or password' }, { status: 400 });
 	}
+	// check activation
+	const activated: boolean = user?.activated ?? false;
+	if(!activated){
+		return NextResponse.json({ 
+			error: "Please activate your account first." 
+		}, { status: 400 });
+	}
 	// compare password
 	const match = await bcrypt.compare(creds.password, user.password);
 	if(match !== true){

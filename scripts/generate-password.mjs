@@ -1,4 +1,5 @@
 import * as bcrypt from "bcrypt";
+import * as crypto from "crypto";
 const plain = process.argv[2];
 const mode = process.argv[3];
 const SALT_ROUNDS = 10;

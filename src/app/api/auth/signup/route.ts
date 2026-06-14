@@ -1,6 +1,7 @@
 // vim: ts=2
 import { NextResponse } from 'next/server';
 import { getDataService } from "@/lib/data/service";
+import { doWelcome } from "@/lib/email/service";
 export type BusinessPayload = {
 	primaryTrade: string;
 	businessName: string;
@@ -25,8 +26,22 @@ export type SignUpPayload = {
 };
 export async function POST(req: Request) {
 	const payload = (await req.json()) as SignUpPayload;
-	console.log(JSON.stringify(payload));
 	const { users } = await getDataService();
-	const addedId: string = await users.addBusinessUser(payload);
-	return NextResponse.json({userId:addedId}, {status:201});
+	try{
+		// TODO check for existing emails
+		const added: any = await users.addBusinessUser(payload);
+		const name = payload.name;
+		const email = payload.email;
+		const userId = added.userId;
+		const code = added.activationCode;
+		try{
+			const welcome = { name, email, code, userId };
+			await doWelcome(welcome);
+		}catch(err_){
+			console.error(err_);
+		}
+		return NextResponse.json({userId}, {status:201});
+	}catch(err_){
+		return NextResponse.json({error:"Failed to create new user"}, {status:500});
+	}
 }

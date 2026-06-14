@@ -131,7 +131,7 @@ export const addBusinessT = async (business:any, trx:any) => {
 			const linkage = {
 				tradeId: tradeId,
 				businessId: businessId,
-				primary: i === 0
+				isPrimary: i === 0
 			};
 			await trx.insert(businessTradeTable).values(linkage);
 			i += 1

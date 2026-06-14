@@ -1,3 +1,4 @@
+// vim: ts=2
 import type { ProfileStrengthCategoryParts } from '@/lib/profile-strength/compute-total';
 
 function str(v: unknown): string {
@@ -101,7 +102,7 @@ export function computeProfileStrengthCategoriesFromProfile(
   const avatar = profile?.profile?.avatarDataUrl ?? null;
   if (avatar) comp += 2;
   const bio = profile?.profile?.bio ?? null;
-  if (bio.length >= 40) comp += 3;
+  if ((bio?.length ?? 0) >= 40) comp += 3;
   const trades = profile?.business?.trades ?? [];
   const primaryTrade = trades[0] ?? null;
   if (primaryTrade) comp += 2;
@@ -110,7 +111,7 @@ export function computeProfileStrengthCategoriesFromProfile(
   const pricingType = profile?.business?.priceType ?? null;
   if (pricingType) comp += 2;
   const miniBio = profile?.profile?.miniBio ?? null;
-  if (miniBio.length >= 20) comp += 2;
+  if ((miniBio?.length ?? 0) >= 20) comp += 2;
 	const works = profile?.profile?.works ?? [];
 	if (works.length > 0) comp += 2;
   const completeness = Math.min(13, comp);

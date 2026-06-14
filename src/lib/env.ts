@@ -13,9 +13,19 @@ export type TradeHubDatabase = {
 	database: string;
 	password: string;
 };
+export type SendgridTemplates = {
+	welcome: string;
+};
+export type TradeHubSendgrid = {
+	key: string;
+	fromEmail: string;
+	appBaseUrl: string;
+	templates: SendgridTemplates;
+};
 export type TradeHubEnv = {
 	store: TradeHubStore;
 	database: TradeHubDatabase;
+	sendgrid: TradeHubSendgrid;
 	jwt: TradeHubJWT;
 };
 const load = (key:string) => {
@@ -38,6 +48,14 @@ export const ENV: TradeHubEnv = {
 		password: load("POSTGRES_PASSWORD"),
 		username: load("POSTGRES_USERNAME"),
 		database: load("POSTGRES_DATABASE")
+	},
+	sendgrid: {
+		key: load("SENDGRID_KEY"),	
+		fromEmail: load("SENDGRID_FROM_EMAIL"),
+		appBaseUrl: load("SENDGRID_APP_BASE_URL"),
+		templates: {
+			welcome: load("WELCOME_TEMPLATE_ID")	
+		}
 	},
 	jwt: {
 		secret: load("JWT_SECRET")

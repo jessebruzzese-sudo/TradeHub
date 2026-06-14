@@ -73,10 +73,15 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
     async (email, password) => {
 			return new Promise(async(resolve, reject)=>{
 				const creds = { email: email, password: password };
-				const response_ = await getAxios(null).post("/api/auth/login", creds);
-				const token = response_.data.token;
-				setJWT(token);
-				resolve(token);
+				try{
+					const response_ = await getAxios(null).post("/api/auth/login", creds);
+					const token = response_.data.token;
+					setJWT(token);
+					resolve(token);
+				}catch(err_){
+					setJWT(null);
+					reject(err_);
+				}
 			});
     },
     [jwt]

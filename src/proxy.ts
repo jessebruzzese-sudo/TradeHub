@@ -12,6 +12,7 @@ const PROTECTED_ROUTES = [
   '/messages',
   '/notifications',
   '/applications',
+	"/profiles",
   '/subcontractors',
   '/users',
   '/admin',
@@ -58,9 +59,10 @@ function isApiRoute(pathname: string): boolean {
 
 function shouldSkip(pathname: string): boolean {
   // ✅ IMPORTANT: do NOT skip /api/admin/*
-  if (pathname.startsWith('/api/')) return false;
+  if (pathname.startsWith('/api/') && pathname !== "/api/ping") return false;
 
   return (
+		pathname === "/api/ping" || 
     pathname.startsWith('/_next/') ||
     pathname === '/favicon.ico' ||
     pathname.startsWith('/logo') ||

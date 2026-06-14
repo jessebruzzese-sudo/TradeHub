@@ -11,8 +11,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Eye, EyeOff } from 'lucide-react';
 import { getSafeReturnUrl, safeRouterReplace } from '@/lib/safe-nav';
+import { toast } from "sonner";
 import { isAdmin } from '@/lib/is-admin';
 
+// TODO get rid of this shit
 function getFriendlyLoginError(error: any): string {
   if (!error) {
     return 'Invalid email or password. Please check your credentials and try again.';
@@ -49,10 +51,11 @@ function getFriendlyLoginError(error: any): string {
     return 'Too many login attempts. Please wait a moment and try again.';
   }
   // Default fallback
-  return 'Unable to sign in. Please try again later.';
+  return 'Invalid username and/or password';
 }
 
 export default function LoginPage() {
+
 	const [isLoading, setIsLoading] = useState<boolean>(false);
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
@@ -74,9 +77,9 @@ export default function LoginPage() {
 			const safeReturnUrl = getSafeReturnUrl(returnUrlParam, defaultUrl);
 			safeRouterReplace(router, safeReturnUrl);
     } catch (err: any) {
-      const friendlyError = getFriendlyLoginError(err);
+			const msg = err?.response?.data?.error ?? null;
 			setIsLoading(false);
-      setError(friendlyError);
+      setError(msg);
     }
   };
 
@@ -89,6 +92,7 @@ export default function LoginPage() {
       </AppLayout>
     );
   }
+
   return (
     <AppLayout>
       <div className="relative min-h-screen bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800">

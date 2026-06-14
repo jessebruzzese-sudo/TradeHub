@@ -329,8 +329,8 @@ export function ProfileView({
   const primaryTrade = p?.business?.trades[0] ?? null;
   const allTrades = ( p?.business?.trades ?? [] ) as string[];
   const otherTrades = [];
-  const miniBio = p?.profile?.miniBio ?? null;
-  const bio = p?.profile?.bio ?? null;
+  const miniBio = p?.profile?.miniBio ?? "";
+  const bio = p?.profile?.bio ?? "";
   const reliabilityRating = p?.profile?.reliabilityRating ?? null;
   const showProBadge = p?.profile?.premium ?? false;
   const links = ( p?.profile?.links ?? {} ) as Record<string, any>;

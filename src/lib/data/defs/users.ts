@@ -24,7 +24,10 @@ export const usersTable = pgTable("users", {
 	businessId: uuid("business_id").references(()=>businessTable.id), // business owned by user
 	profileId: uuid("profile_id").references(()=>profileTable.id), // users profile
 	accountStatus: text("account_status"), // could be in profile? 
-	public: boolean("public").default(false) // could be in profile?
+	public: boolean("public").default(false), // could be in profile?
+	activated: boolean("activated").default(false),
+	activatedAt: timestamp("activated_at"),
+	activationCode: text("activation_code")
 });
 
 export type UserType = typeof usersTable.$inferSelect;

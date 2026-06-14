@@ -7,6 +7,7 @@ import { profileTable } from "@/lib/data/defs/profile";
 import { workTable } from "@/lib/data/defs/works";
 import { getDB, getDataService } from "@/lib/data/service";
 import { formatISO } from "date-fns";
+import { randomUUID } from "crypto";
 import * as bcrypt from "bcrypt";
 
 const CUSTOMER_ROLE_ID = 2;	
@@ -44,6 +45,23 @@ const userReducer = (a, c) => {
 	return a;
 };
 
+export const getActivationStatus = async (email:string) => {
+	return (await getDB()).select({activated: usersTable.activated}).
+		from(usersTable).
+		where(eq(usersTable.email, email));
+};
+
+export const activateUser = async (payload:any) => {
+	return (await getDB()).update(usersTable).
+		set({activated:true, activatedAt: new Date()}).
+		where(
+			and(	
+				eq(usersTable.id, payload.userId), 
+				eq(usersTable.activated, false)
+			)
+		);
+};
+
 export const getUserLocation = async (userId:string) => {
 	return new Promise(async(resolve, reject)=>{
 		const db = await getDB();
@@ -63,6 +81,7 @@ export const updateLastActive = async (email:string) => {
 const addUserT = async (payload:any, businessId:string, profileId:string, roleId:integer, trx:any) => {
 	return new Promise(async(resolve, reject)=>{
 		const hashed = await bcrypt.hash(payload.password, SALT_ROUNDS);
+		const activationCode = randomUUID();
 		const values = {
 			roleId,
 			businessId,
@@ -72,7 +91,8 @@ const addUserT = async (payload:any, businessId:string, profileId:string, roleId
 			name: payload.name,
 			visibleName: payload.visibleName,
 			accountStatus: payload?.accountStatus ?? "active",
-			public: payload?.public ?? false
+			public: payload?.public ?? false,
+			activationCode
 		};
 		const results = await trx.insert(usersTable).
 			values(values). 
@@ -82,7 +102,7 @@ const addUserT = async (payload:any, businessId:string, profileId:string, roleId
 			reject(new Error("Failed to create new user record"));
 			return;
 		}
-		resolve(userId);
+		resolve({userId, activationCode});
 	});
 };
 
@@ -90,9 +110,9 @@ export const addBusinessUser = async (payload:any) => {
 	return new Promise(async(resolve, reject)=>{
 		const { business, profile } = await getDataService();
 		const db = await getDB();	
-		let userId = null;
+		let result = null;
 		try{
-			userId = await db.transaction(async(trx)=>{
+			result = await db.transaction(async(trx)=>{
 				const profileId = await profile.addProfileT(trx);
 				const businessId = await business.addBusinessT(payload.business, trx);
 				if(businessId === null)
@@ -103,7 +123,7 @@ export const addBusinessUser = async (payload:any) => {
 			reject(err_);
 			return;
 		}
-		resolve(userId);
+		resolve(result);
 	});
 };
 
@@ -140,6 +160,73 @@ export const setVisibility = async (email:string, visibility:boolean) => {
 		}
 		resolve(true);
 	});
+};
+
+const nearUserReducer = (a, c) => {
+	const key = c?.users?.id ?? null;
+	if(key !== null && a[key] === undefined){
+		a[key] = {
+			userId: key,
+			latitude: c?.business?.locationLat,
+			longitude: c?.business?.locationLng,
+			trades: {}
+		};
+	}
+	const tradeId = c?.business_trade?.tradeId ?? null;
+	if(tradeId !== null && a[key].trades[tradeId] === undefined){
+		a[key].trades[tradeId] = { ...c.business_trade };
+	}
+	return a;
+};
+
+export const getUsersNear = async (location:any, userId:string) => {
+	return new Promise(async(resolve, reject)=>{
+		const minLat = location.latitude - 1;
+		const minLng = location.longitude - 1;
+		const maxLat = location.latitude + 1;
+		const maxLng = location.longitude + 1;
+		const db = await getDB();
+		let results = await db.select().
+			from(usersTable).
+			leftJoin(businessTable, eq(usersTable.businessId, businessTable.id)).
+			leftJoin(businessTradeTable, eq(businessTable.id, businessTradeTable.businessId)).
+			where(
+				and(
+					ne(usersTable.id, userId), 
+					and(
+						gte(businessTable.locationLat, minLat),
+						and(
+							lte(businessTable.locationLat, maxLat),
+							and(
+								gte(businessTable.locationLng, minLng),
+								lte(businessTable.locationLng, maxLng)
+							)
+						)
+					)
+				)
+			);	
+		// group results
+		// remove duplicates
+		const grouped = results.reduce(nearUserReducer, {});
+		// map results, converting from dictionary to array
+		// for each of use
+		const mapped = Object.keys(grouped).map((e,i)=>{
+			const user_ = grouped[e];
+			// handle trades
+			// set primary trade
+			user_.primaryTrade = null;
+			const trades = [];
+			for(const t of Object.keys(user_.trades)){
+				if(t.isPrimary){
+					user_.primaryTrade = t.tradeId;
+				}
+				trades.push(t.tradeId);
+			}
+			user_.trades = trades;
+			return user_;
+		});
+		resolve(mapped);
+	});	
 };
 
 export const getUserProfile = async (userId:string) => {
