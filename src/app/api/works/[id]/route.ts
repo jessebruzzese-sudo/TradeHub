@@ -2,9 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDataService } from "@/lib/data/service";
 import { cookies } from "next/headers";
-import { loadWorkImages } from "@/app/api/me/works/route";
-import * as jose from "jose";
-import * as z from "zod";
+import { loadWorkImages } from "@/lib/images/service";
 
 export async function GET(request: NextRequest, context: RouteContext){
 	try{

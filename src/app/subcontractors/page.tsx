@@ -4,6 +4,7 @@
 
 import Link from 'next/link';
 import UserContext from "@/lib/user-context";
+import { getAxios } from "@/lib/utils";
 import { useEffect, useMemo, useState, useContext } from 'react';
 import { AppLayout } from '@/components/app-nav';
 import { TradeGate } from '@/components/trade-gate';
@@ -22,7 +23,6 @@ import { UnauthorizedAccess } from '@/components/unauthorized-access';
 import { useActiveTradesCatalog } from '@/lib/trades/use-active-trades-catalog';
 import { cn } from '@/lib/utils';
 import { getPublicProfileHref } from '@/lib/url-utils';
-import { debugProfileCardData } from '@/lib/profile-debug';
 import { format } from 'date-fns';
 
 /** Display order for empty-state chips; labels must exist in `public.trades` / `/api/trades`. */
@@ -48,12 +48,11 @@ const FILTER_OPTIONS = [
   { value: 'abn-verified', label: 'ABN verified only' },
 ] as const;
 
-function SubcontractorCard({ sub }: { sub: ProfileCard }) {
-  debugProfileCardData('subcontractors', sub as unknown as Record<string, unknown>);
-  const primaryTrade = sub.trade_categories[0] ?? null;
+function SubcontractorCard({ sub }: { sub: any }) {
+  const primaryTrade = sub?.business?.primaryTrade ?? null;
   const TradeIcon = primaryTrade ? getTradeIcon(primaryTrade) : null;
-  const displayName = sub.business_name ?? sub.display_name;
-  const premium = sub.isPremium ?? false;
+  const displayName = sub?.business?.businessName ?? sub?.visibleName;
+  const premium = sub?.profile?.premium ?? false;
   return (
     <div
       className={cn(
@@ -83,7 +82,7 @@ function SubcontractorCard({ sub }: { sub: ProfileCard }) {
       <div className="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 flex-1 gap-3">
           <UserAvatar
-            avatarUrl={sub.avatar_url}
+            avatarUrl={`/api/profile/${sub?.profile?.id}/avatar`}
             userName={displayName}
             size="lg"
             className="h-12 w-12 shrink-0 ring-2 ring-slate-100"
@@ -93,13 +92,13 @@ function SubcontractorCard({ sub }: { sub: ProfileCard }) {
               <h3 className={cn(premium ? "font-bold text-slate-950" : "font-semibold text-slate-900")}>
                 {displayName}
               </h3>
-              {sub.is_verified && (
+              {sub?.business?.abnVerified && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
                   <BadgeCheck className="h-3.5 w-3.5" />
                   ABN verified
                 </span>
               )}
-              {sub.isPremium && (
+              {premium && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 px-2.5 py-[3px] text-xs font-medium text-amber-700">
                   <Crown className="h-3.5 w-3.5 shrink-0" />
                   Premium
@@ -115,15 +114,15 @@ function SubcontractorCard({ sub }: { sub: ProfileCard }) {
               {TradeIcon ? <TradeIcon className="h-4 w-4 text-blue-600" /> : null}
               <span>{primaryTrade ?? 'Trade professional'}</span>
             </div>
-            {sub.suburb && (
+            {sub?.business?.location && (
               <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-600">
                 <MapPin className="h-4 w-4 flex-shrink-0 text-sky-600" />
-                {sub.suburb}
+                {sub?.business?.location}
               </div>
             )}
           </div>
         </div>
-        <Link href={getPublicProfileHref(sub.id)} className="shrink-0">
+        <Link href={getPublicProfileHref(sub?.id)} className="shrink-0">
           <Button
             size="sm"
             variant="outline"
@@ -149,14 +148,13 @@ export default function SubcontractorsPage() {
   const [filterBy, setFilterBy] = useState<string>('all');
   const [availLoading, setAvailLoading] = useState(true);
   const [nextAvailable, setNextAvailable] = useState<Date | null>(null);
-  const [profiles, setProfiles] = useState<ProfileCard[]>([]);
-  const [profilesLoading, setProfilesLoading] = useState(true);
+  const [profiles, setProfiles] = useState<ProfileCard[]>(null);
   const [profilesError, setProfilesError] = useState<string | null>(null);
   const [outsideRadiusCount, setOutsideRadiusCount] = useState(0);
   const [allowedRadiusKm, setAllowedRadiusKm] = useState(20);
 	const [catalogTradeNames, setCatalogTradeNames] = useState([]);
 
-	const isLoading = currentUser === null;
+	const isLoading = profiles === null;
 	const hasSession = jwt !== undefined && jwt !== null;
 
   const popularTradesForChips = useMemo(
@@ -173,90 +171,30 @@ export default function SubcontractorsPage() {
   const primaryTrade = currentUser?.business?.primaryTrade ?? null;
 
   // Free users: locked to primary trade only. Premium: can browse across trades.
-  const effectiveTrade = isPremium ? selectedTrade : (primaryTrade || 'all');
-  const tradeDisplayValue = isPremium ? selectedTrade : (primaryTrade || 'All Trades');
+  const effectiveTrade = isPremium ? selectedTrade : ( primaryTrade || 'all' );
+  const tradeDisplayValue = isPremium ? selectedTrade : ( primaryTrade || 'All Trades' );
   const TradeIcon = getTradeIcon(primaryTrade || undefined);
 
   // `/api/discovery/trade/*` returns only users with active listed availability (subcontractor_availability, today+), not every public profile.
   useEffect(() => {
-    if (!currentUser?.id) {
-      setProfiles([]);
-      setProfilesLoading(false);
-      return;
-    }
-    setProfilesLoading(true);
+		if(!isLoading){
+			return;
+		}
+		if(profiles !== null){
+			return;
+		}
     setProfilesError(null);
-    const tradeParam = effectiveTrade === 'all' ? 'all' : effectiveTrade;
-    fetch(`/api/discovery/trade/${encodeURIComponent(tradeParam)}`)
-      .then(async (res) => {
-        const data = (await res.json().catch(() => ({}))) as {
-          error?: string;
-          stage?: string;
-          profiles?: ProfileCard[];
-          outsideRadiusCount?: number;
-          allowedRadiusKm?: number;
-        };
-        if (!res.ok) {
-          if (res.status === 401) throw new Error('Sign in to view subcontractors');
-          const msg = typeof data.error === 'string' && data.error.trim() ? data.error.trim() : 'Failed to load';
-          const stage = typeof data.stage === 'string' && data.stage.trim() ? data.stage.trim() : '';
-          throw new Error(stage ? `${msg} (${stage})` : msg);
-        }
-        return data;
-      })
-      .then((data) => {
-        setProfiles(data.profiles ?? []);
-        setOutsideRadiusCount(data.outsideRadiusCount ?? 0);
-        setAllowedRadiusKm(data.allowedRadiusKm ?? 20);
-      })
-      .catch((e) => {
-        setProfilesError(e instanceof Error ? e.message : 'Failed to load');
-        setProfiles([]);
-      })
-      .finally(() => setProfilesLoading(false));
-  }, [currentUser?.id, effectiveTrade]);
-
-  // Client-side filter (search, ABN verified) and sort
-  // Premium users always rank above Free within the eligible result set.
-  const filteredResults = useMemo(() => {
-    let list = [...profiles];
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      list = list.filter(
-        (s) =>
-          (s.business_name ?? '').toLowerCase().includes(q) ||
-          (s.display_name ?? '').toLowerCase().includes(q)
-      );
-    }
-
-    if (filterBy === 'abn-verified') {
-      list = list.filter((s) => s.is_verified);
-    }
-
-    list.sort((a, b) => {
-      // Premium first, then existing sort logic
-      const pa = a.isPremium ? 1 : 0;
-      const pb = b.isPremium ? 1 : 0;
-      if (pb !== pa) return pb - pa;
-
-      const nameA = (a.business_name ?? a.display_name ?? '').toLowerCase();
-      const nameB = (b.business_name ?? b.display_name ?? '').toLowerCase();
-      switch (sortBy) {
-        case 'rating-highest':
-        case 'rating-lowest':
-        case 'price-highest':
-        case 'price-lowest':
-        case 'distance-closest':
-        case 'distance-furthest':
-          return nameA.localeCompare(nameB);
-        default:
-          return 0;
-      }
-    });
-
-    return list;
-  }, [profiles, searchQuery, filterBy, sortBy]);
+		// move filtering logic and sorting into server side
+		// along with pagination
+		getAxios(null).get(`/api/discovery/trades/${effectiveTrade}`).
+			then((response)=>{
+				const data = response.data;
+				setProfiles(data.matches);
+			}).catch((error)=>{
+				setProfiles([]);
+				setProfilesError("Failed to load profiles");
+			});
+  }, [profiles]);
 
   useEffect(() => {
 		// TODO load availability
@@ -438,28 +376,23 @@ export default function SubcontractorsPage() {
                 )}
 
                 {/* Loading, error, results list or empty state */}
-                {profilesLoading && (
-                  <div className="flex min-h-[200px] items-center justify-center py-12">
-                    <div className="text-sm text-slate-600">Loading subcontractors…</div>
-                  </div>
-                )}
-                {!profilesLoading && profilesError && (
+                {!isLoading && profilesError && (
                   <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
                     <p className="text-sm text-amber-900">{profilesError}</p>
                   </div>
                 )}
-                {!profilesLoading && !profilesError && filteredResults.length > 0 ? (
+                {profiles.length > 0 ? (
                   <div className="space-y-3">
                     {!isPremium && outsideRadiusCount > 0 && (
                       <p className="text-sm text-slate-600">
                         {outsideRadiusCount} matching profile{outsideRadiusCount === 1 ? '' : 's'} {outsideRadiusCount === 1 ? 'is' : 'are'} outside your {allowedRadiusKm}km radius.
                       </p>
                     )}
-                    {filteredResults.map((sub) => (
+                    {profiles.map((sub) => (
                       <SubcontractorCard key={sub.id} sub={sub} />
                     ))}
                   </div>
-                ) : !profilesLoading && !profilesError ? (
+                ) : !isLoading && !profilesError ? (
                   <div className="space-y-6">
                     <div className="text-center">
                       <Search className="mx-auto mb-4 h-12 w-12 text-slate-400" />

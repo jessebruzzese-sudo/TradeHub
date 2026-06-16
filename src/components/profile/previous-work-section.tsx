@@ -39,7 +39,15 @@ export function PreviousWorkSection({ userId, isSelf, primaryTradeLabel }: Props
 					}).catch((err)=>{
 						console.error(err);
 					});
-		}	
+		}else{
+			getAxios(jwt).get(`/api/users/${userId}/works`).
+				then((response)=>{
+					const data = response.data;
+					setItems(data);
+				}).catch((error)=>{
+						console.error(error);
+				});
+		}
   }, [items]);
 
 	const loading = items === null;

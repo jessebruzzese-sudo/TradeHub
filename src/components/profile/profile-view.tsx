@@ -38,6 +38,7 @@ import { AppLayout } from '@/components/app-nav';
 import { ReliabilityReviewCard } from '@/components/reliability-review-card';
 import { PreviousWorkSection } from '@/components/profile/previous-work-section';
 import { ProfileAvatar } from '@/components/profile-avatar';
+import { UserAvatar } from '@/components/user-avatar';
 import { ProfileCover } from '@/components/profile-cover';
 import { ProBadge } from '@/components/pro-badge';
 import { PricingBlueWrapper } from '@/components/marketing/PricingBlueWrapper';
@@ -180,7 +181,7 @@ export function ProfileView({
   /** When true, render profile chrome only (no `AppLayout`) so a parent route can supply layout. */
   embedInParentLayout?: boolean;
 }) {
-  const isSelf = mode === 'self' || !!isMeProp;
+  const isSelf = mode === 'self' || isMeProp;
   const { jwt } = useAuth();
   const router = useRouter();
   const [isSimulated, setSimulated] = useSimulatedPremium();
@@ -444,11 +445,19 @@ export function ProfileView({
 
                 <div className="absolute left-6 -bottom-14 z-10">
                   <div className="rounded-full bg-white p-1 shadow-sm ring-1 ring-gray-200">
+										{isSelf ? (
                     <ProfileAvatar
                       userName={displayName || 'TradeHub user'}
                       editable={isSelf}
                       size={120}
                     />
+										) : (
+                  <UserAvatar
+                    avatarUrl={`/api/profile/${p?.profile?.id}/avatar`}
+                    userName={displayName || 'TradeHub user'}
+                    size="xl"
+                  />
+										) }
                   </div>
                 </div>
               </div>

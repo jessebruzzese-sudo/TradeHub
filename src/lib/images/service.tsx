@@ -2,6 +2,22 @@
 "use server"
 import { ENV } from "@/lib/env";
 import { readFile, unlink } from "node:fs/promises";
+import { getImageExtension } from "@/lib/utils";
+
+export const loadWorkImages = async (work:any) => {
+  return new Promise(async(resolve, reject)=>{
+    const mapping = {};
+    for(const i of work.images){
+      const ext = getImageExtension(i.mime);
+      const file = `${i.id}.${ext}`;
+      const filePath = `${ENV.store.images}/${file}`;
+      const buffer = await readFile(filePath);
+      const url = `data:${i.mime};base64,${buffer.toString('base64')}`;
+      mapping[i.id] = url;
+    }
+    resolve(mapping);
+  });
+};
 
 export const deleteJobAttachments = async (job:any) => {
 	return new Promise(async(resolve, reject) => {

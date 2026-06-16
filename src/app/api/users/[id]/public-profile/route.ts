@@ -19,6 +19,9 @@ export async function GET(request: NextRequest, context) {
 	}catch(err_){
 		return NextResponse.json({msg:"Failed to retrieve profile"}, { status: 500 });
 	}
+	if(userProfile === null){
+		return NextResponse.json({msg:"Not found, user profile doesn't exist"}, { status: 404 });
+	}
 	const isPublic = userProfile?.public ?? false;
 	if(!isPublic){
 		return NextResponse.json({msg:"Forbidden, users profile is not public"}, { status: 403 });

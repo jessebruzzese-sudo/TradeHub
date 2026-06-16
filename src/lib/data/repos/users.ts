@@ -1,6 +1,6 @@
 // vim: ts=2
 'use server'
-import { or, and, eq, sql, isNull, inArray, asc } from "drizzle-orm";
+import { or, and, eq, ne, sql, isNull, inArray, asc, gte, lte } from "drizzle-orm";
 import { usersTable, rolesTable } from "@/lib/data/defs/users";
 import { businessTable, businessTradeTable, googlePlacesTable } from "@/lib/data/defs/business";
 import { profileTable } from "@/lib/data/defs/profile";
@@ -163,51 +163,55 @@ export const setVisibility = async (email:string, visibility:boolean) => {
 };
 
 const nearUserReducer = (a, c) => {
-	const key = c?.users?.id ?? null;
+	const key = c?.id ?? null;
 	if(key !== null && a[key] === undefined){
 		a[key] = {
 			userId: key,
-			latitude: c?.business?.locationLat,
-			longitude: c?.business?.locationLng,
+			latitude: c?.latitude,
+			longitude: c?.longitude,
 			trades: {}
 		};
 	}
-	const tradeId = c?.business_trade?.tradeId ?? null;
+	const tradeId = c?.trade_id ?? null;
 	if(tradeId !== null && a[key].trades[tradeId] === undefined){
-		a[key].trades[tradeId] = { ...c.business_trade };
+		a[key].trades[tradeId] = { isPrimary: c?.is_primary ?? false };
 	}
 	return a;
 };
 
-export const getUsersNear = async (location:any, userId:string) => {
+type UserLocation = {
+	latitude: number;
+	longitude: number;
+};
+
+export const getUserProfilesById = async (userIds: array) => {
+	return new Promise(async(resolve, reject)=>{
+		const results = [];
+		for(const userId of userIds){
+			const profile = await getUserProfile(userId);
+			delete profile["password"];
+			results.push(profile);
+		}
+		resolve(results);
+	});	
+};
+
+export const getUsersNear = async (location:UserLocation, userId:string) => {
 	return new Promise(async(resolve, reject)=>{
 		const minLat = location.latitude - 1;
 		const minLng = location.longitude - 1;
 		const maxLat = location.latitude + 1;
 		const maxLng = location.longitude + 1;
+		const USER_ROLE = "USER";
 		const db = await getDB();
-		let results = await db.select().
-			from(usersTable).
-			leftJoin(businessTable, eq(usersTable.businessId, businessTable.id)).
-			leftJoin(businessTradeTable, eq(businessTable.id, businessTradeTable.businessId)).
-			where(
-				and(
-					ne(usersTable.id, userId), 
-					and(
-						gte(businessTable.locationLat, minLat),
-						and(
-							lte(businessTable.locationLat, maxLat),
-							and(
-								gte(businessTable.locationLng, minLng),
-								lte(businessTable.locationLng, maxLng)
-							)
-						)
-					)
-				)
-			);	
+		const Q = sql`SELECT * FROM ( SELECT ${usersTable.id}, CAST(${businessTable.locationLat} AS DOUBLE PRECISION) as latitude, CAST(${businessTable.locationLng} AS DOUBLE PRECISION) as longitude, ${businessTradeTable.tradeId}, ${businessTradeTable.isPrimary} FROM ${usersTable} INNER JOIN ${rolesTable} ON ${usersTable.roleId} = ${rolesTable.id} LEFT JOIN ${businessTable} ON ${usersTable.businessId} = ${businessTable.id} LEFT JOIN ${businessTradeTable} ON ${businessTradeTable.businessId} = ${businessTable.id} WHERE ${usersTable.id} <> ${userId} AND ${rolesTable.name} = ${USER_ROLE} AND ${usersTable.public} ) a WHERE a.latitude >= ${minLat} AND a.latitude <= ${maxLat} AND a.longitude >= ${minLng} AND a.longitude <= ${maxLng}`;
+		const results = await db.execute(Q);
+		const { trades: tradeRepo } = await getDataService();
+		const tradeMapping = await tradeRepo.getMapping(false); // ID => NAME
+		// console.log(results.rows);
 		// group results
 		// remove duplicates
-		const grouped = results.reduce(nearUserReducer, {});
+		const grouped = results.rows.reduce(nearUserReducer, {});
 		// map results, converting from dictionary to array
 		// for each of use
 		const mapped = Object.keys(grouped).map((e,i)=>{
@@ -215,12 +219,17 @@ export const getUsersNear = async (location:any, userId:string) => {
 			// handle trades
 			// set primary trade
 			user_.primaryTrade = null;
+			// map trade ids back to names
 			const trades = [];
 			for(const t of Object.keys(user_.trades)){
-				if(t.isPrimary){
-					user_.primaryTrade = t.tradeId;
+				const tradeName = tradeMapping[t]?.toLowerCase() ?? null;
+				if(tradeName === null){
+					throw new Error(`Failed to find trade mapping for id ${t}`);
 				}
-				trades.push(t.tradeId);
+				if(user_.trades[t].isPrimary){
+					user_.primaryTrade = tradeName;
+				}
+				trades.push(tradeName);
 			}
 			user_.trades = trades;
 			return user_;
