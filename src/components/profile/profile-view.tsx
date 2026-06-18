@@ -162,6 +162,7 @@ export function ProfileView({
 	profile,
   isMe: isMeProp,
   strengthCalc: strengthCalcProp,
+	viewerUserId,
   viewerLikeState: viewerLikeStateProp,
   e2eShowProfileStrength,
   embedInParentLayout = false,
@@ -173,6 +174,8 @@ export function ProfileView({
   strengthCalc?: ProfileStrengthCalc | null;
   /** From `/profiles/[id]` server: whether viewer liked + total likes count (skips client GET). */
   viewerLikeState?: { liked: boolean; count: number } | null;
+	// user id of viewer
+	viewerUserId?: string | null;
   /**
    * Non-production only: show the Profile strength accordion without a signed-in viewer
    * (Playwright fixture profiles). Ignored when `NODE_ENV === 'production'`.
@@ -188,7 +191,6 @@ export function ProfileView({
   const [portalLoading, setPortalLoading] = useState(false);
 
   const profileUserId = profile?.id ?? null;
-  const viewerAuthId = profile?.id ?? null; // TODO grab user id from token claims?
   const e2eStrengthUi =
     typeof process !== 'undefined' &&
     process.env.NODE_ENV !== 'production' &&
@@ -198,10 +200,10 @@ export function ProfileView({
     typeof process !== 'undefined' &&
     process.env.NODE_ENV !== 'production' &&
     isMeProp === true &&
-    viewerAuthId == null;
+    viewerUserId == null;
   const showProfileStrengthSection =
     e2eStrengthUi ||
-    (!!viewerAuthId && !!profileUserId && viewerAuthId === profileUserId) ||
+    (!!viewerUserId && !!profileUserId && viewerUserId === profileUserId) ||
     e2eServerOnlyOwner;
 
   const p = profile as any;
@@ -210,7 +212,7 @@ export function ProfileView({
   const [upCount, setUpCount] = useState<number>(p?.profile?.upVotes ?? 0);
   const [downCount, setDownCount] = useState<number>(p?.profile?.downVotes ?? 0);
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
-  const canRate = profileUserId !== viewerAuthId;
+  const canRate = profileUserId !== viewerUserId;
   const [availDates, setAvailDates] = useState<string[]>([]);
   const [availDesc, setAvailDesc] = useState<string>('');
   const [availLoading, setAvailLoading] = useState(true);
@@ -227,11 +229,10 @@ export function ProfileView({
 
   useEffect(() => {
     if (viewerLikeStateProp != null) return;
-    if (!profileUserId || viewerAuthId === profileUserId) {
+    if (!profileUserId || viewerUserId === profileUserId) {
       setLikeInitial(null);
       return;
     }
-    let cancelled = false;
 		//TODO handling liking
   }, [viewerLikeStateProp, profileUserId]);
 
@@ -269,7 +270,7 @@ export function ProfileView({
 
   async function submitRating(value: 1 | -1) {
     if (!profileUserId) return;
-    if (viewerAuthId === profileUserId) return;
+    if (viewerUserId === profileUserId) return;
   }
 
   const reviews = [];
@@ -392,6 +393,7 @@ export function ProfileView({
                 {!isSelf && (
                   <LikeProfileButton
                     profileUserId={profileUserId}
+										viewerUserId={viewerUserId}
                     initialLiked={likeInitial?.liked ?? false}
                     initialLikesCount={likeInitial?.count ?? 0}
                     onUpdated={()=>{ }}
@@ -920,7 +922,7 @@ export function ProfileView({
                           <Switch
                             checked={(profile as any)?.receiveTradeAlerts ?? (profile as any)?.receive_trade_alerts ?? false}
                             onCheckedChange={async (checked) => {
-                              if (profile?.id && viewerAuthId === profile.id) {
+                              if (profile?.id && viewerUserId === profile.id) {
 																// TODO trade alerts
                               }
                             }}

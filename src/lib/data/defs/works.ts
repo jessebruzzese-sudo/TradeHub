@@ -15,7 +15,7 @@ export const workTable = pgTable("work", {
 	location: text("location"),
 	createdAt: timestamp("created_at").defaultNow(),
 	updatedAt: timestamp("updated_at")
-}, (table)=>[unique({name:"uc_profile_works", columns:[table.id, table.profileId]})]);
+}, (table)=>[unique().on(table.id, table.profileId)]);
 
 export const workImageTable = pgTable("work_image", {
 	id: uuid("id").notNull().default(sql`gen_random_uuid()`),

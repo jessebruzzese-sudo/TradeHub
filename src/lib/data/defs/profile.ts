@@ -32,3 +32,9 @@ export const profileTable = pgTable("profile", {
 	upVotes: integer("up_votes").default(0),
 	downVotes: integer("down_votes").default(0),
 });
+
+export const profileLikeTable = pgTable("profile_like", {
+	id: uuid("id").notNull().primaryKey().default(sql`gen_random_uuid()`),
+	userId: uuid("user_id").notNull().references(()=>usersTable.id),
+	profileId: uuid("profile_id").notNull().references(()=>profileTable.id),
+}, (table)=>[unique().on(table.userId, table.profileId)]);

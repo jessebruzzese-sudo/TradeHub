@@ -1,5 +1,6 @@
 'use client';
 
+import { getAxios } from "@/lib/utils";
 import { useEffect, useState, useTransition } from 'react';
 import { ThumbsUp } from 'lucide-react';
 import { toast } from 'sonner';
@@ -7,18 +8,18 @@ import { toast } from 'sonner';
 type Props = {
   profileUserId: string;
   initialLiked: boolean;
+	viewerUserId: string;
   initialLikesCount: number;
   disabled?: boolean;
   onUpdated?: (payload: {
     liked: boolean;
     likesCount: number;
-    profileStrengthScore?: number;
-    profileStrengthBand?: string;
   }) => void;
 };
 
 export default function LikeProfileButton({
   profileUserId,
+	viewerUserId,
   initialLiked,
   initialLikesCount,
   disabled,
@@ -26,7 +27,7 @@ export default function LikeProfileButton({
 }: Props) {
   const [liked, setLiked] = useState(initialLiked);
   const [likesCount, setLikesCount] = useState(initialLikesCount);
-  const [isPending, startTransition] = useTransition();
+	const [isPending, setIsPending] = useState(false);
 
   useEffect(() => {
     setLiked(initialLiked);
@@ -34,48 +35,20 @@ export default function LikeProfileButton({
   }, [initialLiked, initialLikesCount, profileUserId]);
 
   const handleToggle = () => {
-    if (disabled || isPending) return;
-
-    const previousLiked = liked;
-    const previousCount = likesCount;
-
-    const optimisticLiked = !liked;
-    const optimisticCount = liked ? Math.max(0, likesCount - 1) : likesCount + 1;
-
-    setLiked(optimisticLiked);
-    setLikesCount(optimisticCount);
-
-    startTransition(async () => {
-      try {
-        const res = await fetch(`/api/profile/${profileUserId}/like`, {
-          method: 'POST',
-          credentials: 'include',
-        });
-
-        const json = await res.json();
-
-        if (!res.ok) {
-          setLiked(previousLiked);
-          setLikesCount(previousCount);
-          toast.error(json?.error || 'Could not update like');
-          return;
-        }
-
-        setLiked(!!json.liked);
-        setLikesCount(json.likesCount ?? optimisticCount);
-
-        onUpdated?.({
-          liked: !!json.liked,
-          likesCount: json.likesCount ?? optimisticCount,
-          profileStrengthScore: json.profileStrengthScore,
-          profileStrengthBand: json.profileStrengthBand,
-        });
-      } catch {
-        setLiked(previousLiked);
-        setLikesCount(previousCount);
-        toast.error('Could not update like');
-      }
-    });
+    if (disabled) return;
+		setIsPending(true);
+		getAxios(null).put(`/api/users/${profileUserId}/like`).
+			then((response)=>{
+				const data = response.data;
+				setLiked(data.liked);
+				setLikesCount(data.likesCount);
+				setIsPending(false);
+				onUpdated(data);
+			}).catch((error)=>{
+				console.error(error);
+				toast.error('Could not update like');
+				setIsPending(false);
+			});
   };
 
   return (

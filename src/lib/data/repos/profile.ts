@@ -2,9 +2,50 @@
 'use server'
 import { or, and, eq, sql, isNull, inArray, asc } from "drizzle-orm";
 import { businessTable, businessTradeTable } from "@/lib/data/defs/business";
-import { profileTable } from "@/lib/data/defs/profile";
+import { profileTable, profileLikeTable } from "@/lib/data/defs/profile";
 import { usersTable } from "@/lib/data/defs/users";
 import { getDB, getDataService } from "@/lib/data/service";
+
+export const toggleLike = async (viewerId:string, profileId:string) => {
+	return new Promise(async(resolve, reject)=>{
+		const db = await getDB();
+		return await db.transaction(async(trx)=>{
+			// find like
+			let results = await db.select({id: profileLikeTable.id}).from(profileLikeTable).
+				where(
+					and(
+						eq(profileLikeTable.userId, viewerId), 
+						eq(profileLikeTable.profileId, profileId)
+					)
+				);
+			// if exists, delete
+			const likeId = results[0]?.id ?? null;
+			let liked = null;
+			if(likeId !== null){
+				await trx.delete(profileLikeTable).where(eq(profileLikeTable.id, likeId));
+				liked = false;
+			}else{
+				// if not create
+				const values = { userId: viewerId, profileId };
+				await trx.insert(profileLikeTable).values(values);
+				liked = true;
+			}
+			// count likes
+			// select only id for an index scan
+			results = await trx.select({id: profileLikeTable}).
+				from(profileLikeTable).
+				where(eq(profileLikeTable.profileId, profileId));
+			// return state
+			// whether or not the user likes the profile
+			// and the number of likes the profile has
+			const state_ = {
+				liked, 
+				likesCount: results.length
+			};
+			resolve(state_);
+		});
+	});
+};
 
 export const getProfileImages = async (id:string) => {
 	return new Promise(async(resolve, reject)=>{

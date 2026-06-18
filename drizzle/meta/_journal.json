@@ -232,6 +232,20 @@
       "when": 1781410041171,
       "tag": "0032_fantastic_sauron",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1781658668933,
+      "tag": "0033_mushy_magma",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1781659269731,
+      "tag": "0034_natural_talon",
+      "breakpoints": true
     }
   ]
 }

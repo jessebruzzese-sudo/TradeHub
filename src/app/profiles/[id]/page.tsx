@@ -54,7 +54,8 @@ const PublicProfileByIdPage = () => {
       </div>
 		);
 	}
-  const isMe = profileId === (profile?.viewer?.userId ?? null);
+	const viewerUserId = profile?.viewer?.userId ?? null;
+  const isMe = profileId === viewerUserId;
   if (!exists) {
     return <PublicProfileNotFound />;
   }
@@ -65,6 +66,7 @@ const PublicProfileByIdPage = () => {
         profile={profile.user}
         isMe={isMe}
         strengthCalc={null}
+				viewerUserId={viewerUserId}
         viewerLikeState={false}
       />
     </div>
