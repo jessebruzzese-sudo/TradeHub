@@ -271,6 +271,17 @@ export function ProfileView({
   async function submitRating(value: 1 | -1) {
     if (!profileUserId) return;
     if (viewerUserId === profileUserId) return;
+		getAxios(null).put(`/api/users/${profileUserId}/rating`, {rating:value}).
+			then((response_)=>{
+				// refresh rating	
+				const data = response_.data;
+				toast.success("Rating updated");
+				setUpCount(data.upVotes);
+				setDownCount(data.downVotes);
+			}).catch((error_)=>{
+				toast.error("Could not submit rating");
+				console.error(error_);
+			});
   }
 
   const reviews = [];
@@ -404,14 +415,13 @@ export function ProfileView({
                   size="sm"
                   className="gap-2"
                   onClick={() => {
+										toast.info("Coming soon");
+										{/*
+										// TODO fix up messaging!	
                     if (profileUserId) {
-                      store.ensureUserInStore({
-                        id: profileUserId,
-                        name: displayName || undefined,
-                        avatar: p?.avatar ?? undefined,
-                      });
                       router.push(`/messages?userId=${profileUserId}`);
                     }
+										*/}
                   }}
                 >
                   <MessageSquare className="h-4 w-4" />

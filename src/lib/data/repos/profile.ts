@@ -6,6 +6,29 @@ import { profileTable, profileLikeTable } from "@/lib/data/defs/profile";
 import { usersTable } from "@/lib/data/defs/users";
 import { getDB, getDataService } from "@/lib/data/service";
 
+export const updateRating = async (rating:number, profileId:string) => {
+	return new Promise(async (resolve, reject) => {
+		const db = await getDB();
+		return await db.transaction(async(trx)=>{
+			let votes = await trx.select({upVotes:profileTable.upVotes, downVotes:profileTable.downVotes}).
+				from(profileTable).
+				where(eq(profileTable.id, profileId));
+			if(votes.length === 0){
+				reject(new Error("No results returned for query"));
+				return;
+			}
+			votes = votes[0];
+			votes.upVotes = rating === 1 ? votes.upVotes + 1 : votes.upVotes;
+			votes.downVotes = rating === -1 ? votes.downVotes + 1 : votes.downVotes;
+			const results = await trx.update(profileTable).set(votes).
+				returning({ upVotes: profileTable.upVotes, downVotes: profileTable.downVotes }).
+				where(eq(profileTable.id, profileId));
+			const changed = results[0];
+			resolve(changed);
+		});
+	});
+};
+
 export const toggleLike = async (viewerId:string, profileId:string) => {
 	return new Promise(async(resolve, reject)=>{
 		const db = await getDB();
