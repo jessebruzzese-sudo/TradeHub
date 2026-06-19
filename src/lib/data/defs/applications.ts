@@ -1,0 +1,18 @@
+// vim: ts=2
+import { 
+	pgTable, boolean, text, 
+	unique, uuid, date, timestamp, 
+	integer, real 
+} from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { profileTable } from "@/lib/data/defs/profile";
+import { jobsTable } from "@/lib/data/defs/jobs";
+
+export const applicationTable = pgTable("applications", {
+	id: uuid("id").notNull().primaryKey().default(sql`gen_random_uuid()`),
+	profileId: uuid("profile_id").notNull().references(()=>profileTable.id),
+	message: text("message").notNull(),
+	createdAt: timestamp("created_at").defaultNow(),
+	status: text("status").default("applied"),
+	jobId: uuid("job_id").notNull().references(()=>jobsTable.id)
+}, (table)=>[unique().on(table.jobId, table.profileId)]);

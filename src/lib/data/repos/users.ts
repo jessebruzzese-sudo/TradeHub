@@ -3,7 +3,7 @@
 import { or, and, eq, ne, sql, isNull, inArray, asc, gte, lte } from "drizzle-orm";
 import { usersTable, rolesTable } from "@/lib/data/defs/users";
 import { businessTable, businessTradeTable, googlePlacesTable } from "@/lib/data/defs/business";
-import { profileTable } from "@/lib/data/defs/profile";
+import { profileTable, profileLikeTable } from "@/lib/data/defs/profile";
 import { workTable } from "@/lib/data/defs/works";
 import { getDB, getDataService } from "@/lib/data/service";
 import { formatISO } from "date-fns";
@@ -30,7 +30,12 @@ const userReducer = (a, c) => {
 	// profile is optional
 	const profileId = c?.profile?.id ?? null;
 	if(profileId !== null){
-		a[key].profile = { ...c.profile, works: { } };
+		a[key].profile = { ...c.profile, works: { }, likes: { } };
+	}
+	// accumulate likes
+	const likeId = c?.profile_like?.id ?? null;
+	if(likeId !== null){
+		a[key].profile.likes[likeId] = { ...c.profile_like };
 	}
 	// accumulate trades
 	const tradeId = c?.business_trade?.tradeId ?? null;
@@ -247,6 +252,7 @@ export const getUserProfile = async (userId:string) => {
 				.from(usersTable)
 				.innerJoin(rolesTable, eq(usersTable.roleId, rolesTable.id))
 				.leftJoin(profileTable, eq(usersTable.profileId, profileTable.id))
+				.leftJoin(profileLikeTable, eq(profileTable.id, profileLikeTable.profileId))
 				.leftJoin(workTable, eq(workTable.profileId, profileTable.id))
 				.leftJoin(businessTable, eq(usersTable.businessId, businessTable.id))
 				.leftJoin(googlePlacesTable, eq(businessTable.id, googlePlacesTable.businessId))
@@ -278,8 +284,11 @@ export const getUserProfile = async (userId:string) => {
 			}
 			if(mapped.profile !== null){
 				let works = mapped.profile.works;
+				let likes = mapped.profile.likes;
 				works = Object.keys(works).map((j,k)=>{ return works[j] });
+				likes = Object.keys(likes).map((j,k)=>{ return likes[j] });
 				mapped.profile.works = works;
+				mapped.profile.likes = likes;
 			}
 			return mapped;
 		});

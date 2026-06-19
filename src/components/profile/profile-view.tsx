@@ -30,8 +30,8 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
-import { format, isAfter, startOfDay } from 'date-fns';
 
+import { format, isAfter, startOfDay } from 'date-fns';
 import { getTradeIcon } from '@/lib/trade-icons';
 import { hasValidABN } from '@/lib/abn-utils';
 import { AppLayout } from '@/components/app-nav';
@@ -163,7 +163,6 @@ export function ProfileView({
   isMe: isMeProp,
   strengthCalc: strengthCalcProp,
 	viewerUserId,
-  viewerLikeState: viewerLikeStateProp,
   e2eShowProfileStrength,
   embedInParentLayout = false,
 }: {
@@ -172,8 +171,6 @@ export function ProfileView({
   isMe?: boolean;
   /** Server-fetched breakdown; if omitted, client loads `/api/profile/[id]/strength`. */
   strengthCalc?: ProfileStrengthCalc | null;
-  /** From `/profiles/[id]` server: whether viewer liked + total likes count (skips client GET). */
-  viewerLikeState?: { liked: boolean; count: number } | null;
 	// user id of viewer
 	viewerUserId?: string | null;
   /**
@@ -208,6 +205,7 @@ export function ProfileView({
 
   const p = profile as any;
 	const isProfileUserAdmin = p.role === "admin";
+	const vl = !isSelf && p.profile.likes.find((x)=>x.userId === viewerUserId) !== undefined;
 
   const [upCount, setUpCount] = useState<number>(p?.profile?.upVotes ?? 0);
   const [downCount, setDownCount] = useState<number>(p?.profile?.downVotes ?? 0);
@@ -217,24 +215,14 @@ export function ProfileView({
   const [availDesc, setAvailDesc] = useState<string>('');
   const [availLoading, setAvailLoading] = useState(true);
   const [alertsUpsellOpen, setAlertsUpsellOpen] = useState(false);
-  const [likeInitial, setLikeInitial] = useState<{ liked: boolean; count: number } | null>(
-    viewerLikeStateProp ?? null
-  );
+	const [viewerHasLiked, setViewHasLiked] = useState(vl);
+	const [likeCount, setLikeCount] = useState(p?.profile?.likes?.length ?? 0);
   const today = startOfDay(new Date());
-  useEffect(() => {
-    if (viewerLikeStateProp != null) {
-      setLikeInitial(viewerLikeStateProp);
-    }
-  }, [viewerLikeStateProp]);
-
-  useEffect(() => {
-    if (viewerLikeStateProp != null) return;
-    if (!profileUserId || viewerUserId === profileUserId) {
-      setLikeInitial(null);
-      return;
-    }
-		//TODO handling liking
-  }, [viewerLikeStateProp, profileUserId]);
+	
+	const refreshLikes = (likes:any) => {
+		setViewerHasLiked(likes.liked);
+		setLikeCount(likes.likesCount);
+	};
 
   useEffect(() => {
     if (!availLoading) return;
@@ -405,9 +393,9 @@ export function ProfileView({
                   <LikeProfileButton
                     profileUserId={profileUserId}
 										viewerUserId={viewerUserId}
-                    initialLiked={likeInitial?.liked ?? false}
-                    initialLikesCount={likeInitial?.count ?? 0}
-                    onUpdated={()=>{ }}
+                    initialLiked={viewerHasLiked}
+                    initialLikesCount={likeCount}
+                    onUpdated={refreshLikes}
                   />
                 )}
                 <Button

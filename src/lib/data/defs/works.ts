@@ -8,7 +8,7 @@ import { sql } from "drizzle-orm";
 import { profileTable } from "@/lib/data/defs/profile";
 
 export const workTable = pgTable("work", {
-	id: uuid("id").notNull().default(sql`gen_random_uuid()`),
+	id: uuid("id").notNull().primaryKey().default(sql`gen_random_uuid()`),
 	profileId: uuid("profile_id").notNull().references(()=>profileTable.id),
 	caption: text("caption").notNull(), // full name, profile?
 	title: text("title").notNull(), // display name, profile?

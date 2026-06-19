@@ -506,17 +506,20 @@ export default function JobDetailPage() {
       redirectToVerifyBusiness(router, returnUrl);
       return;
     }
-    const newApplication = {
-      id: `app-${Date.now()}`,
+    const payload = {
       jobId: job.id,
-      subcontractorId: currentUser.id,
-      status: 'applied' as const,
-      appliedAt: new Date(),
-      message: applicationMessage,
+      message: applicationMessage
     };
-    store.createApplication(newApplication);
-    setShowApplyDialog(false);
-    setApplicationMessage('');
+		getAxios(null).post("/api/me/applications", payload).
+			then((response_)=>{
+				toast.success("Application submitted");
+    		setShowApplyDialog(false);
+    		setApplicationMessage("");
+			}).catch((error_)=>{
+				toast.error("Could not submit application, try again later");
+    		setShowApplyDialog(false);
+    		setApplicationMessage("");
+			});
   };
 
   const callJobAction = async (action: string, applicationId?: string) => {
@@ -867,6 +870,7 @@ export default function JobDetailPage() {
                       )}
                     </div>
 
+										{/* TODO confirm business name here */}
                     {poster?.businessName && (
                       <p className="mt-0.5 truncate text-sm text-slate-600">
                         {poster.businessName}
@@ -877,7 +881,7 @@ export default function JobDetailPage() {
                       <div className="mt-1 flex items-center gap-1 text-xs text-slate-500">
                         <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
                         <span className="font-medium text-slate-700">
-                          {poster?.rating}
+                          {Number(poster?.rating).toFixed(1)}
                         </span>
                       </div>
                     )}
@@ -1365,7 +1369,7 @@ export default function JobDetailPage() {
               </DialogHeader>
               <div className="space-y-4">
                 <Textarea
-                  placeholder="I have 10+ years of experience and can start immediately..."
+                  placeholder="Please enter your application here..."
                   value={applicationMessage}
                   onChange={(e) => setApplicationMessage(e.target.value)}
                   rows={5}
