@@ -186,7 +186,7 @@ export default function SubcontractorsPage() {
     setProfilesError(null);
 		// move filtering logic and sorting into server side
 		// along with pagination
-		getAxios(null).get(`/api/discovery/trades/${effectiveTrade}`).
+		getAxios(null).get(`/api/discovery/trades/${effectiveTrade}?sortBy=${sortBy}&filterBy=${filterBy}`).
 			then((response)=>{
 				const data = response.data;
 				setProfiles(data.matches);
@@ -195,20 +195,6 @@ export default function SubcontractorsPage() {
 				setProfilesError("Failed to load profiles");
 			});
   }, [profiles]);
-
-  useEffect(() => {
-		// TODO load availability
-  }, [currentUser]);
-
-  if (isLoading) {
-    return (
-      <AppLayout>
-        <div className="flex min-h-[60vh] items-center justify-center text-sm text-gray-600">
-          Loading…
-        </div>
-      </AppLayout>
-    );
-  }
 
   if (!hasSession) {
     return <UnauthorizedAccess redirectTo="/login" />;
@@ -320,7 +306,7 @@ export default function SubcontractorsPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <Select value={sortBy} onValueChange={setSortBy}>
+                  <Select value={sortBy} onValueChange={(value)=>{setSortBy(value);setProfiles(null);}}>
                     <SelectTrigger className="sm:w-48">
                       <SelectValue placeholder="Sort" />
                     </SelectTrigger>
@@ -330,7 +316,7 @@ export default function SubcontractorsPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <Select value={filterBy} onValueChange={setFilterBy}>
+                  <Select value={filterBy} onValueChange={(value)=>{setFilterBy(value);setProfiles(null);}}>
                     <SelectTrigger className="sm:w-48">
                       <SelectValue placeholder="Filter" />
                     </SelectTrigger>
@@ -381,14 +367,19 @@ export default function SubcontractorsPage() {
                     <p className="text-sm text-amber-900">{profilesError}</p>
                   </div>
                 )}
-                {profiles.length > 0 ? (
+                {isLoading || profiles.length > 0 ? (
                   <div className="space-y-3">
                     {!isPremium && outsideRadiusCount > 0 && (
                       <p className="text-sm text-slate-600">
                         {outsideRadiusCount} matching profile{outsideRadiusCount === 1 ? '' : 's'} {outsideRadiusCount === 1 ? 'is' : 'are'} outside your {allowedRadiusKm}km radius.
                       </p>
                     )}
-                    {profiles.map((sub) => (
+										{isLoading ? (
+											<div className="min-h-screen flex items-center justify-center">
+        								<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      								</div>
+										) : null}
+                    {!isLoading && profiles !== null && profiles.length > 0 && profiles.map((sub) => (
                       <SubcontractorCard key={sub.id} sub={sub} />
                     ))}
                   </div>

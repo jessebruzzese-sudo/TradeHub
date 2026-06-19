@@ -12,6 +12,17 @@ export async function GET(request: NextRequest, context) {
 	let HOOK_USER_LOCATION = ( queryParams.get("hookUserLocation") ?? "false" ) === "true";
 	let HOOK_HAVERSINE = ( queryParams.get("hookHaversine") ?? "false" ) === "true";
 	let HOOK_MATCHES = ( queryParams.get("hookMatches") ?? "false" ) === "true";
+	const sortBy = queryParams.get("sortBy");
+	const filterBy = queryParams.get("filterBy");
+	// make sure that hooks are false in non
+	// development environments
+	const DEVELOPMENT = "development";
+	if(process.env.NODE_ENV !== DEVELOPMENT){
+		HOOK_NEAR_USERS = false;
+		HOOK_USER_LOCATION = false;
+		HOOK_HAVERSINE = false;
+		HOOK_MATCHES = false;
+	}
 	let claims = null;
 	try{	
 		claims = await getClaims();
