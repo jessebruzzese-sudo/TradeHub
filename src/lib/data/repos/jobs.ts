@@ -1,9 +1,10 @@
 // vim: ts=2
 'use server'
 import { or, and, eq, ne, sql, isNull, inArray, asc, gte, gt, lt, lte } from "drizzle-orm";
-import { getDB } from "@/lib/data/service";
+import { getDB, getDataService } from "@/lib/data/service";
 import { deleteJobAttachments } from "@/lib/images/service";
 import { jobsTable, jobAttachmentsTable } from "@/lib/data/defs/jobs";
+import { applicationTable, selectedApplicationTable } from "@/lib/data/defs/applications";
 import { usersTable } from "@/lib/data/defs/users";
 import { profileTable } from "@/lib/data/defs/profile";
 import { businessTable } from "@/lib/data/defs/business";
@@ -38,9 +39,112 @@ const jobsReducer = (a, c) => {
 	}
 	const attKey = c?.job_attachments?.id ?? null;	
 	if(attKey !== null && a[key].attachments[attKey] === undefined){
-		a[key].attachments[attKey] = {...c.job_attachments};
+		a[key].attachments[attKey] = { ...c.job_attachments };
 	}
 	return a;
+};
+
+const updateJobStatusT = async (trx:any, jobId:string, status:string) => {
+	return trx.update(jobsTable).
+		set({status, updatedAt:new Date()}).
+		where(eq(jobsTable.id, jobId));
+};
+
+export const confirmJob = async (job:any, app:any) => {
+	const db = await getDB();
+	const { applications: appRepo } = await getDataService();
+	return db.transaction(async(trx)=>{
+		await updateJobStatusT(trx, job.id, "confirmed");
+		await appRepo.updateApplicationStatusT(trx, app.id, "confirmed");
+		return { ok: true };
+	});
+};
+
+export const getSelectedApplications = async (jobId:string) => {
+	return new Promise(async(resolve, reject) => {
+		const db = await getDB();	
+		const results = await db.select().from(applicationTable).
+			innerJoin(selectedApplicationTable, eq(applicationTable.id, selectedApplicationTable.applicationId)).
+			where(
+				and(
+					eq(selectedApplicationTable.jobId, jobId), 
+					eq(applicationTable.status, "selected")
+				)
+			);
+		const apps = results.map((e,i)=>{ return  {...e.applications}});
+		resolve(apps);
+	});
+};
+
+export const selectApplication = async (job:any, app:any) => {
+	const db = await getDB();
+	const { applications: appRepo } = await getDataService();
+	return db.transaction(async(trx)=>{
+		await updateJobStatusT(trx, job.id, "accepted");
+		await appRepo.updateApplicationStatusT(trx, app.id, "selected");
+		await appRepo.addLinkToJobT(trx, job.id, app.id, app.profileId);
+		// TODO send email
+		return { ok: true };
+	});
+};
+
+export const getCompletedJobIds = async (profileId: string) => {
+	return (await getDB()).
+		select({id:jobsTable.id}).
+		from(jobsTable).
+		where(
+			and(
+				eq(jobsTable.profileId, profileId), 
+				eq(jobsTable.status, "completed")
+			)
+		);
+};
+
+const jobApplicationReducer = (a, c) => {
+	const key = c?.applications?.id ?? null;
+	if(a[key] === undefined && key !== null){
+		a[key] = {
+			...c.applications,
+			applicant: { }
+		};
+	}
+	const appId = c?.profile?.id ?? null;
+	if(appId !== null && a[key].applicant[appId] === undefined){
+		a[key].applicant[appId] = {
+			upVotes: c.profile.upVotes,
+			downVotes: c.profile.downVotes,
+			avatarDataUrl: c.profile.avatarDataUrl,
+			completedJobs: 0,
+			userId: c.users.id,
+			name: c.users.visibleName ?? c.users.name
+		};
+	}
+	return a;
+};
+
+export const getApplications = async (jobId: string) => {
+	return new Promise(async(resolve, reject)=>{
+		const db = await getDB();	
+		const results = await db.select().
+			from(jobsTable).
+			innerJoin(applicationTable, eq(applicationTable.jobId, jobsTable.id)).
+			innerJoin(profileTable, eq(applicationTable.profileId, profileTable.id)).
+			innerJoin(usersTable, eq(profileTable.id, usersTable.profileId)).
+			where(eq(jobsTable.id, jobId));
+		const grouped = results.reduce(jobApplicationReducer, {});
+		const mapped = Object.keys(grouped).map((e, i)=>{
+	 		const application = grouped[e];
+			const apps = Object.keys(application.applicant).map((j,k)=>{
+				return application.applicant[j];
+			});
+			if(apps.length > 1){
+				throw new Error(`Application ${application.id} is linked to more then one applicant`);
+			}
+			application.applicant = apps[0];
+			return application;
+		});
+		resolve(mapped);
+	});
 };
 
 export const updateJob = async (job:any) => {

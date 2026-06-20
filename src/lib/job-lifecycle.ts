@@ -32,20 +32,17 @@ export function isPastStartDate(job: Job): boolean {
   if (!job.dates || job.dates.length === 0) {
     return false;
   }
-
   const startDate = new Date(job.dates[0]);
   if (job.startTime) {
     const [hours, minutes] = job.startTime.split(':').map(Number);
     startDate.setHours(hours, minutes, 0, 0);
   }
-
   return new Date() > startDate;
 }
 
 export function getJobLifecycleState(job: Job, hasApplications: boolean = false): JobLifecycleState {
   const listingExpired = isJobExpired(job);
   const pastStart = isPastStartDate(job);
-
   const state: JobLifecycleState = {
     canCancel: false,
     canClose: false,
@@ -57,13 +54,11 @@ export function getJobLifecycleState(job: Job, hasApplications: boolean = false)
     allowsApplications: false,
     allowsSelection: false,
   };
-
   if (listingExpired) {
     state.statusMessage = 'This job listing is no longer available';
     state.warningMessage = 'This post has passed the 30-day listing period';
     return state;
   }
-
   switch (job.status) {
     case 'open':
       state.allowsApplications = true;
@@ -72,7 +67,6 @@ export function getJobLifecycleState(job: Job, hasApplications: boolean = false)
       state.canCancel = true;
       state.statusMessage = 'Job is open for applications';
       break;
-
     case 'accepted':
       state.canCancel = true;
       state.canConfirmHire = true;
@@ -83,11 +77,9 @@ export function getJobLifecycleState(job: Job, hasApplications: boolean = false)
         state.statusMessage = 'Subcontractor accepted - confirm hire to proceed';
       }
       break;
-
     case 'confirmed':
       state.canCancel = !isPastLastDate(job);
       state.canComplete = isPastLastDate(job);
-
       if (isPastLastDate(job)) {
         state.statusMessage = 'Job period complete - mark as completed';
       } else if (pastStart) {
@@ -96,24 +88,20 @@ export function getJobLifecycleState(job: Job, hasApplications: boolean = false)
         state.statusMessage = 'Hire confirmed - job starts soon';
       }
       break;
-
     case 'completed':
       state.statusMessage = 'Job completed successfully';
       break;
-
     case 'cancelled':
       state.statusMessage = 'Job cancelled';
       if (job.wasAcceptedOrConfirmedBeforeCancellation) {
         state.warningMessage = 'Cancelled after acceptance - reliability reviews may apply';
       }
       break;
-
     case 'closed':
       state.statusMessage = 'Job closed without hiring';
       state.canReopen = true;
       break;
   }
-
   return state;
 }
 

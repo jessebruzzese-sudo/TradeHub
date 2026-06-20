@@ -5,6 +5,15 @@ import Axios from "axios";
 import { ENV } from "@/lib/env";
 import * as jose from "jose";
 
+export const getUserRating = (up:number, down:number) => {
+	const totalVotes = up + down;
+  const starAverage =
+    totalVotes === 0
+      ? 0
+      : Number((1 + (up / totalVotes) * 4).toFixed(1));
+  return Number(starAverage).toFixed(1);
+};
+
 export const getClaims = async (token:string) => {
 	return new Promise(async(resolve, reject)=>{
 		let claims = null;

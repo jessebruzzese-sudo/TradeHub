@@ -19,6 +19,26 @@ type WelcomePayload = {
 	email: string;
 	name: string;
 };
+export const doUserCreated = async () => {
+	return new Promise(async(resolve, reject)=>{
+		resolve();
+	});
+};
+export const doJobCreated = async () => {
+	return new Promise(async(resolve, reject)=>{
+		resolve();
+	});
+};
+export const doJobApplicationReceived = () => {
+	return new Promise(async(resolve, reject)=>{
+		resolve();
+	});
+};
+export const doJobApplied = async () => {
+	return new Promise(async(resolve, reject)=>{
+		resolve();
+	});
+};
 export const doWelcome = async (welcome:WelcomePayload) => {
 	const link = `${ENV.sendgrid.appBaseUrl}/activate?uid=${welcome.userId}&code=${welcome.code}`;
 	const currentYear = d.format(new Date(), "yyyy");

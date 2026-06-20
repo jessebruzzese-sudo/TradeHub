@@ -2,7 +2,7 @@
 "use server"
 import { ENV } from "@/lib/env";
 import { readFile, unlink } from "node:fs/promises";
-import { getImageExtension } from "@/lib/utils";
+import { getImageExtension, getMimeForFile } from "@/lib/utils";
 
 export const loadWorkImages = async (work:any) => {
   return new Promise(async(resolve, reject)=>{
@@ -34,6 +34,15 @@ export const deleteJobAttachments = async (job:any) => {
 			removed += 1;
 		}
 		resolve(removed);	
+	});
+};
+
+export const loadImage = async (filePath:string) => {
+	return new Promise(async(resolve, reject)=>{
+		const mimeType = getMimeForFile(filePath);
+		const buffer = await readFile(filePath);
+		const url = `data:${mimeType};base64,${buffer.toString('base64')}`;
+		resolve(url);
 	});
 };
 

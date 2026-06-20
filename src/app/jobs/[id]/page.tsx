@@ -8,7 +8,7 @@
  * - Apply, select applicant, confirm hire, etc. still require verified ABN — copy and toasts say so clearly.
  */
 
-import { getAxios } from "@/lib/utils";
+import { getAxios, getUserRating } from "@/lib/utils";
 import { AppLayout } from '@/components/app-nav';
 import { useAuth } from '@/lib/auth';
 import type { PayType, JobStatus } from '@/lib/types';
@@ -261,7 +261,7 @@ export default function JobDetailPage() {
 	
 	const [currentUser, setCurrentUser] = useState(UserSession?.user ?? null);
 	const [job, setJob] = useState(null);
-	const [applications, setApplications] = useState([]);
+	const [applications, setApplications] = useState(null);
   const [showApplyDialog, setShowApplyDialog] = useState(false);
   const [applicationMessage, setApplicationMessage] = useState('');
   const [showCancelDialog, setShowCancelDialog] = useState(false);
@@ -288,9 +288,23 @@ export default function JobDetailPage() {
 				setJob(data);
 			}).catch((err_)=>{
 				console.error(err_);
-				toast.error("Failed to load job");
+				toast.error("Could not load job");
 			});
   }, [job]);
+	
+	useEffect(()=>{
+		if(applications !== null){
+			return;
+		}	
+		getAxios(null).get(`/api/jobs/${jobId}/applications`).
+			then((response_)=>{
+				const data = response_.data;
+				setApplications(data);
+			}).catch((error_)=>{
+				console.error(error_);
+				toast.error("Could not load applications");
+			});
+	}, [applications]);
 
   useEffect(() => {
     if (!lightboxOpen) return;
@@ -312,10 +326,11 @@ export default function JobDetailPage() {
   const posterPremium = poster?.premium ?? false;
 
   // “My application” = any application made by the current user (single-account model)
-  const myApplication = applications.find((a) => a.subcontractorId === currentUser?.id);
+  const myApplication = applications?.find((a) => a?.applicant?.userId === currentUser?.id) ?? null;
   const isAdminUser = currentUser?.role === "admin";
   const isMyJob = job && currentUser && job.owner.id === currentUser.id;
-  const lifecycleState = job ? getJobLifecycleState(job, applications.length > 0) : null;
+	const applicationCount = applications?.length ?? 0;
+  const lifecycleState = job ? getJobLifecycleState(job, applicationCount > 0) : null;
 
   // In single-account model: anyone who is NOT the job owner can apply (unless admin overrides are supported elsewhere)
   const canApply = currentUser && job && !isMyJob && lifecycleState?.allowsApplications && !myApplication;
@@ -539,25 +554,25 @@ export default function JobDetailPage() {
       redirectToVerifyBusiness(router, returnUrl);
       return;
     }
-    const application = store.getApplicationById(applicationId);
-    if (!application) return;
     const transition = canTransitionToStatus('open', 'accepted', { hasSelectedSubcontractor: true });
     if (!transition.allowed) {
       alert(transition.reason);
       return;
     }
     setActionSubmitting(true);
-    try {
-      await callJobAction('select', applicationId);
-      store.updateJob(job.id, { status: 'accepted', selectedSubcontractor: application.subcontractorId });
-      store.updateApplication(applicationId, { status: 'selected' });
-      toast.success('Subcontractor selected');
-      router.refresh();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to select');
-    } finally {
-      setActionSubmitting(false);
-    }
+		const payload = {
+			action: "select",
+			applicationId
+		};	
+		getAxios(null).post(`/api/jobs/${jobId}/action`, payload).
+			then((response_)=>{
+      	toast.success('Application selected');
+      	setActionSubmitting(false);
+				setApplications(null);
+			}).catch((error_)=>{
+      	toast.error("Could not select application");
+      	setActionSubmitting(false);
+			});
   };
 
   const handleAccept = async () => {
@@ -615,26 +630,25 @@ export default function JobDetailPage() {
       alert('Cannot confirm hire at this time');
       return;
     }
+		const selected = applications.find((x)=>x.status === "selected");
+		const hasSelectedApplication = selected !== undefined;
     const transition = canTransitionToStatus('accepted', 'confirmed', {
-      hasSelectedSubcontractor: !!job.selectedSubcontractor,
+      hasSelectedSubcontractor: hasSelectedApplication
     });
     if (!transition.allowed) {
       alert(transition.reason);
       return;
     }
     setActionSubmitting(true);
-    try {
-      await callJobAction('confirm');
-      store.updateJob(job.id, { status: 'confirmed', confirmedSubcontractor: job.selectedSubcontractor });
-      const selectedApp = applications.find((a) => a.subcontractorId === job.selectedSubcontractor);
-      if (selectedApp) store.updateApplication(selectedApp.id, { status: 'confirmed' });
-      toast.success('Hire confirmed!');
-      router.refresh();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to confirm');
-    } finally {
-      setActionSubmitting(false);
-    }
+		getAxios(null).post(`/api/jobs/${jobId}/action`, { action: "confirm" }).
+			then((response_)=>{
+      	toast.success('Hire confirmed');
+    		setActionSubmitting(false);
+				setApplications(null);
+			}).catch((error_)=>{
+				toast.error("Could not confirm job");
+    		setActionSubmitting(false);
+			});
   };
 
   const handleWithdrawApplication = () => {
@@ -1309,23 +1323,23 @@ export default function JobDetailPage() {
             )}
           </div>
 
-          {isMyJob && applications.length > 0 && (
+          {isMyJob && applications !== null && applications.length > 0 && (
             <div className="bg-white border border-gray-200 rounded-xl p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Applications ({applications.length})</h2>
               <div className="space-y-4">
                 {applications.map((app) => {
-                  const applicant = store.getUserById(app.subcontractorId);
-                  if (!applicant) return null;
-
+                  const applicant = app?.applicant ?? null;
+                  if (!applicant) 
+										return null;
                   return (
                     <div key={app.id} className="border border-gray-200 rounded-lg p-4">
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex items-center gap-3">
-                          <UserAvatar avatarUrl={applicant.avatar} userName={applicant.name || 'TradeHub user'} size="md" />
+                          <UserAvatar avatarUrl={applicant.avatarDataUrl} userName={applicant.name || 'TradeHub user'} size="md" />
                           <div>
                             <p className="font-medium text-gray-900">{applicant.name || 'TradeHub user'}</p>
                             <p className="text-sm text-gray-600">
-                              {applicant.rating} ★ · {applicant.completedJobs} jobs
+                              {getUserRating(applicant.upVotes, applicant.downVotes)} ★ · {applicant.completedJobs} jobs
                             </p>
                           </div>
                         </div>

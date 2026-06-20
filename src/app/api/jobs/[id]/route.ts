@@ -73,7 +73,7 @@ export async function DELETE(request, context) {
 		}
 		// Ownership check
 		// Admin or owner
-		const ownerId = job?.ownerId ?? null;
+		const ownerId = job?.owner?.id ?? null;
 		if(ownerId === null){
     	return NextResponse.json({msg:"Job has null owner id"},{status:500});
 		}
