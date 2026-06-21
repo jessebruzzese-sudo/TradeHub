@@ -671,16 +671,15 @@ export default function JobDetailPage() {
     }
     if (!job) return;
     setIsClosing(true);
-    try {
-			// TODO close job
-      toast.success('Job closed successfully');
-      router.refresh();
-    } catch (err) {
-      console.error('[jobs] close failed', err);
-      toast.error('Could not close job. Check permissions.');
-    } finally {
-      setIsClosing(false);
-    }
+		getAxios(null).put(`/api/jobs/${jobId}/close`).
+			then((response_)=>{
+      	toast.success("Job closed successfully");
+    		setIsClosing(false);
+				setJob(null);
+			}).catch((error_)=>{
+      	toast.success("Could not close job");
+    		setIsClosing(false);
+			});
   }
 
   const handleCompleteJob = () => {
