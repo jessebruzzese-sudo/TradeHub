@@ -101,20 +101,21 @@ const JobAttachmentSchema = z.object({
 });
 
 const JobUpdateSchema = z.object({
-	title: z.string(),
-	description: z.string(),
-	tradeCategory: z.string(),
-	location: z.string(),
-	placeId: z.string().nullable(),
-	latitude: z.number(),
-	longitude: z.number(),
-	postcode: z.string(),
-	payType: z.string(),
-	rate: z.number(),
-	startTime: z.string(),
-	durationDays: z.number().int(),
-	dates: z.array(z.string().datetime()),
-	attachments: z.array(JobAttachmentSchema)
+	title: z.string().optional(),
+	description: z.string().optional(),
+	tradeCategory: z.string().optional(),
+	location: z.string().optional(),
+	placeId: z.string().nullable().optional(),
+	latitude: z.number().optional(),
+	longitude: z.number().optional(),
+	postcode: z.string().optional(),
+	payType: z.string().optional(),
+	status: z.string().optional(),
+	rate: z.number().optional(),
+	startTime: z.string().optional(),
+	durationDays: z.number().int().optional(),
+	dates: z.array(z.string().datetime()).optional(),
+	attachments: z.array(JobAttachmentSchema).optional()
 });
 
 /**
@@ -168,8 +169,12 @@ export async function PUT(
 			if(pt === null){
       	return NextResponse.json({ error: "Users primary trade is not set" }, { status: 500 });
 			}
-			if(pt !== payload.tradeCategory){
-      	return NextResponse.json({ error: "Free users can only post jobs with their primary trade" }, { status: 400 });
+			const deltaStatus = payload?.status ?? null;
+			if(pt !== payload.tradeCategory && deltaStatus === null){
+      	return NextResponse.json(
+					{ error: "Free users can only post jobs with their primary trade" }, 
+					{ status: 400 }
+				);
 			}
 		}else{
 			// TODO
@@ -201,7 +206,8 @@ export async function PUT(
 			// find existing attachments in payload
 			const delta = {};
 			const added = [];
-			for(const a of payload.attachments){
+			const payloadAttachments = payload?.attachments ?? [];
+			for(const a of payloadAttachments){
 				const id = a?.id ?? null;
 				a.create = false;
 				// check for no id

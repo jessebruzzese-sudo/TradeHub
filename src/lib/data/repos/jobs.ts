@@ -168,7 +168,9 @@ export const updateJob = async (job:any) => {
 					await addJobAttachmentT(trx, {...a, jobId}, path);
 				}
 			}
-			await trx.update(jobsTable).set(job).where(eq(jobsTable.id, jobId));
+			await trx.update(jobsTable).
+				set({...job, updatedAt: new Date()}).
+				where(eq(jobsTable.id, jobId));
 		});
 		resolve(true);
 	});

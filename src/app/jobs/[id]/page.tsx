@@ -671,7 +671,7 @@ export default function JobDetailPage() {
     }
     if (!job) return;
     setIsClosing(true);
-		getAxios(null).put(`/api/jobs/${jobId}/close`).
+		getAxios(null).put(`/api/jobs/${jobId}`, {status: "closed"}).
 			then((response_)=>{
       	toast.success("Job closed successfully");
     		setIsClosing(false);
