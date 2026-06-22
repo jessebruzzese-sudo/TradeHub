@@ -6,6 +6,7 @@
  * - Owner with contractor role can save (matches hiring/job-post model, API, and RLS on `jobs` UPDATE). ABN optional for jobs.
  */
 
+export const dynamic = "force-dynamic";
 
 import { getAxios } from "@/lib/utils";
 import UserContext from "@/lib/user-context";

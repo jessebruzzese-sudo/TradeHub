@@ -50,6 +50,20 @@ const userReducer = (a, c) => {
 	return a;
 };
 
+export const doForgotPassword = async (state:string, email:string) => {
+	return (await getDB()).
+		update(usersTable).
+		set({forgotPasswordState: state}).
+		where(eq(usersTable.email, email));
+};
+
+export const getUserIdsForEmail = async (email:string) => {
+	return (await getDB()).
+		select({id:usersTable.id}).
+		from(usersTable).
+		where(eq(usersTable.email, email));
+};
+
 export const getActivationStatus = async (email:string) => {
 	return (await getDB()).select({activated: usersTable.activated}).
 		from(usersTable).
@@ -81,6 +95,19 @@ export const getUserLocation = async (userId:string) => {
 
 export const updateLastActive = async (email:string) => {
 	return (await getDB()).update(usersTable).set({lastActiveAt:new Date()}).where(eq(usersTable.email, email));
+};
+
+export const findUserWithPasswordState = async (state:string) => {
+	return (await getDB()).select({id:usersTable.id, email:usersTable.email}).
+		from(usersTable).	
+		where(eq(usersTable.forgotPasswordState, state));
+};
+
+export const changePassword = async (password:string, userId:string) => {
+	const hashed = await bcrypt.hash(password, SALT_ROUNDS);
+	return (await getDB()).update(usersTable).
+		set({password:hashed, forgotPasswordState:null}).
+		where(eq(usersTable.id, userId));
 };
 
 const addUserT = async (payload:any, businessId:string, profileId:string, roleId:integer, trx:any) => {

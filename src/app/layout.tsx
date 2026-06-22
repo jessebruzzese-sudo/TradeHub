@@ -10,6 +10,8 @@ import { ENV } from "@/lib/env";
 
 const inter = Inter({ subsets: ['latin'] });
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   metadataBase: new URL('https://tradehub.com.au'),
   title: 'TradeHub - B2B Marketplace for Australian Contractors',

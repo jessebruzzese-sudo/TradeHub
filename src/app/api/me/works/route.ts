@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDataService } from "@/lib/data/service";
 import { getClaims } from "@/lib/claims/service";
+import { loadWorkImages } from "@/lib/images/service";
 import { ENV } from "@/lib/env";
 import { cookies } from "next/headers";
 import * as jose from "jose";

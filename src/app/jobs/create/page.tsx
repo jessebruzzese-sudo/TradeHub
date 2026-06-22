@@ -2,6 +2,8 @@
 // vim: ts=2
 'use client';
 
+export const dynamic = "force-dynamic";
+
 import { getAxios } from "@/lib/utils";
 import UserContext from "@/lib/user-context";
 import Link from 'next/link';

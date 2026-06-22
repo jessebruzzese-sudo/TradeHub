@@ -7,6 +7,8 @@
  * - Soft notice when unverified encourages optional verification as a trust signal.
  */
 
+export const dynamic = "force-dynamic";
+
 import { getAxios } from "@/lib/utils";
 import Link from 'next/link';
 import UserContext from "@/lib/user-context";

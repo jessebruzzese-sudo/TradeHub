@@ -27,7 +27,8 @@ export const usersTable = pgTable("users", {
 	public: boolean("public").default(false), // could be in profile?
 	activated: boolean("activated").default(false),
 	activatedAt: timestamp("activated_at"),
-	activationCode: text("activation_code")
+	activationCode: text("activation_code"),
+	forgotPasswordState: text("forgot_password_state")
 });
 
 export type UserType = typeof usersTable.$inferSelect;

@@ -49,12 +49,6 @@ export function TopBar() {
           </Link>
         </div>
         <div className="flex items-center gap-2">
-          {!isAdmin && (
-            <Link href="/notifications" className="hidden md:flex relative p-2 hover:bg-gray-100 rounded-lg transition-colors min-w-[44px] min-h-[44px] items-center justify-center">
-              <Bell className="w-5 h-5 text-gray-700" />
-                <div className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" aria-label="Unread notifications" />
-            </Link>
-          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="hidden md:flex rounded-lg min-w-[44px] min-h-[44px]" aria-label="Account menu">

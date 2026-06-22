@@ -53,8 +53,12 @@ export const ENV: TradeHubEnv = {
 		key: load("SENDGRID_KEY"),	
 		fromEmail: load("SENDGRID_FROM_EMAIL"),
 		appBaseUrl: load("SENDGRID_APP_BASE_URL"),
+		adminEmails: load("SENDGRID_ADMIN_EMAILS"),
 		templates: {
-			welcome: load("WELCOME_TEMPLATE_ID")	
+			welcome: load("WELCOME_TEMPLATE_ID"),
+			userCreated: load("USER_CREATED_TEMPLATE_ID"),
+			forgotPassword: load("FORGOT_PASSWORD_TEMPLATE_ID"),
+			passwordChanged: load("PASSWORD_CHANGED_TEMPLATE_ID")
 		}
 	},
 	jwt: {

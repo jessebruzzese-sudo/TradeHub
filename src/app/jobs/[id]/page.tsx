@@ -8,6 +8,8 @@
  * - Apply, select applicant, confirm hire, etc. still require verified ABN — copy and toasts say so clearly.
  */
 
+export const dynamic = "force-dynamic";
+
 import { getAxios, getUserRating } from "@/lib/utils";
 import { AppLayout } from '@/components/app-nav';
 import { useAuth } from '@/lib/auth';

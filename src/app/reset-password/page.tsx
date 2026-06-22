@@ -1,27 +1,23 @@
+// vim: ts=2
 'use client';
 
+import { getAxios } from "@/lib/utils";
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-function getHashParams(): URLSearchParams {
-  if (typeof window === 'undefined') return new URLSearchParams();
-  const raw = window.location.hash.startsWith('#')
-    ? window.location.hash.slice(1)
-    : window.location.hash;
-  return new URLSearchParams(raw);
-}
-
 export default function ResetPasswordPage() {
 
+	const query = useSearchParams();
   const router = useRouter();
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [status, setStatus] = useState('checking');
+	const [token, setToken] = useState(query.get("state"));
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [status, setStatus] = useState('ready');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -37,15 +33,16 @@ export default function ResetPasswordPage() {
       return;
     }
     setSubmitting(true);
-    try {
-			// TODO do reset password	
-			// change users password
-    } catch (e) {
-      console.error('[reset-password] updateUser failed', e);
-      setError('Unable to reset password.');
-    } finally {
-      setSubmitting(false);
-    }
+		getAxios(null).post("/api/auth/reset-password", {password, state:token}).
+			then((response_)=>{
+				setSubmitting(false);
+				router.push("/login");	
+			}).catch((error_)=>{
+				const msg = error_?.response?.data?.error ?? null;
+				if(msg)
+      		setError(msg);
+				setSubmitting(false);
+			});
   };
 
   return (

@@ -1,5 +1,7 @@
+// vim: ts=2
 'use client';
 
+import { getAxios } from "@/lib/utils";
 import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -7,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft } from 'lucide-react';
+import { toast } from "sonner";
 
 export default function ForgotPasswordPage() {
 
@@ -20,18 +23,19 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     setError('');
     setIsSubmitting(true);
-
-    try {
-			// TODO handle forgot password
-			const email = 'a.b@c.com';
-      setSubmittedEmail(email.trim());
-      setSubmitted(true);
-    } catch (err) {
-      console.error('Forgot password request failed:', err);
-      setError('Unable to send reset link. Please try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
+		getAxios(null).post(`/api/auth/forgot-password`, { email }).
+			then((response_)=>{
+      	setSubmittedEmail(email.trim());
+    		setIsSubmitting(false);
+      	setSubmitted(true);
+			}).catch((error_)=>{
+				const msg = error_?.response?.data?.error ?? "";
+				toast.error(msg);
+				setError(msg);
+      	setSubmittedEmail("");
+    		setIsSubmitting(false);
+      	setSubmitted(false);
+			});
   };
 
   return (

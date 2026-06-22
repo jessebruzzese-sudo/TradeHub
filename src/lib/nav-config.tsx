@@ -49,7 +49,6 @@ export const MAIN_ACTIONS_SECTION: NavSectionConfig = {
   items: [
     { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { label: 'Subcontractors', href: '/subcontractors', icon: Users },
-    { label: 'Search Trades', href: '/search', icon: Search },
     { label: 'Jobs', href: '/jobs', icon: Briefcase },
     { label: 'Completed Works', href: '/works', icon: Images },
     { label: 'List Availability', href: '/profile/availability', icon: Calendar },
@@ -60,8 +59,7 @@ export const MAIN_ACTIONS_SECTION: NavSectionConfig = {
 export const COMMUNICATION_SECTION: NavSectionConfig = {
   title: 'Communication',
   items: [
-    { label: 'Messages', href: '/messages', icon: MessageSquare },
-    { label: 'Notifications', href: '/notifications', icon: Bell },
+    { label: 'Messages', href: '/dashboard', icon: MessageSquare },
   ],
 };
 
@@ -104,8 +102,7 @@ export function getAccountItems(): NavItemConfig[] {
 export const BOTTOM_NAV_ITEMS: NavItemConfig[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { label: 'Jobs', href: '/jobs', icon: Briefcase },
-  { label: 'Messages', href: '/messages', icon: MessageSquare },
-  { label: 'Notifications', href: '/notifications', icon: Bell },
+  { label: 'Messages', href: '/dashboard', icon: MessageSquare },
 ];
 
 /** Admin nav (flat list, no sections) */

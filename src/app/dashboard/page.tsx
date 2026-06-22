@@ -790,16 +790,16 @@ export default function DashboardPage() {
                   icon={<Search className="h-5 w-5" />}
                 />
                 <ActionCard
-                  title="My Applications"
-                  description="Track applications and statuses."
-                  href="/applications"
-                  icon={<ClipboardList className="h-5 w-5" />}
-                />
-                <ActionCard
                   title="My Works"
                   description="Let people know about your previous works."
                   href="/works"
                   icon={<User className="h-5 w-5" />}
+                />
+                <ActionCard
+                  title="Availability"
+                  description="Update your available days."
+                  href="/profile/availability"
+                  icon={<Calendar className="h-4 w-4" />}
                 />
               </>
 							)}
@@ -881,43 +881,11 @@ export default function DashboardPage() {
                 <SecondaryToolCard
                   title="Messages"
                   description="Chat with subcontractors."
-                  href="/messages"
+                  href="/dashboard"
                   icon={<MessageSquare className="h-4 w-4" />}
-                />
-                <SecondaryToolCard
-                  title="Notifications"
-                  description="View alerts and activity"
-                  href="/notifications"
-                  icon={<Bell className="h-4 w-4" />}
-                />
-                <SecondaryToolCard
-                  title="Search Trades"
-                  description="Listed Trades"
-                  href="/search"
-                  icon={<Search className="h-4 w-4" />}
                 />
               </>
             )}
-              <>
-                <SecondaryToolCard
-                  title="Messages"
-                  description="Chat with contractors."
-                  href="/messages"
-                  icon={<MessageSquare className="h-4 w-4" />}
-                />
-                <SecondaryToolCard
-                  title="Availability"
-                  description="Update your available days."
-                  href="/profile/availability"
-                  icon={<Calendar className="h-4 w-4" />}
-                />
-                <SecondaryToolCard
-                  title="Profile"
-                  description="Update your business profile."
-                  href="/profile"
-                  icon={<User className="h-4 w-4" />}
-                />
-              </>
           </div>
         </div>
         </div>

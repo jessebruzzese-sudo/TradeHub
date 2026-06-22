@@ -181,6 +181,8 @@ function CollapsibleSection({
 }
 
 export default function SignupPage() {
+
+  const EMAIL_EXISTS = "An account with this email already exists. Please try a different one.";
   const [openSection, setOpenSection] = useState<number>(1);
   const [currentStep, setCurrentStep] = useState(1);
   const [maxUnlockedStep, setMaxUnlockedStep] = useState<number>(1);
@@ -366,21 +368,20 @@ export default function SignupPage() {
 					postcode,
 					locationLat,
 					locationLng,
-					availability: null, // TODO why's this here then?
+					availability: null,
         	tradeCategories,
 					trades: normalizedTrades,
 				}
 			};
-			// TODO check for auto login
 			await getAxios().post("/api/auth/signup", payload);
       router.push('/login');
     } catch (err: any) {
-      console.error('[Signup] Signup error:', err);
-      const msg = (err?.message || '').toLowerCase();
-      if (msg.includes('already') || msg.includes('exists') || msg.includes('duplicate') || msg.includes('unique')) {
+			const msg = err?.response?.data?.error?.toLowerCase();
+			if (msg === "email already exists") {
+				toast.error(EMAIL_EXISTS);
         setError('DUPLICATE_EMAIL');
       } else {
-        setError(err?.message || 'Failed to create account. Please try again.');
+        setError(msg);
       }
     } finally {
       setLoading(false);
@@ -460,7 +461,7 @@ export default function SignupPage() {
                 <div className="flex items-start gap-2 mb-3">
                   <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-600" />
                   <p className="text-sm text-blue-900 font-medium">
-                    An account with this email already exists. Please sign in instead.
+                    An account with this email already exists. Please try a different one.
                   </p>
                 </div>
                 <Link

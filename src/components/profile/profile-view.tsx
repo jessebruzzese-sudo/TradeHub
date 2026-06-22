@@ -215,7 +215,7 @@ export function ProfileView({
   const [availDesc, setAvailDesc] = useState<string>('');
   const [availLoading, setAvailLoading] = useState(true);
   const [alertsUpsellOpen, setAlertsUpsellOpen] = useState(false);
-	const [viewerHasLiked, setViewHasLiked] = useState(vl);
+	const [viewerHasLiked, setViewerHasLiked] = useState(vl);
 	const [likeCount, setLikeCount] = useState(p?.profile?.likes?.length ?? 0);
   const today = startOfDay(new Date());
 	
@@ -415,7 +415,7 @@ export function ProfileView({
                   <MessageSquare className="h-4 w-4" />
                   Message
                 </Button>
-                <Link href="/search">
+                <Link href="/subcontractors">
                   <Button variant="ghost" size="sm">
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Back to Search
