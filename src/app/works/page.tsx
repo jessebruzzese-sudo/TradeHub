@@ -84,10 +84,10 @@ export default function CompletedWorksIndexPage() {
   };
 
   return (
-    <AppLayout transparentBackground>
+    <AppLayout>
       <CompletedWorksGradientShell className="max-w-5xl">
         <PageHeader
-          tone="dark"
+          tone="light"
           backLink={{ href: '/dashboard' }}
           title="Completed Works"
           description="Showcase finished jobs with photos and a short description. Your primary trade from your profile is shown automatically — there is no separate trade field per post."

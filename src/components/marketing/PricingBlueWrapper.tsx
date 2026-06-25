@@ -4,10 +4,12 @@ import React from 'react';
 
 export function PricingBlueWrapper({
   children,
-  className = '',
+  className = "",
+	imgSource = "/TradeHub-Mark-whiteout.svg"
 }: {
   children: React.ReactNode;
   className?: string;
+	imgSource?: string;
 }) {
   return (
     <div
@@ -31,7 +33,7 @@ export function PricingBlueWrapper({
       {/* Watermark (fixed to viewport) - above background, behind content */}
       <div className="pointer-events-none fixed bottom-[-220px] right-[-220px] z-0">
         <img
-          src="/TradeHub-Mark-whiteout.svg"
+          src={imgSource}
           alt=""
           aria-hidden="true"
           className="h-[1600px] w-[1600px] opacity-[0.08]"

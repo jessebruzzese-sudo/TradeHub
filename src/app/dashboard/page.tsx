@@ -881,7 +881,7 @@ export default function DashboardPage() {
                 <SecondaryToolCard
                   title="Messages"
                   description="Chat with subcontractors."
-                  href="/dashboard"
+                  href="/messages"
                   icon={<MessageSquare className="h-4 w-4" />}
                 />
               </>

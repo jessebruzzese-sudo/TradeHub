@@ -255,6 +255,27 @@ export function ProfileView({
       .filter((d) => !isAfter(today, d));
     return future.length;
   }, [availDates, today]);
+	
+	const handleMessaging = () => {
+		// we dont want to create a conversation with ourselves
+		if(isSelf){
+			return;
+		}	
+		// only need the id of the person that we're talking to 
+		// our id is within the jwt claims
+		const payload = {
+			otherProfileId: p.profile.id
+		};
+		getAxios(null).post(`/api/conversations`, payload).
+			then((response_)=>{
+				router.push("/messages");
+			}).catch((err_)=>{
+				const error = err_?.response?.data?.error ?? null;
+				if(error){
+					toast.error(error);
+				}
+			});
+	};
 
   async function submitRating(value: 1 | -1) {
     if (!profileUserId) return;
@@ -286,10 +307,10 @@ export function ProfileView({
           null,
       }
     : null;
-  const isPremiumForDiscoveryCheck = userForDiscovery ? isPremiumForDiscovery(userForDiscovery) : false;
+  const isPremiumForDiscoveryCheck = p?.profile?.premium;
   const showUpgradeNudge = isSelf && profile && !isPremiumForDiscoveryCheck && !isProfileUserAdmin;
-  const showBillingSimulation = isSelf && BILLING_SIM_ALLOWED;
-  const isUsingSimulation = showBillingSimulation && getSimulatedPremium();
+  const showBillingSimulation = false;
+  const isUsingSimulation = false;
   const hasRealPremium = isSelf && profile ? shouldShowProBadge(profile) : false;
   const planStatus = (() => {
     if (isUsingSimulation && !hasRealPremium) return 'Premium (Simulated)';
@@ -376,10 +397,10 @@ export function ProfileView({
         : "from-slate-100 via-slate-50 to-white";
 
   const profileBody = (
-      <PricingBlueWrapper className="bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800">
-        <div className="mx-auto max-w-5xl px-4 py-10 text-white">
+      <PricingBlueWrapper className="bg-gradient-to-b from-slate-50 via-slate-100 to-slate-200" imgSource="/TradeHub-Mark-blackout.svg">
+        <div className="mx-auto max-w-5xl px-4 py-10 text-slate-900">
           <div className="mb-6 flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-white">{isSelf ? 'My Profile' : 'Profile'}</h1>
+            <h1 className="text-2xl font-bold">{isSelf ? 'My Profile' : 'Profile'}</h1>
             {isSelf ? (
               <Link href={dashboardPath}>
                 <Button variant="ghost" size="sm">
@@ -402,15 +423,7 @@ export function ProfileView({
                   variant="default"
                   size="sm"
                   className="gap-2"
-                  onClick={() => {
-										toast.info("Coming soon");
-										{/*
-										// TODO fix up messaging!	
-                    if (profileUserId) {
-                      router.push(`/messages?userId=${profileUserId}`);
-                    }
-										*/}
-                  }}
+                  onClick={handleMessaging}
                 >
                   <MessageSquare className="h-4 w-4" />
                   Message

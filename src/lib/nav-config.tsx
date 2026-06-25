@@ -69,7 +69,6 @@ export const ACCOUNT_SECTION: NavSectionConfig = {
   items: [
     { label: 'Profile', href: '/profile', icon: User },
     { label: 'Verify Business', href: '/verify-business', icon: Shield },
-    { label: 'Pricing', href: '/pricing', icon: CreditCard, hideInFreeMode: true },
   ],
 };
 

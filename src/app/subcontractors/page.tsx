@@ -202,37 +202,36 @@ export default function SubcontractorsPage() {
 
   return (
     <TradeGate>
-      <AppLayout transparentBackground>
-        {/* Blue wrapper (marketing layout) */}
-        <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800">
-          {/* Dotted overlay */}
-          <div
-            className="pointer-events-none absolute inset-0 opacity-20"
-            style={{
-              backgroundImage:
-                'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.25) 1px, transparent 0)',
-              backgroundSize: '20px 20px',
-            }}
-            aria-hidden
+      <AppLayout>
+        {/* slate wrapper */}
+        <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-slate-50 via-slate-100 to-slate-200">
+					{/* Dotted overlay */}
+        <div
+          className="pointer-events-none absolute inset-0 opacity-25"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.12) 1px, transparent 0)',
+            backgroundSize: '20px 20px',
+          }}
+          aria-hidden
+        />
+
+        {/* Watermark */}
+        <div className="pointer-events-none fixed bottom-[-220px] right-[-220px] z-0">
+          <img
+            src="/TradeHub-Mark-blackout.svg"
+            alt=""
+            aria-hidden="true"
+            className="h-[1600px] w-[1600px] opacity-[0.06]"
           />
-
-          {/* White watermark (TradeHub logo) */}
-          <div className="pointer-events-none fixed bottom-[-220px] right-[-220px] z-0">
-            <img
-              src="/TradeHub-Mark-whiteout.svg"
-              alt=""
-              aria-hidden="true"
-              className="h-[1600px] w-[1600px] opacity-[0.08]"
-            />
-          </div>
-
+        </div>
           {/* Page content — same structure as /jobs */}
           <div className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-24 pt-6 sm:px-6 lg:px-8">
             {/* Header row — same rhythm as /jobs */}
             <div className="mb-4 flex flex-col gap-2 sm:mb-6">
               <Link
                 href="/dashboard"
-                className="inline-flex items-center text-sm text-white/80 hover:text-white transition-colors mb-1"
+                className="inline-flex items-center text-sm text-slate-900 hover:text-white transition-colors mb-1"
               >
                 <ArrowLeft className="w-4 h-4 mr-1" />
                 Back to Dashboard
@@ -241,11 +240,11 @@ export default function SubcontractorsPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 shadow-sm ring-1 ring-white/15 backdrop-blur">
-                      <Users className="h-5 w-5 text-white" />
+                      <Users className="h-5 w-5 text-slate-900" />
                     </div>
-                    <h1 className="text-2xl font-semibold tracking-tight text-white">Find Subcontractors</h1>
+                    <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Find Subcontractors</h1>
                   </div>
-                  <p className="mt-1 text-sm text-white/80">
+                  <p className="mt-1 text-sm text-slate-900">
                     Subcontractors who have listed availability — browse by trade and connect
                   </p>
                 </div>

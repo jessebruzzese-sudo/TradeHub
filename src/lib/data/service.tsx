@@ -12,6 +12,7 @@ import * as profileRepo from "@/lib/data/repos/profile";
 import * as workRepo from "@/lib/data/repos/works";
 import * as jobRepo from "@/lib/data/repos/jobs";
 import * as applicationRepo from "@/lib/data/repos/applications";
+import * as conversationRepo from "@/lib/data/repos/conversations";
 const MAX_CONNECTIONS = 10;
 const IDLE_TIMEOUT = 10;
 const pgPool = new Pool({
@@ -30,10 +31,26 @@ const pgPool = new Pool({
   keepAlive: true,
   keepAliveInitialDelayMillis: 10000,
 });
-const DB = drizzle(pgPool);
+// use a singleton class to control the contruction
+// of the database connection pool
+// this way there's no risk of duplicates / leaking connections
+// assuming that the pool is working properly
+class DbWrapper {
+	static instance;
+	constructor(){
+		this.db = drizzle(pgPool);
+	}
+};
+// provide access to the drizzle database
+// using the above db wrapper class
 export const getDB = async() => {
 	return new Promise(async(resolve, reject)=>{
-		resolve(DB);
+		if(DbWrapper.instance){
+			resolve(DbWrapper.instance.db);
+			return;
+		}
+		DbWrapper.instance = new DbWrapper();
+		resolve(DbWrapper.instance.db);
 	});
 }
 export const getDataService = async () => {
@@ -46,7 +63,8 @@ export const getDataService = async () => {
 			profile: profileRepo,
 			works: workRepo,
 			jobs: jobRepo,
-			applications: applicationRepo
+			applications: applicationRepo,
+			conversations: conversationRepo
 		});
 	});
 };

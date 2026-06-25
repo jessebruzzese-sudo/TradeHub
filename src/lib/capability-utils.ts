@@ -39,7 +39,7 @@ export type CapabilityUser = {
 
 /** Dev-only: when billing sim is enabled and toggled on, treat as premium. */
 function isSimulatingPremium(): boolean {
-  return BILLING_SIM_ALLOWED && getSimulatedPremium();
+	return false;
 }
 
 /**
@@ -47,13 +47,7 @@ function isSimulatingPremium(): boolean {
  * Billing sim remains a dev override only.
  */
 export function getUserCapabilities(user: CapabilityUser): Capability[] {
-  if (isSimulatingPremium()) {
-    return ['BUILDER', 'CONTRACTOR', 'SUBCONTRACTOR'];
-  }
-  if (hasPremiumAccess(user)) {
-    return ['BUILDER', 'CONTRACTOR', 'SUBCONTRACTOR'];
-  }
-  return [];
+	return ['BUILDER', 'CONTRACTOR', 'SUBCONTRACTOR'];
 }
 
 export function hasCapability(user: CapabilityUser, capability: Capability): boolean {
@@ -62,18 +56,15 @@ export function hasCapability(user: CapabilityUser, capability: Capability): boo
 }
 
 export function hasBuilderPremium(user: CapabilityUser): boolean {
-  if (MVP_FREE_MODE && user) return true;
-  return hasCapability(user, 'BUILDER') || isSimulatingPremium();
+	return user?.profile?.premium ?? false;
 }
 
 export function hasContractorPremium(user: CapabilityUser): boolean {
-  if (MVP_FREE_MODE && user) return true;
-  return hasCapability(user, 'CONTRACTOR') || isSimulatingPremium();
+	return user?.profile?.premium ?? false;
 }
 
 export function hasSubcontractorPremium(user: CapabilityUser): boolean {
-  if (MVP_FREE_MODE && user) return true;
-  return hasCapability(user, 'SUBCONTRACTOR') || isSimulatingPremium();
+	return user?.profile?.premium ?? false;
 }
 
 /** Job posting is not ABN-gated; API/UI enforce `users.role = 'contractor'` to match RLS on `jobs` INSERT/UPDATE/DELETE (own rows). */
@@ -83,29 +74,21 @@ export function canPostJobs(user: CapabilityUser): boolean {
 
 /** Single-account model: anyone with any premium plan can use unlimited radius. */
 export function canUseUnlimitedRadius(user: CapabilityUser): boolean {
-  return hasContractorPremium(user) || hasSubcontractorPremium(user) || hasBuilderPremium(user);
+	return user?.profile?.premium ?? false;
 }
 
 /** Single-account model: anyone with subcontractor premium can broadcast availability. */
 export function canBroadcastAvailability(user: CapabilityUser): boolean {
-  return hasSubcontractorPremium(user);
+	return user?.profile?.premium ?? false;
 }
 
 export function canCustomSearchLocation(user: CapabilityUser): boolean {
-  return (
-    hasBuilderPremium(user) ||
-    hasContractorPremium(user) ||
-    hasSubcontractorPremium(user)
-  );
+	return user?.profile?.premium ?? false;
 }
 
 /** Premium: multiple trades on profile (Free = 1 trade only). */
 export function canMultiTrade(user: CapabilityUser): boolean {
-  return (
-    hasBuilderPremium(user) ||
-    hasContractorPremium(user) ||
-    hasSubcontractorPremium(user)
-  );
+	return user?.profile?.premium ?? false;
 }
 
 /**
@@ -196,10 +179,12 @@ export function getUpgradePath(currentPlan: SubscriptionPlan, targetCapabilities
 }
 
 export function isSubscriptionActive(user: CapabilityUser): boolean {
+	// TODO handle subscriptions
   return user.subscriptionStatus === 'ACTIVE';
 }
 
 export function canAccessFeature(user: CapabilityUser, feature: string): boolean {
+	// TODO handle account suspension
   if (user.accountSuspended) {
     if (user.suspensionEndsAt && new Date() < new Date(user.suspensionEndsAt)) {
       return false;

@@ -14,7 +14,7 @@ interface MessageInputProps {
   error?: string;
   onSuggestReply?: () => void;
   suggestLoading?: boolean;
-  suggestions?: string[];
+  suggestions?: string[] | null;
   onSelectSuggestion?: (suggestion: string) => void;
   aiError?: string | null;
 }
@@ -72,7 +72,7 @@ export function MessageInput({
           </AlertDescription>
         </Alert>
       )}
-      {suggestions.length > 0 && (
+      {( suggestions?.length ?? 0 ) > 0 && (
         <div className="mb-3">
           <p className="text-xs text-gray-600 mb-2">Suggested replies:</p>
           <div className="flex flex-wrap gap-2">

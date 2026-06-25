@@ -1,3 +1,4 @@
+// vim: ts=2
 'use client';
 
 /*
@@ -8,24 +9,37 @@
  *   disabled button + "Verify ABN to continue" + CTA link to /verify-business. Verified users use action cards normally.
  */
 
+import { getAxios } from "@/lib/utils";
+import { UnauthorizedAccess } from "@/components/unauthorized-access";
 import { useAuth } from '@/lib/auth';
-import { getStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
-import { MessageSquare, CheckCircle, XCircle, MoreVertical, User, Ban, Flag, ChevronLeft } from 'lucide-react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useState, useEffect, useRef } from 'react';
+import { 
+	MessageSquare, 
+	CheckCircle, 
+	XCircle, 
+	MoreVertical, 
+	User,
+ 	Ban, 
+	Flag, 
+	ChevronLeft 
+} from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef, useContext } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { MessageInput } from '@/components/message-input';
 import { MessageBubble } from '@/components/message-bubble';
 import { EmptyMessages } from '@/components/empty-messages';
-import { getMessagingState, validateMessage, hasMessages, shouldAddSystemMessage, createSystemMessage } from '@/lib/messaging-utils';
 import { canTransitionToStatus } from '@/lib/job-lifecycle';
 import { AppLayout } from '@/components/app-nav';
 import { callTradeHubAI } from '@/lib/ai-client';
 import { EmptyState } from '@/components/empty-state';
-import { needsBusinessVerification, redirectToVerifyBusiness, getVerifyBusinessUrl } from '@/lib/verification-guard';
+import { 
+	needsBusinessVerification, 
+	redirectToVerifyBusiness, 
+	getVerifyBusinessUrl 
+} from '@/lib/verification-guard';
 import { safeRouterPush } from '@/lib/safe-nav';
 import { buildLoginUrl, getPublicProfileHref } from '@/lib/url-utils';
 import { debugProfileCardData } from '@/lib/profile-debug';
@@ -63,705 +77,137 @@ import {
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+import UserContext from "@/lib/user-context";
+
 export default function MessagesPage() {
-  const { currentUser, isLoading } = useAuth();
+
+  const { jwt } = useAuth();
+	const hasSession = jwt !== null && jwt !== undefined;
+	const UserSession = useContext(UserContext);
   const router = useRouter();
   const hasRedirected = useRef(false);
-  const searchParams = useSearchParams();
-  const store = getStore();
 
-  const conversationId = searchParams.get('conversation');
-  const userIdParam = searchParams.get('userId');
-  const jobIdParam = searchParams.get('job');
-  const [selectedConversation, setSelectedConversation] = useState<string | null>(conversationId);
-  const [messageText, setMessageText] = useState('');
+	const [currentUser, setCurrentUser] = useState<any|null>(UserSession?.user ?? null);
+  const [selectedConversation, setSelectedConversation] = useState<string|null>(null);
+  const [messageText, setMessageText] = useState(""); // current message
   const [isSending, setIsSending] = useState(false);
-  const [sendError, setSendError] = useState<string | undefined>();
+  const [sendError, setSendError] = useState<string|undefined>();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const [conversationsFromApi, setConversationsFromApi] = useState<Array<{
-    id: string;
-    contractorId: string;
-    subcontractorId: string;
-    jobId: string | null;
-    otherUserId: string;
-    otherUserName: string;
-    otherUserAvatar: string | null;
-    lastMessage: { id: string; senderId: string; text: string; isSystemMessage: boolean; createdAt: string } | null;
-    jobTitle: string | null;
-    jobStatus: string | null;
-    updatedAt: string;
-    unreadCount?: number;
-  }>>([]);
-  const [messagesFromApi, setMessagesFromApi] = useState<Array<{
-    id: string;
-    conversationId: string;
-    senderId: string;
-    text: string;
-    isSystemMessage: boolean;
-    createdAt: string;
-  }>>([]);
-  const [loadingConversations, setLoadingConversations] = useState(true);
-  const [loadingMessages, setLoadingMessages] = useState(false);
-  const [jobFromApi, setJobFromApi] = useState<{
-    id: string;
-    contractorId: string;
-    title: string;
-    status: string;
-    selectedSubcontractor: string | null;
-    confirmedSubcontractor: string | null;
-    cancellationReason: string | null;
-    applications: Array<{ id: string; subcontractorId: string; status: string }>;
-  } | null>(null);
-  const [loadingJob, setLoadingJob] = useState(false);
+  const [conversations, setConversations] = useState<any|null>(null); // list of different conversations that exist
+  const [messages, setMessages] = useState<any|null>(null); // messages for current conversation
+  const [job, setJob] = useState<any|null>(null); // job linked to conversation, might not exist
   const [actionSubmitting, setActionSubmitting] = useState(false);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [suggestError, setSuggestError] = useState<string | null>(null);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [, setBlocksUpdated] = useState(0);
+	const [suggestions, setSuggestions] = useState<any|null>(null);
+		
   const [blockConfirmOpen, setBlockConfirmOpen] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
-  const [reportCategory, setReportCategory] = useState<string>('');
-  const [reportNotes, setReportNotes] = useState('');
+  const [reportCategory, setReportCategory] = useState<string>("");
+  const [reportNotes, setReportNotes] = useState("");
   const [reportAlsoBlock, setReportAlsoBlock] = useState(false);
   const [reportSubmitting, setReportSubmitting] = useState(false);
-  const [conversationFromMessagesApi, setConversationFromMessagesApi] = useState<{
-    id: string;
-    contractorId: string;
-    subcontractorId: string;
-    jobId: string | null;
-    otherUserId?: string;
-    otherUserName?: string;
-    otherUserAvatar?: string | null;
-  } | null>(null);
-  const [userIdBootstrapping, setUserIdBootstrapping] = useState(false);
+
+	const loadingConversations = conversations === null;
+	const loadingMessages = !loadingConversations && messages === null;
+	const loadingJob = job === null;
+
+	/* START HOOKS */
 
   useEffect(() => {
-    if (conversationId) {
-      setSelectedConversation(conversationId);
-    }
-  }, [conversationId]);
-
-  // Redirect unauthenticated users to login
+		if(!hasSession){
+			return;
+		}
+		if(conversations !== null){
+			return;
+		}
+		getAxios(null).get("/api/conversations").
+			then((response_)=>{
+				const data = response_.data;
+				setConversations(data);
+			}).catch((error_)=>{
+				const msg = error_?.response?.data?.error ?? null;
+				if(msg){
+					toast.error(msg);
+				}
+			});
+  }, [conversations]);
+	
   useEffect(() => {
-    if (isLoading) return;
-    if (hasRedirected.current) return;
-    if (!currentUser) {
-      hasRedirected.current = true;
-      safeRouterPush(router, buildLoginUrl('/messages'), buildLoginUrl('/messages'));
-    }
-  }, [isLoading, currentUser, router]);
+		if(!hasSession){
+			return;
+		}
+		if(selectedConversation === null){
+			return;
+		}
+		if(messages !== null){
+			return;
+		}
+		getAxios(null).get(`/api/conversations/${selectedConversation}/messages`).
+			then((response_)=>{
+				const messages = response_.data;
+				setMessages(messages);
+			}).catch((err_)=>{
+				const msg = err_?.response?.data?.error ?? null;
+				if(msg){
+					toast.error(msg);
+				}
+			});
+  }, [selectedConversation, messages]);
 
-  // Load conversations from Supabase when user is present
-  useEffect(() => {
-    if (!currentUser) return;
-    setLoadingConversations(true);
-    fetch('/api/conversations', { credentials: 'include' })
-      .then((res) => (res.ok ? res.json() : { conversations: [] }))
-      .then((data) => {
-        setConversationsFromApi(data.conversations ?? []);
-      })
-      .catch(() => setConversationsFromApi([]))
-      .finally(() => setLoadingConversations(false));
-  }, [currentUser?.id]);
+ 	/* END HOOKS */
 
-  // When ?userId= is present: find/create via API and redirect to ?conversation=
-  useEffect(() => {
-    if (!userIdParam || !currentUser) return;
-    if (userIdParam === currentUser.id) return;
-    let cancelled = false;
-    setUserIdBootstrapping(true);
-    fetch('/api/conversations', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ otherUserId: userIdParam }),
-    })
-      .then(async (res) => {
-        const data = await res.json().catch(() => ({}));
-        if (cancelled) return;
-        if (!res.ok) {
-          const msg =
-            typeof data.error === 'string' && data.error.trim()
-              ? data.error.trim()
-              : `Could not start conversation (${res.status})`;
-          toast.error(msg);
-          router.replace('/messages', { scroll: false });
-          return;
-        }
-        const convId = data.conversation?.id;
-        if (!convId) {
-          toast.error('Could not start conversation: invalid response from server.');
-          router.replace('/messages', { scroll: false });
-          return;
-        }
-        setSelectedConversation(convId);
-        const listRes = await fetch('/api/conversations', { credentials: 'include' });
-        const listData = listRes.ok ? await listRes.json().catch(() => ({})) : {};
-        if (!cancelled && Array.isArray(listData.conversations)) {
-          setConversationsFromApi(listData.conversations);
-        }
-        router.replace(`/messages?conversation=${convId}`, { scroll: false });
-      })
-      .catch(() => {
-        if (cancelled) return;
-        toast.error('Could not start conversation. Please try again.');
-        router.replace('/messages', { scroll: false });
-      })
-      .finally(() => {
-        if (!cancelled) setUserIdBootstrapping(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [userIdParam, currentUser?.id, router]);
+	/* START EVENT HANDLERS */
 
-  // When ?job= is present: resolve contractor and redirect to ?userId=
-  useEffect(() => {
-    if (!jobIdParam || !currentUser) return;
-    const job = store.getJobById(jobIdParam);
-    if (job) {
-      const contractorId = job.contractorId;
-      if (contractorId === currentUser.id) return;
-      router.replace(`/messages?userId=${contractorId}`, { scroll: false });
-      return;
-    }
-    let cancelled = false;
-    fetch(`/api/jobs/${jobIdParam}/minimal`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (cancelled || !data?.contractorId) return;
-        if (data.contractorId === currentUser.id) return;
-        router.replace(`/messages?userId=${data.contractorId}`, { scroll: false });
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [jobIdParam, currentUser?.id, store, router]);
+	const handleSendMessage = () => {
+		toast.info("coming soon");
+	};
 
-  // Load job context when conversation has jobId (for action cards)
-  const convJobId = selectedConversation
-    ? (conversationsFromApi.find((c) => c.id === selectedConversation)?.jobId ??
-        (conversationFromMessagesApi?.id === selectedConversation ? conversationFromMessagesApi.jobId : null))
-    : null;
+	const handleSuggestReply = () => {
+		toast.info("coming soon");
+	};
 
-  useEffect(() => {
-    if (!convJobId) {
-      setJobFromApi(null);
-      return;
-    }
-    setLoadingJob(true);
-    fetch(`/api/jobs/${convJobId}/messaging-context`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.job) {
-          setJobFromApi({
-            id: data.job.id,
-            contractorId: data.job.contractorId,
-            title: data.job.title,
-            status: data.job.status,
-            selectedSubcontractor: data.job.selectedSubcontractor ?? null,
-            confirmedSubcontractor: data.job.confirmedSubcontractor ?? null,
-            cancellationReason: data.job.cancellationReason ?? null,
-            applications: data.applications ?? [],
-          });
-        } else {
-          setJobFromApi(null);
-        }
-      })
-      .catch(() => setJobFromApi(null))
-      .finally(() => setLoadingJob(false));
-  }, [convJobId, currentUser?.id]);
+	const handleSelectSuggestion = () => {
+		toast.info("coming soon");
+	};
+		
+	const handleBlockUser = () => {
+		toast.info("coming soon");
+	};
 
-  // Load messages when conversation is selected; also backfill conversation if not in list (e.g. direct link)
-  useEffect(() => {
-    if (!selectedConversation || !currentUser) {
-      setMessagesFromApi([]);
-      setConversationFromMessagesApi(null);
-      return;
-    }
-    setLoadingMessages(true);
-    fetch(`/api/messages?conversationId=${selectedConversation}`, { credentials: 'include' })
-      .then((res) => (res.ok ? res.json() : { messages: [], conversation: null }))
-      .then((data) => {
-        setMessagesFromApi(data.messages ?? []);
-        setConversationFromMessagesApi(data.conversation ?? null);
-      })
-      .catch(() => {
-        setMessagesFromApi([]);
-        setConversationFromMessagesApi(null);
-      })
-      .finally(() => setLoadingMessages(false));
-  }, [selectedConversation, currentUser?.id]);
+	const handleReportUser = () => {
+		toast.info("coming soon");
+	};
 
-  useEffect(() => {
-    setSendError(undefined);
-    if (selectedConversation && currentUser) {
-      store.markConversationAsRead(selectedConversation, currentUser.id);
-    }
-  }, [selectedConversation, currentUser, store]);
+	/* END EVENT HANDLERS */
 
-  // Load user_blocks from Supabase when user is present
-  useEffect(() => {
-    if (!currentUser) return;
-    fetch('/api/user-blocks')
-      .then((res) => (res.ok ? res.json() : { blocks: [] }))
-      .then((data) => {
-        const blocks = (data.blocks ?? []).map((b: any) => ({
-          id: b.id,
-          blockerId: b.blockerId ?? b.blocker_id,
-          blockedId: b.blockedId ?? b.blocked_id,
-          createdAt: b.createdAt ? new Date(b.createdAt) : new Date(),
-        }));
-        store.setUserBlocks(blocks);
-      })
-      .catch(() => {});
-  }, [currentUser?.id, store]);
-
-  const conversations = conversationsFromApi;
-
-  const currentConversation = selectedConversation
-    ? (conversationsFromApi.find((c) => c.id === selectedConversation) ??
-        (conversationFromMessagesApi?.id === selectedConversation
-          ? {
-              id: conversationFromMessagesApi.id,
-              contractorId: conversationFromMessagesApi.contractorId,
-              subcontractorId: conversationFromMessagesApi.subcontractorId,
-              jobId: conversationFromMessagesApi.jobId,
-              otherUserId: conversationFromMessagesApi.otherUserId ?? '',
-              otherUserName: conversationFromMessagesApi.otherUserName ?? 'Unknown',
-              otherUserAvatar: conversationFromMessagesApi.otherUserAvatar ?? null,
-              lastMessage: null,
-              jobTitle: null,
-              jobStatus: null,
-              updatedAt: '',
-            }
-          : conversations.find((c) => c.id === selectedConversation)) ??
-        null)
-    : null;
-
-  const currentJob = jobFromApi ?? (currentConversation?.jobId ? store.getJobById(currentConversation.jobId) : null);
-
-  const otherUserId = currentConversation?.otherUserId ?? null;
-
-  const otherUser = otherUserId
-    ? { id: otherUserId, name: currentConversation?.otherUserName ?? 'Unknown', avatar: currentConversation?.otherUserAvatar ?? undefined }
-    : null;
-
-  const messages = messagesFromApi.map((m) => ({
-    ...m,
-    createdAt: typeof m.createdAt === 'string' ? new Date(m.createdAt) : m.createdAt,
-  }));
-
-  // All hooks must be called before any early returns
-  useEffect(() => {
-    if (messages.length > 0) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages.length]);
-
-  useEffect(() => {
-    if (!otherUserId) return;
-    debugProfileCardData('messages', { id: otherUserId });
-  }, [otherUserId]);
-
-  if (!currentUser) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center text-sm text-gray-600">
-        Redirecting to login…
-      </div>
-    );
+  if (!hasSession) {
+		return <UnauthorizedAccess redirectTo="/login" message={"Redirecting to login"} />
   }
 
-  const needsAbnForActions = needsBusinessVerification(currentUser);
-  const messagesReturnUrl = '/messages' + (selectedConversation ? `?conversation=${selectedConversation}` : '');
-  const isBlockedByRecipient = otherUserId ? store.isBlocked(otherUserId, currentUser.id) : false;
-  const messagingState = getMessagingState(currentJob || null, currentUser, {
-    isBlockedByRecipient,
-  });
-
-  const parse3Suggestions = (text: string): string[] => {
-    const lines = text
-      .split('\n')
-      .map(l => l.trim())
-      .filter(Boolean);
-
-    const numbered = lines
-      .map(l => l.replace(/^\d+[\).\-\:]\s*/, '').trim())
-      .filter(Boolean);
-
-    const out = Array.from(new Set(numbered)).slice(0, 3);
-
-    if (out.length < 3) {
-      const blocks = text
-        .split(/\n\s*\n/)
-        .map(b => b.trim())
-        .filter(Boolean);
-      return Array.from(new Set([...out, ...blocks])).slice(0, 3);
-    }
-
-    return out;
-  };
-
-  const handleSuggestReply = async () => {
-    setSuggestError(null);
-    setSuggestLoading(true);
-    setSuggestions([]);
-    try {
-      if (!currentUser?.id || !currentConversation) {
-        setSuggestError('Please select a conversation');
-        setSuggestLoading(false);
-        return;
-      }
-
-      const last8 = messages.slice(-8).map((m) => ({
-        role: m.senderId === currentUser.id ? 'user' as const : 'assistant' as const,
-        content: m.text ?? '',
-      }));
-
-      const message = await callTradeHubAI({
-        userId: currentUser.id,
-        mode: 'reply_suggest',
-        messages: [
-          { role: 'user', content: 'Suggest my next reply. Return 3 options: Friendly, Firm, Very brief.' },
-          ...last8,
-        ],
-        context: {
-          role: currentUser.role,
-          conversationId: currentConversation.id,
-          jobId: currentJob?.id ?? currentConversation?.jobId ?? null,
-          jobTitle: currentJob?.title ?? currentConversation?.jobTitle ?? null,
-        },
-      });
-
-      setSuggestions(parse3Suggestions(message.content));
-    } catch (e: any) {
-      setSuggestError(e?.message || 'AI suggestion failed');
-    } finally {
-      setSuggestLoading(false);
-    }
-  };
-
-  const handleSelectSuggestion = (suggestion: string) => {
-    setMessageText(suggestion);
-    setSuggestions([]);
-  };
-
-  const handleReportUser = async () => {
-    if (!otherUserId || !currentUser || !reportCategory) return;
-    setReportSubmitting(true);
-    try {
-      const res = await fetch('/api/user-reports', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          reportedId: otherUserId,
-          conversationId: currentConversation?.id ?? null,
-          category: reportCategory,
-          notes: reportNotes.trim() || null,
-          alsoBlock: reportAlsoBlock,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error ?? 'Failed to submit report');
-        setReportSubmitting(false);
-        return;
-      }
-      setReportDialogOpen(false);
-      setReportCategory('');
-      setReportNotes('');
-      setReportAlsoBlock(false);
-      if (reportAlsoBlock) {
-        store.blockUser(currentUser.id, otherUserId);
-        setBlocksUpdated((c) => c + 1);
-        toast.success('Report submitted. User has been blocked.');
-      } else {
-        toast.success('Report submitted. Thank you for helping keep TradeHub safe.');
-      }
-    } catch {
-      toast.error('Failed to submit report');
-    } finally {
-      setReportSubmitting(false);
-    }
-  };
-
-  const handleBlockUser = async () => {
-    if (!otherUserId || !currentUser) return;
-    try {
-      const res = await fetch('/api/user-blocks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ blockedId: otherUserId }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error ?? 'Failed to block user');
-        return;
-      }
-      store.blockUser(currentUser.id, otherUserId);
-      setBlockConfirmOpen(false);
-      setBlocksUpdated((c) => c + 1);
-      toast.success('User blocked. They can no longer message you.');
-    } catch {
-      toast.error('Failed to block user');
-    }
-  };
-
-  const handleSendMessage = async () => {
-    if (!messageText.trim() || !currentConversation || !currentUser) return;
-    if (otherUserId && store.isBlocked(otherUserId, currentUser.id)) {
-      setSendError('You cannot send messages in this conversation.');
-      return;
-    }
-
-    const validation = validateMessage(messageText);
-    if (!validation.isValid) {
-      setSendError(validation.error);
-      return;
-    }
-
-    setSendError(undefined);
-    setIsSending(true);
-
-    const sendPayload = {
-      conversationId: currentConversation.id,
-      contractorId: currentConversation.contractorId,
-      subcontractorId: currentConversation.subcontractorId,
-      text: messageText.trim(),
-    };
-    if (process.env.NODE_ENV !== 'production') {
-      console.debug('[messages] POST /api/messages/send', {
-        conversationId: sendPayload.conversationId,
-        textLength: sendPayload.text.length,
-      });
-    }
-
-    try {
-      const res = await fetch('/api/messages/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sendPayload),
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        setSendError(data.error ?? 'Failed to send message');
-        setIsSending(false);
-        return;
-      }
-
-      const msg = data.message;
-      if (msg) {
-        const newConvId = msg.conversationId;
-        if (newConvId && newConvId !== currentConversation.id) {
-          setSelectedConversation(newConvId);
-          router.replace(`/messages?conversation=${newConvId}`, { scroll: false });
-          fetch('/api/conversations', { credentials: 'include' })
-            .then((res) => (res.ok ? res.json() : { conversations: [] }))
-            .then((data) => setConversationsFromApi(data.conversations ?? []))
-            .catch(() => {});
-        }
-        const newMsg = {
-          id: msg.id,
-          conversationId: newConvId ?? currentConversation.id,
-          senderId: msg.senderId,
-          text: msg.text,
-          isSystemMessage: msg.isSystemMessage ?? false,
-          createdAt: msg.createdAt,
-        };
-        setMessagesFromApi((prev) => [...prev, newMsg]);
-        setConversationsFromApi((prev) =>
-          prev.map((c) =>
-            c.id === (newConvId ?? currentConversation.id)
-              ? { ...c, lastMessage: newMsg, updatedAt: msg.createdAt ?? c.updatedAt }
-              : c
-          )
-        );
-        store.addMessage({
-          ...newMsg,
-          createdAt: new Date(newMsg.createdAt),
-        });
-      }
-      setMessageText('');
-      setSendError(undefined);
-    } catch {
-      setSendError('Network error. Please check your connection and try again.');
-    } finally {
-      setIsSending(false);
-    }
-  };
-
-  const addSystemMessageIfNeeded = (jobId: string, newStatus: string) => {
-    if (!currentConversation) return;
-
-    const msgs = messages;
-    if (shouldAddSystemMessage(msgs, newStatus as any)) {
-      const systemMsg = createSystemMessage(
-        currentConversation.id,
-        newStatus as any,
-        currentJob?.cancellationReason ?? undefined
-      );
-      store.addMessage(systemMsg);
-      setMessagesFromApi((prev) => [
-        ...prev,
-        {
-          id: systemMsg.id,
-          conversationId: systemMsg.conversationId,
-          senderId: systemMsg.senderId,
-          text: systemMsg.text,
-          isSystemMessage: true,
-          createdAt: systemMsg.createdAt.toISOString(),
-        },
-      ]);
-    }
-  };
-
-  const refreshJobFromApi = () => {
-    if (!convJobId) return;
-    fetch(`/api/jobs/${convJobId}/messaging-context`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.job) {
-          setJobFromApi({
-            id: data.job.id,
-            contractorId: data.job.contractorId,
-            title: data.job.title,
-            status: data.job.status,
-            selectedSubcontractor: data.job.selectedSubcontractor ?? null,
-            confirmedSubcontractor: data.job.confirmedSubcontractor ?? null,
-            cancellationReason: data.job.cancellationReason ?? null,
-            applications: data.applications ?? [],
-          });
-        }
-      })
-      .catch(() => {});
-  };
-
-  const handleAcceptJob = async () => {
-    if (!currentJob || !currentConversation) return;
-    if (needsAbnForActions) {
-      toast.error('Verify your ABN to continue.');
-      redirectToVerifyBusiness(router, messagesReturnUrl);
-      return;
-    }
-    const transition = canTransitionToStatus('accepted', 'confirmed');
-    if (!transition.allowed) {
-      alert(transition.reason);
-      return;
-    }
-    setActionSubmitting(true);
-    try {
-      const res = await fetch(`/api/jobs/${currentJob.id}/action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'accept' }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error ?? 'Failed to accept');
-        return;
-      }
-      addSystemMessageIfNeeded(currentJob.id, 'accepted');
-      refreshJobFromApi();
-      if (store.getJobById(currentJob.id)) {
-        store.updateJob(currentJob.id, { status: 'confirmed' });
-        const myApp = store.getApplicationsByJob(currentJob.id).find((a) => a.subcontractorId === currentUser?.id);
-        if (myApp) store.updateApplication(myApp.id, { status: 'accepted', respondedAt: new Date() });
-      }
-      toast.success('Job accepted!');
-      router.refresh();
-    } catch {
-      toast.error('Failed to accept job');
-    } finally {
-      setActionSubmitting(false);
-    }
-  };
-
-  const handleDeclineJob = async () => {
-    if (!currentJob || !currentConversation) return;
-    const transition = canTransitionToStatus('accepted', 'open');
-    if (!transition.allowed) {
-      alert(transition.reason);
-      return;
-    }
-    setActionSubmitting(true);
-    try {
-      const res = await fetch(`/api/jobs/${currentJob.id}/action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'decline' }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error ?? 'Failed to decline');
-        return;
-      }
-      addSystemMessageIfNeeded(currentJob.id, 'open');
-      refreshJobFromApi();
-      if (store.getJobById(currentJob.id)) {
-        store.updateJob(currentJob.id, { status: 'open', selectedSubcontractor: undefined });
-        const myApp = store.getApplicationsByJob(currentJob.id).find((a) => a.subcontractorId === currentUser?.id);
-        if (myApp) store.updateApplication(myApp.id, { status: 'declined', respondedAt: new Date() });
-      }
-      toast.success('Job declined');
-      router.refresh();
-    } catch {
-      toast.error('Failed to decline job');
-    } finally {
-      setActionSubmitting(false);
-    }
-  };
-
-  const handleConfirmHire = async () => {
-    if (!currentJob || !currentConversation) return;
-    if (needsAbnForActions) {
-      toast.error('Verify your ABN to continue.');
-      redirectToVerifyBusiness(router, messagesReturnUrl);
-      return;
-    }
-    const transition = canTransitionToStatus('accepted', 'confirmed', {
-      hasSelectedSubcontractor: !!currentJob.selectedSubcontractor,
-    });
-    if (!transition.allowed) {
-      alert(transition.reason);
-      return;
-    }
-    setActionSubmitting(true);
-    try {
-      const res = await fetch(`/api/jobs/${currentJob.id}/action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'confirm' }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error ?? 'Failed to confirm');
-        return;
-      }
-      addSystemMessageIfNeeded(currentJob.id, 'confirmed');
-      refreshJobFromApi();
-      if (store.getJobById(currentJob.id)) {
-        store.updateJob(currentJob.id, { status: 'confirmed', confirmedSubcontractor: currentJob.selectedSubcontractor ?? undefined });
-        const selectedApp = store.getApplicationsByJob(currentJob.id).find((a) => a.subcontractorId === (currentJob.selectedSubcontractor ?? undefined));
-        if (selectedApp) store.updateApplication(selectedApp.id, { status: 'confirmed' });
-      }
-      toast.success('Hire confirmed!');
-      router.refresh();
-    } catch {
-      toast.error('Failed to confirm hire');
-    } finally {
-      setActionSubmitting(false);
-    }
-  };
-
-  const isContractor = currentUser.role === 'contractor';
-  const showEmptyState = messages.length === 0 || !hasMessages(messages);
-  const showMessagesLoading = selectedConversation && loadingMessages;
-
-  const handleMobileBack = () => {
-    setSelectedConversation(null);
-    router.replace('/messages', { scroll: false });
-  };
+	// selected conversation state
+	const showEmptyState = true;
+	let convo = null;
+	let selectedGuestProfileId = null;
+	let selectedGuestName = null;
+	let selectedGuestUserId = null;
+	let messagingState = {
+		isReadOnly: false,
+		canSendMessages: true
+	};
+	if(conversations !== null && conversations.length > 0 && selectedConversation !== null){
+		convo = conversations.find((x)=>x.id === selectedConversation);
+		if(convo === undefined){
+			console.error("selected conversation is null");
+		}
+		// details of the "other user
+		// could be owner of the conversation
+		// or the guest, depends on who started it
+		selectedGuestProfileId = convo?.guestProfileId ?? null;
+		selectedGuestUserId = convo?.guestUserId ?? null;
+		selectedGuestName = convo?.guestName ?? null;
+	}
 
   return (
     <AppLayout>
@@ -770,18 +216,16 @@ export default function MessagesPage() {
         <div className="flex flex-1 min-h-0 overflow-hidden">
           {/* ========== MOBILE: Inbox list or Thread view ========== */}
           <div className="flex flex-col md:hidden flex-1 min-h-0 w-full overflow-hidden bg-white">
-            {!selectedConversation ? (
+            { !selectedConversation ? (
               /* Mobile inbox list */
               <>
                 <div className="shrink-0 border-b border-slate-200 px-4 py-4">
                   <h1 className="text-lg font-semibold text-slate-900">Messages</h1>
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto p-3">
-                  {userIdBootstrapping ? (
-                    <div className="py-8 text-center text-sm text-slate-500">Starting conversation…</div>
-                  ) : loadingConversations ? (
+                  {loadingConversations ? (
                     <div className="py-8 text-center text-sm text-slate-500">Loading conversations...</div>
-                  ) : conversations.length === 0 && !selectedConversation ? (
+                  ) : ( conversations?.length ?? 0 ) === 0 && !selectedConversation ? (
                     <div className="py-8 px-4">
                       <EmptyState
                         icon={MessageSquare}
@@ -800,7 +244,6 @@ export default function MessagesPage() {
                             key={conv.id}
                             onClick={() => {
                               setSelectedConversation(conv.id);
-                              router.replace(`/messages?conversation=${conv.id}`, { scroll: false });
                             }}
                             className={`w-full rounded-xl p-4 text-left transition-colors border touch-manipulation ${
                               unread > 0
@@ -809,19 +252,19 @@ export default function MessagesPage() {
                             }`}
                           >
                             <div className="flex items-center gap-3">
-                              <UserAvatar avatarUrl={conv.otherUserAvatar ?? undefined} userName={conv.otherUserName} size="md" />
+                              <UserAvatar avatarUrl={`/api/profile/${conv.guestProfileId}/avatar`} userName={conv.guestName} size="md" />
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center justify-between gap-2">
-                                  <p className="font-medium text-gray-900 truncate">{conv.otherUserName}</p>
+                                  <p className="font-medium text-gray-900 truncate">{conv.guestName}</p>
                                   {unread > 0 && (
                                     <span className="shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold text-white bg-blue-600 rounded-full">
                                       {unread > 99 ? '99+' : unread}
                                     </span>
                                   )}
+                        					<p className="text-xs text-slate-600 truncate">
+                          					{conv.lastMessage?.text ?? conv.jobTitle ?? 'Direct message'}
+                        					</p>
                                 </div>
-                                <p className="text-xs text-slate-600 truncate">
-                                  {conv.lastMessage?.text ?? conv.jobTitle ?? 'Direct message'}
-                                </p>
                               </div>
                             </div>
                           </button>
@@ -841,23 +284,23 @@ export default function MessagesPage() {
                       variant="ghost"
                       size="icon"
                       className="h-10 w-10 shrink-0 -ml-2"
-                      onClick={handleMobileBack}
+                      onClick={()=>{ console.log("handle mobile back...");}}
                       aria-label="Back to messages"
                     >
                       <ChevronLeft className="h-5 w-5" />
                     </Button>
-                    <UserAvatar avatarUrl={otherUser?.avatar ?? undefined} userName={otherUser?.name || ''} size="md" className="shrink-0" />
+                    <UserAvatar avatarUrl={`/api/profile/${selectedGuestProfileId}/avatar`} userName={selectedGuestName} size="md" className="shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-gray-900 truncate">{otherUser?.name}</p>
-                      <p className="text-xs text-slate-600 truncate">{currentJob?.title ?? currentConversation?.jobTitle ?? 'Direct message'}</p>
+                      <p className="font-semibold text-gray-900 truncate">{selectedGuestName}</p>
+                      <p className="text-xs text-slate-600 truncate">{job?.title ?? convo?.jobTitle ?? 'Direct message'}</p>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
-                      {(currentConversation?.jobId ?? currentJob?.id) && (
-                        <Link href={`/jobs/${currentConversation?.jobId ?? currentJob?.id}`}>
+                      {(convo?.jobId ?? job?.id) && (
+                        <Link href={`/jobs/${covo?.jobId ?? job?.id}`}>
                           <Button variant="outline" size="sm" className="h-9 text-xs">View Job</Button>
                         </Link>
                       )}
-                      {otherUserId && (
+                      {selectedGuestProfileId && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-10 w-10" aria-label="Thread options">
@@ -866,7 +309,7 @@ export default function MessagesPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem asChild>
-                              <Link href={getPublicProfileHref(otherUserId)} className="flex items-center gap-2">
+                              <Link href={getPublicProfileHref(selectedGuestProfileId)} className="flex items-center gap-2">
                                 <User className="h-4 w-4" />
                                 View Profile
                               </Link>
@@ -890,17 +333,17 @@ export default function MessagesPage() {
                 </div>
                 {/* Scrollable messages */}
                 <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain px-4 py-4">
-                  {showMessagesLoading ? (
+                  {loadingMessages ? (
                     <div className="flex items-center justify-center h-32 text-sm text-gray-500">Loading messages...</div>
                   ) : showEmptyState ? (
-                    <EmptyMessages otherUserName={otherUser?.name} />
+                    <EmptyMessages otherUserName={selectedGuestName} />
                   ) : (
                     <div className="space-y-4 min-w-0">
-                      {currentJob && currentJob.status === 'accepted' && !isContractor && (
+                      {job && job.status === 'accepted' && !isContractor && (
                         <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
                           <h4 className="font-semibold text-blue-900 mb-2">You&apos;ve been selected for this job!</h4>
                           <p className="text-sm text-blue-800 mb-4">
-                            The contractor has selected you for &quot;{currentJob.title}&quot;. Accept to proceed.
+                            The contractor has selected you for &quot;{job.title}&quot;. Accept to proceed.
                           </p>
                           <div className="flex flex-wrap gap-3 items-center">
                             <Button onClick={handleAcceptJob} size="sm" className="h-10" disabled={needsAbnForActions || actionSubmitting}>
@@ -922,11 +365,11 @@ export default function MessagesPage() {
                           </div>
                         </div>
                       )}
-                      {currentJob && currentJob.status === 'accepted' && isContractor && (
+                      {job && job.status === 'accepted' && isContractor && (
                         <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4">
                           <h4 className="font-semibold text-green-900 mb-2">Subcontractor Accepted!</h4>
                           <p className="text-sm text-green-800 mb-4">
-                            {otherUser?.name} has accepted the job. Confirm to finalize the hire.
+                            {selectedGuestName} has accepted the job. Confirm to finalize the hire.
                           </p>
                           <div className="flex flex-wrap gap-3 items-center">
                             <Button onClick={handleConfirmHire} size="sm" className="h-10" disabled={needsAbnForActions || actionSubmitting}>
@@ -944,7 +387,7 @@ export default function MessagesPage() {
                           </div>
                         </div>
                       )}
-                      {currentJob && currentJob.status === 'confirmed' && (
+                      {job && job.status === 'confirmed' && (
                         <div className="bg-green-50 border border-green-200 rounded-xl p-4">
                           <h4 className="font-semibold text-green-900 mb-1">Job Confirmed!</h4>
                           <p className="text-sm text-green-800">This job has been confirmed and is ready to start.</p>
@@ -979,7 +422,8 @@ export default function MessagesPage() {
                     <AlertDialogHeader>
                       <AlertDialogTitle>Block user?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        {otherUser?.name} will no longer be able to send you messages. The conversation history will remain visible.
+                        {selectedGuestName} will no longer be able to send you messages. 
+												The conversation history will remain visible.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -1005,7 +449,7 @@ export default function MessagesPage() {
                     <DialogHeader>
                       <DialogTitle>Report user</DialogTitle>
                       <DialogDescription>
-                        Report {otherUser?.name} for behaviour that violates platform standards. Your report will be reviewed by our team.
+                        Report {selectedGuestName} for behaviour that violates platform standards. Your report will be reviewed by our team.
                       </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
@@ -1068,9 +512,7 @@ export default function MessagesPage() {
               <h1 className="text-lg font-semibold text-slate-900">Messages</h1>
             </div>
             <div className="flex-1 overflow-y-auto p-3">
-              {userIdBootstrapping ? (
-                <div className="p-4 text-center text-sm text-slate-500">Starting conversation…</div>
-              ) : loadingConversations ? (
+              { loadingConversations ? (
                 <div className="p-4 text-center text-sm text-slate-500">Loading conversations...</div>
               ) : conversations.length === 0 && !selectedConversation ? (
                 <EmptyState
@@ -1081,14 +523,13 @@ export default function MessagesPage() {
                   onCtaClick={() => router.push('/jobs')}
                 />
               ) : null}
-              {conversations.map((conv) => {
+              {(conversations ?? []).map((conv) => {
                 const unread = (conv as { unreadCount?: number }).unreadCount ?? 0;
                 return (
                   <button
                     key={conv.id}
                     onClick={() => {
                       setSelectedConversation(conv.id);
-                      router.replace(`/messages?conversation=${conv.id}`, { scroll: false });
                     }}
                     className={`w-full rounded-xl p-3 text-left transition-colors ${
                       selectedConversation === conv.id
@@ -1099,10 +540,10 @@ export default function MessagesPage() {
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <UserAvatar avatarUrl={conv.otherUserAvatar ?? undefined} userName={conv.otherUserName} size="md" />
+                      <UserAvatar avatarUrl={`/api/profile/${conv.guestProfileId}/avatar`} userName={conv.guestName} size="md" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <p className="font-medium text-gray-900 truncate">{conv.otherUserName}</p>
+                          <p className="font-medium text-gray-900 truncate">{conv.guestName}</p>
                           {unread > 0 && (
                             <span className="shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold text-white bg-blue-600 rounded-full">
                               {unread > 99 ? '99+' : unread}
@@ -1152,26 +593,26 @@ export default function MessagesPage() {
                   <div className="shrink-0 border-b border-slate-200 bg-white px-5 py-4">
                     <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                         <UserAvatar
-                          avatarUrl={otherUser?.avatar ?? undefined}
-                          userName={otherUser?.name || ''}
+                          avatarUrl={`/api/profile/${selectedGuestProfileId}/avatar`}
+                          userName={selectedGuestName}
                           size="md"
                           className="flex-shrink-0"
                         />
                         <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-gray-900 truncate break-words">{otherUser?.name}</p>
+                          <p className="font-semibold text-gray-900 truncate break-words">{selectedGuestName}</p>
                           <p className="text-sm text-gray-600 truncate break-words">
-                            {currentJob?.title ?? currentConversation?.jobTitle ?? 'Direct message'}
+                            {job?.title ?? convo?.jobTitle ?? 'Direct message'}
                           </p>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          {(currentConversation?.jobId ?? currentJob?.id) && (
-                            <Link href={`/jobs/${currentConversation?.jobId ?? currentJob?.id}`}>
+                          {(convo?.jobId ?? job?.id) && (
+                            <Link href={`/jobs/${convo?.jobId ?? job?.id}`}>
                               <Button variant="outline" size="sm" className="text-xs sm:text-sm whitespace-nowrap">
                                 View Job
                               </Button>
                             </Link>
                           )}
-                          {otherUserId && (
+                          {selectedGuestProfileId && (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Thread options">
@@ -1180,7 +621,7 @@ export default function MessagesPage() {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem asChild>
-                                  <Link href={getPublicProfileHref(otherUserId)} className="flex items-center gap-2">
+                                  <Link href={getPublicProfileHref(selectedGuestUserId)} className="flex items-center gap-2">
                                     <User className="h-4 w-4" />
                                     View Profile
                                   </Link>
@@ -1205,19 +646,19 @@ export default function MessagesPage() {
 
                   {/* Message list — ONLY this section scrolls */}
                   <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain px-5 py-5">
-                {showMessagesLoading ? (
+                {loadingMessages ? (
                   <div className="flex items-center justify-center h-32 text-sm text-gray-500">
                     Loading messages...
                   </div>
                 ) : showEmptyState ? (
-                  <EmptyMessages otherUserName={otherUser?.name} />
+                  <EmptyMessages otherUserName={selectedGuestName} />
                 ) : (
                   <div className="space-y-4 min-w-0">
-                    {currentJob && currentJob.status === 'accepted' && !isContractor && (
+                    {job && job.status === 'accepted' && !isContractor && (
                       <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
                         <h4 className="font-semibold text-blue-900 mb-2">You've been selected for this job!</h4>
                         <p className="text-sm text-blue-800 mb-4">
-                          The contractor has selected you for "{currentJob.title}". Accept to proceed.
+                          The contractor has selected you for "{job.title}". Accept to proceed.
                         </p>
                         <div className="flex flex-wrap gap-3 items-center">
                           <Button onClick={handleAcceptJob} size="sm" disabled={needsAbnForActions || actionSubmitting}>
@@ -1240,11 +681,11 @@ export default function MessagesPage() {
                       </div>
                     )}
 
-                    {currentJob && currentJob.status === 'accepted' && isContractor && (
+                    {job && job.status === 'accepted' && isContractor && (
                       <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4">
                         <h4 className="font-semibold text-green-900 mb-2">Subcontractor Accepted!</h4>
                         <p className="text-sm text-green-800 mb-4">
-                          {otherUser?.name} has accepted the job. Confirm to finalize the hire.
+                          {selectedGuestName} has accepted the job. Confirm to finalize the hire.
                         </p>
                         <div className="flex flex-wrap gap-3 items-center">
                           <Button onClick={handleConfirmHire} size="sm" disabled={needsAbnForActions || actionSubmitting}>
@@ -1263,7 +704,7 @@ export default function MessagesPage() {
                       </div>
                     )}
 
-                    {currentJob && currentJob.status === 'confirmed' && (
+                    {job && job.status === 'confirmed' && (
                       <div className="bg-green-50 border border-green-200 rounded-xl p-4">
                         <h4 className="font-semibold text-green-900 mb-1">Job Confirmed!</h4>
                         <p className="text-sm text-green-800">
@@ -1307,7 +748,7 @@ export default function MessagesPage() {
                   <AlertDialogHeader>
                     <AlertDialogTitle>Block user?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      {otherUser?.name} will no longer be able to send you messages. The conversation history will remain visible.
+                      {selectedGuestName} will no longer be able to send you messages. The conversation history will remain visible.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -1337,7 +778,8 @@ export default function MessagesPage() {
                   <DialogHeader>
                     <DialogTitle>Report user</DialogTitle>
                     <DialogDescription>
-                      Report {otherUser?.name} for behaviour that violates platform standards. Your report will be reviewed by our team.
+                      Report {selectedGuestName} for behaviour that violates platform standards. 
+											Your report will be reviewed by our team.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="grid gap-4 py-4">

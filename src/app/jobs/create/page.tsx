@@ -419,9 +419,8 @@ export default function CreateJobPage() {
 				setIsSubmitting(false);
 				setCreatedJobId(createdJobId);
 				toast.success('Job posted');
-				//safeRouterPush(router, `/jobs/${createdJobId}`, '/jobs');
+				safeRouterPush(router, `/jobs/${createdJobId}`, '/jobs');
 			}).catch((err)=>{
-				// TODO better error handling
 				toast.error("Failed to create new job");
 				setIsSubmitting(false);
 			});
@@ -429,7 +428,7 @@ export default function CreateJobPage() {
 
   return (
     <AppLayout>
-      <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-blue-600 via-blue-700 to-slate-900">
+      <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-slate-50 via-slate-100 to-slate-200">
         {/* Dotted overlay - behind watermark */}
         <div
           className="pointer-events-none absolute inset-0 opacity-20"
@@ -443,17 +442,17 @@ export default function CreateJobPage() {
 
         {/* Watermark (fixed to viewport) - above background, behind content */}
         <div className="pointer-events-none fixed bottom-[-220px] right-[-220px] z-0">
-          <img
-            src="/TradeHub-Mark-whiteout.svg"
+					<img
+            src="/TradeHub-Mark-blackout.svg"
             alt=""
             aria-hidden="true"
-            className="h-[1600px] w-[1600px] opacity-[0.08]"
+            className="h-[1600px] w-[1600px] opacity-[0.06]"
           />
         </div>
 
         {/* Page content */}
         <div className="relative z-10 mx-auto w-full max-w-3xl px-4 py-8 pb-24 sm:px-6 lg:px-8">
-          <PageHeader backLink={{ href: '/dashboard' }} title="Post a New Job" tone="dark" />
+          <PageHeader backLink={{ href: '/dashboard' }} title="Post a New Job" tone="light" />
 
           {!canPostByRole && (
             <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm">

@@ -6,6 +6,23 @@ import { profileTable, profileLikeTable } from "@/lib/data/defs/profile";
 import { usersTable } from "@/lib/data/defs/users";
 import { getDB, getDataService } from "@/lib/data/service";
 
+export const getConversationProfiles = async (profileIds:array) => {
+	return new Promise(async(resolve, reject)=>{
+		const db = await getDB();	
+		const results = await db.select().from(profileTable).
+			innerJoin(usersTable, eq(usersTable.profileId, profileTable.id)).
+			where(inArray(profileTable.id, profileIds));
+		const mapped = results.reduce((a, c)=>{ 
+			const name = c?.users?.visibleName ?? c?.users?.name;
+			const userId = c?.users?.id ?? null;
+			const key = c?.profile?.id ?? null;
+			a[key] = { name, userId };
+			return a;
+		}, {});
+		resolve(mapped);
+	});
+};
+
 export const updateRating = async (rating:number, profileId:string) => {
 	return new Promise(async (resolve, reject) => {
 		const db = await getDB();

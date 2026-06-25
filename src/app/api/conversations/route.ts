@@ -1,277 +1,114 @@
+// vim: ts=2
 // @ts-nocheck - Supabase client type inference
 import { NextRequest, NextResponse } from 'next/server';
-import { isLikelyTestAccount } from '@/lib/test-account';
-import { displayNameForMessagingParticipant } from '@/lib/messaging-participant-display';
-import { jobsListingWindowStartIso } from '@/lib/jobs/listing-window';
+import { getDataService } from "@/lib/data/service";
+import { getClaims } from "@/lib/claims/service";
+import * as z from "zod";
 
 export const dynamic = 'force-dynamic';
 
+const ConversationSchema = z.object({
+	otherProfileId: z.uuid()
+});
+
 /**
  * POST /api/conversations
- * Body: { otherUserId }
- * Finds or creates the direct conversation for (currentUser, otherUserId).
- * Returns the conversation. Handles 23505 race by re-selecting existing.
+ * Body: { otherProfileId }
+ * Creates the direct conversation for (currentUser, otherUserId) if it doesn't exist
+ * The reciprocal conversation is also created (otherUserId, currentUserId).
  */
 export async function POST(request: NextRequest) {
-/*
-  try {
-    const supabase = createServerSupabase();
-    const {
-      data: { user: authUser },
-      error: authErr,
-    } = await supabase.auth.getUser();
-
-    if (authErr || !authUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const body = await request.json();
-    const otherUserId = body?.otherUserId ?? body?.other_user_id;
-
-    if (!otherUserId || typeof otherUserId !== 'string') {
-      return NextResponse.json({ error: 'otherUserId required' }, { status: 400 });
-    }
-
-    if (otherUserId === authUser.id) {
-      return NextResponse.json({ error: 'Cannot message yourself' }, { status: 400 });
-    }
-
-    const otherUser = await loadTargetUserForMessaging(otherUserId);
-    if (!otherUser) {
-      return NextResponse.json(
-        { error: 'That user could not be found.', code: 'TARGET_USER_NOT_FOUND' },
-        { status: 400 }
-      );
-    }
-    if (otherUser.deleted_at) {
-      return NextResponse.json(
-        { error: 'That account is no longer available.', code: 'TARGET_USER_UNAVAILABLE' },
-        { status: 400 }
-      );
-    }
-    if (
-      isLikelyTestAccount({
-        email: otherUser.email,
-        name: otherUser.name,
-      })
-    ) {
-      return NextResponse.json(
-        { error: 'Messaging is not available for this profile.', code: 'TARGET_USER_RESTRICTED' },
-        { status: 400 }
-      );
-    }
-
-    const [p1, p2] = authUser.id < otherUserId ? [authUser.id, otherUserId] : [otherUserId, authUser.id];
-
-    const { data: existing } = await supabase
-      .from('conversations')
-      .select('id, contractor_id, subcontractor_id, job_id, created_at, updated_at')
-      .eq('contractor_id', p1)
-      .eq('subcontractor_id', p2)
-      .is('job_id', null)
-      .maybeSingle();
-
-    if (existing) {
-      return NextResponse.json({
-        conversation: {
-          id: existing.id,
-          contractorId: existing.contractor_id,
-          subcontractorId: existing.subcontractor_id,
-          jobId: existing.job_id,
-          createdAt: existing.created_at,
-          updatedAt: existing.updated_at ?? existing.created_at,
-        },
-      });
-    }
-
-    const { data: created, error: createErr } = await supabase
-      .from('conversations')
-      .insert({
-        contractor_id: p1,
-        subcontractor_id: p2,
-        job_id: null,
-      })
-      .select('id, contractor_id, subcontractor_id, job_id, created_at, updated_at')
-      .single();
-
-    if (createErr) {
-      if (createErr.code === '23505') {
-        const { data: raceExisting } = await supabase
-          .from('conversations')
-          .select('id, contractor_id, subcontractor_id, job_id, created_at, updated_at')
-          .eq('contractor_id', p1)
-          .eq('subcontractor_id', p2)
-          .is('job_id', null)
-          .maybeSingle();
-        if (raceExisting) {
-          return NextResponse.json({
-            conversation: {
-              id: raceExisting.id,
-              contractorId: raceExisting.contractor_id,
-              subcontractorId: raceExisting.subcontractor_id,
-              jobId: raceExisting.job_id,
-              createdAt: raceExisting.created_at,
-              updatedAt: raceExisting.updated_at ?? raceExisting.created_at,
-            },
-          });
-        }
-      }
-      console.error('conversations POST error:', createErr);
-      return NextResponse.json({ error: createErr.message }, { status: 500 });
-    }
-
-    return NextResponse.json({
-      conversation: {
-        id: created.id,
-        contractorId: created.contractor_id,
-        subcontractorId: created.subcontractor_id,
-        jobId: created.job_id,
-        createdAt: created.created_at,
-        updatedAt: created.updated_at ?? created.created_at,
-      },
-    });
-  } catch (err) {
-    console.error('conversations POST error:', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-	*/
-    return NextResponse.json({ ok:true }, { status: 200 });
+	let claims = null;
+	try{
+		claims = await getClaims();
+	}catch(err_){
+		return NextResponse.json({ error: "Not authorized" }, { status: 401 });
+	}
+	if(claims === null){
+		return NextResponse.json({ error: "Claims were null" }, { status: 500 });
+	}
+	// parse payload
+	let payload = null;
+	try{
+		payload = ConversationSchema.parse(await request.json());
+	}catch(err_){
+		console.error(err_);
+		return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+	}
+	// grab my profile id
+	// claims.id is not profile id its user id
+	let profileId = null;
+	try{
+		const { profile: profileRepo }	= await getDataService();
+		profileId = await profileRepo.getProfileId(claims.id);
+		if(profileId === null){
+			return NextResponse.json({ error: "Could not determine profile id for user" }, { status: 500 });
+		}
+	}catch(err_){
+		return NextResponse.json({ error: "Could not determine profile id for user" }, { status: 500 });
+	}
+	// find existing conversation
+	// or create it, same transaction
+	let convoId = null;
+	try{
+		const { conversations: convRepo }	= await getDataService();
+		convoId = await convRepo.upsertConversation(profileId, payload.otherProfileId);
+	}catch(err_){
+		console.error(err_);
+		return NextResponse.json({ error: "Could not add conversation", err: err_ }, { status: 500 });
+	}
+	return NextResponse.json({ conversationId: convoId }, { status: 200 });
 }
 
 /**
  * GET /api/conversations
  * Returns all conversations for the current user with participant info and last message.
  */
-export async function GET() {
-	/*
-  try {
-    const supabase = createServerSupabase();
-    const {
-      data: { user: authUser },
-      error: authErr,
-    } = await supabase.auth.getUser();
-
-    if (authErr || !authUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: convs, error: convErr } = await supabase
-      .from('conversations')
-      .select('id, contractor_id, subcontractor_id, job_id, created_at, updated_at')
-      .or(`contractor_id.eq.${authUser.id},subcontractor_id.eq.${authUser.id}`)
-      .order('updated_at', { ascending: false });
-
-    if (convErr) {
-      console.error('conversations GET error:', convErr);
-      return NextResponse.json({ error: convErr.message }, { status: 500 });
-    }
-
-    if (!convs || convs.length === 0) {
-      return NextResponse.json({ conversations: [] });
-    }
-
-    const convIds = convs.map((c) => c.id);
-    const otherUserIds = new Set<string>();
-    const jobIds = new Set<string>();
-    for (const c of convs) {
-      const other = c.contractor_id === authUser.id ? c.subcontractor_id : c.contractor_id;
-      otherUserIds.add(other);
-      if (c.job_id) jobIds.add(c.job_id);
-    }
-
-    const [messagesRes, usersRes, jobsRes] = await Promise.all([
-      supabase
-        .from('messages')
-        .select('id, conversation_id, sender_id, text, is_system_message, created_at')
-        .in('conversation_id', convIds)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('users')
-        .select('id, name, avatar, email, business_name, show_business_name_on_profile')
-        .in('id', Array.from(otherUserIds)),
-      jobIds.size > 0
-        ? supabase
-            .from('jobs')
-            .select('id, title, status')
-            .in('id', Array.from(jobIds))
-            .gte('created_at', jobsListingWindowStartIso())
-        : Promise.resolve({ data: [] as { id: string; title: string; status: string }[] }),
-    ]);
-
-    const messages = messagesRes.data ?? [];
-    const users = usersRes.data ?? [];
-    const jobs = jobsRes.data ?? [];
-
-    const lastMessageByConv: Record<string, (typeof messages)[0]> = {};
-    for (const m of messages) {
-      if (!lastMessageByConv[m.conversation_id]) {
-        lastMessageByConv[m.conversation_id] = m;
-      }
-    }
-
-    const userMap: Record<string, { name: string; avatar: string | null }> = {};
-    const visibleOtherIds = new Set<string>();
-    for (const u of users) {
-      const hidden = isLikelyTestAccount({ email: (u as any).email, name: u.name });
-      if (hidden) continue;
-      visibleOtherIds.add(u.id);
-      userMap[u.id] = {
-        name: displayNameForMessagingParticipant({
-          name: u.name,
-          business_name: (u as { business_name?: string | null }).business_name,
-          show_business_name_on_profile: (u as { show_business_name_on_profile?: boolean | null })
-            .show_business_name_on_profile,
-          email: (u as any).email,
-        }),
-        avatar: u.avatar ?? null,
-      };
-    }
-
-    const jobMap: Record<string, { title: string; status: string }> = {};
-    for (const j of jobs) {
-      jobMap[j.id] = { title: j.title ?? 'Job', status: j.status ?? 'open' };
-    }
-
-    const conversations = convs
-      .filter((c) => {
-        const otherId = c.contractor_id === authUser.id ? c.subcontractor_id : c.contractor_id;
-        return visibleOtherIds.has(otherId);
-      })
-      .map((c) => {
-      const otherId = c.contractor_id === authUser.id ? c.subcontractor_id : c.contractor_id;
-      const other = userMap[otherId] ?? { name: 'Unknown', avatar: null };
-      const lastMsg = lastMessageByConv[c.id];
-      const job = c.job_id ? jobMap[c.job_id] : null;
-
-      return {
-        id: c.id,
-        contractorId: c.contractor_id,
-        subcontractorId: c.subcontractor_id,
-        jobId: c.job_id,
-        createdAt: c.created_at,
-        updatedAt: c.updated_at ?? c.created_at,
-        otherUserId: otherId,
-        otherUserName: other.name,
-        otherUserAvatar: other.avatar,
-        lastMessage: lastMsg
-          ? {
-              id: lastMsg.id,
-              senderId: lastMsg.sender_id,
-              text: lastMsg.text,
-              isSystemMessage: lastMsg.is_system_message ?? false,
-              createdAt: lastMsg.created_at,
-            }
-          : null,
-        jobTitle: job?.title ?? null,
-        jobStatus: job?.status ?? null,
-      };
-      });
-
-    return NextResponse.json({ conversations });
-  } catch (err) {
-    console.error('conversations API error:', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-	*/
-    return NextResponse.json({ ok:true}, { status: 200 });
+export async function GET(request:NextRequest) {
+	const query = request.nextUrl.searchParams;
+	const HOOK_WITHOUT_PROFILES = ( query.get("hookWithoutProfiles") ?? "false" ) === "true";
+	const HOOK_CHECK_PROFILES = ( query.get("hookCheckProfiles") ?? "false" ) === "true";
+	let claims = null;
+	try{
+		claims = await getClaims();
+	}catch(err_){
+		return NextResponse.json({ error: "Not authorized" }, { status: 401 });
+	}
+	if(claims === null){
+		return NextResponse.json({ error: "Claims were null" }, { status: 500 });
+	}
+	let conversations = null;
+	try{
+		const { conversations: convRepo, profile: profileRepo } = await getDataService();
+		conversations = await convRepo.getConversations(claims.id);
+		if(HOOK_WITHOUT_PROFILES){
+			return NextResponse.json(conversations, { status: 200 });
+		}
+		// determine what other profiles need to load
+		// using object to enforce uniqueness
+		let otherProfiles = {};
+		for(const c of conversations) {
+			otherProfiles[c.guestProfileId] = 1;
+		}
+		// load other profiles
+		// only getting minimal data
+		otherProfiles = Object.keys(otherProfiles);	
+		const profileKeys = otherProfiles.join(", ");
+		otherProfiles = await profileRepo.getConversationProfiles(otherProfiles);
+		if(HOOK_CHECK_PROFILES){
+			return NextResponse.json({profiles:otherProfiles, keys:profileKeys}, { status: 200 });
+		}
+		for(const c of conversations){
+			const other = otherProfiles[c.guestProfileId] ?? null;
+			if(!other){
+				throw new Error(`Could not find profile for guest ${c.guestProfileId}`);
+			}
+			c.guestName = other.name;
+			c.guestUserId = other.userId;
+		}
+	}catch(err_){
+		console.error(err_);
+		return NextResponse.json({ error: "Could not load conversations" }, { status: 500 });
+	}
+	return NextResponse.json(conversations, { status: 200 });
 }

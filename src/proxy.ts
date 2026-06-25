@@ -104,16 +104,20 @@ export async function proxy(request: NextRequest) {
   if (pathname.startsWith('/how-it-works/subcontractors')) {
     const passthrough = NextResponse.next();
     const redirectResponse = NextResponse.redirect(new URL('/how-it-works', request.url));
-    return applyResponseCookies(passthrough, redirectResponse);
+		redirectResponse.headers.set("Cache-Control", "public, no-transform, must-revalidate");
+		return redirectResponse;
   }
 
   if (shouldSkip(pathname)) {
-    return NextResponse.next();
+    let response = NextResponse.next();
+		response.headers.set("Cache-Control", "public, no-transform, must-revalidate");
+		return response;
   }
 
   // Only mutate response cookies (no request.cookies.set / no NextResponse.next() per cookie).
   // That pattern can disturb or lock request bodies for downstream handlers (e.g. POST in Playwright).
   let response = NextResponse.next();
+	response.headers.set("Cache-Control", "public, no-transform, must-revalidate");
 	
 	const store = await cookies();	
 	const cookie = store.get("authorization") ?? null;
@@ -156,7 +160,8 @@ export async function proxy(request: NextRequest) {
       }
 			store.delete("authorization");
       const redirectResponse = NextResponse.redirect(new URL('/login', request.url));
-      return applyResponseCookies(response, redirectResponse);
+			redirectResponse.headers.set("Cache-Control", "public, no-transform, must-revalidate");
+			return redirectResponse;
     }
   }
 
@@ -167,7 +172,9 @@ export async function proxy(request: NextRequest) {
 		store.delete("authorization");
     const fullPath = pathname + search;
     const loginUrl = new URL('/login', request.url);
-    return NextResponse.redirect(loginUrl);
+    const redirect = NextResponse.redirect(loginUrl);
+		redirect.headers.set("Cache-Control", "public, no-transform, must-revalidate");
+		return redirect;
   }
 
   // -------------------------
@@ -176,7 +183,9 @@ export async function proxy(request: NextRequest) {
   if (isAuthenticated && pathname === '/') {
     const url = request.nextUrl.clone();
     url.pathname = '/dashboard';
-    return NextResponse.redirect(url);
+    const redirect = NextResponse.redirect(url);
+		redirect.headers.set("Cache-Control", "public, no-transform, must-revalidate");
+		return redirect;
   }
 
   // -------------------------
@@ -184,7 +193,9 @@ export async function proxy(request: NextRequest) {
   // -------------------------
   if (isAuthRoute(pathname) && isAuthenticated) {
 		store.delete("authorization");
-    return NextResponse.redirect(new URL('/login', request.url));
+    const redirect = NextResponse.redirect(new URL('/login', request.url));
+		redirect.headers.set("Cache-Control", "public, no-transform, must-revalidate");
+		return redirect;
   }
 
   return response;

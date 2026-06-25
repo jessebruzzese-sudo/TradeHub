@@ -34,10 +34,13 @@ export async function GET(request: NextRequest, context) {
 	const lcTradeMapping = {};
 	for(const name of Object.keys(tradeMapping)){
 		lcTradeMapping[name.toLowerCase()] = tradeMapping[name];
-	}
+	}	
+	// grab trade id from the trade name
+	// be wary of "all" (premium accounts)
+	const ALL_TRADES = "all";
 	const trade = (await context.params)?.trade?.toLowerCase() ?? null;
 	const tradeId = lcTradeMapping[trade?.toLowerCase()] ?? null;
-	if(tradeId === null){
+	if(tradeId === null && trade !== ALL_TRADES){
 		return NextResponse.json({ error: `The trade ${trade} doesn't exist` }, { status: 400 });
 	}
 	let userProfile = null;
@@ -81,7 +84,7 @@ export async function GET(request: NextRequest, context) {
 	}
 	let refined = distances.filter((x) => x.distance <= radius );
 	// filter by searched trade
-	refined = refined.filter((x) => x.trades.find((j) => j === trade ) !== undefined);
+	refined = refined.filter((x) => x.trades.find((j) => j === trade || trade === ALL_TRADES) !== undefined);
 	// find matching users
 	let matches = null;
 	try{

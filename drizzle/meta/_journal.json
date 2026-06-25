@@ -267,6 +267,34 @@
       "when": 1782083837281,
       "tag": "0037_known_rage",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1782176985218,
+      "tag": "0038_first_odin",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1782177076035,
+      "tag": "0039_bitter_colleen_wing",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1782295640596,
+      "tag": "0040_parched_umar",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1782385630047,
+      "tag": "0041_lumpy_celestials",
+      "breakpoints": true
     }
   ]
 }
