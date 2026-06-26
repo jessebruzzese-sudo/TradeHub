@@ -345,7 +345,7 @@ export default function MessagesPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem asChild>
-                              <Link href={getPublicProfileHref(otherProfileId)} className="flex items-center gap-2">
+                              <Link href={getPublicProfileHref(otherUserId)} className="flex items-center gap-2">
                                 <User className="h-4 w-4" />
                                 View Profile
                               </Link>
