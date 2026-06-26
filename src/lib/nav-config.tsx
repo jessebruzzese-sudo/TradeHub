@@ -101,7 +101,7 @@ export function getAccountItems(): NavItemConfig[] {
 export const BOTTOM_NAV_ITEMS: NavItemConfig[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { label: 'Jobs', href: '/jobs', icon: Briefcase },
-  { label: 'Messages', href: '/dashboard', icon: MessageSquare },
+  { label: 'Messages', href: '/messages', icon: MessageSquare },
 ];
 
 /** Admin nav (flat list, no sections) */

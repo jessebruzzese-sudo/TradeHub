@@ -430,7 +430,7 @@ export default function MessagesPage() {
                         </div>
                       )}
                       {messages.map((msg) => {
-                        const isMe = msg.senderId === currentUser.id;
+                        const isMe = msg.senderProfileId === currentUser.profile.id;
                         return <MessageBubble key={msg.id} message={msg} isMe={isMe} />;
                       })}
                       <div ref={messagesEndRef} />
