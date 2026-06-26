@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import UserContext from "@/lib/user-context";
+import { useState, useContext } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -25,26 +26,13 @@ import {
 } from '@/lib/nav-config';
 
 export function MobileBottomNav() {
-  const { currentUser } = useAuth();
   const pathname = usePathname();
-  const store = getStore();
-  const { override: devUnreadOverride } = useDevUnread();
-
-  if (!currentUser || isAdmin(currentUser)) {
-    return null;
-  }
-
-  const unreadCount =
-    devUnreadOverride != null ? devUnreadOverride : store.getUnreadConversationCount(currentUser.id);
-
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 border-t border-gray-200 bg-white z-50 safe-area-inset-bottom">
       <div className="flex justify-around items-stretch">
         {BOTTOM_NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const isActive = pathname.startsWith(item.href);
-          const hasUnread = item.label === 'Messages' && unreadCount > 0;
-
           return (
             <Link key={item.href} href={item.href} className="flex-1 min-w-0">
               <div
@@ -56,11 +44,6 @@ export function MobileBottomNav() {
               >
                 <div className="relative">
                   <Icon className="w-6 h-6 mb-1" />
-                  {hasUnread && (
-                    <span className="absolute -top-1 -right-1 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-red-500 rounded-full">
-                      {unreadCount}
-                    </span>
-                  )}
                 </div>
                 <span className="text-xs font-medium truncate">{item.label}</span>
                 {isActive && (
@@ -76,35 +59,15 @@ export function MobileBottomNav() {
 }
 
 export function MobileDrawer() {
+	const UserSession = useContext(UserContext);
+	const [currentUser, setCurrentUser] = useState<any|null>(UserSession.user);
   const [open, setOpen] = useState(false);
-  const { currentUser, logout } = useAuth();
+  const { jwt, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
-  const store = getStore();
-  const { override: devUnreadOverride } = useDevUnread();
-  const { hasUnread: notificationsHasUnread } = useNotificationsUnread();
-
-  const unreadMessageCount =
-    devUnreadOverride != null ? devUnreadOverride : (currentUser ? store.getUnreadConversationCount(currentUser.id) : 0);
-
-  if (!currentUser || isAdmin(currentUser)) {
-    return null;
-  }
-
   const isVerified = hasValidABN(currentUser);
-
-  const isPremium = hasPremiumAccess({
-    plan: (currentUser as any)?.plan,
-    subscription_status: (currentUser as any)?.subscriptionStatus ?? (currentUser as any)?.subscription_status,
-    complimentary_premium_until:
-      (currentUser as any)?.complimentaryPremiumUntil ?? (currentUser as any)?.complimentary_premium_until,
-  });
-
-  const primaryTrade =
-    (currentUser as any)?.primary_trade ??
-    (Array.isArray((currentUser as any)?.trades) && (currentUser as any)?.trades?.[0]) ??
-    (currentUser as any)?.trade ??
-    null;
+  const isPremium = currentUser?.profile?.premium ?? false;
+  const primaryTrade = currentUser?.business?.primaryTrade;
 
   const handleNavigation = (href: string, requiresABN: boolean = false) => {
     if (requiresABN && !isVerified) {
@@ -232,8 +195,6 @@ export function MobileDrawer() {
                             }}
                             onExternal={() => setOpen(false)}
                             verifyBadge={item.href === '/verify-business' && isVerified ? 'Verified' : undefined}
-                            unreadMessageCount={item.href === '/messages' ? unreadMessageCount : undefined}
-                            notificationsHasUnread={item.href === '/notifications' ? (notificationsHasUnread ?? false) : undefined}
                           />
                         ))}
                       </nav>

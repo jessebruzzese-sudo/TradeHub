@@ -6,6 +6,12 @@ import { profileTable, profileLikeTable } from "@/lib/data/defs/profile";
 import { usersTable } from "@/lib/data/defs/users";
 import { getDB, getDataService } from "@/lib/data/service";
 
+export const getConversationProfileT = async (profileId:string, trx:any) => {
+	return trx.select({visibleName: usersTable.visibleName, name: usersTable.name, id: usersTable.id}).
+		from(usersTable).
+		where(eq(usersTable.profileId, profileId));
+};
+
 export const getConversationProfiles = async (profileIds:array) => {
 	return new Promise(async(resolve, reject)=>{
 		const db = await getDB();	

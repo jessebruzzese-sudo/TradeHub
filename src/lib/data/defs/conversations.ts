@@ -16,7 +16,7 @@ export const conversationTable = pgTable("conversations", {
 	jobId: uuid("job_id").references(()=>jobsTable.id),
 	createdAt: timestamp("created_at").defaultNow(),
 	updatedAt: timestamp("updated_at")
-});
+}, (table)=>[unique().on(table.ownerProfileId, table.guestProfileId)]);
 
 export const messagesTable = pgTable("messages", {
 	id: uuid("id").notNull().primaryKey().default(sql`gen_random_uuid()`),
@@ -24,5 +24,5 @@ export const messagesTable = pgTable("messages", {
 	createdAt: timestamp("created_at").defaultNow(),
 	read: boolean("read").default(false), // recipient has read
 	conversationId: uuid("conversation_id").notNull().references(()=>conversationTable.id),
-	senderProfileId: uuid("sender_user_id").notNull() // profile id of sender
+	senderProfileId: uuid("sender_profile_id").notNull() // profile id of sender
 }, (table)=>[unique().on(table.conversationId, table.id)]);

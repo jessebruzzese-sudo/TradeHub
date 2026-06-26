@@ -161,7 +161,18 @@ export default function MessagesPage() {
 	/* START EVENT HANDLERS */
 
 	const handleSendMessage = () => {
-		toast.info("coming soon");
+		const payload = {
+			message: messageText,
+			senderProfileId: currentUser.profile.id
+		};
+		getAxios(null).post(`/api/conversations/${selectedConversation}/messages`, payload).
+			then((response_)=>{
+				toast.success("Message sent");
+				setMessageText("");
+				setMessages(null); // force reload, might need to make better (load delta, w/ watch)
+			}).catch((err_)=>{
+				toast.error("Could not send message");
+			});
 	};
 
 	const handleSuggestReply = () => {
@@ -187,11 +198,15 @@ export default function MessagesPage() {
   }
 
 	// selected conversation state
-	const showEmptyState = true;
+	let showEmptyState = ( messages?.length ?? 0 ) === 0;
+	let isConversationOwner = false;
+	let isConversationGuest = false;
 	let convo = null;
-	let selectedGuestProfileId = null;
-	let selectedGuestName = null;
-	let selectedGuestUserId = null;
+	let otherProfileId = null;
+	let otherName = null;
+	let otherUserId = null;
+	// look at details from conversation to derive message state
+	// i.e. conversation with system should be read only
 	let messagingState = {
 		isReadOnly: false,
 		canSendMessages: true
@@ -201,12 +216,19 @@ export default function MessagesPage() {
 		if(convo === undefined){
 			console.error("selected conversation is null");
 		}
-		// details of the "other user
+		// details of the "other user"
 		// could be owner of the conversation
 		// or the guest, depends on who started it
-		selectedGuestProfileId = convo?.guestProfileId ?? null;
-		selectedGuestUserId = convo?.guestUserId ?? null;
-		selectedGuestName = convo?.guestName ?? null;
+		isConversationOwner = convo.ownerUserId === currentUser.id;
+		if(isConversationOwner){
+			otherProfileId = convo?.guestProfileId ?? null;
+			otherUserId = convo?.guestUserId ?? null;
+			otherName = convo?.guestName ?? null;
+		}else{
+			otherProfileId = convo?.ownerProfileId ?? null;
+			otherUserId = convo?.ownerUserId ?? null;
+			otherName = convo?.ownerName ?? null;
+		}
 	}
 
   return (
@@ -239,11 +261,25 @@ export default function MessagesPage() {
                     <div className="space-y-2">
                       {conversations.map((conv) => {
                         const unread = (conv as { unreadCount?: number }).unreadCount ?? 0;
+												const isOwner_ = currentUser.id === conv.ownerUserId;
+												let convOtherName = null;
+												let convOtherProfileId = null;
+												let convOtherUserId = null;
+												if(isOwner_){
+													convOtherName = conv.guestName;
+													convOtherProfileId = conv.guestProfileId;
+													convOtherUserId = conv.guestUserId;
+												}else{
+													convOtherName = conv.ownerName;
+													convOtherProfileId = conv.ownerProfileId;
+													convOtherUserId = conv.ownerUserId;
+												}
                         return (
                           <button
                             key={conv.id}
                             onClick={() => {
                               setSelectedConversation(conv.id);
+															setMessages(null);
                             }}
                             className={`w-full rounded-xl p-4 text-left transition-colors border touch-manipulation ${
                               unread > 0
@@ -252,10 +288,10 @@ export default function MessagesPage() {
                             }`}
                           >
                             <div className="flex items-center gap-3">
-                              <UserAvatar avatarUrl={`/api/profile/${conv.guestProfileId}/avatar`} userName={conv.guestName} size="md" />
+                              <UserAvatar avatarUrl={`/api/profile/${convOtherProfileId}/avatar`} userName={convOtherName} size="md" />
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center justify-between gap-2">
-                                  <p className="font-medium text-gray-900 truncate">{conv.guestName}</p>
+                                  <p className="font-medium text-gray-900 truncate">{convOtherName}</p>
                                   {unread > 0 && (
                                     <span className="shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold text-white bg-blue-600 rounded-full">
                                       {unread > 99 ? '99+' : unread}
@@ -289,9 +325,9 @@ export default function MessagesPage() {
                     >
                       <ChevronLeft className="h-5 w-5" />
                     </Button>
-                    <UserAvatar avatarUrl={`/api/profile/${selectedGuestProfileId}/avatar`} userName={selectedGuestName} size="md" className="shrink-0" />
+                    <UserAvatar avatarUrl={`/api/profile/${otherProfileId}/avatar`} userName={otherName} size="md" className="shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-gray-900 truncate">{selectedGuestName}</p>
+                      <p className="font-semibold text-gray-900 truncate">{otherName}</p>
                       <p className="text-xs text-slate-600 truncate">{job?.title ?? convo?.jobTitle ?? 'Direct message'}</p>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
@@ -300,7 +336,7 @@ export default function MessagesPage() {
                           <Button variant="outline" size="sm" className="h-9 text-xs">View Job</Button>
                         </Link>
                       )}
-                      {selectedGuestProfileId && (
+                      {otherProfileId && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-10 w-10" aria-label="Thread options">
@@ -309,7 +345,7 @@ export default function MessagesPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem asChild>
-                              <Link href={getPublicProfileHref(selectedGuestProfileId)} className="flex items-center gap-2">
+                              <Link href={getPublicProfileHref(otherProfileId)} className="flex items-center gap-2">
                                 <User className="h-4 w-4" />
                                 View Profile
                               </Link>
@@ -336,7 +372,7 @@ export default function MessagesPage() {
                   {loadingMessages ? (
                     <div className="flex items-center justify-center h-32 text-sm text-gray-500">Loading messages...</div>
                   ) : showEmptyState ? (
-                    <EmptyMessages otherUserName={selectedGuestName} />
+                    <EmptyMessages otherUserName={otherName} />
                   ) : (
                     <div className="space-y-4 min-w-0">
                       {job && job.status === 'accepted' && !isContractor && (
@@ -369,7 +405,7 @@ export default function MessagesPage() {
                         <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4">
                           <h4 className="font-semibold text-green-900 mb-2">Subcontractor Accepted!</h4>
                           <p className="text-sm text-green-800 mb-4">
-                            {selectedGuestName} has accepted the job. Confirm to finalize the hire.
+                            {otherName} has accepted the job. Confirm to finalize the hire.
                           </p>
                           <div className="flex flex-wrap gap-3 items-center">
                             <Button onClick={handleConfirmHire} size="sm" className="h-10" disabled={needsAbnForActions || actionSubmitting}>
@@ -422,7 +458,7 @@ export default function MessagesPage() {
                     <AlertDialogHeader>
                       <AlertDialogTitle>Block user?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        {selectedGuestName} will no longer be able to send you messages. 
+                        {otherName} will no longer be able to send you messages. 
 												The conversation history will remain visible.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
@@ -449,7 +485,7 @@ export default function MessagesPage() {
                     <DialogHeader>
                       <DialogTitle>Report user</DialogTitle>
                       <DialogDescription>
-                        Report {selectedGuestName} for behaviour that violates platform standards. Your report will be reviewed by our team.
+                        Report {otherName} for behaviour that violates platform standards. Your report will be reviewed by our team.
                       </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
@@ -525,11 +561,25 @@ export default function MessagesPage() {
               ) : null}
               {(conversations ?? []).map((conv) => {
                 const unread = (conv as { unreadCount?: number }).unreadCount ?? 0;
+								const isOwner_ = currentUser.id === conv.ownerUserId;
+								let convOtherName = null;
+								let convOtherProfileId = null;
+								let convOtherUserId = null;
+								if(isOwner_){
+									convOtherName = conv.guestName;
+									convOtherProfileId = conv.guestProfileId;
+									convOtherUserId = conv.guestUserId;
+								}else{
+									convOtherName = conv.ownerName;
+									convOtherProfileId = conv.ownerProfileId;
+									convOtherUserId = conv.ownerUserId;
+								}
                 return (
                   <button
                     key={conv.id}
                     onClick={() => {
                       setSelectedConversation(conv.id);
+											setMessages(null);
                     }}
                     className={`w-full rounded-xl p-3 text-left transition-colors ${
                       selectedConversation === conv.id
@@ -540,10 +590,10 @@ export default function MessagesPage() {
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <UserAvatar avatarUrl={`/api/profile/${conv.guestProfileId}/avatar`} userName={conv.guestName} size="md" />
+                      <UserAvatar avatarUrl={`/api/profile/${convOtherProfileId}/avatar`} userName={convOtherName} size="md" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <p className="font-medium text-gray-900 truncate">{conv.guestName}</p>
+                          <p className="font-medium text-gray-900 truncate">{convOtherName}</p>
                           {unread > 0 && (
                             <span className="shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold text-white bg-blue-600 rounded-full">
                               {unread > 99 ? '99+' : unread}
@@ -593,13 +643,13 @@ export default function MessagesPage() {
                   <div className="shrink-0 border-b border-slate-200 bg-white px-5 py-4">
                     <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                         <UserAvatar
-                          avatarUrl={`/api/profile/${selectedGuestProfileId}/avatar`}
-                          userName={selectedGuestName}
+                          avatarUrl={`/api/profile/${otherProfileId}/avatar`}
+                          userName={otherName}
                           size="md"
                           className="flex-shrink-0"
                         />
                         <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-gray-900 truncate break-words">{selectedGuestName}</p>
+                          <p className="font-semibold text-gray-900 truncate break-words">{otherName}</p>
                           <p className="text-sm text-gray-600 truncate break-words">
                             {job?.title ?? convo?.jobTitle ?? 'Direct message'}
                           </p>
@@ -612,7 +662,7 @@ export default function MessagesPage() {
                               </Button>
                             </Link>
                           )}
-                          {selectedGuestProfileId && (
+                          {otherProfileId && (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Thread options">
@@ -621,7 +671,7 @@ export default function MessagesPage() {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem asChild>
-                                  <Link href={getPublicProfileHref(selectedGuestUserId)} className="flex items-center gap-2">
+                                  <Link href={getPublicProfileHref(otherUserId)} className="flex items-center gap-2">
                                     <User className="h-4 w-4" />
                                     View Profile
                                   </Link>
@@ -651,7 +701,7 @@ export default function MessagesPage() {
                     Loading messages...
                   </div>
                 ) : showEmptyState ? (
-                  <EmptyMessages otherUserName={selectedGuestName} />
+                  <EmptyMessages otherUserName={otherName} />
                 ) : (
                   <div className="space-y-4 min-w-0">
                     {job && job.status === 'accepted' && !isContractor && (
@@ -685,7 +735,7 @@ export default function MessagesPage() {
                       <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4">
                         <h4 className="font-semibold text-green-900 mb-2">Subcontractor Accepted!</h4>
                         <p className="text-sm text-green-800 mb-4">
-                          {selectedGuestName} has accepted the job. Confirm to finalize the hire.
+                          {otherName} has accepted the job. Confirm to finalize the hire.
                         </p>
                         <div className="flex flex-wrap gap-3 items-center">
                           <Button onClick={handleConfirmHire} size="sm" disabled={needsAbnForActions || actionSubmitting}>
@@ -714,7 +764,7 @@ export default function MessagesPage() {
                     )}
 
                     {messages.map((msg) => {
-                      const isMe = msg.senderId === currentUser.id;
+                      const isMe = msg.senderProfileId === currentUser.profile.id;
                       return (
                         <MessageBubble key={msg.id} message={msg} isMe={isMe} />
                       );
@@ -748,7 +798,7 @@ export default function MessagesPage() {
                   <AlertDialogHeader>
                     <AlertDialogTitle>Block user?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      {selectedGuestName} will no longer be able to send you messages. The conversation history will remain visible.
+                      {otherName} will no longer be able to send you messages. The conversation history will remain visible.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -778,7 +828,7 @@ export default function MessagesPage() {
                   <DialogHeader>
                     <DialogTitle>Report user</DialogTitle>
                     <DialogDescription>
-                      Report {selectedGuestName} for behaviour that violates platform standards. 
+                      Report {otherName} for behaviour that violates platform standards. 
 											Your report will be reviewed by our team.
                     </DialogDescription>
                   </DialogHeader>

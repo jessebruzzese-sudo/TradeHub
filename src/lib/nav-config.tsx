@@ -59,7 +59,7 @@ export const MAIN_ACTIONS_SECTION: NavSectionConfig = {
 export const COMMUNICATION_SECTION: NavSectionConfig = {
   title: 'Communication',
   items: [
-    { label: 'Messages', href: '/dashboard', icon: MessageSquare },
+    { label: 'Messages', href: '/messages', icon: MessageSquare },
   ],
 };
 

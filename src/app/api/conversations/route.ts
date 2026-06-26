@@ -65,9 +65,6 @@ export async function POST(request: NextRequest) {
  * Returns all conversations for the current user with participant info and last message.
  */
 export async function GET(request:NextRequest) {
-	const query = request.nextUrl.searchParams;
-	const HOOK_WITHOUT_PROFILES = ( query.get("hookWithoutProfiles") ?? "false" ) === "true";
-	const HOOK_CHECK_PROFILES = ( query.get("hookCheckProfiles") ?? "false" ) === "true";
 	let claims = null;
 	try{
 		claims = await getClaims();
@@ -80,35 +77,15 @@ export async function GET(request:NextRequest) {
 	let conversations = null;
 	try{
 		const { conversations: convRepo, profile: profileRepo } = await getDataService();
-		conversations = await convRepo.getConversations(claims.id);
-		if(HOOK_WITHOUT_PROFILES){
-			return NextResponse.json(conversations, { status: 200 });
-		}
-		// determine what other profiles need to load
-		// using object to enforce uniqueness
-		let otherProfiles = {};
-		for(const c of conversations) {
-			otherProfiles[c.guestProfileId] = 1;
-		}
-		// load other profiles
-		// only getting minimal data
-		otherProfiles = Object.keys(otherProfiles);	
-		const profileKeys = otherProfiles.join(", ");
-		otherProfiles = await profileRepo.getConversationProfiles(otherProfiles);
-		if(HOOK_CHECK_PROFILES){
-			return NextResponse.json({profiles:otherProfiles, keys:profileKeys}, { status: 200 });
-		}
-		for(const c of conversations){
-			const other = otherProfiles[c.guestProfileId] ?? null;
-			if(!other){
-				throw new Error(`Could not find profile for guest ${c.guestProfileId}`);
-			}
-			c.guestName = other.name;
-			c.guestUserId = other.userId;
-		}
+		const owner = await convRepo.getConversations(claims.id, true);
+		const guest = await convRepo.getConversations(claims.id, false);
+		conversations = [...owner, ...guest];
 	}catch(err_){
 		console.error(err_);
 		return NextResponse.json({ error: "Could not load conversations" }, { status: 500 });
+	}
+	if(conversations === null){
+		return NextResponse.json({ error: "Conversations array was null after loading" }, { status: 500 });
 	}
 	return NextResponse.json(conversations, { status: 200 });
 }
