@@ -22,7 +22,8 @@ import {
 	User,
  	Ban, 
 	Flag, 
-	ChevronLeft 
+	ChevronLeft,
+	RefreshCw
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect, useRef, useContext } from 'react';
@@ -96,6 +97,7 @@ export default function MessagesPage() {
 
   const [conversations, setConversations] = useState<any|null>(null); // list of different conversations that exist
   const [messages, setMessages] = useState<any|null>(null); // messages for current conversation
+	const [triggerRead, setTriggerRead] = useState<boolean>(false); // when true current conversation is read
   const [job, setJob] = useState<any|null>(null); // job linked to conversation, might not exist
   const [actionSubmitting, setActionSubmitting] = useState(false);
   const [suggestLoading, setSuggestLoading] = useState(false);
@@ -148,13 +150,47 @@ export default function MessagesPage() {
 			then((response_)=>{
 				const messages = response_.data;
 				setMessages(messages);
+				setTriggerRead(true);
 			}).catch((err_)=>{
 				const msg = err_?.response?.data?.error ?? null;
 				if(msg){
 					toast.error(msg);
 				}
+				setTriggerRead(false);
 			});
   }, [selectedConversation, messages]);
+	
+	useEffect(()=>{
+		// dont mark as read unless we're told to
+		if(!triggerRead){
+			return;
+		}
+		// no conversation, user can't have seen messages
+		if(!selectedConversation){
+			return;
+		}
+		// no messages to read 
+		// nothing to mark as read
+		if(messages === null || ( messages?.length ?? 0 ) === 0){		
+			return;
+		}
+		// everything is fine
+		// mark all conversation messages as read
+		getAxios(null).
+			put(`/api/conversations/${selectedConversation}/read`).
+			then((response_)=>{
+				// reset trigger
+				// regardless of if this worked or not
+				setTriggerRead(false);
+			}).catch((err_)=>{
+				const msg = err_?.response?.data?.error ?? null;
+				if(msg){
+					toast.error(msg);
+				}
+				// as above
+				setTriggerRead(false);
+			});
+	}, [triggerRead, selectedConversation, messages]);
 
  	/* END HOOKS */
 
@@ -181,6 +217,11 @@ export default function MessagesPage() {
 
 	const handleSelectSuggestion = () => {
 		toast.info("coming soon");
+	};
+
+	const handleRefresh = () => {
+		toast.info("Refreshing messages ...");
+		setMessages(null);
 	};
 		
 	const handleBlockUser = () => {
@@ -675,6 +716,10 @@ export default function MessagesPage() {
                                     <User className="h-4 w-4" />
                                     View Profile
                                   </Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={handleRefresh}>
+                                  <RefreshCw className="h-4 w-4" />
+																	Refresh Messages
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => setReportDialogOpen(true)}>
                                   <Flag className="h-4 w-4" />

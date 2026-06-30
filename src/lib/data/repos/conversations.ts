@@ -7,6 +7,17 @@ import { profileTable } from "@/lib/data/defs/profile";
 import { getConversationProfileT } from "@/lib/data/repos/profile";
 import { usersTable } from "@/lib/data/defs/users";
 
+export const markMessagesAsRead = async (conversationId:string, receiverProfileId:string) => {
+	return (await getDB()).
+		update(messagesTable).
+		set({read:true}).
+		where(
+			and(
+				eq(messagesTable.conversationId, conversationId), 
+				ne(messagesTable.senderProfileId, receiverProfileId)
+			)
+		);
+};
 export const getUnreadMessagesT = async (trx:any, profileId:string) => {	
 	return await trx.select({id: messagesTable.id}).
 			from(messagesTable).
