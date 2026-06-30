@@ -1,6 +1,4 @@
 'use client';
-import { useAuth } from '@/lib/auth';
-import { isAdmin } from '@/lib/is-admin';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Shield, Users, CheckCircle, FileText, Settings, AlertTriangle, Home, MessageSquare, Menu, Mail } from 'lucide-react';
@@ -13,21 +11,8 @@ export default function AdminLayoutClient({
 }: {
   children: React.ReactNode;
 }) {
-  const { currentUser, isLoading } = useAuth();
   const pathname = usePathname();
   const [overflowMenuOpen, setOverflowMenuOpen] = useState(false);
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-500">Loading...</div>
-      </div>
-    );
-  }
-
-  if (!currentUser || !isAdmin(currentUser)) {
-    return <UnauthorizedAccess redirectTo="/dashboard" message="You do not have permission to access the admin panel." />;
-  }
 
   const primaryNavItems = [
     { href: '/admin', icon: Home, label: 'Home' },

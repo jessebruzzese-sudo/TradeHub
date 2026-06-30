@@ -1,14 +1,14 @@
+// vim: ts=2
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
-
-import { AppLayout } from '@/components/app-nav';
+import { getAxios } from "@/lib/utils";
+import UserContext from "@/lib/user-context";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, useContext } from 'react';
 import { UnauthorizedAccess } from '@/components/unauthorized-access';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
-import { isAdmin } from '@/lib/is-admin';
-
 
 import {
   Users,
@@ -31,46 +31,67 @@ type AdminStats = {
 };
 
 export default function AdminPage() {
-  const { currentUser, logout } = useAuth();
-
-  const [stats, setStats] = useState<AdminStats | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  const isAdminUser = isAdmin(currentUser);
+  const { jwt, logout } = useAuth();
+	const router = useRouter();
+	const UserSession = useContext(UserContext);
+	const [currentUser, setCurrentUser] = useState<any|null>(UserSession?.user ?? null);
+	const [stats, setStats] = useState<any|null>(null);
+	const hasSession = jwt !== undefined && jwt !== null;
+  const isAdminUser = currentUser?.role?.toLowerCase() === "admin";
+	const isLoading = currentUser === null || stats === null;
 
   useEffect(() => {
-    if (!isAdminUser) return;
+		if(currentUser !== null){
+			return;
+		}
+		getAxios(null).get("/api/me").
+			then((response_)=>{
+				const data = response_.data;
+				UserSession.user = data;
+				setCurrentUser(data);
+			}).catch((err_)=>{
+				const msg = err_?.response?.data?.error ?? null;
+				console.error(err_);
+				if(msg){
+					toast.error("Could not load user");
+				}
+			});
+  }, [currentUser]);
+	
+	useEffect(()=>{
+		if(currentUser === null){
+			return;
+		}
+		if(stats !== null){
+			return;
+		}
+		getAxios(null).get("/api/admin/stats").
+			then((response_)=>{
+				const data =  response_.data;
+				setStats(data);
+			}).catch((err_)=>{
+				toast.error("Could not load stats");
+			});
+	}, [currentUser, stats]);
+	
+	if(isLoading){
+    return (
+      <>
+        <div className="relative min-h-screen bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>          
+      </>     
+    );          
+	}
 
-    let alive = true;
-
-    (async () => {
-      setLoading(true);
-      try {
-        const res = await fetch('/api/admin/stats', { cache: 'no-store' });
-        if (!res.ok) throw new Error(`Stats fetch failed: ${res.status}`);
-        const data = (await res.json()) as AdminStats;
-        if (alive) setStats(data);
-      } catch (err) {
-        console.error('Failed to load admin stats', err);
-        if (alive) setStats(null);
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-
-    return () => {
-      alive = false;
-    };
-  }, [isAdminUser]);
-
-  if (!currentUser || !isAdminUser) {
+  if (!hasSession || !isAdminUser) {
     return <UnauthorizedAccess redirectTo="/login" />;
   }
 
   const stat = (value?: number) => (typeof value === 'number' ? value : '—');
 
   return (
-    <AppLayout>
+    <>
       <div className="mx-auto max-w-7xl p-4 md:p-6">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
@@ -79,7 +100,7 @@ export default function AdminPage() {
             <p className="text-gray-600">Manage users, verifications, and platform settings</p>
           </div>
 
-          <Button variant="outline" onClick={logout} className="hidden gap-2 md:flex">
+          <Button variant="outline" onClick={()=>{logout();}} className="hidden gap-2 md:flex">
             <LogOut className="h-4 w-4" />
             Log out
           </Button>
@@ -93,18 +114,21 @@ export default function AdminPage() {
             label="Pending Verifications"
             value={stat(stats?.pendingVerifications)}
           />
-          <Metric icon={FileText} label="Active Jobs" value={stat(stats?.activeJobs)} />
+          <Metric icon={FileText} label="Confirmed Jobs" value={stat(stats?.confirmedJobs)} />
+          <Metric icon={FileText} label="Accepted Jobs" value={stat(stats?.acceptedJobs)} />
+          <Metric icon={FileText} label="Open Jobs" value={stat(stats?.openJobs)} />
+          <Metric icon={FileText} label="Closed Jobs" value={stat(stats?.closedJobs)} />
           <Metric icon={TrendingUp} label="Total Jobs" value={stat(stats?.totalJobs)} />
           <Metric
             icon={MessageSquare}
             label="Pending Reviews"
-            value={loading ? '—' : '—'}
+            value={isLoading ? '—' : '—'}
             muted
           />
           <Metric
             icon={AlertCircle}
             label="Account Reviews"
-            value={loading ? '—' : '—'}
+            value={isLoading ? '—' : '—'}
             muted
           />
         </div>
@@ -120,7 +144,7 @@ export default function AdminPage() {
           <AdminCard disabled icon={DollarSign} title="Billing" subtitle="Coming soon" />
         </div>
       </div>
-    </AppLayout>
+    </>
   );
 }
 

@@ -87,7 +87,7 @@ export default function LoginPage() {
     return (
       <AppLayout>
         <div className="relative min-h-screen bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800 flex items-center justify-center">
-          <div className="text-white/90 text-sm">Loading...</div>
+        	<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
       </AppLayout>
     );

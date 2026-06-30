@@ -1528,7 +1528,7 @@ export default function EditProfilePage() {
                   variant="outline"
                   size="sm"
                   className="shrink-0 gap-1.5 rounded-lg border-slate-300"
-                  onClick={() => setAddLocationOpen(true)}
+                  onClick={()=>{toast.info("coming soon");}} 
                 >
                   <Plus className="h-4 w-4" />
                   <span className="hidden sm:inline">Add location</span>

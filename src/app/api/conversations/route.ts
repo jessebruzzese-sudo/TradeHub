@@ -14,8 +14,7 @@ const ConversationSchema = z.object({
 /**
  * POST /api/conversations
  * Body: { otherProfileId }
- * Creates the direct conversation for (currentUser, otherUserId) if it doesn't exist
- * The reciprocal conversation is also created (otherUserId, currentUserId).
+ * Creates the direct conversation for (currentUser, otherUserId) if it doesn't exist.
  */
 export async function POST(request: NextRequest) {
 	let claims = null;

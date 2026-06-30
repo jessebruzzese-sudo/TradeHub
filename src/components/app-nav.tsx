@@ -28,7 +28,7 @@ export function TopBar() {
 	const UserSession = useContext(UserContext);	
 	const currentUser = UserSession?.user ?? null;
 	const { jwt, logout } = useAuth();
-	const isAdmin = (currentUser?.role ?? "user") === "admin";
+	const isAdmin = ( currentUser?.role?.toLowerCase() ?? "user" ) === "admin";
 
   if (!currentUser) {
     return null;
@@ -86,7 +86,7 @@ export function SideNav() {
 	const UserSession = useContext(UserContext);	
 	const currentUser = UserSession?.user ?? null;
 	const { jwt, logout } = useAuth();
-	const isAdmin = (currentUser?.role ?? "user") === "admin";
+	const isAdmin = (currentUser?.role?.toLowerCase() ?? "user") === "admin";
 
   if (!currentUser) {
     return null;
@@ -222,7 +222,7 @@ export function BottomNav() {
 	const UserSession = useContext(UserContext);	
 	const currentUser = UserSession?.user ?? null;
 	const { jwt, logOut } = useAuth();
-	const isAdmin = ( currentUser?.role ?? "user" ) === "admin";
+	const isAdmin = ( currentUser?.role?.toLowerCase() ?? "user" ) === "admin";
 
   if (!currentUser) {
     return null;
@@ -266,7 +266,7 @@ export function AppLayout({
 	const UserSession = useContext(UserContext);	
 	const currentUser = UserSession?.user ?? null;
 	const { jwt } = useAuth();
-	const isAdmin = ( currentUser?.role ?? "user" ) === "admin";
+	const isAdmin = ( currentUser?.role?.toLowerCase() ?? "user" ) === "admin";
 	const hasSession = jwt !== undefined && jwt !== null;
 
   if (!currentUser || !hasSession) {

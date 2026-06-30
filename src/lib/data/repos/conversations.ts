@@ -45,12 +45,20 @@ export const addMessage = async (msg:any) => {
 export const upsertConversation = async (ownerProfileId, guestProfileId) => {
 	const db = await getDB();
 	return db.transaction(async(trx)=>{
+		// ensure that there is one conversation for *either* combination of
+		// owner and guest profile 
 		let results = await trx.select({id: conversationTable.id}).
 			from(conversationTable).
 			where(
-				and(
-					eq(conversationTable.ownerProfileId, ownerProfileId), 
-					eq(conversationTable.guestProfileId, guestProfileId)
+				or(
+					and(
+						eq(conversationTable.ownerProfileId, ownerProfileId), 
+						eq(conversationTable.guestProfileId, guestProfileId)
+					),
+					and(
+						eq(conversationTable.ownerProfileId, guestProfileId), 
+						eq(conversationTable.guestProfileId, ownerProfileId)
+					)
 				)
 			);
 		let conversationId = results[0]?.id ?? null;
@@ -71,7 +79,8 @@ export const upsertConversation = async (ownerProfileId, guestProfileId) => {
 export const getMessages = async (conversationId:string) => {
 	return (await getDB()).select().
 		from(messagesTable).
-		where(eq(messagesTable.conversationId, conversationId));
+		where(eq(messagesTable.conversationId, conversationId)).
+		orderBy(asc(messagesTable.createdAt));
 };
 
 export const getConversation = async (conversationId:string) => {
@@ -118,13 +127,15 @@ export const getConversations = async (userId:string, owner:boolean) => {
 				results = await trx.select().from(conversationTable).
 					innerJoin(profileTable, eq(profileTable.id, conversationTable.ownerProfileId)).
 					innerJoin(usersTable, eq(usersTable.profileId, profileTable.id)).
-					where(eq(usersTable.id, userId));
+					where(eq(usersTable.id, userId)).
+					orderBy(asc(conversationTable.createdAt));
 			}else{
 				// join on guest id
 				results = await trx.select().from(conversationTable).
 					innerJoin(profileTable, eq(profileTable.id, conversationTable.guestProfileId)).
 					innerJoin(usersTable, eq(usersTable.profileId, profileTable.id)).
-					where(eq(usersTable.id, userId));
+					where(eq(usersTable.id, userId)).
+					orderBy(asc(conversationTable.createdAt));
 			}
 			const mapped = [];
 			for(const c of results){

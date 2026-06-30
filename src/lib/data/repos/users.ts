@@ -13,6 +13,17 @@ import * as bcrypt from "bcrypt";
 const CUSTOMER_ROLE_ID = 2;	
 const SALT_ROUNDS = 10;
 
+export const getCustomerCount = async () => {
+	return new Promise(async(resolve, reject)=>{
+		const results = await (await getDB()).
+			select({id: usersTable.id}).
+			from(usersTable).
+			where(eq(usersTable.roleId, CUSTOMER_ROLE_ID));
+		const n = results.length;
+		resolve(n);
+	});
+};
+
 const userReducer = (a, c) => {
 	const key = c.id;
 	if(a[key] === undefined)

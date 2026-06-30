@@ -1,109 +1,34 @@
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { applyExcludeTestAccountsFilters } from '@/lib/test-account';
-import { jobsListingWindowStartIso } from '@/lib/jobs/listing-window';
+import { getClaims } from "@/lib/claims/service";
+import { getDataService } from "@/lib/data/service";
 
-export const revalidate = 60;
-
-export async function GET() {
-  try {
-	/*
-    const supabaseAuth = authClient();
-
-    // 1) Must be logged in
-    const {
-      data: { user },
-      error: userErr,
-    } = await supabaseAuth.auth.getUser();
-
-    if (userErr || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const supabaseService = serviceClient();
-
-    // 2) Must be admin (checked with service role so RLS can't block it)
-    const { data: profile, error: adminErr } = await supabaseService
-      .from('users')
-      .select('is_admin')
-      .eq('id', user.id)
-      .maybeSingle();
-
-    const isAdmin = profile?.is_admin === true;
-
-    if (adminErr || !isAdmin) {
-      if (adminErr) console.error('Admin is_admin lookup failed:', adminErr);
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    // 3) Stats (service role counts)
-    const totalUsersQuery = applyExcludeTestAccountsFilters(
-      supabaseService.from('users').select('*', { count: 'exact', head: true })
-    );
-    const pendingVerificationsQuery = applyExcludeTestAccountsFilters(
-      supabaseService
-        .from('users')
-        .select('*', { count: 'exact', head: true })
-        .eq('trust_status', 'pending')
-    );
-
-    const listingSince = jobsListingWindowStartIso();
-    const [totalUsersRes, pendingVerificationsRes, activeJobsRes, totalJobsRes] = await Promise.all([
-      totalUsersQuery,
-      pendingVerificationsQuery,
-      supabaseService
-        .from('jobs')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'active')
-        .gte('created_at', listingSince),
-      supabaseService
-        .from('jobs')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', listingSince),
-    ]);
-
-    // If any query errors, log and fail gracefully
-    const errors = {
-      totalUsers: totalUsersRes.error ?? null,
-      pendingVerifications: pendingVerificationsRes.error ?? null,
-      activeJobs: activeJobsRes.error ?? null,
-      totalJobs: totalJobsRes.error ?? null,
-    };
-
-    if (Object.values(errors).some(Boolean)) {
-      console.error('Admin stats query errors:', errors);
-      return NextResponse.json(
-        { error: 'Failed to load stats', details: errors },
-        { status: 500 }
-      );
-    }
-
+export async function GET(request:NextRequest, context:any) {
+	const { id: userId, role } = await getClaims();
+	// only admin users are accepted here
+	if(role?.toLowerCase() !== "admin"){
+		return NextResponse.json({ error: "Forbidden" }, {status: 403})	
+	}
+  try{
+		const { jobs: jobsRepo, users: userRepo } = await getDataService();
+		const breakdown = await jobsRepo.getJobStatusBreakdown();
+		const totalJobs = Object.keys(breakdown).reduce((a, c)=>{
+			const n = breakdown[c];
+			return a + n;
+		}, 0);
     return NextResponse.json({
-      totalUsers: totalUsersRes.count ?? 0,
-      pendingVerifications: pendingVerificationsRes.count ?? 0,
-      activeJobs: activeJobsRes.count ?? 0,
-      totalJobs: totalJobsRes.count ?? 0,
-      generatedAt: new Date().toISOString(),
-    });
-		*/
-    return NextResponse.json({
-      totalUsers: 0,
+      totalUsers: await userRepo.getCustomerCount(), // count of non admin users
       pendingVerifications: 0,
-      activeJobs:  0,
-      totalJobs: 0,
+      confirmedJobs: breakdown.confirmed ?? 0, // nunber of jobs that have a confirmed hire
+      acceptedJobs: breakdown.accepted ?? 0, // number of jobs that have an accepted application
+      openJobs: breakdown.open ?? 0, // number of jobs that are still open
+      closedJobs: breakdown.closed ?? 0, // number of jobs that are closed
+      totalJobs: totalJobs, // sum of above
       generatedAt: new Date().toISOString(),
     });
-  } catch (err: any) {
-    console.error('Admin stats route error:', err);
-    return NextResponse.json(
-      {
-        error: 'Failed to load stats',
-        debug: err?.message ?? String(err),
-      },
-      { status: 500 }
-    );
+  }catch(err_){
+		console.error(err_);
+		return NextResponse.json({error:"Could not query admin stats"}, {status:500})
   }
 }

@@ -12,6 +12,26 @@ import { writeFile, mkdir } from "node:fs/promises";
 import { ENV } from "@/lib/env";
 import { subDays } from "date-fns";
 
+export const getJobStatusBreakdown = async () => {
+	return new Promise(async(resolve, reject)=>{
+		const db = await getDB();
+		const results = await db.select({status: jobsTable.status, id: jobsTable.id}).from(jobsTable);
+		const grouped = results.reduce((a, c)=>{
+			const key = c.status;
+			if(a[key] === undefined){
+				a[key] = [c.id];
+				return a;
+			}
+			a[key].push(c.id);
+			return a;
+		}, { });
+	 	for(const key of Object.keys(grouped)){
+			grouped[key] = grouped[key].length;
+		}
+		resolve(grouped);
+	});
+};
+
 const jobsReducer = (a, c) => {
 	const key = c?.jobs?.id ?? null;
 	if(key !== null && a[key] === undefined){	

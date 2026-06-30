@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDataService } from "@/lib/data/service";
 import { getClaims } from "@/lib/claims/service";
+import * as z from "zod";
 
 export async function GET(request: NextRequest) {
 	const { id: userId } = await getClaims();
