@@ -33,7 +33,8 @@ import {
 } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { PopoverContentWithDone } from '@/components/ui/popover-content-with-done';
-import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { DayPicker } from 'react-day-picker';
+import "react-day-picker/style.css";
 import { Switch } from '@/components/ui/switch';
 import { SuburbAutocomplete } from '@/components/suburb-autocomplete';
 import { useAuth } from '@/lib/auth';
@@ -618,7 +619,12 @@ export default function CreateJobPage() {
                           </Button>
                         </PopoverTrigger>
                         <PopoverContentWithDone className="w-auto" align="start">
-                          <CalendarComponent mode="single" selected={singleDate} onSelect={setSingleDate} initialFocus />
+													<DayPicker
+                          	animate
+                          	mode="single"
+                          	selected={singleDate}
+                          	onSelect={setSingleDate}
+                        	/>
                         </PopoverContentWithDone>
                       </Popover>
                     </div>
@@ -689,7 +695,7 @@ export default function CreateJobPage() {
                           </Button>
                         </PopoverTrigger>
                         <PopoverContentWithDone className="w-auto" align="start">
-                          <CalendarComponent mode="single" selected={dateFrom} onSelect={setDateFrom} initialFocus />
+                          <DayPicker mode="single" selected={dateFrom} onSelect={setDateFrom} />
                         </PopoverContentWithDone>
                       </Popover>
                     </div>
@@ -709,13 +715,12 @@ export default function CreateJobPage() {
                           </Button>
                         </PopoverTrigger>
                         <PopoverContentWithDone className="w-auto" align="start">
-                          <CalendarComponent
-                            mode="single"
-                            selected={dateTo}
-                            onSelect={setDateTo}
+                          <DayPicker 
+														mode="single" 
+														selected={dateTo} 
+														onSelect={setDateTo} 
                             disabled={(date) => (dateFrom ? date < dateFrom : false)}
-                            initialFocus
-                          />
+													/>
                         </PopoverContentWithDone>
                       </Popover>
                     </div>

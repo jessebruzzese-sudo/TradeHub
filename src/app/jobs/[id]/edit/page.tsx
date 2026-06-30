@@ -47,17 +47,13 @@ function buildDateRangeISO(from: Date, to: Date): string[] {
   const end = new Date(to);
   start.setHours(12, 0, 0, 0);
   end.setHours(12, 0, 0, 0);
-
   if (isNaN(start.getTime()) || isNaN(end.getTime())) return [];
-
   const out: string[] = [];
   const cur = new Date(start);
-
   while (cur.getTime() <= end.getTime()) {
     out.push(cur.toISOString());
     cur.setDate(cur.getDate() + 1);
   }
-
   return out;
 }
 
