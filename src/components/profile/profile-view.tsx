@@ -184,7 +184,6 @@ export function ProfileView({
   const isSelf = mode === 'self' || isMeProp;
   const { jwt } = useAuth();
   const router = useRouter();
-  const [isSimulated, setSimulated] = useSimulatedPremium();
   const [portalLoading, setPortalLoading] = useState(false);
 
   const profileUserId = profile?.id ?? null;
@@ -192,12 +191,14 @@ export function ProfileView({
     typeof process !== 'undefined' &&
     process.env.NODE_ENV !== 'production' &&
     e2eShowProfileStrength === true;
+
   /** Server `isMe` with no client session: dev-only Playwright seams (`__e2e_viewer` on `/profiles/[id]`). */
   const e2eServerOnlyOwner =
     typeof process !== 'undefined' &&
     process.env.NODE_ENV !== 'production' &&
     isMeProp === true &&
     viewerUserId == null;
+
   const showProfileStrengthSection =
     e2eStrengthUi ||
     (!!viewerUserId && !!profileUserId && viewerUserId === profileUserId) ||
@@ -215,6 +216,7 @@ export function ProfileView({
   const [availDesc, setAvailDesc] = useState<string>('');
   const [availLoading, setAvailLoading] = useState(true);
   const [alertsUpsellOpen, setAlertsUpsellOpen] = useState(false);
+	const [viewTrigger, setViewTrigger] = useState(false);
 	const [viewerHasLiked, setViewerHasLiked] = useState(vl);
 	const [likeCount, setLikeCount] = useState(p?.profile?.likes?.length ?? 0);
   const today = startOfDay(new Date());
@@ -223,6 +225,26 @@ export function ProfileView({
 		setViewerHasLiked(likes.liked);
 		setLikeCount(likes.likesCount);
 	};
+	
+	useEffect(()=>{
+		// if user can rate
+		// user can view
+		if(!canRate){
+			return;
+		}
+		if(viewTrigger){
+			return;
+		}
+		getAxios(null).put(`/api/profile/${p.profile.id}/view`).
+			then((response_)=>{
+				setViewTrigger(true);
+			}).catch((err_)=>{
+				const msg = err_?.response?.data?.error ?? null;
+				if(msg){
+					toast.error(msg);
+				}
+			});
+	}, [viewTrigger]);
 
   useEffect(() => {
     if (!availLoading) return;
@@ -296,17 +318,6 @@ export function ProfileView({
   const reviews = [];
   const reliabilityReviews = reviews.filter((r: any) => r.isReliabilityReview);
   const standardReviews = reviews.filter((r: any) => !r.isReliabilityReview);
-  const userForDiscovery = isSelf && profile
-    ? {
-        plan: (profile as any).plan ?? null,
-        subscription_status:
-          (profile as any).subscriptionStatus ?? (profile as any).subscription_status ?? null,
-        complimentary_premium_until:
-          (profile as any).complimentaryPremiumUntil ??
-          (profile as any).complimentary_premium_until ??
-          null,
-      }
-    : null;
   const isPremiumForDiscoveryCheck = p?.profile?.premium;
   const showUpgradeNudge = isSelf && profile && !isPremiumForDiscoveryCheck && !isProfileUserAdmin;
   const showBillingSimulation = false;
@@ -1047,36 +1058,6 @@ export function ProfileView({
                     )}
                   </div>
                 )}
-              </div>
-            )}
-
-            {showBillingSimulation && (
-              <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-6">
-                <div className="mb-4 flex items-center gap-3">
-                  <TestTube className="h-5 w-5 text-amber-700" />
-                  <h3 className="font-semibold text-gray-900">Billing Simulation (Testing Only)</h3>
-                </div>
-                <div className="mb-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-white p-4">
-                  <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600" />
-                  <div className="text-sm text-amber-900">
-                    This is for testing Premium features locally. Does not charge money. Not real billing.
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4">
-                    <div className="flex-1">
-                      <div className="mb-1 font-medium text-gray-900">Simulate Premium</div>
-                      <p className="text-sm text-gray-600">Test Premium UI gates and features without real subscription</p>
-                    </div>
-                    <Switch checked={isSimulated} onCheckedChange={setSimulated} aria-label="Toggle Premium simulation" />
-                  </div>
-                  {isSimulated ? (
-                    <Button variant="outline" size="sm" onClick={handleResetSimulation} className="w-full">
-                      <RotateCcw className="mr-2 h-4 w-4" />
-                      Reset Simulation
-                    </Button>
-                  ) : null}
-                </div>
               </div>
             )}
 

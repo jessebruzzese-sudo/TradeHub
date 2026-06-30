@@ -1,11 +1,29 @@
 // vim: ts=2
 'use server'
-import { or, and, eq, sql, isNull, inArray, asc } from "drizzle-orm";
+import { or, and, eq, sql, isNull, inArray, asc, ne } from "drizzle-orm";
 import { getDB } from "@/lib/data/service";
 import { conversationTable, messagesTable } from "@/lib/data/defs/conversations";
 import { profileTable } from "@/lib/data/defs/profile";
 import { getConversationProfileT } from "@/lib/data/repos/profile";
 import { usersTable } from "@/lib/data/defs/users";
+
+export const getUnreadMessagesT = async (trx:any, profileId:string) => {	
+	return await trx.select({id: messagesTable.id}).
+			from(messagesTable).
+			innerJoin(conversationTable, eq(conversationTable.id, messagesTable.conversationId)).
+			where(
+				and(
+					and(
+						or(
+							eq(conversationTable.ownerProfileId, profileId),
+							eq(conversationTable.guestProfileId, profileId)
+						),
+						eq(messagesTable.read, false)
+					),
+					ne(messagesTable.senderProfileId, profileId)
+				)
+			);
+};
 
 export const addMessage = async (msg:any) => {
 	return (await getDB()).insert(messagesTable).

@@ -309,6 +309,34 @@
       "when": 1782445356055,
       "tag": "0043_salty_storm",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1782778313031,
+      "tag": "0044_serious_mysterio",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1782778611697,
+      "tag": "0045_real_calypso",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1782780487055,
+      "tag": "0046_bored_goblin_queen",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1782781941613,
+      "tag": "0047_chemical_madelyne_pryor",
+      "breakpoints": true
     }
   ]
 }

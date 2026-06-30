@@ -14,9 +14,9 @@ export const updateBusinessT = async (trx:any, delta:any, businessId:string) => 
 	return trx.update(businessTable).set(delta).where(eq(businessTable.id, businessId));
 };
 
-export const updateBusiness = async (email:string, delta:any) => {
+export const updateBusiness = async (userId:string, delta:any) => {
 	return new Promise(async(resolve, reject)=>{
-		const id = await getUserBusinessId(email);	
+		const id = await getUserBusinessId(userId);	
 		if(id === null){
 			reject(new Error(`User is not linked with a business`));
 			return;
@@ -51,7 +51,7 @@ export const getPricing = async (email:string) => {
 	});
 };
 
-export const getUserBusiness = async (email:string) => {
+export const getUserBusiness = async (userId:string) => {
 	return new Promise(async(resolve, reject)=>{
 		const db = await getDB();
 		let results = null;
@@ -59,7 +59,7 @@ export const getUserBusiness = async (email:string) => {
 			results = await db.select().
 				from(usersTable).
 				leftJoin(businessTable, eq(usersTable.businessId, businessTable.id)).
-				where(eq(usersTable.email, email));
+				where(eq(usersTable.id, userId));
 		}catch(err_){
 			reject(err_);
 			return;
@@ -69,9 +69,9 @@ export const getUserBusiness = async (email:string) => {
 	});
 };
 
-export const getUserBusinessId = async (email:string) => {
+export const getUserBusinessId = async (userId:string) => {
 	return new Promise(async(resolve, reject)=>{
-		const business = await getUserBusiness(email);
+		const business = await getUserBusiness(userId);
 		resolve(business?.id ?? null);
 	});
 };
@@ -96,6 +96,12 @@ export const deleteGooglePlace = async (businessId:string) => {
 	const db = await getDB();
 	return db.delete(googlePlacesTable).
 		where(eq(googlePlacesTable.businessId, businessId));
+};
+
+export const getBusinessLocationT = async (trx:any, profileId:string) => {
+	return trx.select({latitude: businessTable.latitude, longitude: businessTable.longitude}).
+		from(businessTable).
+		where(eq(businessTable.profileId, profileId));
 };
 
 export const addBusinessT = async (business:any, trx:any) => {

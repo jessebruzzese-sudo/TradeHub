@@ -176,15 +176,18 @@ export const updateJob = async (job:any) => {
 	});
 };
 
-export const getJobsNear = async (location:any, userId:string) => {
+export const getJobsNear = async (location:any, profileId:string) => {
 	const minLat = location.latitude - 1;
 	const maxLat = location.latitude + 1;
 	const minLng = location.longitude - 1;
 	const maxLng = location.longitude + 1;
 	const db = await getDB();
-	return db.select({id: jobsTable.id, latitude: jobsTable.latitude, longitude: jobsTable.longitude}).
+	return db.select({
+			id: jobsTable.id, 
+			latitude: jobsTable.latitude, 
+			longitude: jobsTable.longitude
+		}).
 		from(jobsTable).
-		innerJoin(usersTable, eq(usersTable.profileId, jobsTable.profileId)).
 		where(
 			and(
 				and(
@@ -200,7 +203,7 @@ export const getJobsNear = async (location:any, userId:string) => {
 				// only interested in other users jobs
 				// jobs for the logged in user are returned by the
 				// /api/me/jobs end point
-				ne(usersTable.id, userId)
+				ne(jobsTable.profileId, profileId)
 			)
 		);
 };

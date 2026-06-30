@@ -24,5 +24,5 @@ export const messagesTable = pgTable("messages", {
 	createdAt: timestamp("created_at").defaultNow(),
 	read: boolean("read").default(false), // recipient has read
 	conversationId: uuid("conversation_id").notNull().references(()=>conversationTable.id),
-	senderProfileId: uuid("sender_profile_id").notNull() // profile id of sender
+	senderProfileId: uuid("sender_profile_id").notNull().references(()=>profileTable.id) // profile id of sender
 }, (table)=>[unique().on(table.conversationId, table.id)]);

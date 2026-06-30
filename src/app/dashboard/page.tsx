@@ -240,31 +240,21 @@ export default function DashboardPage() {
 	
 	{/* STATE */}
 	const [currentUser, setCurrentUser] = useState<any|null>(UserSession?.user ?? null);
-  const [stats, setStats] = useState<Record<string, number>>({});
-  const [newJobsCount, setNewJobsCount] = useState(0);
   const [statusAccordionOpen, setStatusAccordionOpen] = useState(false);
   const [locationUpsellOpen, setLocationUpsellOpen] = useState(false);
   const [availDates, setAvailDates] = useState<string[]|null>(null);
   const [availLoading, setAvailLoading] = useState(true);
   const [savedLocations, setSavedLocations] = useState<{ id: string }[] | null>(null);
+	const [statistics, setStatistics] = useState<any|null>(null);
 
 	{/*  DERIVED STATE */}
 	const isLoading = currentUser === null;
-  const profileViews7d = 0; // TODO from stats
-  const unreadMessages = 0; // TODO from dev unread override
+  const profileViews7d = statistics?.profileViews7d ?? 0; 
+  const unreadMessages = statistics?.unreadMessages ?? 0; 
+  const newJobsCount = statistics?.newJobsCount ?? 0;
   const accountStatusLabel = currentUser?.accountStatus ?? "loading"; 
-  const userForDiscovery = useMemo(
-    () =>
-      currentUser
-        ? {
-            plan: currentUser?.plan ?? null,
-            subscription_status: currentUser?.subscriptionStatus ?? null,
-            complimentary_premium_until: currentUser?.complimentaryPremiumUntil ?? null,
-          }
-        : null,
-    [currentUser]
-  );
   const isPremium = currentUser?.profile?.premium ?? false;
+
   const hasLocation = useMemo(() => {
     if (!currentUser) return false;
     if ((currentUser?.business?.location ?? '').trim()) return true;
@@ -275,7 +265,7 @@ export default function DashboardPage() {
   // Admin accounts should retain full operator dashboard actions.
   const showContractorSections = true;
   const canPostJobListing = true;
-  const savedLocationsCount = (hasLocation ? 1 : 0) + (savedLocations ?? []).length;
+  const savedLocationsCount = ( hasLocation ? 1 : 0 ) + (savedLocations ?? []).length;
   const hasMultipleLocations = savedLocationsCount >= 2;
   const freeRadiusKm = 20;
   const discoveryLabel = isPremium ? 'Premium radius' : `${freeRadiusKm}km radius`;
@@ -397,36 +387,30 @@ export default function DashboardPage() {
 
 	{ /* START HOOKS */ }
 	
-	{ /*
   useEffect(() => {
-    if (!hasSession) return;
-    fetch('/api/profile/views-count')
-      .then((res) => (res.ok ? res.json() : {}))
-      .then((data: { viewsLast7Days?: number }) => {
-        setStats((s) => ({
-          ...s,
-          profileViews7d: typeof data?.viewsLast7Days === 'number' ? data.viewsLast7Days : 0,
-        }));
-      })
-      .catch(() => {});
-  }, [hasSession]);
-
-  useEffect(() => {
-    if (!hasSession) return;
-    const loadNewJobs = async () => {
-      try {
-        const res = await fetch('/api/dashboard/new-jobs');
-        const data = await res.json();
-        setNewJobsCount(typeof data?.count === 'number' ? data.count : 0);
-      } catch (err) {
-        console.error('Failed to load new jobs count', err);
-        setNewJobsCount(0);
-      }
-    };
-    void loadNewJobs();
-  }, [hasSession]);
-
-*/ }
+		if(currentUser === null){
+			return;
+		}
+		if(!hasSession){
+			return;
+		}
+		if(statistics !== null){
+			return;
+		}
+		getAxios(null).get(`/api/profile/${currentUser.profile.id}/statistics`).
+			then(async(response_)=>{
+				const data = response_.data;
+				const response__ = await getAxios(null).get(`/api/me/jobs/search`);
+				const jobs_ = response__?.data ?? [];
+				const openJobs_ = jobs_.filter((x)=>x.status === "open");
+				setStatistics({...data, newJobsCount: openJobs_?.length ?? 0});
+			}).catch((err_)=>{
+				const msg  = err_?.response?.data?.error ?? null;
+				if(msg){
+					toast.error(msg);
+				}
+			});
+  }, [statistics, currentUser]);
 
   const onTogglePublicProfile = async (value:boolean) => {
     try {

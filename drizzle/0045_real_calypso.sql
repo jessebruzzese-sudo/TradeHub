@@ -1,0 +1,1 @@
+ALTER TABLE "profile_view" DROP CONSTRAINT "profile_view_user_id_profile_id_unique";

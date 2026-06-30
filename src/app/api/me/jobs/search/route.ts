@@ -28,7 +28,7 @@ export async function GET(request: NextRequest){
 			return NextResponse.json({msg:"User is not linked with a business"}, {status: 500});
 		}
 		const location = { latitude: business.locationLat, longitude: business.locationLng };
-		const near = await jobs.getJobsNear(location, claims.id); // +/- 1 lat/long
+		const near = await jobs.getJobsNear(location, profile.profile.id); // +/- 1 lat/long
 		const premium = profile?.profile?.premium ?? false;
 		const radius = premium ? 100 : 20;
 		const refined = near.filter((x)=>haversineKm(x.latitude, x.longitude, location.latitude, location.longitude) <= radius);

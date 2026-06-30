@@ -1,10 +1,11 @@
 // vim: ts=2
 'use server'
-import { or, and, eq, sql, isNull, inArray, asc } from "drizzle-orm";
+import { or, and, eq, sql, isNull, inArray, asc, gte } from "drizzle-orm";
 import { businessTable, businessTradeTable } from "@/lib/data/defs/business";
-import { profileTable, profileLikeTable } from "@/lib/data/defs/profile";
+import { profileTable, profileLikeTable, profileViewTable } from "@/lib/data/defs/profile";
 import { usersTable } from "@/lib/data/defs/users";
 import { getDB, getDataService } from "@/lib/data/service";
+import { subDays } from "date-fns";
 
 export const getConversationProfileT = async (profileId:string, trx:any) => {
 	return trx.select({visibleName: usersTable.visibleName, name: usersTable.name, id: usersTable.id}).
@@ -26,6 +27,37 @@ export const getConversationProfiles = async (profileIds:array) => {
 			return a;
 		}, {});
 		resolve(mapped);
+	});
+};
+
+const getProfileViewsT = async (trx:any, profileId:string, earliest:any) => {
+	return trx.select({id: profileViewTable}).
+		from(profileViewTable).
+		where(
+			and(
+				eq(profileViewTable.profileId, profileId),
+				gte(profileViewTable.createdAt, earliest)
+			)
+		);
+};
+
+export const getStatistics = async (profileId:string) => {
+	return new Promise(async(resolve, reject)=>{
+		const db = await getDB();
+		const PROFILE_VIEW_WINDOW_DAYS = 7;
+		const stats = await db.transaction(async(trx)=>{
+			const now_ = new Date();
+			const earliest = subDays(now_, PROFILE_VIEW_WINDOW_DAYS);
+			const views = await getProfileViewsT(trx, profileId, earliest);	
+			const { conversations: convRepo, business: businessRepo } = await getDataService();
+			const messages = await convRepo.getUnreadMessagesT(trx, profileId);
+			return {		
+				profileViews7d: views.length,
+				openJobsCount: 0, // load this later from api, too messy doing it here
+				unreadMessages: messages.length
+			};
+		});
+		resolve(stats);
 	});
 };
 
@@ -103,6 +135,13 @@ export const getProfileImages = async (id:string) => {
 		const avatar = results[0]?.avatarDataUrl ?? null;
 		resolve({cover:cover, avatar:avatar});
 	});
+};
+
+export const addProfileView = async (viewerUserId:string, profileId:string) => {
+	return (await getDB()).
+		insert(profileViewTable).
+		values({userId: viewerUserId, profileId}).
+		returning({id:profileViewTable.id});
 };
 
 export const getProfileId = async (userId:string) => {

@@ -1,0 +1,1 @@
+ALTER TABLE "messages" ADD CONSTRAINT "messages_sender_profile_id_profile_id_fk" FOREIGN KEY ("sender_profile_id") REFERENCES "public"."profile"("id") ON DELETE no action ON UPDATE no action;

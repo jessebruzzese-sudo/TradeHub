@@ -32,8 +32,16 @@ export const profileTable = pgTable("profile", {
 	downVotes: integer("down_votes").default(0),
 });
 
+export const profileViewTable = pgTable("profile_view", {
+	id: uuid("id").notNull().primaryKey().default(sql`gen_random_uuid()`),
+	userId: uuid("user_id").notNull().references(()=>usersTable.id),
+	profileId: uuid("profile_id").notNull().references(()=>profileTable.id),
+	createdAt: timestamp("created_at").defaultNow()
+});
+
 export const profileLikeTable = pgTable("profile_like", {
 	id: uuid("id").notNull().primaryKey().default(sql`gen_random_uuid()`),
 	userId: uuid("user_id").notNull().references(()=>usersTable.id),
 	profileId: uuid("profile_id").notNull().references(()=>profileTable.id),
+	createdAt: timestamp("created_at").defaultNow()
 }, (table)=>[unique().on(table.userId, table.profileId)]);
