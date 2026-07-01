@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { format } from 'date-fns';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Lock, Info } from 'lucide-react';
 import { DayPicker } from 'react-day-picker';
 import "react-day-picker/style.css";
@@ -9,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PremiumUpsellBar } from '@/components/premium-upsell-bar';
 import { getAvailabilityHorizonDays, isSubcontractorPro } from '@/lib/subscription-utils';
-import { addDays, subDays, isBefore, startOfDay, isAfter } from 'date-fns';
+import { format, addDays, subDays, isBefore, startOfDay, isAfter } from 'date-fns';
 import { MVP_FREE_MODE } from '@/lib/feature-flags';
 
 type CalendarUser = {
@@ -92,6 +91,7 @@ export function AvailabilityCalendar({
 						animate
             mode="multiple"
             selected={selectedDates}
+						disabled={(date)=>{return date < startOfDay(new Date());}}
             onSelect={(dates)=>{
 							const allowed = dates.filter(handleDateSelect);
 							onDatesChange(allowed);

@@ -6,7 +6,7 @@ import { businessTable, businessTradeTable } from "@/lib/data/defs/business";
 import { availabilityTable } from "@/lib/data/defs/availability";
 import { getDB, getDataService } from "@/lib/data/service";
 
-export const getAvailability = async (email:string) => {
+export const getAvailability = async (userId:string) => {
 	return new Promise(async(resolve, reject)=>{
 		const db = await getDB();
 		let results = null;
@@ -15,7 +15,7 @@ export const getAvailability = async (email:string) => {
 				from(usersTable).
 				leftJoin(businessTable, eq(usersTable.businessId, businessTable.id)).
 				leftJoin(availabilityTable, eq(businessTable.id, availabilityTable.businessId)).
-				where(eq(usersTable.email, email));
+				where(eq(usersTable.id, userId));
 		}catch(err_){
 			reject(err_);
 			return;
@@ -44,11 +44,11 @@ export const getAvailability = async (email:string) => {
 	});	
 }
 
-export const addAvailability = async (payload:any, email:string) => {
+export const addAvailability = async (payload:any, userId:string) => {
 	return new Promise(async(resolve, reject)=>{
 		const db = await getDB();
 		const { business } = await getDataService();
-		const businessId = await business.getUserBusinessId(email);
+		const businessId = await business.getUserBusinessId(userId);
 		if(businessId === null){
 			reject(new Error("User is not mapped to a business"));
 			return;

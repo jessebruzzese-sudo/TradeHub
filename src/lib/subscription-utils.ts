@@ -77,8 +77,8 @@ export function hasComplimentaryPremium(user: SubscriptionUser | null | undefine
 
 /** Single-account: canonical billing only (plan + subscription_status + complimentary). */
 export function isSubcontractorPro(user: SubscriptionUser | null | undefined): boolean {
-  if (!user) return false;
-  return hasPremiumAccess(user);
+	const premium = user?.profile?.premium ?? false;
+	return premium;
 }
 
 /** Single-account: based on plan only. MVP: cap at MVP_RADIUS_KM. */
@@ -101,8 +101,11 @@ export function getEffectiveRadiusKm(user: SubscriptionUser): number {
 
 /** Single-account: Free=30 days, Premium=90 days. MVP: everyone gets 60-day horizon. */
 export function getAvailabilityHorizonDays(user: SubscriptionUser | null | undefined): number {
-  if (MVP_FREE_MODE) return MVP_AVAILABILITY_HORIZON_DAYS;
-  return getLimits(getTier(user)).availabilityDays;
+	const premium = user?.profile?.premium ?? false;
+	if(premium){
+		return 90;
+	}
+	return 30;
 }
 
 /** Single-account: based on plan only. MVP: all channels enabled for everyone. */

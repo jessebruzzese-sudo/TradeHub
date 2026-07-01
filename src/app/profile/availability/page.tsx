@@ -3,9 +3,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useContext } from 'react';
+import UserContext from "@/lib/user-context";
 import { useRouter } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Trash2 } from 'lucide-react';
 import { AppLayout } from '@/components/app-nav';
 import { RefinePillButton } from '@/components/ai/RefinePillButton';
 import { useAuth } from '@/lib/auth';
@@ -26,9 +27,10 @@ export default function AvailabilityPage() {
 
   const { jwt } = useAuth();
   const router = useRouter();
+	const UserSession = useContext(UserContext);
 		
 	const [isLoading, setIsLoading] = useState<boolean>(true);
-	const [currentUser, setCurrentUser] = useState<any|null>(null);
+	const [currentUser, setCurrentUser] = useState<any|null>(UserSession?.user ?? null);
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
@@ -36,8 +38,6 @@ export default function AvailabilityPage() {
   const [pricingType, setPricingType] = useState<string>('');
   const [pricingAmount, setPricingAmount] = useState<string>('');
   const [showPricing, setShowPricing] = useState(false);
-
-  const userId = currentUser?.id ?? null;
 
   const loadAvailability = useCallback(async () => {
   	if (!isLoading) return;
@@ -133,7 +133,7 @@ export default function AvailabilityPage() {
 
     try {
       setIsRefining(true);
-      const trade = (currentUser as any)?.primaryTrade ?? (currentUser as any)?.primary_trade ?? '';
+      const trade = currentUser?.business?.primaryTrade ?? "";
       const res = await fetch('/api/ai/refine-availability-description', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -223,6 +223,11 @@ export default function AvailabilityPage() {
             <p className="mt-1 text-sm text-slate-600">
               Surface spare capacity and help inform market insights
             </p>
+						<div className="mt-6">
+							<Button type="button" variant="destructive" onClick={(event)=>{setSelectedDates([]);}}>
+								<span>Clear Dates</span>
+							</Button>
+						</div>
           </div>
 
           {/* Single main card */}
