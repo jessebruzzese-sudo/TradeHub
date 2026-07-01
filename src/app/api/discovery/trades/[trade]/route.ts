@@ -14,6 +14,7 @@ export async function GET(request: NextRequest, context) {
 	let HOOK_MATCHES = ( queryParams.get("hookMatches") ?? "false" ) === "true";
 	const sortBy = queryParams.get("sortBy");
 	const filterBy = queryParams.get("filterBy");
+	const nameQuery = queryParams.get("nameQuery");
 	// make sure that hooks are false in non
 	// development environments
 	const DEVELOPMENT = "development";

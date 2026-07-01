@@ -1,11 +1,15 @@
 // @ts-nocheck
 // vim: ts=2
 'use client';
-
 import Link from 'next/link';
 import UserContext from "@/lib/user-context";
 import { toast } from "sonner";
-import { MenuItem, Container, Grid, Button, Typography, Box, Chip, TextField, IconButton, Switch } from "@mui/material";
+import { 
+	MenuItem, Container, 
+	Grid, Button, Typography, 
+	Box, Chip, TextField, 
+	IconButton, Switch 
+} from "@mui/material";
 import { ArrowBack, People, PersonOutlined, CalendarTodayOutlined }  from "@mui/icons-material";
 import { getAxios } from "@/lib/utils";
 import { useEffect, useMemo, useState, useContext } from 'react';
@@ -198,7 +202,8 @@ export default function SubcontractorsPage() {
     setProfilesError(null);
 		// move filtering logic and sorting into server side
 		// along with pagination
-		getAxios(null).get(`/api/discovery/trades/${effectiveTrade}?sortBy=${sortBy}&filterBy=${filterBy}`).
+		const queryParams = `nameQuery=${nameQuery}&sortBy=${sortBy}&filterBy=${filterBy}`;
+		getAxios(null).get(`/api/discovery/trades/${effectiveTrade}?${queryParams}`).
 			then((response)=>{
 				const data = response.data;
 				setProfiles(data.matches);
