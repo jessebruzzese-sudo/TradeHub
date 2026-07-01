@@ -4,6 +4,9 @@
 
 import Link from 'next/link';
 import UserContext from "@/lib/user-context";
+import { toast } from "sonner";
+import { MenuItem, Container, Grid, Button, Typography, Box, Chip, TextField, IconButton, Switch } from "@mui/material";
+import { ArrowBack, People, PersonOutlined, CalendarTodayOutlined }  from "@mui/icons-material";
 import { getAxios } from "@/lib/utils";
 import { useEffect, useMemo, useState, useContext } from 'react';
 import { AppLayout } from '@/components/app-nav';
@@ -15,7 +18,6 @@ import { getTradeIcon } from '@/lib/trade-icons';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
 import { primaryButtonClass } from '@/components/ui/primary-button';
 import { Search, Lightbulb, Users, ArrowLeft, MapPin, BadgeCheck, Crown, ArrowRight, Calendar } from 'lucide-react';
 import { UserAvatar } from '@/components/user-avatar';
@@ -51,10 +53,10 @@ const FILTER_OPTIONS = [
 function SubcontractorCard({ sub }: { sub: any }) {
   const primaryTrade = sub?.business?.primaryTrade ?? null;
   const TradeIcon = primaryTrade ? getTradeIcon(primaryTrade) : null;
-  const displayName = sub?.business?.businessName ?? sub?.visibleName;
+  const displayName = sub?.visibleName ?? sub?.name;
   const premium = sub?.profile?.premium ?? false;
   return (
-    <div
+    <Grid item size={12}
       className={cn(
         "group relative overflow-hidden rounded-xl border p-4 transition-all duration-200",
         premium
@@ -133,7 +135,7 @@ function SubcontractorCard({ sub }: { sub: any }) {
           </Button>
         </Link>
       </div>
-    </div>
+    </Grid>
   );
 }
 
@@ -142,26 +144,19 @@ export default function SubcontractorsPage() {
   const { jwt } = useAuth();
 	const UserSession = useContext(UserContext);
 	const [currentUser, setCurrentUser] = useState(UserSession?.user ?? null);
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [nameQuery, setNameQuery] = useState<string>("");
   const [selectedTrade, setSelectedTrade] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('distance-closest');
   const [filterBy, setFilterBy] = useState<string>('all');
   const [availLoading, setAvailLoading] = useState(true);
+	const [includeAvailable, setIncludeAvailable] = useState<boolean>(false);
   const [nextAvailable, setNextAvailable] = useState<Date | null>(null);
   const [profiles, setProfiles] = useState<ProfileCard[]>(null);
   const [profilesError, setProfilesError] = useState<string | null>(null);
-  const [outsideRadiusCount, setOutsideRadiusCount] = useState(0);
-  const [allowedRadiusKm, setAllowedRadiusKm] = useState(20);
-	const [catalogTradeNames, setCatalogTradeNames] = useState([]);
 
 	const isLoading = profiles === null;
 	const hasSession = jwt !== undefined && jwt !== null;
 
-  const popularTradesForChips = useMemo(
-    () => POPULAR_TRADE_ORDER.filter((t) => catalogTradeNames.includes(t)),
-    [catalogTradeNames]
-  );
-	
   const nextAvailableLabel = useMemo(() => {
     if (!nextAvailable) return null;
     return format(nextAvailable, 'EEE d MMM');
@@ -174,6 +169,23 @@ export default function SubcontractorsPage() {
   const effectiveTrade = isPremium ? selectedTrade : ( primaryTrade || 'all' );
   const tradeDisplayValue = isPremium ? selectedTrade : ( primaryTrade || 'All Trades' );
   const TradeIcon = getTradeIcon(primaryTrade || undefined);
+
+	const tradeOptions = [
+		{value:"all", label:"All Trades"}, 
+		{value:primaryTrade, label:primaryTrade}
+	];
+	const sortOptions = [
+		{value:"distance-closest", label:"Distance: Closest"},
+		{value:"distance-furthest", label:"Distance: Furthest"},
+		{value:"price-highest", label:"Price: Highest"},
+		{value:"price-lowest", label:"Price: Lowest"},
+		{value:"rating-highest", label:"Rating: Highest"},
+		{value:"rating-lowest", label:"Rating: Lowest"}
+	];
+	const verificationOptions = [
+		{value:"all", label:"All"},
+		{value:"abn-verified-only", label:"ABN Verified Only"},
+	];
 
   // `/api/discovery/trade/*` returns only users with active listed availability (subcontractor_availability, today+), not every public profile.
   useEffect(() => {
@@ -199,243 +211,177 @@ export default function SubcontractorsPage() {
   if (!hasSession) {
     return <UnauthorizedAccess redirectTo="/login" />;
   }
+		
+	const profileCards = (profiles ?? []).map((e,i)=>{return <SubcontractorCard key={e.id} sub={e}/>});
 
   return (
     <TradeGate>
       <AppLayout>
-        {/* slate wrapper */}
-        <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-slate-50 via-slate-100 to-slate-200">
-					{/* Dotted overlay */}
-        <div
-          className="pointer-events-none absolute inset-0 opacity-25"
-          style={{
-            backgroundImage:
-              'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.12) 1px, transparent 0)',
-            backgroundSize: '20px 20px',
-          }}
-          aria-hidden
-        />
-
-        {/* Watermark */}
-        <div className="pointer-events-none fixed bottom-[-220px] right-[-220px] z-0">
-          <img
-            src="/TradeHub-Mark-blackout.svg"
-            alt=""
-            aria-hidden="true"
-            className="h-[1600px] w-[1600px] opacity-[0.06]"
-          />
-        </div>
-          {/* Page content — same structure as /jobs */}
-          <div className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-24 pt-6 sm:px-6 lg:px-8">
-            {/* Header row — same rhythm as /jobs */}
-            <div className="mb-4 flex flex-col gap-2 sm:mb-6">
-              <Link
-                href="/dashboard"
-                className="inline-flex items-center text-sm text-slate-900 hover:text-white transition-colors mb-1"
-              >
-                <ArrowLeft className="w-4 h-4 mr-1" />
-                Back to Dashboard
-              </Link>
-              <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 shadow-sm ring-1 ring-white/15 backdrop-blur">
-                      <Users className="h-5 w-5 text-slate-900" />
-                    </div>
-                    <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Find Subcontractors</h1>
-                  </div>
-                  <p className="mt-1 text-sm text-slate-900">
-                    Subcontractors who have listed availability — browse by trade and connect
-                  </p>
-                </div>
-
-                <div className="flex flex-col items-stretch sm:items-end">
-                  {nextAvailableLabel && (
-                    <div className="mb-2 text-right">
-                      <div className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
-                        Available {nextAvailableLabel}
-                      </div>
-                    </div>
-                  )}
-
-                  <Button asChild className={primaryButtonClass}>
-                    <Link href="/profile/availability" className="flex items-center gap-2">
-                      {!nextAvailableLabel && !availLoading && (
-                        <span className="relative flex h-2 w-2">
-                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/70 opacity-60" />
-                          <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
-                        </span>
-                      )}
-                      <Calendar className="h-4 w-4" />
-                      {nextAvailableLabel ? 'Update availability' : 'List availability'}
-                    </Link>
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {/* Main surface — same Card structure as /jobs */}
-            <Card className="border-white/15 bg-white/75 shadow-sm backdrop-blur">
-              <CardHeader className="border-b border-black/5 p-4 sm:p-6">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                      <Input
-                        type="text"
-                        placeholder="Search by name..."
-                        className="pl-10"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <Select
-                    value={effectiveTrade}
-                    onValueChange={(v) => isPremium && setSelectedTrade(v)}
-                    disabled={!isPremium}
-                  >
-                    <SelectTrigger className="sm:w-48">
-                      <SelectValue placeholder="All Trades" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Trades</SelectItem>
-                      {catalogTradeNames.map((trade) => (
-                        <SelectItem key={trade} value={trade}>{trade}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={sortBy} onValueChange={(value)=>{setSortBy(value);setProfiles(null);}}>
-                    <SelectTrigger className="sm:w-48">
-                      <SelectValue placeholder="Sort" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {SORT_OPTIONS.map(({ value, label }) => (
-                        <SelectItem key={value} value={value}>{label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={filterBy} onValueChange={(value)=>{setFilterBy(value);setProfiles(null);}}>
-                    <SelectTrigger className="sm:w-48">
-                      <SelectValue placeholder="Filter" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {FILTER_OPTIONS.map(({ value, label }) => (
-                        <SelectItem key={value} value={value}>{label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardHeader>
-
-              <CardContent className="p-4 sm:p-6">
-                {/* Trade chip / summary row — same style as jobs */}
-                <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-slate-600">
-                  <span className="inline-flex items-center gap-2">
-                    <span>{effectiveTrade === 'all' ? 'Showing subcontractors:' : 'Showing subcontractors in your trade:'}</span>
-                    <span className="inline-flex items-center gap-2 font-semibold text-slate-800">
-                      {effectiveTrade !== 'all' && TradeIcon ? <TradeIcon className="h-4 w-4 text-blue-600" /> : null}
-                      {tradeDisplayValue === 'all' ? 'All trades' : tradeDisplayValue}
-                    </span>
-                  </span>
-                  {!isPremium && (
-                    <>
-                      <span className="text-slate-300">•</span>
-                      <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800">
-                        Free: primary trade only
-                      </span>
-                    </>
-                  )}
-                </div>
-
-                {/* Premium upsell — when free user restricted to one trade */}
-                {!isPremium && (
-                  <PremiumUpsellBar
-                    title="Unlock multi-trade discovery"
-                    description="Premium lets you browse subcontractors across multiple trades, not just your selected trade."
-                    ctaLabel="See Premium"
-                    href="/pricing"
-                    className="mb-6"
-                    mobileCollapsible
-                  />
-                )}
-
-                {/* Loading, error, results list or empty state */}
-                {!isLoading && profilesError && (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-                    <p className="text-sm text-amber-900">{profilesError}</p>
-                  </div>
-                )}
-                {isLoading || profiles.length > 0 ? (
-                  <div className="space-y-3">
-                    {!isPremium && outsideRadiusCount > 0 && (
-                      <p className="text-sm text-slate-600">
-                        {outsideRadiusCount} matching profile{outsideRadiusCount === 1 ? '' : 's'} {outsideRadiusCount === 1 ? 'is' : 'are'} outside your {allowedRadiusKm}km radius.
-                      </p>
-                    )}
-										{isLoading ? (
-											<div className="min-h-screen flex items-center justify-center">
-        								<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      								</div>
-										) : null}
-                    {!isLoading && profiles !== null && profiles.length > 0 && profiles.map((sub) => (
-                      <SubcontractorCard key={sub.id} sub={sub} />
-                    ))}
-                  </div>
-                ) : !isLoading && !profilesError ? (
-                  <div className="space-y-6">
-                    <div className="text-center">
-                      <Search className="mx-auto mb-4 h-12 w-12 text-slate-400" />
-                      <h3 className="text-lg font-medium text-slate-900 mb-2">
-                        Subcontractor Directory
-                      </h3>
-                      <p className="text-slate-600">
-                        Browse verified trade businesses by trade, rating, price, and distance.
-                      </p>
-                    </div>
-
-                    <div className="max-w-2xl mx-auto space-y-5">
-                      <div>
-                        <h4 className="text-sm font-medium text-slate-700 mb-2">Popular trades</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {(isPremium ? popularTradesForChips : primaryTrade ? [primaryTrade] : []).map((trade) => (
-                            <button
-                              key={trade}
-                              type="button"
-                              onClick={() => isPremium && setSelectedTrade(trade)}
-                              disabled={!isPremium}
-                              className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-                                effectiveTrade === trade
-                                  ? 'bg-blue-600 text-white'
-                                  : isPremium
-                                    ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                                    : 'bg-slate-100 text-slate-700 cursor-default opacity-90'
-                              }`}
-                            >
-                              {trade}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div>
-                        <h4 className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
-                          <Lightbulb className="h-4 w-4 text-amber-500" />
-                          Search tips
-                        </h4>
-                        <ul className="text-sm text-slate-600 space-y-1">
-                          <li>• Search by trade to find relevant subcontractors</li>
-                          <li>• Use sort to compare distance, price, or rating</li>
-                          <li>• Verified businesses will appear first when filtered</li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+				<Container fluid maxWidth>
+				<Grid container sx={{mt:2}}>
+					{/* LEFT MARGIN */}
+					<Grid item size={2}/>
+					{/* CENTER COLUMN */}
+					<Grid item size={8}>
+						<Grid container spacing={2}>
+							{/* back button */}
+							<Grid item size={12}>
+								<Button variant={"outlined"} size={"lg"}><ArrowBack/>Back to Dashboard</Button>
+							</Grid>
+							{/* header, primary and secondary header */}
+							<Grid item size={12}>
+								<Grid container>
+									{/* CENTER LHS */}
+									<Grid item size={6}>
+										<Grid container spacing={1}>
+											{/* Icon and primary header */}
+											<Grid item size={12}>
+												<Grid container spacing={1}>
+													<Grid item size={1} sx={{ textAlign:"center"}}>
+														<Box sx={{backgroundColor:"white", borderRadius:"10px", border:"1px solid #EFEFEF", height:"100%"}}>
+															<PersonOutlined sx={{color:"black", height:"100%"}}/>	
+														</Box>
+													</Grid>
+													<Grid item size={11}>
+														<Typography variant={"h5"} sx={{fontFamily:"Inter"}}>Find Subcontractors</Typography>
+													</Grid>
+												</Grid>
+											</Grid>
+											{/* secondary header text*/}	
+											<Grid item xs={12}>
+												<Typography variant={"body2"}>
+													Subcontractors who have listed availability - browse by trade and connect.
+												</Typography>
+											</Grid>
+										</Grid>
+									</Grid>
+									{/*CENTER RHS*/}
+									<Grid item size={6}>
+										<Grid container spacing={1} sx={{textAlign:"right"}}>
+											<Grid item size={12}>
+												<Chip color={"primary"} label={"Available Mon 15 Jun"}/>
+											</Grid>
+											<Grid item size={12}>
+												<Button color={"primary"} 	
+														size={"md"} variant={"contained"} 
+														onClick={()=>{toast.info("coming soon");}}>
+													Update Availability
+												</Button>
+											</Grid>
+										</Grid>
+									</Grid>
+								</Grid>
+							</Grid>
+							{/* END HEADER SECTION */}
+							{/* NEW ROW FOR FORM */}
+							<Grid item size={12} sx={{backgroundColor:"white", border:"1px solid #EFEFEF", padding:"30px", borderRadius:"15px"}}>
+								{/* container wrapping rows in center column */}
+								<Grid container spacing={1}>	
+								<Grid item size={12}>
+								{/* FORM CONTAINER */}
+								<Grid container spacing={1}>
+									<Grid item size={3}>
+										<TextField 
+											value={nameQuery} 
+											onChange={(event)=>{setNameQuery(event.target.value);}}
+											onBlur={(event)=>{}}
+											size={"small"}
+											fullWidth	
+											placeholder={"Search by name..."}
+											variant={"outlined"}
+										/>
+									</Grid>
+									<Grid item size={2}>
+										<TextField 
+												value={selectedTrade} 
+												onChange={(event)=>{setSelectedTrade(event.target.value);}} 	
+												select 
+												size={"small"} 	
+												fullWidth
+												variant={"outlined"}
+											>
+											{tradeOptions.map((e,i)=>{
+												return <MenuItem value={e.value} key={`trade_${i}`}>{e.label}</MenuItem>
+											})}	
+										</TextField>
+									</Grid>
+									<Grid item size={3}>
+										<TextField 
+												value={sortBy} 
+												onChange={(event)=>{setSortBy(event.target.value);}} 	
+												select 
+												size={"small"} 	
+												fullWidth
+												variant={"outlined"}
+											>
+											{sortOptions.map((e,i)=>{
+												return <MenuItem value={e.value} key={`trade_${i}`}>{e.label}</MenuItem>
+											})}	
+										</TextField>
+									</Grid>
+									<Grid item size={2}>
+										<TextField 
+												value={filterBy} 
+												onChange={(event)=>{setFilterBy(event.target.value);}} 	
+												select 
+												size={"small"} 	
+												fullWidth
+												variant={"outlined"}
+											>
+											{verificationOptions.map((e,i)=>{
+												return <MenuItem value={e.value} key={`trade_${i}`}>{e.label}</MenuItem>
+											})}	
+										</TextField>
+									</Grid>
+									<Grid item size={2}>
+										<Button fullWidth variant={"contained"}>
+											<CalendarTodayOutlined/><span style={{marginLeft:"5px"}}>Update</span>
+										</Button>
+									</Grid>
+								</Grid>
+								{/* END FORM CONTAINER */}
+								</Grid>
+								{/* END FORM WRAPPER ITEM */}
+								<Grid item size={12}>
+									<Typography variant={"body2"}>
+									<Switch checked={includeAvailable} onChange={()=>{setIncludeAvailable(!includeAvailable);}}/>
+									Only show profiles with upcoming availability
+									</Typography>
+								</Grid>
+								{/* END SWITCH ROW */}
+								{/* START RESULTS ROW */}
+								<Grid item size={12}>
+									<Grid container spacing={2}>
+										{/* START RESULTS CARDS */}
+										{( profiles?.length ?? 0 ) > 0 ? 
+											<Grid item size={12}>
+												<Typography variant={"body2"}>
+													Showing subcontractors in your trade: <b>{tradeDisplayValue}</b>
+												</Typography>
+											</Grid>
+										: 
+											<Grid item size={12}>
+												<Typography variant={"body2"}>
+													No results could be found, please try changing your filters.
+												</Typography>
+											</Grid>
+										}
+										{profileCards}
+										{/* END RESULTS CARDS */}
+									</Grid>
+								</Grid>
+								{/* END RESULTS ROW */}
+								</Grid>
+							</Grid>
+							{/* END ROW HOUSING FILTERS */}
+						</Grid>
+						{/* END CONTAINER FOR CENTER */}
+					</Grid>
+					{/* END CENTER COLUMN */}
+					{/* RIGHT MARGIN */}
+					<Grid item size={2}/>
+				</Grid>
+				</Container>
       </AppLayout>
     </TradeGate>
   );
