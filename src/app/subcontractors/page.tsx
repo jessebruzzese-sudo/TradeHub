@@ -51,7 +51,7 @@ const FILTER_OPTIONS = [
 function SubcontractorCard({ sub }: { sub: any }) {
   const primaryTrade = sub?.business?.primaryTrade ?? null;
   const TradeIcon = primaryTrade ? getTradeIcon(primaryTrade) : null;
-  const displayName = sub?.business?.businessName ?? sub?.visibleName;
+  const displayName = sub?.visibleName ?? sub?.name;
   const premium = sub?.profile?.premium ?? false;
   return (
     <div
@@ -186,7 +186,7 @@ export default function SubcontractorsPage() {
     setProfilesError(null);
 		// move filtering logic and sorting into server side
 		// along with pagination
-		getAxios(null).get(`/api/discovery/trades/${effectiveTrade}?sortBy=${sortBy}&filterBy=${filterBy}`).
+		getAxios(null).get(`/api/discovery/trades/${encodeURIComponent(effectiveTrade)}?sortBy=${sortBy}&filterBy=${filterBy}`).
 			then((response)=>{
 				const data = response.data;
 				setProfiles(data.matches);

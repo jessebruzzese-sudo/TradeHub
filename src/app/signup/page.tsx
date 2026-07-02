@@ -288,20 +288,6 @@ export default function SignupPage() {
         }).catch(() => {});
         return;
       }
-      if (currentUser?.id) {
-        try {
-          await persistAbnVerification({
-            abn: data.abn ?? clean,
-            entityName: data.entityName ?? null,
-            verified: true,
-          });
-        } catch (e) {
-          toast.error('ABN verified, but could not save verification. Please try again.');
-          return;
-        }
-        router.refresh();
-      }
-
       setAbnVerified(true);
       setAbnEntityName(data.entityName ?? null);
       setAbnEntityType(data.entityType ?? null);

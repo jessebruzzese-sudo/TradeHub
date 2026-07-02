@@ -350,17 +350,10 @@ export default function JobDetailPage() {
 		}
     const t = currentUser?.business?.trades;
     if (Array.isArray(t) && t.length > 0) {
-      return t.filter((x: string) => typeof x === 'string' && x.trim()).map((x: string) => x.trim());
+      return t.map((x: string) => x.trim());
     }
     const pt = currentUser?.business?.primaryTrade;
-    const out = pt ? [String(pt).trim()] : [];
-    if (Array.isArray(at)) {
-      at.forEach((x: string) => {
-        const s = String(x).trim();
-        if (s && !out.includes(s)) out.push(s);
-      });
-    }
-    return out;
+    return [pt];
   }, [currentUser]);
 
   if (isLoadingJob) {
@@ -437,7 +430,8 @@ export default function JobDetailPage() {
   }
 
   // Trade gate — allow admin + poster to view; otherwise viewer must have job's trade in their listed trades
-  const jobTradeMatchesViewer = viewerTrades.length > 0 && viewerTrades.includes(job.tradeCategory);
+	const jobTradeCat = job?.tradeCategory ?? null;
+  const jobTradeMatchesViewer = viewerTrades.length > 0 && viewerTrades.includes(jobTradeCat);
   if (!isMyJob && !isAdminUser && !jobTradeMatchesViewer) {
     return (
       <AppLayout>
@@ -490,7 +484,7 @@ export default function JobDetailPage() {
   const needsAbnForActions = needsBusinessVerification(currentUser);
   const returnUrl = `/jobs/${jobId}`;
   const abnRequiredActionToast =
-    'This step requires a verified ABN. Verify your business to continue.';
+    "This step requires a verified ABN. Verify your business to continue.";
   const attachments = (job as any)?.attachments ?? [];
 
   const canGoPrev = lightboxItems.length > 1;
@@ -538,7 +532,7 @@ export default function JobDetailPage() {
     		setApplicationMessage("");
 			});
   };
-
+	/*	
   const callJobAction = async (action: string, applicationId?: string) => {
     const res = await fetch(`/api/jobs/${job.id}/action`, {
       method: 'POST',
@@ -549,6 +543,7 @@ export default function JobDetailPage() {
     if (!res.ok) throw new Error(data.error ?? 'Action failed');
     return data;
   };
+	*/
 
   const handleSelectApplication = async (applicationId: string) => {
     if (needsAbnForActions) {
@@ -578,6 +573,7 @@ export default function JobDetailPage() {
   };
 
   const handleAccept = async () => {
+		/*
     if (needsAbnForActions) {
       toast.error(abnRequiredActionToast);
       redirectToVerifyBusiness(router, returnUrl);
@@ -600,9 +596,11 @@ export default function JobDetailPage() {
     } finally {
       setActionSubmitting(false);
     }
+		*/
   };
 
   const handleDecline = async () => {
+		/*
     const transition = canTransitionToStatus('accepted', 'open');
     if (!transition.allowed) {
       alert(transition.reason);
@@ -620,6 +618,7 @@ export default function JobDetailPage() {
     } finally {
       setActionSubmitting(false);
     }
+	*/
   };
 
   const handleConfirmHire = async () => {
@@ -654,6 +653,7 @@ export default function JobDetailPage() {
   };
 
   const handleWithdrawApplication = () => {
+		/*
     if (!myApplication) return;
 
     store.updateApplication(myApplication.id, {
@@ -664,6 +664,7 @@ export default function JobDetailPage() {
     setShowWithdrawDialog(false);
     setWithdrawReason('');
     router.refresh();
+		*/
   };
 
   async function handleCloseJob() {
@@ -685,6 +686,7 @@ export default function JobDetailPage() {
   }
 
   const handleCompleteJob = () => {
+		/*
     if (!lifecycleState?.canComplete) {
       alert('Cannot complete job at this time');
       return;
@@ -712,9 +714,11 @@ export default function JobDetailPage() {
       }
     }
     router.refresh();
+	*/
   };
 
   const handleCancelJob = (reason: string) => {
+		/*
     const wasAccepted = job.status === 'accepted' || job.status === 'confirmed';
     store.updateJob(job.id, {
       status: 'cancelled',
@@ -736,9 +740,11 @@ export default function JobDetailPage() {
       }
     }
     router.refresh();
+		*/
   };
 
   const handleSubmitReview = async (review: any) => {
+		/*
     store.createReview({
       ...review,
       id: `review-${Date.now()}`,
@@ -762,6 +768,7 @@ export default function JobDetailPage() {
     }
 
     router.refresh();
+		*/
   };
 
   const handleMessagePoster = () => {
