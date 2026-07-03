@@ -660,29 +660,7 @@ export default function JobDetailPage() {
   };
 
   const handleCancelJob = (reason: string) => {
-		/*
-    const wasAccepted = job.status === 'accepted' || job.status === 'confirmed';
-    store.updateJob(job.id, {
-      status: 'cancelled',
-      cancelledAt: new Date(),
-      cancelledBy: currentUser.id,
-      cancellationReason: reason,
-      wasAcceptedOrConfirmedBeforeCancellation: wasAccepted,
-    });
-    const conversation = store.getConversationForJob(
-      job.id,
-      job.contractorId,
-      job.confirmedSubcontractor ?? job.selectedSubcontractor
-    );
-    if (conversation) {
-      const messages = store.getMessagesByConversation(conversation.id);
-      if (shouldAddSystemMessage(messages, 'cancelled')) {
-        const systemMsg = createSystemMessage(conversation.id, 'cancelled', reason);
-        store.addMessage(systemMsg);
-      }
-    }
-    router.refresh();
-		*/
+		toast.info("Coming soon");
   };
 
   const handleSubmitReview = async (review: any) => {
@@ -723,14 +701,16 @@ export default function JobDetailPage() {
 			});
   };
 
-  const canCancelJob =
-    lifecycleState?.canCancel &&
-    ( isMyJob || myAppStatus === "selected" || myAppStatus === "confirmed" );
-
-  const canLeaveReview = job.status === 'cancelled' && canLeaveReliabilityReview(job, currentUser.id);
+  const canCancelJob = isMyJob && job.status !== "completed";
+  const canLeaveReview = job.status === "cancelled";
   const existingReview = canLeaveReview ? null : null;
-  const recipientId = isMyJob ? job.confirmedSubcontractor || job.selectedSubcontractor : job.contractorId;
-  const recipient = recipientId ? store.getUserById(recipientId) : null;
+  let recipientId = null;
+	if(isMyJob){
+		const app = applications.find((x)=>x.status === "confirmed");
+		recipientId = app?.profileId ?? null; 
+	}else{
+		recipientId = myAppStatus === "confirmed" ? job.owner.profileId : null;
+	}
 
   // ✅ Single dashboard route (no more /dashboard/contractor or /dashboard/subcontractor)
   const dashboardHref = '/dashboard';
@@ -1210,7 +1190,7 @@ export default function JobDetailPage() {
               </Button>
             )}
 
-            {canLeaveReview && !existingReview && recipient && (
+            {canLeaveReview && !existingReview && recipientId && (
               <Button onClick={() => setShowReviewDialog(true)} variant="outline" className="w-full">
                 <AlertCircle className="w-4 h-4 mr-2" />
                 Leave Reliability Review
@@ -1372,11 +1352,11 @@ export default function JobDetailPage() {
             </DialogContent>
           </Dialog>
 
-          {recipient && (
+          {recipientId && (
             <ReliabilityReviewForm
               job={job}
               recipientId={recipientId!}
-              recipientName={recipient.name || 'TradeHub user'}
+              recipientName={"TradeHub user"}
               open={showReviewDialog}
               onOpenChange={setShowReviewDialog}
               onSubmit={handleSubmitReview}
