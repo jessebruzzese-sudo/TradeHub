@@ -350,6 +350,8 @@ export const deleteJob = async (job:any) => {
 			if(job.attachments.length > 0){
 				await trx.delete(jobAttachmentsTable).where(eq(jobAttachmentsTable.jobId, job.id));
 			}
+			await trx.delete(selectedApplicationTable).where(eq(selectedApplicationTable.jobId, job.id));
+			await trx.delete(applicationTable).where(eq(applicationTable.jobId, job.id));
 			await trx.delete(jobsTable).where(eq(jobsTable.id, job.id));
 			const removed = await deleteJobAttachments(job);
 			if(removed !== job.attachments.length){
