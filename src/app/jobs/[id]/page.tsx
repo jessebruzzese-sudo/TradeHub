@@ -705,7 +705,7 @@ export default function JobDetailPage() {
   const canLeaveReview = job.status === "cancelled";
   const existingReview = canLeaveReview ? null : null;
   let recipientId = null;
-	if(isMyJob){
+	if(isMyJob && applications !== null){
 		const app = applications.find((x)=>x.status === "confirmed");
 		recipientId = app?.profileId ?? null; 
 	}else{
