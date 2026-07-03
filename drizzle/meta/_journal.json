@@ -337,6 +337,20 @@
       "when": 1782781941613,
       "tag": "0047_chemical_madelyne_pryor",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1783052491449,
+      "tag": "0048_wild_killraven",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1783053010684,
+      "tag": "0049_naive_hex",
+      "breakpoints": true
     }
   ]
 }

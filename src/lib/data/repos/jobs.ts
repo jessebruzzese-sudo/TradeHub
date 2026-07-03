@@ -70,6 +70,17 @@ const updateJobStatusT = async (trx:any, jobId:string, status:string) => {
 		where(eq(jobsTable.id, jobId));
 };
 
+export const completeJob = async (job:any, app:any) => {
+	const db = await getDB();
+	const { applications: appRepo, profile: profileRepo } = await getDataService();
+	return db.transaction(async(trx)=>{
+		await updateJobStatusT(trx, job.id, "completed");
+		await appRepo.updateApplicationStatusT(trx, app.id, "completed");
+		await profileRepo.incCompletedJobsT(app.profileId, trx);
+		return { ok: true };
+	});
+};
+
 export const confirmJob = async (job:any, app:any) => {
 	const db = await getDB();
 	const { applications: appRepo } = await getDataService();
@@ -80,7 +91,7 @@ export const confirmJob = async (job:any, app:any) => {
 	});
 };
 
-export const getSelectedApplications = async (jobId:string) => {
+export const getAcceptedApplications = async (jobId:string) => {
 	return new Promise(async(resolve, reject) => {
 		const db = await getDB();	
 		const results = await db.select().from(applicationTable).
@@ -88,7 +99,7 @@ export const getSelectedApplications = async (jobId:string) => {
 			where(
 				and(
 					eq(selectedApplicationTable.jobId, jobId), 
-					eq(applicationTable.status, "selected")
+					eq(applicationTable.status, "accepted")
 				)
 			);
 		const apps = results.map((e,i)=>{ return  {...e.applications}});
@@ -96,14 +107,66 @@ export const getSelectedApplications = async (jobId:string) => {
 	});
 };
 
+export const getConfirmedApplications = async (jobId:string) => {
+	return new Promise(async(resolve, reject) => {
+		const db = await getDB();	
+		const results = await db.select().from(applicationTable).
+			innerJoin(selectedApplicationTable, eq(applicationTable.id, selectedApplicationTable.applicationId)).
+			where(
+				and(
+					eq(selectedApplicationTable.jobId, jobId), 
+					eq(applicationTable.status, "confirmed")
+				)
+			);
+		const apps = results.map((e,i)=>{ return  {...e.applications}});
+		resolve(apps);
+	});
+};
+
+export const withdrawApplication = async (job:any, app:any, reason:string) => {
+	const db = await getDB();
+	const { applications: appRepo } = await getDataService();
+	return db.transaction(async(trx)=>{
+		// TODO add reason
+		await appRepo.updateApplicationStatusT(trx, app.id, "declined");
+		await appRepo.deleteLinkFromJobT(trx, job.id, app.id);
+		// TODO send email
+		// confirm withdrawl of application
+		return { ok: true };
+	});
+};
+
+export const declineApplication = async (job:any, app:any) => {
+	const db = await getDB();
+	const { applications: appRepo } = await getDataService();
+	return db.transaction(async(trx)=>{
+		await appRepo.updateApplicationStatusT(trx, app.id, "declined");
+		await appRepo.deleteLinkFromJobT(trx, job.id, app.id);
+		// TODO send email
+		// confirm withdrawl of application
+		return { ok: true };
+	});
+};
+
+export const acceptApplication = async (job:any, app:any) => {
+	const db = await getDB();
+	const { applications: appRepo } = await getDataService();
+	return db.transaction(async(trx)=>{
+		await appRepo.updateApplicationStatusT(trx, app.id, "accepted");
+		// TODO send email
+		// confirm accepted of application
+		return { ok: true };
+	});
+};
+
 export const selectApplication = async (job:any, app:any) => {
 	const db = await getDB();
 	const { applications: appRepo } = await getDataService();
 	return db.transaction(async(trx)=>{
-		await updateJobStatusT(trx, job.id, "accepted");
 		await appRepo.updateApplicationStatusT(trx, app.id, "selected");
 		await appRepo.addLinkToJobT(trx, job.id, app.id, app.profileId);
 		// TODO send email
+		// alert applicant of selection
 		return { ok: true };
 	});
 };
@@ -136,7 +199,8 @@ const jobApplicationReducer = (a, c) => {
 			avatarDataUrl: c.profile.avatarDataUrl,
 			completedJobs: 0,
 			userId: c.users.id,
-			name: c.users.visibleName ?? c.users.name
+			name: c.users.visibleName ?? c.users.name,
+			completedJobs: c.profile.completedJobs
 		};
 	}
 	return a;

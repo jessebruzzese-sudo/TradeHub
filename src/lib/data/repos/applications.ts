@@ -10,6 +10,16 @@ export const addLinkToJobT = async (trx:any, jobId:string, applicationId:string,
 		values({jobId, applicationId, applicantProfileId: profileId});
 };
 
+export const deleteLinkFromJobT = async (trx:any, jobId:string, applicationId:string) => {	
+	return trx.delete(selectedApplicationTable).	
+		where(
+			and(
+				eq(selectedApplicationTable.jobId, jobId),
+				eq(selectedApplicationTable.applicationId, applicationId)
+			)
+		);
+};
+
 export const updateApplicationStatusT = async (trx:any, applicationId:string, status:string) => {
 	return trx.update(applicationTable).
 		set({status, updatedAt: new Date()}).

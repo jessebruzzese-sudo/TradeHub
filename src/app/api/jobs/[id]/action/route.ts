@@ -68,13 +68,12 @@ const getApplication = async (applicationId:string) => {
 	});
 };
 
-const doAcceptApplication = async () => {
-
-};
-
-const doConfirmJob = async (job:any, owner:boolean) => {
-	if(job.status !== JOB_ACCEPTED_STATUS){
-		return NextResponse.json({ error: "Job is not in accepted state" }, { status: 400 });
+const doConfirmJob = async (job:any, owner:boolean, appId:string) => {
+	if(appId === null){
+		return NextResponse.json({ error: "Application id is required" }, { status: 400 });
+	}
+	if(job.status !== JOB_OPEN_STATUS){
+		return NextResponse.json({ error: "Job is not in open state" }, { status: 400 });
 	}
 	if(!owner){
 		return NextResponse.json({ error: "Only job owner can confirm hire" }, { status: 403 });
@@ -82,7 +81,7 @@ const doConfirmJob = async (job:any, owner:boolean) => {
 	const { jobs: jobsRepo } = await getDataService();
 	let selected = null;
 	try{
-		selected = await jobsRepo.getSelectedApplications(job.id);
+		selected = await jobsRepo.getAcceptedApplications(job.id);
 	}catch(err_){
 		console.error(err_);
 		return NextResponse.json({ error: "Failed to query for selected applications" }, { status: 500 });
@@ -93,10 +92,10 @@ const doConfirmJob = async (job:any, owner:boolean) => {
 	if(selected.length === 0){
 		return NextResponse.json({ error: "No applications are selected" }, { status: 500 });
 	}
-	if(selected.length > 1){
-		return NextResponse.json({ error: "Too many applications were selected" }, { status: 500 });
+	const app = selected.find((x) => x.id === appId);
+	if(app === undefined){
+		return NextResponse.json({ error: `Could not find application ${appId} to confirm` }, { status: 500 });
 	}
-	const app = selected[0];
 	try{
 		await jobsRepo.confirmJob(job, app);
 	}catch(err_){
@@ -176,76 +175,9 @@ export async function POST(
 	// via delegating to function
 	if(action === SELECT_ACTION){
 		return doSelectApplication(job, isJobOwner, applicationId);
-	}else if(action === ACCEPT_ACTION){
-		return doAcceptApplication(job, isJobOwner, applicationId);
-	}else if(action === DECLINE_ACTION){
-		return doDeclineAction(job, isJobOwner, applicationId);
 	}else if(action === CONFIRM_ACTION){
-		return doConfirmJob(job, isJobOwner);
+		return doConfirmJob(job, isJobOwner, applicationId);
 	}else{
 		return NextResponse.json({ error: `Action ${action} fell through` }, { status: 500 });
 	}
-	/*
-    } else if (action === 'accept' || action === 'decline') {
-      if (job.status !== 'accepted') {
-        return NextResponse.json({ error: 'Job is not in accepted state' }, { status: 400 });
-      }
-      if (isContractor) {
-        return NextResponse.json({ error: 'Only subcontractor can accept or decline' }, { status: 403 });
-      }
-
-      const { data: myApp } = await supabase
-        .from('applications')
-        .select('id')
-        .eq('job_id', jobId)
-        .eq('subcontractor_id', authUser.id)
-        .maybeSingle();
-
-      if (!myApp) {
-        return NextResponse.json({ error: 'Application not found' }, { status: 404 });
-      }
-
-      if (action === 'accept') {
-        const { error: jobUpdateErr } = await supabase
-          .from('jobs')
-          .update({
-            status: 'confirmed',
-            confirmed_subcontractor: authUser.id,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', jobId)
-          .gte('created_at', jobsListingWindowStartIso());
-        if (jobUpdateErr) {
-          return NextResponse.json({ error: jobUpdateErr.message }, { status: 500 });
-        }
-        const { error: appUpdateErr } = await supabase
-          .from('applications')
-          .update({ status: 'accepted', responded_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-          .eq('id', myApp.id);
-        if (appUpdateErr) {
-          return NextResponse.json({ error: appUpdateErr.message }, { status: 500 });
-        }
-      } else {
-        const { error: jobUpdateErr } = await supabase
-          .from('jobs')
-          .update({
-            status: 'open',
-            selected_subcontractor: null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', jobId)
-          .gte('created_at', jobsListingWindowStartIso());
-        if (jobUpdateErr) {
-          return NextResponse.json({ error: jobUpdateErr.message }, { status: 500 });
-        }
-        const { error: appUpdateErr } = await supabase
-          .from('applications')
-          .update({ status: 'declined', responded_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-          .eq('id', myApp.id);
-        if (appUpdateErr) {
-          return NextResponse.json({ error: appUpdateErr.message }, { status: 500 });
-        }
-      }
-    }
-*/
 }

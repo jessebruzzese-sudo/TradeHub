@@ -33,8 +33,17 @@ export const GET = async (request:any, context:any) => {
 	// load images
 	for(const a of applications){
 		const applicant = a.applicant;
-		const url = await loadImage(applicant.avatarDataUrl);
-		applicant.avatarDataUrl = url;
+		const avatarDataUrl = applicant?.avatarDataUrl ?? null;
+		if(avatarDataUrl){
+			try{
+				const url = await loadImage(avatarDataUrl);
+				applicant.avatarDataUrl = url;
+			}catch(err_){
+				applicant.avatarDataUrl = null;
+			}
+		}else{
+			applicant.avatarDataUrl = null;
+		}
 	}
 	return NextResponse.json(applications, { status: 200 });
 };

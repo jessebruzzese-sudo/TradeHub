@@ -1,0 +1,1 @@
+ALTER TABLE "profile" ADD COLUMN "completed_jobs" integer;

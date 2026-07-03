@@ -3,7 +3,7 @@
 import { TrustStatus, JobStatus } from '@/lib/types';
 
 interface StatusPillProps {
-  type: 'trust' | 'job';
+  type: 'trust' | 'job' | 'application';
   status: TrustStatus | JobStatus;
   label?: string;
 }
@@ -74,11 +74,54 @@ const jobStatusConfig = {
   },
 } as const;
 
+const appStatusConfig = {
+  declined: {
+    bg: 'bg-red-50 border-red-200',
+    dot: 'bg-red-500',
+    text: 'text-red-700',
+    label: 'Declined'
+  },
+	selected: {
+    bg: 'bg-blue-50 border-blue-200',
+    dot: 'bg-blue-500',
+    text: 'text-blue-700',
+    label: 'Selected'
+	},
+	accepted: {
+    bg: 'bg-green-50 border-green-200',
+    dot: 'bg-green-600',
+    text: 'text-green-700',
+    label: 'Accepted'
+	},
+	applied: {
+    bg: 'bg-emerald-50 border-emerald-200',
+    dot: 'bg-emerald-500',
+    text: 'text-emerald-700',
+    label: 'Applied'
+	},
+	confirmed: {
+    bg: 'bg-green-50 border-green-200',
+    dot: 'bg-green-600',
+    text: 'text-green-700',
+    label: 'Confirmed'
+	},
+  completed: {
+    bg: 'bg-blue-50 border-blue-200',
+    dot: 'bg-blue-500',
+    text: 'text-blue-700',
+    label: 'Completed',
+  },
+};
+
 export default function StatusPill({ type, status, label }: StatusPillProps) {
-  const config =
-    type === 'trust'
-      ? trustStatusConfig[status as keyof typeof trustStatusConfig]
-      : jobStatusConfig[status as keyof typeof jobStatusConfig];
+  let config = null;
+	if(type === "trust"){
+		config = trustStatusConfig[status as keyof typeof trustStatusConfig];
+	}else if(type === "job"){
+		config = jobStatusConfig[status as keyof typeof jobStatusConfig];
+	}else if(type === "application"){
+		config = appStatusConfig[status as keyof typeof appStatusConfig];
+	}
 
   if (!config) return null;
 

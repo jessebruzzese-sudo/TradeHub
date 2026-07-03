@@ -7,6 +7,22 @@ import { usersTable } from "@/lib/data/defs/users";
 import { getDB, getDataService } from "@/lib/data/service";
 import { subDays } from "date-fns";
 
+export const incCompletedJobsT = async (profileId:string, trx:any) => {
+	return new Promise(async(resolve, reject)=>{
+		const existing = await trx.select({completedJobs: profileTable.completedJobs}).
+			from(profileTable).
+			where(eq(profileTable.id, profileId));
+		let completedJobs = existing[0]?.completedJobs ?? null;
+		if(completedJobs === null){
+			reject(new Error("Could not determine completed job count"));
+			return;
+		}
+		completedJobs += 1;
+		await trx.update(profileTable).set({completedJobs}).where(eq(profileTable.id, profileId));
+		resolve(completedJobs);
+	});
+};
+
 export const getConversationProfileT = async (profileId:string, trx:any) => {
 	return trx.select({visibleName: usersTable.visibleName, name: usersTable.name, id: usersTable.id}).
 		from(usersTable).
