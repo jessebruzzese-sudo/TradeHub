@@ -1074,7 +1074,6 @@ export default function JobDetailPage() {
                 Message Poster
               </Button>
             )}
-
             {myApplication && (
               <div className="space-y-3">
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -1107,17 +1106,16 @@ export default function JobDetailPage() {
                 </div>
               </div>
             )}
-
             {/* Applicant decision (single-account model):
                 If current user is the selected person and job is accepted, allow accept/decline */}
-            {!isMyJob && job.status === "open" & myAppStatus === "selected" && (
+            { !isMyJob && job.status === "open" && myAppStatus === "selected" && (
               <div className="space-y-2">
                 <div className="flex gap-3">
                   <Button
                     onClick={handleAccept}
                     className="flex-1"
                     disabled={needsAbnForActions || actionSubmitting}
-                    title={needsAbnForActions ? 'Accepting requires a verified ABN.' : undefined}
+                    title={needsAbnForActions ? "Accepting requires a verified ABN." : ""}
                   >
                     <CheckCircle className="w-4 h-4 mr-2" />
                     {actionSubmitting ? 'Accepting...' : 'Accept'}
@@ -1129,15 +1127,15 @@ export default function JobDetailPage() {
                 </div>
                 {needsAbnForActions && (
                   <p className="text-sm text-amber-700">
-                    This step requires a verified ABN.{' '}
-                    <Link href={getVerifyBusinessUrl(returnUrl)} className="font-medium text-blue-600 hover:text-blue-700 underline">
+                    This step requires a verified ABN.
+                    <Link href={getVerifyBusinessUrl(returnUrl)} 
+												className="font-medium text-blue-600 hover:text-blue-700 underline">
                       Verify business
                     </Link>
                   </p>
                 )}
               </div>
             )}
-
             {isMyJob && job.status === 'confirmed' && (
               <div className="flex gap-3">
               	<Button onClick={handleCompleteJob} className="flex-1">
@@ -1204,8 +1202,7 @@ export default function JobDetailPage() {
               </div>
             )}
           </div>
-
-          {isMyJob && applications !== null && applications.length > 0 && (
+          { isMyJob && applications !== null && applications.length > 0 && (
             <div className="bg-white border border-gray-200 rounded-xl p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Applications ({applications.length})</h2>
               <div className="space-y-4">
@@ -1270,7 +1267,6 @@ export default function JobDetailPage() {
               </div>
             </div>
           )}
-
           <Dialog open={showApplyDialog} onOpenChange={setShowApplyDialog}>
             <DialogContent>
               <DialogHeader>
