@@ -30,7 +30,7 @@ export const PUT = async (request, context) => {
 	}catch(err_){
 		return NextResponse.json({ msg: "Invalid payload" }, { status: 400 });
 	}
-	const { jobs: jobRepo } = await getDataService();
+	const { jobs: jobRepo, users: userRepo } = await getDataService();
 	// find job
 	let job = null;
 	try{
@@ -48,7 +48,7 @@ export const PUT = async (request, context) => {
 	}
 	// confirm cancelled by
 	// make sure that user is admin or job owner
-	const cancelledByAdmin = await usersRepo.isUserAdmin(payload.cancelledBy);
+	const cancelledByAdmin = await userRepo.isUserAdmin(payload.cancelledBy);
 	const valid = job.owner.id === payload.cancelledBy || cancelledByAdmin;
 	if(!valid){
 		return NextResponse.json({ msg: "User that cancelled job is not admin or owner" }, { status: 400 });
