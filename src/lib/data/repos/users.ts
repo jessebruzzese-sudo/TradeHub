@@ -13,6 +13,22 @@ import * as bcrypt from "bcrypt";
 const CUSTOMER_ROLE_ID = 2;	
 const SALT_ROUNDS = 10;
 
+export const isUserAdmin = async (userId:string) => {
+	return new Promise(async(resolve, reject)=>{
+		const db = await getDB();
+		const results = await db.select({role: rolesTable.name}).
+			from(usersTable).
+			innerJoin(rolesTable, eq(rolesTable.id, usersTable.roleId)).
+			where(eq(usersTable.id, userId));
+		const name = results[0]?.role ?? null;
+		if(name === null){
+			reject(new Error(`Failed to find a user for id ${userId}`));
+			return;
+		}
+		resolve(name.toLowerCase() === "admin");
+	});
+};
+
 export const getCustomerCount = async () => {
 	return new Promise(async(resolve, reject)=>{
 		const results = await (await getDB()).

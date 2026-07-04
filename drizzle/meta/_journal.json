@@ -351,6 +351,13 @@
       "when": 1783053010684,
       "tag": "0049_naive_hex",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1783077264812,
+      "tag": "0050_gorgeous_earthquake",
+      "breakpoints": true
     }
   ]
 }

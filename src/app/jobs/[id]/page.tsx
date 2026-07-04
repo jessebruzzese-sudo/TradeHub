@@ -660,35 +660,25 @@ export default function JobDetailPage() {
   };
 
   const handleCancelJob = (reason: string) => {
-		toast.info("Coming soon");
+		const app = applications.find((x)=>x.status === "confirmed");
+		const wasConfirmed = app !== undefined;
+		const payload = {
+			reason,
+			cancelledBy: currentUser.id,
+			wasConfirmed
+		};
+		getAxios(null).put(`/api/jobs/${jobId}/cancel`, payload).
+			then((response_)=>{
+				toast.success("Job cancelled");
+				setJob(null);
+			}).catch((err_)=>{
+				toast.error("Could not cancel job");
+			}).finally(()=>{
+			});
   };
 
   const handleSubmitReview = async (review: any) => {
-		/*
-    store.createReview({
-      ...review,
-      id: `review-${Date.now()}`,
-      authorId: currentUser.id,
-      createdAt: new Date(),
-    });
-    // Best-effort notification email side effect.
-    try {
-      if (review?.recipientId && review?.jobId) {
-        await fetch('/api/reliability-reviews/notify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            recipientId: review.recipientId,
-            jobId: review.jobId,
-          }),
-        });
-      }
-    } catch (err) {
-      console.warn('[jobs/[id]] reliability review email trigger failed', err);
-    }
-
-    router.refresh();
-		*/
+		toast.info("coming soon");
   };
 
   const handleMessagePoster = () => {

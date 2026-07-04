@@ -12,6 +12,25 @@ import { writeFile, mkdir } from "node:fs/promises";
 import { ENV } from "@/lib/env";
 import { subDays } from "date-fns";
 
+export const cancelJob = async (job:any, payload:any) => {
+	const db = await getDB();
+	return db.transaction(async(trx)=>{
+		// change status
+		await updateJobStatusT(trx, job.id, "cancelled");
+		// set cancellation fields
+		await trx.update(jobsTable).
+			set({
+				cancellationReason: payload.reason, 
+				cancelledBy: payload.cancelledBy, 
+				wasConfirmed: payload.wasConfirmed,
+				cancelledAt: new Date()
+			}).where(eq(jobsTable.id, job.id));
+		// TODO
+		// send message
+		// send email
+	});
+};
+
 export const getJobStatusBreakdown = async () => {
 	return new Promise(async(resolve, reject)=>{
 		const db = await getDB();
