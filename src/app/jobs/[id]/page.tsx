@@ -613,7 +613,7 @@ export default function JobDetailPage() {
 
   const handleWithdrawApplication = () => {
     if (!myApplication) return;
-		const payload = { reason: withdrawReason }; // declined status
+		const payload = { reason: withdrawReason };
 		getAxios(null).put(`/api/jobs/${jobId}/applications/${myApplication.id}/withdraw`, payload).
 			then((response_)=>{
 				toast.success("Application withdrawn");

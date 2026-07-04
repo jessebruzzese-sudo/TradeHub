@@ -5,6 +5,12 @@ import { getDB } from "@/lib/data/service";
 import { applicationTable, selectedApplicationTable } from "@/lib/data/defs/applications";
 import { ENV } from "@/lib/env";
 
+export const setWithdrawlReasonT = async (trx:any, applicationId:string, reason:string) => {
+	return trx.update(applicationTable).
+		set({withdrawlReason:reason, withdrawnAt: new Date()}).
+		where(eq(applicationTable.id, applicationId));
+};
+
 export const addLinkToJobT = async (trx:any, jobId:string, applicationId:string, profileId:string) => {	
 	return trx.insert(selectedApplicationTable).	
 		values({jobId, applicationId, applicantProfileId: profileId});

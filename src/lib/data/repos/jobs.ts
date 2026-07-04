@@ -146,8 +146,8 @@ export const withdrawApplication = async (job:any, app:any, reason:string) => {
 	const db = await getDB();
 	const { applications: appRepo } = await getDataService();
 	return db.transaction(async(trx)=>{
-		// TODO add reason
 		await appRepo.updateApplicationStatusT(trx, app.id, "declined");
+		await appRepo.setWithdrawlReasonT(trx, app.id, reason);
 		await appRepo.deleteLinkFromJobT(trx, job.id, app.id);
 		// TODO send email
 		// confirm withdrawl of application

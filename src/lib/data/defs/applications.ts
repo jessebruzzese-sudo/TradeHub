@@ -15,7 +15,9 @@ export const applicationTable = pgTable("applications", {
 	createdAt: timestamp("created_at").defaultNow(),
 	updatedAt: timestamp("updated_at"),
 	status: text("status").default("applied"),
-	jobId: uuid("job_id").notNull().references(()=>jobsTable.id)
+	jobId: uuid("job_id").notNull().references(()=>jobsTable.id),
+	withdrawnAt: timestamp("withdrawn_at"),
+	withdrawlReason: text("withdrawl_reason")
 }, (table)=>[unique().on(table.jobId, table.profileId)]);
 
 export const selectedApplicationTable = pgTable("selected_applications", {
