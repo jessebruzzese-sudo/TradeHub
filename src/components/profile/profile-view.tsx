@@ -185,6 +185,9 @@ export function ProfileView({
   const { jwt } = useAuth();
   const router = useRouter();
   const [portalLoading, setPortalLoading] = useState(false);
+		
+	const ENABLE_SUBSCRIPTIONS = false;
+	const ENABLE_TRADE_ALERTS = false;
 
   const profileUserId = profile?.id ?? null;
   const e2eStrengthUi =
@@ -233,6 +236,9 @@ export function ProfileView({
 			return;
 		}
 		if(viewTrigger){
+			return;
+		}
+		if(isSelf){
 			return;
 		}
 		getAxios(null).put(`/api/profile/${p.profile.id}/view`).
@@ -315,6 +321,7 @@ export function ProfileView({
 			});
   }
 
+	// TODO load reviews
   const reviews = [];
   const reliabilityReviews = reviews.filter((r: any) => r.isReliabilityReview);
   const standardReviews = reviews.filter((r: any) => !r.isReliabilityReview);
@@ -322,12 +329,14 @@ export function ProfileView({
   const showUpgradeNudge = isSelf && profile && !isPremiumForDiscoveryCheck && !isProfileUserAdmin;
   const showBillingSimulation = false;
   const isUsingSimulation = false;
-  const hasRealPremium = isSelf && profile ? shouldShowProBadge(profile) : false;
+  const hasRealPremium = isSelf && profile ? isPremiumForDiscoveryCheck : false;
+
   const planStatus = (() => {
     if (isUsingSimulation && !hasRealPremium) return 'Premium (Simulated)';
     if (hasRealPremium) return 'Pro Plan';
     return 'Free Plan';
   })();
+
   const dashboardPath = isSelf && profile ? (isProfileUserAdmin ? '/admin' : '/dashboard') : '/dashboard';
 
   const handleResetSimulation = () => {
@@ -359,9 +368,9 @@ export function ProfileView({
   const businessName = p?.business?.businessName;
   const shouldShowAbn = p?.profile?.showAbn ?? false;
   const abnToShow = p?.business?.abn ?? null;
-  const primaryTrade = p?.business?.trades[0] ?? null;
+  const primaryTrade = p?.business?.primaryTrade ?? null;
   const allTrades = ( p?.business?.trades ?? [] ) as string[];
-  const otherTrades = [];
+  const otherTrades = allTrades.filter((x)=>x !== primaryTrade);
   const miniBio = p?.profile?.miniBio ?? "";
   const bio = p?.profile?.bio ?? "";
   const reliabilityRating = p?.profile?.reliabilityRating ?? null;
@@ -543,17 +552,17 @@ export function ProfileView({
                         </div>
                       ) : null}
                       {isSelf &&
-                        (p?.show_phone_on_profile === true || p?.showPhoneOnProfile === true) &&
-                        String(p?.phone ?? p?.mobile ?? '').trim() ? (
+                        (p?.profile?.showPhone === true) &&
+                        p?.profile?.phone?.trim() ? (
                         <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm">
                           <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-50">
                             <span className="text-[13px] leading-none text-slate-600">📞</span>
                           </span>
-                          <span>{String(p?.phone ?? p?.mobile).trim()}</span>
+                          <span>{p?.profile?.phone}</span>
                         </div>
                       ) : null}
                       {isSelf &&
-                        (p?.show_email_on_profile === true || p?.showEmailOnProfile === true) &&
+                        (p?.profile?.showEmail === true) &&
                         p?.email ? (
                         <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm">
                           <Mail className="h-4 w-4 text-slate-500" />
@@ -838,7 +847,7 @@ export function ProfileView({
               </Card>
             )}
 
-            {isSelf && (
+            {isSelf && ENABLE_TRADE_ALERTS && (
               <div className="mb-6">
                 {/* Mobile: collapsible */}
                 <div className="md:hidden">
@@ -877,25 +886,9 @@ export function ProfileView({
                               <div className="flex items-center gap-2">
                                 <span className="text-sm font-medium text-amber-900">Receive alerts</span>
                                 <Switch
-                                  checked={(profile as any)?.receiveTradeAlerts ?? (profile as any)?.receive_trade_alerts ?? false}
-                                  onCheckedChange={async (checked) => {
-                                    if (profile?.id && currentUser?.id === profile.id) {
-                                      try {
-                                        const res = await fetch('/api/profile/trade-alerts', {
-                                          method: 'PATCH',
-                                          headers: { 'Content-Type': 'application/json' },
-                                          body: JSON.stringify({ enabled: checked }),
-                                        });
-                                        if (!res.ok) {
-                                          const data = await res.json().catch(() => ({}));
-                                          throw new Error(data?.error ?? 'Failed to update');
-                                        }
-                                        await refreshUser?.();
-                                      } catch (e) {
-                                        console.warn('Could not save alert preference:', e);
-                                        toast.error('Could not save. Please try again.');
-                                      }
-                                    }
+                                  checked={p?.profile?.receiveTradeAlerts ?? false}
+                                  onCheckedChange={() => {
+																		toast.info("Coming soon");
                                   }}
                                 />
                               </div>
@@ -942,10 +935,10 @@ export function ProfileView({
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium text-amber-900">Receive alerts</span>
                           <Switch
-                            checked={(profile as any)?.receiveTradeAlerts ?? (profile as any)?.receive_trade_alerts ?? false}
+                            checked={p?.profile?.receiveTradeAlerts ?? false}
                             onCheckedChange={async (checked) => {
-                              if (profile?.id && viewerUserId === profile.id) {
-																// TODO trade alerts
+                              if (isSelf) {
+																toast.info("coming soon");
                               }
                             }}
                           />
@@ -983,7 +976,7 @@ export function ProfileView({
               </div>
             )}
 
-            {isSelf && (
+            {isSelf && ENABLE_SUBSCRIPTIONS && (
               <div className="mb-6 rounded-xl border border-gray-200 bg-white p-6">
                 <div className="mb-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">

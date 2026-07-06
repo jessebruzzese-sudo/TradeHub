@@ -5,7 +5,7 @@ import { usersTable, rolesTable } from "@/lib/data/defs/users";
 import { businessTable, businessTradeTable, googlePlacesTable } from "@/lib/data/defs/business";
 import { profileTable, profileLikeTable } from "@/lib/data/defs/profile";
 import { workTable } from "@/lib/data/defs/works";
-import { getDB, getDataService } from "@/lib/data/service";
+import { getDB, getDataService, callDb } from "@/lib/data/service";
 import { formatISO } from "date-fns";
 import { randomUUID } from "crypto";
 import * as bcrypt from "bcrypt";
@@ -81,7 +81,8 @@ export const doForgotPassword = async (state:string, email:string) => {
 	return (await getDB()).
 		update(usersTable).
 		set({forgotPasswordState: state}).
-		where(eq(usersTable.email, email));
+		where(eq(usersTable.email, email)).
+		returning({id: usersTable.id});
 };
 
 export const getUserIdsForEmail = async (email:string) => {
@@ -166,23 +167,19 @@ const addUserT = async (payload:any, businessId:string, profileId:string, roleId
 };
 
 export const addBusinessUser = async (payload:any) => {
-	return new Promise(async(resolve, reject)=>{
+	return callDb(async(db)=>{
 		const { business, profile } = await getDataService();
-		const db = await getDB();	
-		let result = null;
-		try{
-			result = await db.transaction(async(trx)=>{
+		return db.transaction(async(trx)=>{
+			try{
 				const profileId = await profile.addProfileT(trx);
 				const businessId = await business.addBusinessT(payload.business, trx);
 				if(businessId === null)
 					throw new Error("Failed to create business record");
 				return await addUserT(payload, businessId, profileId, CUSTOMER_ROLE_ID, trx);
-			});
-		}catch(err_){
-			reject(err_);
-			return;
-		}
-		resolve(result);
+			}catch(err_){
+				throw err_;
+			}
+		});
 	});
 };
 
@@ -310,7 +307,6 @@ export const getUserProfile = async (userId:string) => {
 				.leftJoin(workTable, eq(workTable.profileId, profileTable.id))
 				.leftJoin(businessTable, eq(usersTable.businessId, businessTable.id))
 				.leftJoin(googlePlacesTable, eq(businessTable.id, googlePlacesTable.businessId))
-				.leftJoin(businessTradeTable, eq(businessTable.id, businessTradeTable.businessId))
 				.where(eq(usersTable.id, userId));
 		}catch(err_){
 			reject(err_);
@@ -320,20 +316,23 @@ export const getUserProfile = async (userId:string) => {
 			resolve(null);
 			return;
 		}
-		const { trades } = await getDataService();
+		const { trades, business } = await getDataService();
 		const tradeMapping = await trades.getMapping(false); // ID => NAME
 		let users = results.reduce(userReducer, {});
-		users = Object.keys(users).map((e,i)=>{ 
+		users = Object.keys(users).map(async (e,i)=>{ 
 			const mapped = users[e]; 
 			if(mapped.business !== null){
-				const tradeIds = Object.keys(mapped.business.trades);
-				let primaryTradeId = tradeIds.find((x)=>mapped.business.trades[x].isPrimary) ?? null;
+				const trades = await business.getTradesForBusiness(mapped.business.id);
+				const tradeIds = trades.map((e,i)=>{ return e.tradeId });
+				//console.log(`${JSON.stringify(trades)}`);
+				const primaryTradeId = trades.find((x)=>x.isPrimary)?.tradeId ?? null;
+				const otherTradeIds = tradeIds.filter((x)=>x!==primaryTradeId);
 				if(primaryTradeId === null){
-					console.error("Failed to find primary trade for business");
-					primaryTradeId = tradeIds[0];
+					reject(new Error("Failed to find primary trade for business"));
+					return;
 				}
-				const tradeNames = tradeIds.map((j,k)=>{ return tradeMapping[j]; });	
-				mapped.business.trades = tradeNames;
+				const otherTradeNames = otherTradeIds.map((j,k)=>{ return tradeMapping[j]; });	
+				mapped.business.trades = otherTradeNames;
 				mapped.business.primaryTrade = tradeMapping[primaryTradeId];
 			}
 			if(mapped.profile !== null){
@@ -358,21 +357,26 @@ const updateUserT = async (trx:any, payload:any, email:string) => {
 };
 
 export const updateUserProfile = async (payload:any, email:string) => {
-	return new Promise(async(resolve, reject)=>{
-		const db = await getDB();		
-		const { business, profile } = await getDataService();
-		await db.transaction(async(trx)=>{
-			const results = await updateUserT(trx, payload, email);
-			console.log(JSON.stringify(results));
+	return callDb(async(db)=>{
+		const { business, profile, trades } = await getDataService();
+		const mapping = await trades.getMapping(true);
+		return db.transaction(async(trx)=>{
+			let results = null;
+			try{
+				results = await updateUserT(trx, payload, email);
+			}catch(err_){
+				throw err_;
+			}
+			if(results === null){
+				throw new Error("Null results after profile update");
+			}
 			const businessId = results[0]?.businessId ?? null;
 			const profileId = results[0]?.profileId ?? null;
 			if(profileId === null){
-				reject(new Error("Failed to find profile to update"));
-				return;
+				throw new Error("Failed to find profile to update");
 			}
 			if(businessId === null){
-				reject(new Error("Failed to find business to update"));
-				return;
+				throw new Error("Failed to find business to update");
 			}
 			await profile.updateProfileT(trx, payload, profileId);
 			const delta = {
@@ -380,8 +384,12 @@ export const updateUserProfile = async (payload:any, email:string) => {
 				priceType: payload.priceType,
 				showPricing: payload.showPricing
 			};
-			await business.updateBusinessT(trx, delta, businessId);
+			try{
+				await business.updateBusinessT(trx, delta, businessId);
+				await business.syncTradesT(trx, payload.trades, payload.primaryTrade, businessId, mapping);
+			}catch(err_){
+				throw err_;
+			}
 		});	
-		resolve(true);
-	});
+	});	
 };

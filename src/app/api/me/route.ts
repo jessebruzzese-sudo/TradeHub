@@ -23,7 +23,10 @@ const UpdateProfileSchema = z.object({
 	showPricing: z.boolean(),
 	showListingPrice: z.boolean(),		
 	price: z.number().nullable(),
-	priceType: z.string().nullable()	
+	priceType: z.string().nullable(),
+	primaryTrade: z.string(),
+	skills: z.array(z.string()).nullable(),
+	trades: z.array(z.string()).nullable()
 });
 
 export async function PUT(request: NextRequest){

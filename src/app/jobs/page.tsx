@@ -114,18 +114,6 @@ export default function JobsPage() {
     [currentUser]
   );
 
-  const userForDiscovery = currentUser
-    ? {
-        plan: (currentUser as any).plan ?? null,
-        subscription_status:
-          (currentUser as any).subscriptionStatus ?? (currentUser as any).subscription_status ?? null,
-        complimentary_premium_until:
-          (currentUser as any).complimentaryPremiumUntil ??
-          (currentUser as any).complimentary_premium_until ??
-          null,
-      }
-    : null;
-
   const isPremium = currentUser?.profile?.premium ?? false;
 
   const [postLimitInfo, setPostLimitInfo] = useState<{
@@ -345,6 +333,11 @@ export default function JobsPage() {
       </div>
     );
   }
+	const premium = currentUser?.profile?.premium ?? false;
+  let tradeHint = currentUser?.business?.primaryTrade;
+	if(premium){
+		tradeHint = "All trades";
+	}
   return (
     <AppLayout>
       {/* Grey wrapper */}
@@ -497,8 +490,8 @@ export default function JobsPage() {
                       <span className="inline-flex items-center gap-2">
                         <span>Showing jobs in your trade:</span>
                         <span className="inline-flex items-center gap-2 font-semibold text-slate-800">
-                          {TradeIcon ? <TradeIcon className="h-4 w-4 text-blue-600" /> : null}
-                          {String(currentUser?.business?.primaryTrade || 'Your trade')}
+                          {TradeIcon && !premium ? <TradeIcon className="h-4 w-4 text-blue-600" /> : null}
+													{tradeHint}
                         </span>
                       </span>
 

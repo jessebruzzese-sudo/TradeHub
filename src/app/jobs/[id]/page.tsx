@@ -327,6 +327,7 @@ export default function JobDetailPage() {
 
   const poster = job?.owner ?? null;
   const posterPremium = poster?.premium ?? false;
+	const viewerPremium = currentUser?.profile?.premium ?? false;
 
   // “My application” = any application made by the current user (single-account model)
   const myApplication = applications?.find((a) => a?.applicant?.userId === currentUser?.id) ?? null;
@@ -438,7 +439,7 @@ export default function JobDetailPage() {
   // Trade gate — allow admin + poster to view; otherwise viewer must have job's trade in their listed trades
 	const jobTradeCat = job?.tradeCategory ?? null;
   const jobTradeMatchesViewer = viewerTrades.length > 0 && viewerTrades.includes(jobTradeCat);
-  if (!isMyJob && !isAdminUser && !jobTradeMatchesViewer) {
+  if (!isMyJob && !isAdminUser && !jobTradeMatchesViewer && !viewerPremium) {
     return (
       <AppLayout>
         {/* Grey wrapper (match /jobs) */}

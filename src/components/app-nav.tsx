@@ -10,7 +10,6 @@ import { useContext } from "react";
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { GlobalFooter } from '@/components/global-footer';
-import { getStore } from '@/lib/store';
 import { hasValidABN } from '@/lib/abn-utils';
 import { useDevUnread } from '@/lib/dev-unread-context';
 import Image from 'next/image';

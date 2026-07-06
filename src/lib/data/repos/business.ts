@@ -6,12 +6,62 @@ import { tradesTable } from "@/lib/data/defs/trades";
 import { usersTable } from "@/lib/data/defs/users";
 import { getDB, getDataService } from "@/lib/data/service";
 
+export const getTradesForBusiness = async (businessId:string) => {
+	return (await getDB()).select().
+		from(businessTradeTable).
+		where(eq(businessTradeTable.businessId, businessId));
+};
+
 export const setPricingT = async (businessId:string, pricing:any, trx:any) => {
 	return trx.update(businessTable).set({...pricing}).where(eq(businessTable.id, businessId));
 };
 
 export const updateBusinessT = async (trx:any, delta:any, businessId:string) => {
 	return trx.update(businessTable).set(delta).where(eq(businessTable.id, businessId));
+};
+
+export const syncTradesT = async (trx:any, trades:array, primaryTrade:string, businessId:string, mapping:any) => {
+		return new Promise(async(resolve, reject) => {
+			try{
+				// remove existing trades
+				await trx.delete(businessTradeTable).where(eq(businessTradeTable.businessId, businessId));
+			}catch(err_){
+				reject(err_);
+				return;
+			}
+			const primaryId = mapping[primaryTrade] ?? null;
+			if(primaryId === null){
+				reject(new Error(`Primary trade ${primaryTrade} doesn't exist in mapping`));
+				return;
+			}
+			try{
+				// create primary trade link
+				await trx.insert(businessTradeTable).
+					values({businessId, tradeId: primaryId, isPrimary: true});
+			}catch(err_){
+				reject(err_);
+				return;
+			}
+			// make *sure* that the trades array doesn't contain the primary trade
+			// otherwise bad things will happen
+			const otherTrades = trades.filter((x)=>x !== primaryTrade);
+			// create other trades
+			for(const other of otherTrades){
+				const otherId = mapping[other] ?? null;
+				if(otherId === null){
+					reject(new Error(`Other trade ${other} doesn't exist in mapping`));
+					return;
+				}
+				try{
+					await trx.insert(businessTradeTable).
+						values({businessId, tradeId: otherId, isPrimary:false});
+				}catch(err_){
+					reject(err_);
+					return;
+				}
+			}
+			resolve(true);
+		});
 };
 
 export const updateBusiness = async (userId:string, delta:any) => {
