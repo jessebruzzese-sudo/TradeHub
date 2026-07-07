@@ -44,7 +44,7 @@ import {
   Star,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, redirect } from 'next/navigation';
 import { format } from 'date-fns';
 import UserContext from "@/lib/user-context";
 import { useContext, useState, useEffect, useLayoutEffect, useMemo } from 'react';
@@ -360,7 +360,8 @@ export default function JobDetailPage() {
   }, [currentUser]);
 		
 	if(!hasSession){
-		return <UnauthorizedAccess message={"Logging out..."} redirectTo={"/login"} />;
+		redirect("/login");
+		return;
 	}
 
   if (isLoadingJob) {
@@ -1196,8 +1197,7 @@ export default function JobDetailPage() {
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                 <p className="text-sm font-medium text-gray-900 mb-1">Job Cancelled</p>
                 <p className="text-xs text-gray-600">
-                  Cancelled on {format(job.cancelledAt, 'MMM dd, yyyy')} by{' '}
-                  {job.cancelledBy === currentUser.id ? 'you' : store.getUserById(job.cancelledBy || '')?.name || 'TradeHub user'}
+                  Cancelled on {format(job.cancelledAt, 'MMM dd, yyyy')}&nbsp;by&nbsp;TradeHub User
                 </p>
                 {job.cancellationReason && <p className="text-sm text-gray-700 mt-2">{job.cancellationReason}</p>}
               </div>

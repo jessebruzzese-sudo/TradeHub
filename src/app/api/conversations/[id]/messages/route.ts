@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDataService } from "@/lib/data/service";
 import { getClaims } from "@/lib/claims/service";
+import { doMessageSent } from "@/lib/email/service";
 import * as z from "zod";
 
 export async function POST(request: NextRequest, context:any) {
@@ -42,16 +43,43 @@ export async function POST(request: NextRequest, context:any) {
 		return NextResponse.json({ error: "Failed to parse payload", zod: err_ }, { status: 400 });
 	}
 	let msgId = null;
+	let createdAt = null;
 	try{
 		const { conversations: convRepo } = await getDataService();
 		const results = await convRepo.addMessage({...payload, conversationId });
 		msgId = results[0]?.id ?? null;
-		if(msgId === null){
+		createdAt = results[0]?.createdAt ?? null;
+		if(msgId === null || createdAt === null){
 			return NextResponse.json({ error: "Error creating message, id was null" }, { status: 500 });
 		}
 	}catch(err_){
 		console.error(err_);
 		return NextResponse.json({ error: "Failed to parse payload", zod: err_ }, { status: 500 });
+	}
+	// figure out who is sender and who is recipient
+	let senderName = null;
+	let recipient = null;
+	if(payload.senderProfileId === conversation.ownerProfileId){
+		senderName = conversation.ownerName;
+		recipient = conversation.guestEmail;
+	}else{
+		recipient = conversation.ownerEmail;
+		senderName = conversation.guestName;
+	}
+	try{	
+		const baseUrl = "https://www.tradehub.com.au/login?returnTo=";
+		const event = {
+			senderName: senderName,
+    	timestamp: createdAt.toISOString(),
+    	conversationUrl: `${baseUrl}/messages?conversationId=${conversationId}`,
+    	unsubscribeUrl: `${baseUrl}/dashboard`,
+    	notificationUrl: `${baseUrl}/dashboard`
+		};
+		await doMessageSent(event, recipient);
+	}catch(err_){
+		console.error(err_);
+		// log but ignore error
+		// dont want email notifications causing crashes
 	}
 	return NextResponse.json({ msgId }, { status: 201 });
 }

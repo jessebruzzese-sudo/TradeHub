@@ -39,7 +39,10 @@ export const getUnreadMessagesT = async (trx:any, profileId:string) => {
 export const addMessage = async (msg:any) => {
 	return (await getDB()).insert(messagesTable).
 		values(msg).
-		returning({id: messagesTable.id});
+		returning({
+			id: messagesTable.id, 
+			createdAt: messagesTable.createdAt
+		});
 };
 
 export const upsertConversation = async (ownerProfileId, guestProfileId) => {
@@ -120,6 +123,8 @@ export const getConversation = async (conversationId:string) => {
 				convo.ownerName = ownerName;
 				convo.guestUserId = guestUserId;
 				convo.guestName = guestName;
+				convo.ownerEmail = ownerProfile[0]?.email;
+				convo.guestEmail = guestProfile[0]?.email;
 				return convo;
 			}catch(err_){
 				throw err_;

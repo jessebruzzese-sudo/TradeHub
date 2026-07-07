@@ -24,7 +24,12 @@ export const incCompletedJobsT = async (profileId:string, trx:any) => {
 };
 
 export const getConversationProfileT = async (profileId:string, trx:any) => {
-	return trx.select({visibleName: usersTable.visibleName, name: usersTable.name, id: usersTable.id}).
+	return trx.select({
+			visibleName: usersTable.visibleName, 
+			name: usersTable.name, 
+			id: usersTable.id, 
+			email: usersTable.email 
+		}).
 		from(usersTable).
 		where(eq(usersTable.profileId, profileId));
 };
