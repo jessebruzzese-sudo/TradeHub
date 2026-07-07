@@ -205,7 +205,8 @@ export function ProfileView({
   const showProfileStrengthSection =
     e2eStrengthUi ||
     (!!viewerUserId && !!profileUserId && viewerUserId === profileUserId) ||
-    e2eServerOnlyOwner;
+    e2eServerOnlyOwner ||
+		isSelf;
 
   const p = profile as any;
 	const isProfileUserAdmin = p.role === "admin";
@@ -214,7 +215,7 @@ export function ProfileView({
   const [upCount, setUpCount] = useState<number>(p?.profile?.upVotes ?? 0);
   const [downCount, setDownCount] = useState<number>(p?.profile?.downVotes ?? 0);
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
-  const canRate = profileUserId !== viewerUserId;
+  const canRate = profileUserId !== viewerUserId || !isSelf;
   const [availDates, setAvailDates] = useState<string[]>([]);
   const [availDesc, setAvailDesc] = useState<string>('');
   const [availLoading, setAvailLoading] = useState(true);
@@ -308,6 +309,7 @@ export function ProfileView({
   async function submitRating(value: 1 | -1) {
     if (!profileUserId) return;
     if (viewerUserId === profileUserId) return;
+		if (isSelf) return;
 		getAxios(null).put(`/api/users/${profileUserId}/rating`, {rating:value}).
 			then((response_)=>{
 				// refresh rating	

@@ -357,8 +357,8 @@ const updateUserT = async (trx:any, payload:any, email:string) => {
 };
 
 export const updateUserProfile = async (payload:any, email:string) => {
+	const { business, profile, trades } = await getDataService();
 	return callDb(async(db)=>{
-		const { business, profile, trades } = await getDataService();
 		const mapping = await trades.getMapping(true);
 		return db.transaction(async(trx)=>{
 			let results = null;

@@ -4,7 +4,7 @@ import { or, and, eq, sql, isNull, inArray, asc } from "drizzle-orm";
 import { usersTable, rolesTable } from "@/lib/data/defs/users";
 import { businessTable, businessTradeTable } from "@/lib/data/defs/business";
 import { availabilityTable } from "@/lib/data/defs/availability";
-import { getDB, getDataService } from "@/lib/data/service";
+import { callDb, getDB, getDataService } from "@/lib/data/service";
 
 export const getAvailability = async (userId:string) => {
 	return new Promise(async(resolve, reject)=>{
@@ -44,20 +44,18 @@ export const getAvailability = async (userId:string) => {
 	});	
 }
 
-export const addAvailability = async (payload:any, userId:string) => {
-	return new Promise(async(resolve, reject)=>{
-		const db = await getDB();
-		const { business } = await getDataService();
-		const businessId = await business.getUserBusinessId(userId);
-		if(businessId === null){
-			reject(new Error("User is not mapped to a business"));
-			return;
-		}
-		await db.transaction(async(trx)=>{
-			await trx.delete(availabilityTable).where(eq(availabilityTable.businessId, businessId));
-			await trx.insert(availabilityTable).values({...payload, businessId: businessId});
-			await business.setPricingT(businessId, payload.pricing, trx);
+export const addAvailability = async (payload:any, userId:string, businessId:string) => {
+	const { business } = await getDataService();
+	return await callDb(async(db) => {
+		return db.transaction(async(trx) => {
+			try{
+				await trx.delete(availabilityTable).where(eq(availabilityTable.businessId, businessId));
+				await trx.insert(availabilityTable).values({...payload, businessId: businessId});
+				await business.setPricingT(businessId, payload.pricing, trx);
+			}catch(err_){
+				console.error(err_);
+				throw err_;
+			}
 		});
-		resolve(true);
-	});	
+	});
 }

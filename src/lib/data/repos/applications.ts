@@ -1,7 +1,7 @@
 // vim: ts=2
 'use server'
 import { or, and, eq, sql, isNull, inArray, asc } from "drizzle-orm";
-import { getDB } from "@/lib/data/service";
+import { getDB, callDb } from "@/lib/data/service";
 import { applicationTable, selectedApplicationTable } from "@/lib/data/defs/applications";
 import { ENV } from "@/lib/env";
 
@@ -43,17 +43,19 @@ export const getApplication = async (applicationId:string) => {
 };
 
 export const addApplication = async (application:any) => {
-	return new Promise(async(resolve, reject)=>{
-		const db = await getDB();
-		const appId = await db.transaction(async(trx)=>{
-			let values = await addApplicationT(application, trx);
+	return await callDb(async(db) => {
+		return db.transaction(async(trx) => {
+			let values = null;
+			try{
+				values = await addApplicationT(application, trx);
+			}catch(err_){
+				throw err_;
+			}
 			const id = values[0]?.id ?? null;
 			if(id === null){
-				reject(new Error(`Failed to create new application record`));
-				return;
+				throw new Error(`Failed to create new application record`);
 			}
 			return id;
 		});
-		resolve(appId);
 	});
 };

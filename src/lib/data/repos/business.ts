@@ -4,7 +4,7 @@ import { or, and, eq, sql, isNull, inArray, asc } from "drizzle-orm";
 import { businessTable, businessTradeTable, googlePlacesTable } from "@/lib/data/defs/business";
 import { tradesTable } from "@/lib/data/defs/trades";
 import { usersTable } from "@/lib/data/defs/users";
-import { getDB, getDataService } from "@/lib/data/service";
+import { getDB, getDataService, callDb } from "@/lib/data/service";
 
 export const getTradesForBusiness = async (businessId:string) => {
 	return (await getDB()).select().
@@ -65,17 +65,19 @@ export const syncTradesT = async (trx:any, trades:array, primaryTrade:string, bu
 };
 
 export const updateBusiness = async (userId:string, delta:any) => {
-	return new Promise(async(resolve, reject)=>{
-		const id = await getUserBusinessId(userId);	
-		if(id === null){
-			reject(new Error(`User is not linked with a business`));
-			return;
-		}
-		const db = await getDB();
-		await db.transaction(async(trx)=>{
-			await updateBusinessT(trx, delta, id);
+	const id = await getUserBusinessId(userId);	
+	if(id === null){
+		throw new Error(`User is not linked with a business`);
+	}
+	return await callDb(async(db) => {
+		return db.transaction(async(trx) => {
+			try{
+				await updateBusinessT(trx, delta, id);
+				return true;
+			}catch(err_){
+				throw err_;
+			}
 		});
-		resolve(true);
 	});
 };
 
@@ -127,18 +129,21 @@ export const getUserBusinessId = async (userId:string) => {
 };
 
 export const addGooglePlace = async (place:any) => {
-	return new Promise(async(resolve, reject)=>{
-		const db = await getDB();
-		await db.transaction(async(trx)=>{
-			const results = await trx.select({placeId:googlePlacesTable.placeId}).
-				from(googlePlacesTable).
-				where(eq(place.placeId, googlePlacesTable.placeId));
-			if(results.length > 0){
-				throw new Error(`Google place is already being referenced`);
+	return await callDb(async(db) => {
+		return db.transaction(async(trx) => {
+			try{
+				const results = await trx.select({placeId:googlePlacesTable.placeId}).
+					from(googlePlacesTable).
+					where(eq(place.placeId, googlePlacesTable.placeId));
+				if(results.length > 0){
+					throw new Error(`Google place is already being referenced`);
+				}
+				await trx.insert(googlePlacesTable).values(place);
+				return true;
+			}catch(err_){
+				throw err_;
 			}
-			await trx.insert(googlePlacesTable).values(place);
 		});
-		resolve(true);
 	});
 };
 

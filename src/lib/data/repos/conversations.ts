@@ -1,7 +1,7 @@
 // vim: ts=2
 'use server'
 import { or, and, eq, sql, isNull, inArray, asc, ne } from "drizzle-orm";
-import { getDB } from "@/lib/data/service";
+import { getDB, callDb } from "@/lib/data/service";
 import { conversationTable, messagesTable } from "@/lib/data/defs/conversations";
 import { profileTable } from "@/lib/data/defs/profile";
 import { getConversationProfileT } from "@/lib/data/repos/profile";
@@ -43,36 +43,41 @@ export const addMessage = async (msg:any) => {
 };
 
 export const upsertConversation = async (ownerProfileId, guestProfileId) => {
-	const db = await getDB();
-	return db.transaction(async(trx)=>{
-		// ensure that there is one conversation for *either* combination of
-		// owner and guest profile 
-		let results = await trx.select({id: conversationTable.id}).
-			from(conversationTable).
-			where(
-				or(
-					and(
-						eq(conversationTable.ownerProfileId, ownerProfileId), 
-						eq(conversationTable.guestProfileId, guestProfileId)
-					),
-					and(
-						eq(conversationTable.ownerProfileId, guestProfileId), 
-						eq(conversationTable.guestProfileId, ownerProfileId)
-					)
-				)
-			);
-		let conversationId = results[0]?.id ?? null;
-		if(conversationId){
-			return conversationId;
-		}
-		results = await trx.insert(conversationTable).
-			values({ownerProfileId, guestProfileId}).
-			returning({id: conversationTable.id});
-		conversationId = results[0]?.id ?? null;
-		if(!conversationId){
-			throw new Error(`Failed to determine conversation id`);
-		}
-		return conversationId;
+	return await callDb(async(db) => {
+		return db.transaction(async(trx) => {
+			try{
+				// ensure that there is one conversation for *either* combination of
+				// owner and guest profile 
+				let results = await trx.select({id: conversationTable.id}).
+					from(conversationTable).
+					where(
+						or(
+							and(
+								eq(conversationTable.ownerProfileId, ownerProfileId), 
+								eq(conversationTable.guestProfileId, guestProfileId)
+							),
+							and(
+								eq(conversationTable.ownerProfileId, guestProfileId), 
+								eq(conversationTable.guestProfileId, ownerProfileId)
+							)
+						)
+					);
+				let conversationId = results[0]?.id ?? null;
+				if(conversationId){
+					return conversationId;
+				}
+				results = await trx.insert(conversationTable).
+					values({ownerProfileId, guestProfileId}).
+					returning({id: conversationTable.id});
+				conversationId = results[0]?.id ?? null;
+				if(!conversationId){
+					throw new Error(`Failed to determine conversation id`);
+				}
+				return conversationId;
+			}catch(err_){
+				throw err_;
+			}
+		});
 	});
 };
 
@@ -84,43 +89,48 @@ export const getMessages = async (conversationId:string) => {
 };
 
 export const getConversation = async (conversationId:string) => {
-	return new Promise(async(resolve, reject)=>{
-		const db = await getDB();
-		const conversation = await db.transaction(async(trx)=>{
-			const results = await db.select().from(conversationTable).
-				where(eq(conversationTable.id, conversationId));
+	return await callDb(async(db) => {
+		return db.transaction(async(trx) => {
+			let results = null;
+			try{
+				results = await db.select().
+					from(conversationTable).
+					where(eq(conversationTable.id, conversationId));
+			}catch(err_){
+				throw err_;
+			}
 			// no results
 			// let callee decide
-			if(results.length === 0){
-				resolve(null);
-				return;
+			if(results === null || results.length === 0){
+				return null;
 			}
 			// querying by id, shouldn't be more then one result
 			if(results.length > 1){
-				reject(new Error(`Too many results returned, was expecting 1 but was ${results.length}`));
-				return;
+				throw new Error(`Too many results returned, was expecting 1 but was ${results.length}`);
 			}
-			const convo = { ...results[0] };
-			const guestProfile = await getConversationProfileT(convo.guestProfileId, trx);
-			const ownerProfile = await getConversationProfileT(convo.ownerProfileId, trx);
-			const guestName = guestProfile[0]?.visibleName ?? guestProfile[0]?.name;
-			const ownerName = ownerProfile[0]?.visibleName ?? ownerProfile[0]?.name;
-			const guestUserId = guestProfile[0]?.id ?? null;
-			const ownerUserId = ownerProfile[0]?.id ?? null;
-			convo.ownerUserId = ownerUserId;
-			convo.ownerName = ownerName;
-			convo.guestUserId = guestUserId;
-			convo.guestName = guestName;
-			return convo;
+			try{
+				const convo = { ...results[0] };
+				const guestProfile = await getConversationProfileT(convo.guestProfileId, trx);
+				const ownerProfile = await getConversationProfileT(convo.ownerProfileId, trx);
+				const guestName = guestProfile[0]?.visibleName ?? guestProfile[0]?.name;
+				const ownerName = ownerProfile[0]?.visibleName ?? ownerProfile[0]?.name;
+				const guestUserId = guestProfile[0]?.id ?? null;
+				const ownerUserId = ownerProfile[0]?.id ?? null;
+				convo.ownerUserId = ownerUserId;
+				convo.ownerName = ownerName;
+				convo.guestUserId = guestUserId;
+				convo.guestName = guestName;
+				return convo;
+			}catch(err_){
+				throw err_;
+			}
 		});
-		resolve(conversation);
 	});
 };
 
 export const getConversations = async (userId:string, owner:boolean) => {
-	return new Promise(async(resolve, reject)=>{	
-		const db = await getDB();
-		const conversations = await db.transaction(async(trx)=>{
+	return await callDb(async(db) => {
+		return db.transaction(async(trx) => {
 			let results = null;
 			if(owner){
 				// join on owner id
@@ -163,6 +173,5 @@ export const getConversations = async (userId:string, owner:boolean) => {
 			}
 			return mapped;
 		});
-		resolve(conversations);
 	});
 };
