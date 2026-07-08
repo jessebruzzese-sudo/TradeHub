@@ -4,13 +4,15 @@ import { useEffect } from 'react';
 import { getAxios } from "@/lib/utils";
 
 /** One ping per authenticated user id per tab lifecycle (covers login + account switch). */
-export function useActivityPing(jwt:string) {
+export function useActivityPing(trigger:boolean, cb:any) {
   useEffect(() => {
-    if (!jwt) return;
-		getAxios(jwt).
+		if(!trigger){
+			return;
+		}
+		getAxios(null).
 			put("/api/activity/ping").
-				then(()=>{}).
+				then(()=>{ cb(!trigger); }).
 				catch(()=>{});
-  }, [jwt]);
+  }, [trigger]);
 }
 

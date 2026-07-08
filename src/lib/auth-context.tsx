@@ -66,7 +66,6 @@ function normalizeSubscriptionStatus(s?: string | null): string | null {
 
 export function AuthContextProvider({ children }: { children: React.ReactNode }) {
 
-  const [jwt, setJWT] = useState<string | null>(null);
 	const deleteCookie = useDeleteCookie();
 
   const login: AuthCtx['login'] = useCallback(
@@ -76,34 +75,30 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
 				try{
 					const response_ = await getAxios(null).post("/api/auth/login", creds);
 					const token = response_.data.token;
-					setJWT(token);
 					resolve(token);
 				}catch(err_){
-					setJWT(null);
 					reject(err_);
 				}
 			});
     },
-    [jwt]
+    []
   );
   const logout: AuthCtx['logout'] = useCallback(
     async () => {
 			return new Promise(async(resolve, reject)=>{
 				deleteCookie("authorization");
-    		setJWT(null);
 				resolve();
 			});
     },
-    [jwt]
+    []
   );
 
   const value: AuthCtx = useMemo(
     () => ({
       login,
-      logout,
-			jwt
+      logout
     }),
-    [login, logout, jwt]
+    [login, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

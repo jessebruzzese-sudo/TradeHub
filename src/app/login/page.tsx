@@ -14,7 +14,6 @@ import { getSafeReturnUrl, safeRouterReplace } from '@/lib/safe-nav';
 import { toast } from "sonner";
 import { isAdmin } from '@/lib/is-admin';
 
-// TODO get rid of this shit
 function getFriendlyLoginError(error: any): string {
   if (!error) {
     return 'Invalid email or password. Please check your credentials and try again.';
@@ -62,7 +61,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [error, setError] = useState('');
 
-  const { login, jwt } = useAuth();
+  const { login } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const returnUrlParam = searchParams.get('returnUrl');

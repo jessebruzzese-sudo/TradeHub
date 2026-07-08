@@ -18,7 +18,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { useAuth } from '@/lib/auth';
 import { isAdmin } from "@/lib/is-admin";
 import { useDevUnread } from '@/lib/dev-unread-context';
 import { isPremiumForDiscovery } from '@/lib/discovery';
@@ -233,10 +232,8 @@ export default function DashboardPage() {
 
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { jwt } = useAuth();
 	const UserSession = useContext(UserContext);
-  const hasSession = jwt !== null && jwt !== undefined;
-	const apiClient = getAxios(jwt);
+	const apiClient = getAxios(null);
 	
 	{/* STATE */}
 	const [currentUser, setCurrentUser] = useState<any|null>(UserSession?.user ?? null);
@@ -246,6 +243,7 @@ export default function DashboardPage() {
   const [availLoading, setAvailLoading] = useState(true);
   const [savedLocations, setSavedLocations] = useState<{ id: string }[] | null>(null);
 	const [statistics, setStatistics] = useState<any|null>(null);
+	const [triggerActive, setTriggerActive] = useState<boolean>(true);
 
 	{/*  DERIVED STATE */}
 	const isLoading = currentUser === null;
@@ -311,7 +309,7 @@ export default function DashboardPage() {
 	}, [availDates]);
 	
 	// update  last active timestamp
-	useActivityPing(jwt);
+	useActivityPing(triggerActive, (result:boolean)=>{setTriggerActive(result);});
 	
 	// take memo of most recent upcoming
 	// date of availability
@@ -391,9 +389,6 @@ export default function DashboardPage() {
 		if(currentUser === null){
 			return;
 		}
-		if(!hasSession){
-			return;
-		}
 		if(statistics !== null){
 			return;
 		}
@@ -434,11 +429,6 @@ export default function DashboardPage() {
 
 	{ /*END HOOKS */ }
 	
-  if (!hasSession) {
-		redirect("/login");
-		return;
-  }
-
   if (isLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center text-sm text-gray-600">
