@@ -25,7 +25,7 @@ import {
 	ChevronLeft,
 	RefreshCw
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams, redirect } from 'next/navigation';
 import { useState, useEffect, useRef, useContext } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -87,13 +87,15 @@ export default function MessagesPage() {
 	const UserSession = useContext(UserContext);
   const router = useRouter();
   const hasRedirected = useRef(false);
+	const searchParams = useSearchParams();
+	const paramConversationId = searchParams.get("conversationId") ?? null;
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
 	const [currentUser, setCurrentUser] = useState<any|null>(UserSession?.user ?? null);
-  const [selectedConversation, setSelectedConversation] = useState<string|null>(null);
+  const [selectedConversation, setSelectedConversation] = useState<string|null>(paramConversationId);
   const [messageText, setMessageText] = useState(""); // current message
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string|undefined>();
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [conversations, setConversations] = useState<any|null>(null); // list of different conversations that exist
   const [messages, setMessages] = useState<any|null>(null); // messages for current conversation
@@ -235,7 +237,8 @@ export default function MessagesPage() {
 	/* END EVENT HANDLERS */
 
   if (!hasSession) {
-		return <UnauthorizedAccess redirectTo="/login" message={"Redirecting to login"} />
+		redirect("/login");
+		return;
   }
 
 	// selected conversation state
@@ -243,9 +246,9 @@ export default function MessagesPage() {
 	let isConversationOwner = false;
 	let isConversationGuest = false;
 	let convo = null;
-	let otherProfileId = null;
-	let otherName = null;
-	let otherUserId = null;
+	let otherProfileId = "";
+	let otherName = "";
+	let otherUserId = "";
 	// look at details from conversation to derive message state
 	// i.e. conversation with system should be read only
 	let messagingState = {

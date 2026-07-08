@@ -114,7 +114,6 @@ export default function EditProfilePage() {
   const [businessName, setBusinessName] = useState<string>(UserSession.user?.business?.businessName ?? "");
   const [bio, setBio] = useState<string>(UserSession.user?.profile?.bio ?? "");
   const [primaryTrade, setPrimaryTrade] = useState<string>(getPrimaryTrade(UserSession?.user ?? null));
-  const [isPublicProfile, setIsPublicProfile] = useState<boolean>(UserSession.user?.public ?? false);
   const [location, setLocation] = useState<string>(UserSession.user?.business?.location ?? "");
   const [postcode, setPostcode] = useState<string>(UserSession.user?.business?.postcode ?? "");
   const [locationLat, setLocationLat] = useState<number | null>(UserSession.user?.business?.locationLat ?? null);
@@ -562,30 +561,10 @@ export default function EditProfilePage() {
       toast.error('Password is required.');
       return;
     }
-
+		setDeleteLoading(true);
     try {
-      setDeleteLoading(true);
-
-      const res = await fetch('/api/account/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
-      });
-
-      if (!res.ok) {
-        const payload = await res.json().catch(() => ({}));
-        const code = payload?.error ?? payload?.message;
-        const msg =
-          code === 'INVALID_PASSWORD' ? 'Incorrect password.' :
-          code === 'PASSWORD_REQUIRED' ? 'Password is required.' :
-          typeof code === 'string' ? code :
-          'Could not delete account. Please check your password and try again.';
-        throw new Error(msg);
-      }
-
-      await getBrowserSupabase().auth.signOut();
-      toast.success('Account deleted.');
-      window.location.assign('/');
+			// toast and logout
+			toast.info("Coming soon");
     } catch (e: any) {
       toast.error(e?.message ?? 'Could not delete account. Please check your password and try again.');
     } finally {
@@ -598,10 +577,8 @@ export default function EditProfilePage() {
   const handleRefineBio = async () => {
     const raw = String(bio ?? '').trim();
     if (!raw) return;
-
     try {
       setIsRefiningBio(true);
-
       const res = await fetch('/api/ai/refine-bio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -610,20 +587,16 @@ export default function EditProfilePage() {
           text: raw,
         }),
       });
-
       const data = await res.json();
-
       if (!res.ok) {
         toast.error(data?.error ?? 'Could not refine bio.');
         return;
       }
-
       const refined = String(data?.refined ?? '').trim();
       if (!refined) {
         toast.error('AI did not return a refinement. Try again.');
         return;
       }
-
       setBio(refined);
       toast.success('Bio refined.');
     } catch (e) {
@@ -675,7 +648,11 @@ export default function EditProfilePage() {
           : null,
 				trades: isMultiTradeEnabled ? tradesToSave : null,
 				skills: parsedTrades,
-				primaryTrade: primaryTrade
+				primaryTrade: primaryTrade,
+				location,
+				postcode,
+				locationLat: String(locationLat),
+				locationLng: String(locationLng)
       };
 			// persist changes
 			// clear context variables	
@@ -1609,27 +1586,6 @@ export default function EditProfilePage() {
                 </div>
               </DialogContent>
             </Dialog>
-          </div>
-          )}
-
-          {!isAdmin && (
-          <div id="public-profile" className={cardClass}>
-            <div className="mb-3">
-              <h2 className="text-sm font-semibold text-slate-900">Public profile</h2>
-              <p className="text-xs text-slate-600">If enabled, you can appear in &quot;Trades near you&quot; lists.</p>
-            </div>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="isPublicProfile" className="cursor-pointer text-sm font-medium text-slate-800">
-                  Show my profile in discovery
-                </Label>
-                <Switch
-                  id="isPublicProfile"
-                  checked={isPublicProfile}
-                  onCheckedChange={setIsPublicProfile}
-                />
-              </div>
-            </div>
           </div>
           )}
 

@@ -128,16 +128,11 @@ export const getUserBusinessId = async (userId:string) => {
 	});
 };
 
-export const addGooglePlace = async (place:any) => {
-	return await callDb(async(db) => {
-		return db.transaction(async(trx) => {
+export const upsertGooglePlace = async (place:any) => {
+	return await callDb(async(db)=>{
+		return db.transaction(async(trx)=>{
 			try{
-				const results = await trx.select({placeId:googlePlacesTable.placeId}).
-					from(googlePlacesTable).
-					where(eq(place.placeId, googlePlacesTable.placeId));
-				if(results.length > 0){
-					throw new Error(`Google place is already being referenced`);
-				}
+				await trx.delete(googlePlacesTable).where(eq(googlePlacesTable.businessId, place.businessId));
 				await trx.insert(googlePlacesTable).values(place);
 				return true;
 			}catch(err_){

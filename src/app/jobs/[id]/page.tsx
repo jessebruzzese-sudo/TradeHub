@@ -687,7 +687,9 @@ export default function JobDetailPage() {
 		const posterId = job?.owner?.profileId ?? null;
 		getAxios(null).post(`/api/conversations`, {otherProfileId: posterId}).
 			then((response_)=>{
-    		router.push(`/messages?otherProfileId=${posterId}`);
+				const data_ = response_.data;
+				const conversationId = data_.conversationId;
+    		router.push(`/messages?conversationId=${conversationId}`);
 			}).catch((err_)=>{
 				toast.error("Could not create conversation");			
 			});

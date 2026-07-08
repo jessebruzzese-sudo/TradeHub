@@ -33,7 +33,7 @@ export const googlePlacesTable = pgTable("google_places", {
 	rating: real("rating"),
 	reviewCount: real("review_count"),
 	claimed: boolean("claimed")
-}, (table)=>[unique().on(table.placeId, table.businessId)]);
+});
 
 export const businessTradeTable = pgTable("business_trade", {
 	businessId: uuid("business_id").notNull().references(()=>businessTable.id),

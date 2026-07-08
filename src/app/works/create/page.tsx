@@ -55,7 +55,7 @@ export default function CreateCompletedWorkPage() {
   const [submitting, setSubmitting] = useState(false);
   const [isRefiningDescription, setIsRefiningDescription] = useState(false);
 
-  const primaryTradeLabel = currentUser?.business?.trades[0] ?? null;
+  const primaryTradeLabel = currentUser?.business?.primaryTrade ?? null;
   const TradeIcon = primaryTradeLabel ? getTradeIcon(primaryTradeLabel) : null;
 	const hasSession = jwt !== null && jwt !== undefined;
 

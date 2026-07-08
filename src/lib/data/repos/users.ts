@@ -382,7 +382,11 @@ export const updateUserProfile = async (payload:any, email:string) => {
 			const delta = {
 				price: payload.price,
 				priceType: payload.priceType,
-				showPricing: payload.showPricing
+				showPricing: payload.showPricing,
+				location: payload.location,
+				postcode: payload.postcode,
+				locationLat: String(payload.locationLat),
+				locationLng: String(payload.locationLng)
 			};
 			try{
 				await business.updateBusinessT(trx, delta, businessId);

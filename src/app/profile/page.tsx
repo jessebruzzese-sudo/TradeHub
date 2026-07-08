@@ -4,7 +4,7 @@
 import Link from 'next/link';
 import UserContext from "@/lib/user-context";
 import { useEffect, useState, useContext } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, redirect } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { AppLayout } from '@/components/app-nav';
 import { ProfileView } from '@/components/profile/profile-view';
@@ -44,17 +44,8 @@ export default function ProfilePage() {
 		);
 	}
   if (!isLoggedIn) {
-    return (
-      <AppLayout>
-        <div className="mx-auto max-w-xl p-6">
-          <h1 className="text-xl font-semibold text-gray-900">Please log in</h1>
-          <p className="mt-2 text-sm text-gray-600">You need to be signed in to view your profile.</p>
-          <Link href={buildLoginUrl('/profile')} className="mt-4 inline-block">
-            <Button>Go to login</Button>
-          </Link>
-        </div>
-      </AppLayout>
-    );
+		redirect("/login");
+		return;
   }
   return <ProfileView mode="self" profile={profile} />;
 }

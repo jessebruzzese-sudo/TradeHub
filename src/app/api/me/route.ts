@@ -26,7 +26,11 @@ const UpdateProfileSchema = z.object({
 	priceType: z.string().nullable(),
 	primaryTrade: z.string(),
 	skills: z.array(z.string()).nullable(),
-	trades: z.array(z.string()).nullable()
+	trades: z.array(z.string()).nullable(),
+	location: z.string(),
+	postcode: z.string(),
+	locationLat: z.string(),
+	locationLng: z.string()
 });
 
 export async function PUT(request: NextRequest){

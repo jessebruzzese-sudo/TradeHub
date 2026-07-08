@@ -297,7 +297,9 @@ export function ProfileView({
 		};
 		getAxios(null).post(`/api/conversations`, payload).
 			then((response_)=>{
-				router.push("/messages");
+				const data_ = response_.data;
+				const conversationId = data_.conversationId;
+				router.push(`/messages?conversationId=${conversationId}`);
 			}).catch((err_)=>{
 				const error = err_?.response?.data?.error ?? null;
 				if(error){
