@@ -25,7 +25,7 @@ const CreateJobSchema = z.object({
 	startTime: z.string(),	
 	durationDays: z.number().int(),
 	payType: z.string(),
-	rate: z.number(),	
+	rate: z.number().nullable(),
 	attachments: z.array(AttachmentSchema)
 });
 
