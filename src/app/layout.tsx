@@ -7,6 +7,8 @@ import { AuthProvider } from '@/lib/auth';
 import { BillingSimulationBanner } from '@/components/billing-simulation-banner';
 import { Toaster } from "@/components/ui/sonner";
 import { ENV } from "@/lib/env";
+import { ThemeProvider } from "@mui/material/styles";
+import TradeHubTheme from "@/lib/theme/service";
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -48,13 +50,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className={inter.className}>
-				<BillingSimulationBanner/>
-        <AuthProvider>
-					<Toaster/>
-					<Suspense>
-						{children}
-					</Suspense>
-        </AuthProvider>
+				<ThemeProvider theme={TradeHubTheme}>
+					<BillingSimulationBanner/>
+        	<AuthProvider>
+						<Toaster/>
+						<Suspense>
+							{children}
+						</Suspense>
+        	</AuthProvider>
+				</ThemeProvider>
       </body>
     </html>
   );

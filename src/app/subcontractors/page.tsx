@@ -4,16 +4,18 @@
 import Link from 'next/link';
 import UserContext from "@/lib/user-context";
 import { toast } from "sonner";
+import "react-day-picker/style.css";
 import { 
 	MenuItem, Container, 
 	Grid, Button, Typography, 
 	Box, Chip, TextField, 
-	IconButton, Switch 
+	IconButton, Switch, InputAdornment, Drawer, Stack, Divider, Paper
 } from "@mui/material";
+import { DayPicker } from "react-day-picker";
 import { ArrowBack, People, PersonOutlined, CalendarTodayOutlined }  from "@mui/icons-material";
 import { getAxios } from "@/lib/utils";
 import { useEffect, useMemo, useState, useContext } from 'react';
-import { redirect } from "next/navigation";
+import { redirect, useRouter } from "next/navigation";
 import { AppLayout } from '@/components/app-nav';
 import { TradeGate } from '@/components/trade-gate';
 import { PremiumUpsellBar } from '@/components/premium-upsell-bar';
@@ -30,6 +32,7 @@ import { UnauthorizedAccess } from '@/components/unauthorized-access';
 import { useActiveTradesCatalog } from '@/lib/trades/use-active-trades-catalog';
 import { cn } from '@/lib/utils';
 import { getPublicProfileHref } from '@/lib/url-utils';
+import { useTheme } from "@mui/material/styles";
 import { format } from 'date-fns';
 
 /** Display order for empty-state chips; labels must exist in `public.trades` / `/api/trades`. */
@@ -147,13 +150,17 @@ function SubcontractorCard({ sub }: { sub: any }) {
 export default function SubcontractorsPage() {
 
   const { jwt } = useAuth();
+	const theme = useTheme();
+	const router = useRouter();
 	const UserSession = useContext(UserContext);
 	const [currentUser, setCurrentUser] = useState(UserSession?.user ?? null);
   const [nameQuery, setNameQuery] = useState<string>("");
   const [selectedTrade, setSelectedTrade] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('distance-closest');
   const [filterBy, setFilterBy] = useState<string>('all');
+	const [filterDates, setFilterDates] = useState([]);
   const [availLoading, setAvailLoading] = useState(true);
+	const [filterByDate, setFilterByDate] = useState<boolean>(false);
 	const [includeAvailable, setIncludeAvailable] = useState<boolean>(false);
   const [nextAvailable, setNextAvailable] = useState<Date | null>(null);
   const [profiles, setProfiles] = useState<ProfileCard[]>(null);
@@ -203,7 +210,7 @@ export default function SubcontractorsPage() {
     setProfilesError(null);
 		// move filtering logic and sorting into server side
 		// along with pagination
-		const params = `sortBy=${sortBy}&filterBy=${filterBy}&nameQuery=${searchQuery}`;
+		const params = `sortBy=${sortBy}&filterBy=${filterBy}&nameQuery=${nameQuery}`;
 		getAxios(null).get(`/api/discovery/trades/${encodeURIComponent(effectiveTrade)}?${params}`).
 			then((response)=>{
 				const data = response.data;
@@ -220,6 +227,8 @@ export default function SubcontractorsPage() {
   }
 		
 	const profileCards = (profiles ?? []).map((e,i)=>{return <SubcontractorCard key={e.id} sub={e}/>});
+		
+	const isMobile = theme.breakpoints.down("sm");
 
   return (
     <TradeGate>
@@ -227,22 +236,24 @@ export default function SubcontractorsPage() {
 				<Container fluid maxWidth>
 				<Grid container sx={{mt:2}}>
 					{/* LEFT MARGIN */}
-					<Grid item size={2}/>
+					<Grid item size={{lg:2, xs:12}} id={"LeftCol"}/>
 					{/* CENTER COLUMN */}
-					<Grid item size={8}>
+					<Grid item size={{lg:8, xs:12}} id={"CenterCol"}>
 						<Grid container spacing={2}>
 							{/* back button */}
 							<Grid item size={12}>
-								<Button variant={"outlined"} size={"lg"}><ArrowBack/>Back to Dashboard</Button>
+								<Button variant={"outlined"} size={"lg"} onClick={()=>{router.push("/dashboard");}}>
+									<ArrowBack/>To Dashboard
+								</Button>
 							</Grid>
 							{/* header, primary and secondary header */}
-							<Grid item size={12}>
-								<Grid container>
+							<Grid item size={12} id={"HeaderRow"}>
+								<Grid container spacing={2}>
 									{/* CENTER LHS */}
-									<Grid item size={6}>
+									<Grid item size={{lg:6, xs:12}}>
 										<Grid container spacing={1}>
 											{/* Icon and primary header */}
-											<Grid item size={12}>
+											<Grid item size={12} id={"IconHeader"}>
 												<Grid container spacing={1}>
 													<Grid item size={1} sx={{ textAlign:"center"}}>
 														<Box sx={{backgroundColor:"white", borderRadius:"10px", border:"1px solid #EFEFEF", height:"100%"}}>
@@ -263,17 +274,25 @@ export default function SubcontractorsPage() {
 										</Grid>
 									</Grid>
 									{/*CENTER RHS*/}
-									<Grid item size={6}>
-										<Grid container spacing={1} sx={{textAlign:"right"}}>
-											<Grid item size={12}>
-												<Chip color={"primary"} label={"Available Mon 15 Jun"}/>
+									<Grid item size={{lg:6, xs:12}}>
+										<Grid container spacing={1} direction={"row"}>
+											<Grid item size={{lg:12, xs:6}}>
+												<Grid container sx={{justifyContent: isMobile ? "center" : "flex-end"}}>
+													<Grid item>
+														<Chip color={"primary"} label={"Available Mon 15 Jun"}/>
+													</Grid>
+												</Grid>
 											</Grid>
-											<Grid item size={12}>
-												<Button color={"primary"} 	
-														size={"md"} variant={"contained"} 
-														onClick={()=>{toast.info("coming soon");}}>
-													Update Availability
-												</Button>
+											<Grid item size={{lg:12, xs:6}}>
+												<Grid container sx={{justifyContent: isMobile ? "center" : "flex-end"}}>
+													<Grid item>
+														<Button color={"primary"} 	
+															size={"md"} variant={"contained"} 
+															onClick={()=>{toast.info("coming soon");}}>
+																Update Availability
+														</Button>				
+													</Grid>
+												</Grid>
 											</Grid>
 										</Grid>
 									</Grid>
@@ -281,13 +300,14 @@ export default function SubcontractorsPage() {
 							</Grid>
 							{/* END HEADER SECTION */}
 							{/* NEW ROW FOR FORM */}
-							<Grid item size={12} sx={{backgroundColor:"white", border:"1px solid #EFEFEF", padding:"30px", borderRadius:"15px"}}>
+							<Grid id={"FormRoot"} item size={12} 
+									sx={{backgroundColor:"white", border:"1px solid #EFEFEF", padding:"30px", borderRadius:"15px", mb: theme.spacing(3)}}>
 								{/* container wrapping rows in center column */}
 								<Grid container spacing={1}>	
 								<Grid item size={12}>
 								{/* FORM CONTAINER */}
 								<Grid container spacing={1}>
-									<Grid item size={3}>
+									<Grid item size={{lg:3, xs:12}}>
 										<TextField 
 											value={nameQuery} 
 											onChange={(event)=>{setNameQuery(event.target.value);}}
@@ -296,12 +316,13 @@ export default function SubcontractorsPage() {
 											fullWidth	
 											placeholder={"Search by name..."}
 											variant={"outlined"}
+											slotProps={{input:{endAdornment: <InputAdornment position={"end"}><Search/></InputAdornment>}}}
 										/>
 									</Grid>
-									<Grid item size={2}>
+									<Grid item size={{lg:2, xs:12}}>
 										<TextField 
 												value={selectedTrade} 
-												onChange={(event)=>{setSelectedTrade(event.target.value);}} 	
+												onChange={(event)=>{setSelectedTrade(event.target.value);setProfiles(null);}} 	
 												select 
 												size={"small"} 	
 												fullWidth
@@ -312,7 +333,7 @@ export default function SubcontractorsPage() {
 											})}	
 										</TextField>
 									</Grid>
-									<Grid item size={3}>
+									<Grid item size={{lg:3, xs:12}}>
 										<TextField 
 												value={sortBy} 
 												onChange={(event)=>{setSortBy(event.target.value);}} 	
@@ -326,7 +347,7 @@ export default function SubcontractorsPage() {
 											})}	
 										</TextField>
 									</Grid>
-									<Grid item size={2}>
+									<Grid item size={{lg:2, xs:12}}>
 										<TextField 
 												value={filterBy} 
 												onChange={(event)=>{setFilterBy(event.target.value);}} 	
@@ -340,9 +361,11 @@ export default function SubcontractorsPage() {
 											})}	
 										</TextField>
 									</Grid>
-									<Grid item size={2}>
-										<Button fullWidth variant={"contained"}>
-											<CalendarTodayOutlined/><span style={{marginLeft:"5px"}}>Update</span>
+									<Grid item size={{lg:2, xs:12}}>
+										<Button fullWidth 
+												variant={"contained"} 
+												onClick={(event)=>{setFilterByDate(!filterByDate);}}>
+											<CalendarTodayOutlined/><span style={{marginLeft:"5px"}}>Filter by date</span>
 										</Button>
 									</Grid>
 								</Grid>
@@ -386,9 +409,43 @@ export default function SubcontractorsPage() {
 					</Grid>
 					{/* END CENTER COLUMN */}
 					{/* RIGHT MARGIN */}
-					<Grid item size={2}/>
+					<Grid item size={{lg:2, xs:12}} id={"RightCol"}/>
 				</Grid>
 				</Container>
+				<Drawer open={filterByDate} onClose={()=>{setFilterByDate(!filterByDate);}} anchor={"right"}>
+					<Grid container spacing={2} sx={{margin:theme.spacing(2), width:"400px", justifyContent:"center"}}>
+						<Grid item size={12}>
+							<Grid container sx={{alignItems:"center", justifyContent:"flex-start", mb:theme.spacing(2)}}>
+								<Grid item>
+								<CalendarTodayOutlined sx={{color:"blue", mr:theme.spacing(2)}}/>
+								</Grid>
+								<Grid item>
+								<Typography variant={"h6"}>
+									Filter by dates
+								</Typography>
+								</Grid>
+							</Grid>
+							<Divider/>
+						</Grid>
+						<Grid item>
+							<DayPicker 
+								animate 
+								onSelect={()=>{}} 
+								selected={filterDates} 
+								mode={"multiple"}
+							/>
+						</Grid>
+						<Grid item size={12}>
+							<Typography variant={"body2"} sx={{mb:theme.spacing(1)}}>
+								QUICK SELECT
+							</Typography>
+								<Chip variant={"outlined"} color={"primary"} label={"This week"} onClick={()=>{}} />
+								<Chip variant={"outlined"} color={"primary"} label={"Next 2 weeks"} onClick={()=>{}} />
+								<Chip variant={"outlined"} color={"primary"} label={"This month"} onClick={()=>{}} />
+								<Chip variant={"outlined"} color={"primary"} label={"Next 3 months"} onClick={()=>{}} />
+						</Grid>
+					</Grid>
+				</Drawer>
       </AppLayout>
     </TradeGate>
   );
