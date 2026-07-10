@@ -1,13 +1,29 @@
 // vim: ts=2
 'use server'
 import { or, and, eq, sql, isNull, inArray, asc } from "drizzle-orm";
-import { getDB } from "@/lib/data/service";
+import { getDB, callDb } from "@/lib/data/service";
 import { applicationTable, selectedApplicationTable } from "@/lib/data/defs/applications";
 import { ENV } from "@/lib/env";
+
+export const setWithdrawlReasonT = async (trx:any, applicationId:string, reason:string) => {
+	return trx.update(applicationTable).
+		set({withdrawlReason:reason, withdrawnAt: new Date()}).
+		where(eq(applicationTable.id, applicationId));
+};
 
 export const addLinkToJobT = async (trx:any, jobId:string, applicationId:string, profileId:string) => {	
 	return trx.insert(selectedApplicationTable).	
 		values({jobId, applicationId, applicantProfileId: profileId});
+};
+
+export const deleteLinkFromJobT = async (trx:any, jobId:string, applicationId:string) => {	
+	return trx.delete(selectedApplicationTable).	
+		where(
+			and(
+				eq(selectedApplicationTable.jobId, jobId),
+				eq(selectedApplicationTable.applicationId, applicationId)
+			)
+		);
 };
 
 export const updateApplicationStatusT = async (trx:any, applicationId:string, status:string) => {
@@ -27,17 +43,19 @@ export const getApplication = async (applicationId:string) => {
 };
 
 export const addApplication = async (application:any) => {
-	return new Promise(async(resolve, reject)=>{
-		const db = await getDB();
-		const appId = await db.transaction(async(trx)=>{
-			let values = await addApplicationT(application, trx);
+	return await callDb(async(db) => {
+		return db.transaction(async(trx) => {
+			let values = null;
+			try{
+				values = await addApplicationT(application, trx);
+			}catch(err_){
+				throw err_;
+			}
 			const id = values[0]?.id ?? null;
 			if(id === null){
-				reject(new Error(`Failed to create new application record`));
-				return;
+				throw new Error(`Failed to create new application record`);
 			}
 			return id;
 		});
-		resolve(appId);
 	});
 };

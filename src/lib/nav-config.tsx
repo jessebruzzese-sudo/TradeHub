@@ -86,8 +86,7 @@ export const SUPPORT_LEGAL_SECTION: NavSectionConfig = {
 export const BUSINESS_NAV_SECTIONS: NavSectionConfig[] = [
   MAIN_ACTIONS_SECTION,
   COMMUNICATION_SECTION,
-  ACCOUNT_SECTION,
-  SUPPORT_LEGAL_SECTION,
+  ACCOUNT_SECTION
 ];
 
 /** Get account items with Pricing filtered by MVP_FREE_MODE */

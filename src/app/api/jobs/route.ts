@@ -25,7 +25,7 @@ const CreateJobSchema = z.object({
 	startTime: z.string(),	
 	durationDays: z.number().int(),
 	payType: z.string(),
-	rate: z.number(),	
+	rate: z.number().nullable(),
 	attachments: z.array(AttachmentSchema)
 });
 
@@ -70,6 +70,7 @@ export async function POST(request: NextRequest) {
 	try{
 		payload = CreateJobSchema.parse(await request.json());
 	}catch(err_){
+		console.error(err_);
 		return NextResponse.json(
 			{ error: "Failed to parse payload" },
 			{ status: 400 }
@@ -116,9 +117,10 @@ export async function POST(request: NextRequest) {
 	try{		
 		newId = await jobs.addJob(payload);	
 	}catch(err_){
+		console.error(err_);
 		return NextResponse.json(
 			{ error: "Failed to create new job record" },
-			{ status: 400 }
+			{ status: 500 }
 		);
 	}
 	return NextResponse.json({ id: newId });

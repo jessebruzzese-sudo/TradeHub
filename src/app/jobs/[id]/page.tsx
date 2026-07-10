@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic";
 
 import { getAxios, getUserRating } from "@/lib/utils";
 import { AppLayout } from '@/components/app-nav';
+import { UnauthorizedAccess } from "@/components/unauthorized-access";
 import { useAuth } from '@/lib/auth';
 import type { PayType, JobStatus } from '@/lib/types';
 import { loadJobById, syncContractorIntoStore } from '@/lib/jobs/load-job-by-id';
@@ -43,7 +44,7 @@ import {
   Star,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, redirect } from 'next/navigation';
 import { format } from 'date-fns';
 import UserContext from "@/lib/user-context";
 import { useContext, useState, useEffect, useLayoutEffect, useMemo } from 'react';
@@ -326,9 +327,11 @@ export default function JobDetailPage() {
 
   const poster = job?.owner ?? null;
   const posterPremium = poster?.premium ?? false;
+	const viewerPremium = currentUser?.profile?.premium ?? false;
 
   // “My application” = any application made by the current user (single-account model)
   const myApplication = applications?.find((a) => a?.applicant?.userId === currentUser?.id) ?? null;
+	const myAppStatus = myApplication?.status ?? null;
   const isAdminUser = currentUser?.role === "admin";
   const isMyJob = job && currentUser && job.owner.id === currentUser.id;
 	const applicationCount = applications?.length ?? 0;
@@ -350,18 +353,16 @@ export default function JobDetailPage() {
 		}
     const t = currentUser?.business?.trades;
     if (Array.isArray(t) && t.length > 0) {
-      return t.filter((x: string) => typeof x === 'string' && x.trim()).map((x: string) => x.trim());
+      return t.map((x: string) => x.trim());
     }
     const pt = currentUser?.business?.primaryTrade;
-    const out = pt ? [String(pt).trim()] : [];
-    if (Array.isArray(at)) {
-      at.forEach((x: string) => {
-        const s = String(x).trim();
-        if (s && !out.includes(s)) out.push(s);
-      });
-    }
-    return out;
+    return [pt];
   }, [currentUser]);
+		
+	if(!hasSession){
+		redirect("/login");
+		return;
+	}
 
   if (isLoadingJob) {
     return (
@@ -437,8 +438,9 @@ export default function JobDetailPage() {
   }
 
   // Trade gate — allow admin + poster to view; otherwise viewer must have job's trade in their listed trades
-  const jobTradeMatchesViewer = viewerTrades.length > 0 && viewerTrades.includes(job.tradeCategory);
-  if (!isMyJob && !isAdminUser && !jobTradeMatchesViewer) {
+	const jobTradeCat = job?.tradeCategory ?? null;
+  const jobTradeMatchesViewer = viewerTrades.length > 0 && viewerTrades.includes(jobTradeCat);
+  if (!isMyJob && !isAdminUser && !jobTradeMatchesViewer && !viewerPremium) {
     return (
       <AppLayout>
         {/* Grey wrapper (match /jobs) */}
@@ -490,7 +492,7 @@ export default function JobDetailPage() {
   const needsAbnForActions = needsBusinessVerification(currentUser);
   const returnUrl = `/jobs/${jobId}`;
   const abnRequiredActionToast =
-    'This step requires a verified ABN. Verify your business to continue.';
+    "This step requires a verified ABN. Verify your business to continue.";
   const attachments = (job as any)?.attachments ?? [];
 
   const canGoPrev = lightboxItems.length > 1;
@@ -539,26 +541,10 @@ export default function JobDetailPage() {
 			});
   };
 
-  const callJobAction = async (action: string, applicationId?: string) => {
-    const res = await fetch(`/api/jobs/${job.id}/action`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, applicationId }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error ?? 'Action failed');
-    return data;
-  };
-
   const handleSelectApplication = async (applicationId: string) => {
     if (needsAbnForActions) {
       toast.error(abnRequiredActionToast);
       redirectToVerifyBusiness(router, returnUrl);
-      return;
-    }
-    const transition = canTransitionToStatus('open', 'accepted', { hasSelectedSubcontractor: true });
-    if (!transition.allowed) {
-      alert(transition.reason);
       return;
     }
     setActionSubmitting(true);
@@ -583,69 +569,43 @@ export default function JobDetailPage() {
       redirectToVerifyBusiness(router, returnUrl);
       return;
     }
-    const transition = canTransitionToStatus('accepted', 'confirmed');
-    if (!transition.allowed) {
-      alert(transition.reason);
-      return;
-    }
     setActionSubmitting(true);
-    try {
-      await callJobAction('accept');
-      store.updateJob(job.id, { status: 'confirmed' });
-      if (myApplication) store.updateApplication(myApplication.id, { status: 'accepted', respondedAt: new Date() });
-      toast.success('Job accepted!');
-      router.refresh();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to accept');
-    } finally {
-      setActionSubmitting(false);
-    }
+		getAxios(null).put(`/api/jobs/${jobId}/applications/${myApplication.id}/accept`).
+			then((response_)=>{
+				toast.success("Job accepted");
+				setApplications(null);
+			}).catch((err_)=>{
+				toast.error("Could not accept application");
+			}).finally(()=>{
+    		setActionSubmitting(false);
+			});
   };
 
   const handleDecline = async () => {
-    const transition = canTransitionToStatus('accepted', 'open');
-    if (!transition.allowed) {
-      alert(transition.reason);
-      return;
-    }
     setActionSubmitting(true);
-    try {
-      await callJobAction('decline');
-      store.updateJob(job.id, { status: 'open', selectedSubcontractor: undefined });
-      if (myApplication) store.updateApplication(myApplication.id, { status: 'declined', respondedAt: new Date() });
-      toast.success('Job declined');
-      router.refresh();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to decline');
-    } finally {
-      setActionSubmitting(false);
-    }
+		getAxios(null).put(`/api/jobs/${jobId}/applications/${myApplication.id}/decline`).
+			then((response_)=>{
+				toast.success("Job declined");
+				setApplications(null);
+			}).catch((err_)=>{
+				toast.error("Could not decline application");
+			}).finally(()=>{
+    		setActionSubmitting(false);
+			});
   };
 
-  const handleConfirmHire = async () => {
+  const handleConfirmApplication = async (appId:string) => {
     if (needsAbnForActions) {
       toast.error(abnRequiredActionToast);
       redirectToVerifyBusiness(router, returnUrl);
       return;
     }
-    if (!lifecycleState?.canConfirmHire) {
-      alert('Cannot confirm hire at this time');
-      return;
-    }
-		const selected = applications.find((x)=>x.status === "selected");
-		const hasSelectedApplication = selected !== undefined;
-    const transition = canTransitionToStatus('accepted', 'confirmed', {
-      hasSelectedSubcontractor: hasSelectedApplication
-    });
-    if (!transition.allowed) {
-      alert(transition.reason);
-      return;
-    }
     setActionSubmitting(true);
-		getAxios(null).post(`/api/jobs/${jobId}/action`, { action: "confirm" }).
+		getAxios(null).post(`/api/jobs/${jobId}/action`, { action: "confirm", applicationId: appId }).
 			then((response_)=>{
-      	toast.success('Hire confirmed');
+      	toast.success("Hire confirmed");
     		setActionSubmitting(false);
+				setJob(null);
 				setApplications(null);
 			}).catch((error_)=>{
 				toast.error("Could not confirm job");
@@ -655,16 +615,19 @@ export default function JobDetailPage() {
 
   const handleWithdrawApplication = () => {
     if (!myApplication) return;
-
-    store.updateApplication(myApplication.id, {
-      status: 'declined',
-      withdrawnAt: new Date(),
-      withdrawnReason: withdrawReason,
-    });
-    setShowWithdrawDialog(false);
-    setWithdrawReason('');
-    router.refresh();
-  };
+		const payload = { reason: withdrawReason };
+		getAxios(null).put(`/api/jobs/${jobId}/applications/${myApplication.id}/withdraw`, payload).
+			then((response_)=>{
+				toast.success("Application withdrawn");
+				setApplications(null);
+			}).catch((err_)=>{
+				toast.error("Could not withdraw application");
+			}).finally(()=>{
+    		setShowWithdrawDialog(false);
+    		setWithdrawReason("");
+    		router.refresh();
+			});
+	}
 
   async function handleCloseJob() {
     if (!currentUser?.id) {
@@ -685,103 +648,63 @@ export default function JobDetailPage() {
   }
 
   const handleCompleteJob = () => {
-    if (!lifecycleState?.canComplete) {
-      alert('Cannot complete job at this time');
-      return;
-    }
-    const transition = canTransitionToStatus('confirmed', 'completed');
-    if (!transition.allowed) {
-      alert(transition.reason);
-      return;
-    }
-    store.updateJob(job.id, { status: 'completed' });
-    const confirmedApp = applications.find((a) => a.subcontractorId === job.confirmedSubcontractor);
-    if (confirmedApp) {
-      store.updateApplication(confirmedApp.id, { status: 'completed' });
-    }
-    const conversation = store.getConversationForJob(
-      job.id,
-      job.contractorId,
-      job.confirmedSubcontractor ?? job.selectedSubcontractor
-    );
-    if (conversation) {
-      const messages = store.getMessagesByConversation(conversation.id);
-      if (shouldAddSystemMessage(messages, 'completed')) {
-        const systemMsg = createSystemMessage(conversation.id, 'completed');
-        store.addMessage(systemMsg);
-      }
-    }
-    router.refresh();
+		// mark job as completed
+		// mark application as completed
+		getAxios(null).put(`/api/jobs/${jobId}/complete`).
+			then((response_)=>{
+				toast.success("Job completed");
+				setJob(null);
+				setApplications(null);
+			}).catch((err_)=>{
+				toast.error("Could not complete job");
+			}).finally(()=>{
+			});
   };
 
   const handleCancelJob = (reason: string) => {
-    const wasAccepted = job.status === 'accepted' || job.status === 'confirmed';
-    store.updateJob(job.id, {
-      status: 'cancelled',
-      cancelledAt: new Date(),
-      cancelledBy: currentUser.id,
-      cancellationReason: reason,
-      wasAcceptedOrConfirmedBeforeCancellation: wasAccepted,
-    });
-    const conversation = store.getConversationForJob(
-      job.id,
-      job.contractorId,
-      job.confirmedSubcontractor ?? job.selectedSubcontractor
-    );
-    if (conversation) {
-      const messages = store.getMessagesByConversation(conversation.id);
-      if (shouldAddSystemMessage(messages, 'cancelled')) {
-        const systemMsg = createSystemMessage(conversation.id, 'cancelled', reason);
-        store.addMessage(systemMsg);
-      }
-    }
-    router.refresh();
+		const app = applications.find((x)=>x.status === "confirmed");
+		const wasConfirmed = app !== undefined;
+		const payload = {
+			reason,
+			cancelledBy: currentUser.id,
+			wasConfirmed
+		};
+		getAxios(null).put(`/api/jobs/${jobId}/cancel`, payload).
+			then((response_)=>{
+				toast.success("Job cancelled");
+				setJob(null);
+			}).catch((err_)=>{
+				toast.error("Could not cancel job");
+			}).finally(()=>{
+			});
   };
 
   const handleSubmitReview = async (review: any) => {
-    store.createReview({
-      ...review,
-      id: `review-${Date.now()}`,
-      authorId: currentUser.id,
-      createdAt: new Date(),
-    });
-    // Best-effort notification email side effect.
-    try {
-      if (review?.recipientId && review?.jobId) {
-        await fetch('/api/reliability-reviews/notify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            recipientId: review.recipientId,
-            jobId: review.jobId,
-          }),
-        });
-      }
-    } catch (err) {
-      console.warn('[jobs/[id]] reliability review email trigger failed', err);
-    }
-
-    router.refresh();
+		toast.info("coming soon");
   };
 
   const handleMessagePoster = () => {
-    // Use ?userId= so /messages runs POST /api/conversations and replaces with a real Supabase
-    // conversation id. Store-only ids like `conv-${Date.now()}` are not valid for /api/messages/send.
-    router.push(`/messages?userId=${job.contractorId}`);
+		const posterId = job?.owner?.profileId ?? null;
+		getAxios(null).post(`/api/conversations`, {otherProfileId: posterId}).
+			then((response_)=>{
+				const data_ = response_.data;
+				const conversationId = data_.conversationId;
+    		router.push(`/messages?conversationId=${conversationId}`);
+			}).catch((err_)=>{
+				toast.error("Could not create conversation");			
+			});
   };
 
-  const canCancelJob =
-    lifecycleState?.canCancel &&
-    (isMyJob || job.selectedSubcontractor === currentUser.id || job.confirmedSubcontractor === currentUser.id);
-
-  const canLeaveReview = job.status === 'cancelled' && canLeaveReliabilityReview(job, currentUser.id);
-
-  const existingReview = canLeaveReview
-    ? store.getReviewsByJob(job.id).find((r) => r.authorId === currentUser.id)
-    : null;
-
-  const recipientId = isMyJob ? job.confirmedSubcontractor || job.selectedSubcontractor : job.contractorId;
-  const recipient = recipientId ? store.getUserById(recipientId) : null;
+  const canCancelJob = isMyJob && job.status !== "completed";
+  const canLeaveReview = job.status === "cancelled";
+  const existingReview = canLeaveReview ? null : null;
+  let recipientId = null;
+	if(isMyJob && applications !== null){
+		const app = applications.find((x)=>x.status === "confirmed");
+		recipientId = app?.profileId ?? null; 
+	}else{
+		recipientId = myAppStatus === "confirmed" ? job.owner.profileId : null;
+	}
 
   // ✅ Single dashboard route (no more /dashboard/contractor or /dashboard/subcontractor)
   const dashboardHref = '/dashboard';
@@ -1155,7 +1078,6 @@ export default function JobDetailPage() {
                 Message Poster
               </Button>
             )}
-
             {myApplication && (
               <div className="space-y-3">
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -1188,17 +1110,16 @@ export default function JobDetailPage() {
                 </div>
               </div>
             )}
-
             {/* Applicant decision (single-account model):
                 If current user is the selected person and job is accepted, allow accept/decline */}
-            {!isMyJob && job.status === 'accepted' && job.selectedSubcontractor === currentUser.id && (
+            { !isMyJob && job.status === "open" && myAppStatus === "selected" && (
               <div className="space-y-2">
                 <div className="flex gap-3">
                   <Button
                     onClick={handleAccept}
                     className="flex-1"
                     disabled={needsAbnForActions || actionSubmitting}
-                    title={needsAbnForActions ? 'Accepting requires a verified ABN.' : undefined}
+                    title={needsAbnForActions ? "Accepting requires a verified ABN." : ""}
                   >
                     <CheckCircle className="w-4 h-4 mr-2" />
                     {actionSubmitting ? 'Accepting...' : 'Accept'}
@@ -1210,59 +1131,21 @@ export default function JobDetailPage() {
                 </div>
                 {needsAbnForActions && (
                   <p className="text-sm text-amber-700">
-                    This step requires a verified ABN.{' '}
-                    <Link href={getVerifyBusinessUrl(returnUrl)} className="font-medium text-blue-600 hover:text-blue-700 underline">
+                    This step requires a verified ABN.
+                    <Link href={getVerifyBusinessUrl(returnUrl)} 
+												className="font-medium text-blue-600 hover:text-blue-700 underline">
                       Verify business
                     </Link>
                   </p>
                 )}
               </div>
             )}
-
-            {isMyJob && job.status === 'accepted' && (
-              <div className="space-y-2">
-                <div className="flex gap-3">
-                  <Button
-                    onClick={handleConfirmHire}
-                    className="flex-1"
-                    disabled={!lifecycleState?.canConfirmHire || needsAbnForActions || actionSubmitting}
-                    title={
-                      needsAbnForActions
-                        ? 'Confirming hire requires a verified ABN.'
-                        : !lifecycleState?.canConfirmHire
-                          ? 'Hire cannot be confirmed in the current job state.'
-                          : undefined
-                    }
-                  >
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    {actionSubmitting ? 'Confirming...' : 'Confirm Hire'}
-                  </Button>
-                  {canCancelJob && (
-                    <Button onClick={() => setShowCancelDialog(true)} variant="outline" className="flex-1">
-                      <Ban className="w-4 h-4 mr-2" />
-                      Cancel Job
-                    </Button>
-                  )}
-                </div>
-                {needsAbnForActions && (
-                  <p className="text-sm text-amber-700">
-                    Confirming hire requires a verified ABN.{' '}
-                    <Link href={getVerifyBusinessUrl(returnUrl)} className="font-medium text-blue-600 hover:text-blue-700 underline">
-                      Verify business
-                    </Link>
-                  </p>
-                )}
-              </div>
-            )}
-
             {isMyJob && job.status === 'confirmed' && (
               <div className="flex gap-3">
-                {lifecycleState?.canComplete && (
-                  <Button onClick={handleCompleteJob} className="flex-1">
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    Mark as Completed
-                  </Button>
-                )}
+              	<Button onClick={handleCompleteJob} className="flex-1">
+									<CheckCircle className="w-4 h-4 mr-2" />
+									Mark as Completed
+								</Button>
                 {canCancelJob && (
                   <Button onClick={() => setShowCancelDialog(true)} variant="outline" className="flex-1">
                     <Ban className="w-4 h-4 mr-2" />
@@ -1299,7 +1182,7 @@ export default function JobDetailPage() {
               </Button>
             )}
 
-            {canLeaveReview && !existingReview && recipient && (
+            {canLeaveReview && !existingReview && recipientId && (
               <Button onClick={() => setShowReviewDialog(true)} variant="outline" className="w-full">
                 <AlertCircle className="w-4 h-4 mr-2" />
                 Leave Reliability Review
@@ -1316,15 +1199,13 @@ export default function JobDetailPage() {
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                 <p className="text-sm font-medium text-gray-900 mb-1">Job Cancelled</p>
                 <p className="text-xs text-gray-600">
-                  Cancelled on {format(job.cancelledAt, 'MMM dd, yyyy')} by{' '}
-                  {job.cancelledBy === currentUser.id ? 'you' : store.getUserById(job.cancelledBy || '')?.name || 'TradeHub user'}
+                  Cancelled on {format(job.cancelledAt, 'MMM dd, yyyy')}&nbsp;by&nbsp;TradeHub User
                 </p>
                 {job.cancellationReason && <p className="text-sm text-gray-700 mt-2">{job.cancellationReason}</p>}
               </div>
             )}
           </div>
-
-          {isMyJob && applications !== null && applications.length > 0 && (
+          { isMyJob && applications !== null && applications.length > 0 && (
             <div className="bg-white border border-gray-200 rounded-xl p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Applications ({applications.length})</h2>
               <div className="space-y-4">
@@ -1332,41 +1213,55 @@ export default function JobDetailPage() {
                   const applicant = app?.applicant ?? null;
                   if (!applicant) 
 										return null;
+									const selectButton = (
+										<Button
+											size="sm"
+											onClick={() => handleSelectApplication(app.id)}
+											disabled={ needsAbnForActions || actionSubmitting || app.status !== "applied" }
+											title={ needsAbnForActions 
+												? "Selecting a subcontractor requires a verified ABN (posting this job did not)."
+												: "Shortlist this applicant for hiring" }>
+											Select
+										</Button>
+									);
+									const confirmButton = (
+										<Button
+											size="sm"
+											onClick={() => handleConfirmApplication(app.id)}
+											disabled={ needsAbnForActions || actionSubmitting || app.status !== "accepted" }
+											title={ needsAbnForActions 
+												? "Confirming a subcontractor requires a verified ABN (posting this job did not)."
+												: "Confirm this applicant for hiring"}>
+											Confirm
+										</Button>
+									);
                   return (
                     <div key={app.id} className="border border-gray-200 rounded-lg p-4">
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex items-center gap-3">
-                          <UserAvatar avatarUrl={applicant.avatarDataUrl} userName={applicant.name || 'TradeHub user'} size="md" />
+                          <UserAvatar avatarUrl={applicant.avatarDataUrl} 
+														userName={applicant.name || 'TradeHub user'} 
+														size="md" />
                           <div>
                             <p className="font-medium text-gray-900">{applicant.name || 'TradeHub user'}</p>
                             <p className="text-sm text-gray-600">
-                              {getUserRating(applicant.upVotes, applicant.downVotes)} ★ · {applicant.completedJobs} jobs
+                              {getUserRating(applicant.upVotes, applicant.downVotes)}&nbsp;★ 
+															·&nbsp;
+															{applicant.completedJobs}&nbsp;job(s)
+															·&nbsp;
+                							<StatusPill type="application" status={app.status} />
                             </p>
                           </div>
                         </div>
-                        {job.status === 'open' && lifecycleState?.allowsSelection && (
-                          <div className="flex flex-col items-end gap-1">
-                            <Button
-                              size="sm"
-                              onClick={() => handleSelectApplication(app.id)}
-                              disabled={lifecycleState?.isExpired || needsAbnForActions || actionSubmitting}
-                              title={
-                                needsAbnForActions
-                                  ? 'Selecting a subcontractor requires a verified ABN (posting this job did not).'
-                                  : lifecycleState?.isExpired
-                                    ? 'This listing is no longer accepting selections.'
-                                    : undefined
-                              }
-                            >
-                              Select
-                            </Button>
-                            {needsAbnForActions && (
-                              <Link href={getVerifyBusinessUrl(returnUrl)} className="text-xs text-amber-700 font-medium">
-                                Verify business
-                              </Link>
-                            )}
-                          </div>
-                        )}
+                        <div className="flex flex-col items-end gap-1">
+                        { job.status === 'open' && selectButton }
+                        { job.status === 'open' && confirmButton }
+												{ needsAbnForActions && (
+													<Link href={getVerifyBusinessUrl(returnUrl)} className="text-xs text-amber-700 font-medium">
+														Verify business
+													</Link>
+												)}
+                        </div>
                       </div>
                       {app.message && <p className="text-sm text-gray-700 mt-2">{app.message}</p>}
                     </div>
@@ -1375,7 +1270,6 @@ export default function JobDetailPage() {
               </div>
             </div>
           )}
-
           <Dialog open={showApplyDialog} onOpenChange={setShowApplyDialog}>
             <DialogContent>
               <DialogHeader>
@@ -1447,11 +1341,11 @@ export default function JobDetailPage() {
             </DialogContent>
           </Dialog>
 
-          {recipient && (
+          {recipientId && (
             <ReliabilityReviewForm
               job={job}
               recipientId={recipientId!}
-              recipientName={recipient.name || 'TradeHub user'}
+              recipientName={"TradeHub user"}
               open={showReviewDialog}
               onOpenChange={setShowReviewDialog}
               onSubmit={handleSubmitReview}

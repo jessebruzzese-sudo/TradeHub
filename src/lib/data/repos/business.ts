@@ -4,7 +4,13 @@ import { or, and, eq, sql, isNull, inArray, asc } from "drizzle-orm";
 import { businessTable, businessTradeTable, googlePlacesTable } from "@/lib/data/defs/business";
 import { tradesTable } from "@/lib/data/defs/trades";
 import { usersTable } from "@/lib/data/defs/users";
-import { getDB, getDataService } from "@/lib/data/service";
+import { getDB, getDataService, callDb } from "@/lib/data/service";
+
+export const getTradesForBusiness = async (businessId:string) => {
+	return (await getDB()).select().
+		from(businessTradeTable).
+		where(eq(businessTradeTable.businessId, businessId));
+};
 
 export const setPricingT = async (businessId:string, pricing:any, trx:any) => {
 	return trx.update(businessTable).set({...pricing}).where(eq(businessTable.id, businessId));
@@ -14,18 +20,64 @@ export const updateBusinessT = async (trx:any, delta:any, businessId:string) => 
 	return trx.update(businessTable).set(delta).where(eq(businessTable.id, businessId));
 };
 
-export const updateBusiness = async (userId:string, delta:any) => {
-	return new Promise(async(resolve, reject)=>{
-		const id = await getUserBusinessId(userId);	
-		if(id === null){
-			reject(new Error(`User is not linked with a business`));
-			return;
-		}
-		const db = await getDB();
-		await db.transaction(async(trx)=>{
-			await updateBusinessT(trx, delta, id);
+export const syncTradesT = async (trx:any, trades:array, primaryTrade:string, businessId:string, mapping:any) => {
+		return new Promise(async(resolve, reject) => {
+			try{
+				// remove existing trades
+				await trx.delete(businessTradeTable).where(eq(businessTradeTable.businessId, businessId));
+			}catch(err_){
+				reject(err_);
+				return;
+			}
+			const primaryId = mapping[primaryTrade] ?? null;
+			if(primaryId === null){
+				reject(new Error(`Primary trade ${primaryTrade} doesn't exist in mapping`));
+				return;
+			}
+			try{
+				// create primary trade link
+				await trx.insert(businessTradeTable).
+					values({businessId, tradeId: primaryId, isPrimary: true});
+			}catch(err_){
+				reject(err_);
+				return;
+			}
+			// make *sure* that the trades array doesn't contain the primary trade
+			// otherwise bad things will happen
+			const otherTrades = trades.filter((x)=>x !== primaryTrade);
+			// create other trades
+			for(const other of otherTrades){
+				const otherId = mapping[other] ?? null;
+				if(otherId === null){
+					reject(new Error(`Other trade ${other} doesn't exist in mapping`));
+					return;
+				}
+				try{
+					await trx.insert(businessTradeTable).
+						values({businessId, tradeId: otherId, isPrimary:false});
+				}catch(err_){
+					reject(err_);
+					return;
+				}
+			}
+			resolve(true);
 		});
-		resolve(true);
+};
+
+export const updateBusiness = async (userId:string, delta:any) => {
+	const id = await getUserBusinessId(userId);	
+	if(id === null){
+		throw new Error(`User is not linked with a business`);
+	}
+	return await callDb(async(db) => {
+		return db.transaction(async(trx) => {
+			try{
+				await updateBusinessT(trx, delta, id);
+				return true;
+			}catch(err_){
+				throw err_;
+			}
+		});
 	});
 };
 
@@ -76,19 +128,17 @@ export const getUserBusinessId = async (userId:string) => {
 	});
 };
 
-export const addGooglePlace = async (place:any) => {
-	return new Promise(async(resolve, reject)=>{
-		const db = await getDB();
-		await db.transaction(async(trx)=>{
-			const results = await trx.select({placeId:googlePlacesTable.placeId}).
-				from(googlePlacesTable).
-				where(eq(place.placeId, googlePlacesTable.placeId));
-			if(results.length > 0){
-				throw new Error(`Google place is already being referenced`);
+export const upsertGooglePlace = async (place:any) => {
+	return await callDb(async(db)=>{
+		return db.transaction(async(trx)=>{
+			try{
+				await trx.delete(googlePlacesTable).where(eq(googlePlacesTable.businessId, place.businessId));
+				await trx.insert(googlePlacesTable).values(place);
+				return true;
+			}catch(err_){
+				throw err_;
 			}
-			await trx.insert(googlePlacesTable).values(place);
 		});
-		resolve(true);
 	});
 };
 

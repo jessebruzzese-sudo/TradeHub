@@ -1,7 +1,7 @@
 // vim: ts=2
 'use server'
 import { or, and, eq, sql, isNull, inArray, asc } from "drizzle-orm";
-import { getDB } from "@/lib/data/service";
+import { getDB, callDb } from "@/lib/data/service";
 import { workTable, workImageTable } from "@/lib/data/defs/works";
 import { usersTable } from "@/lib/data/defs/users";
 import { getImageExtension } from "@/lib/utils";
@@ -42,14 +42,16 @@ export const deleteWorkImagesT = async (workId:string, trx:any) => {
 };
 
 export const deleteWork = async (workId:string) => {
-	return new Promise(async(resolve, reject)=>{
-		const db = await getDB();
-		await db.transaction(async(trx)=>{
-			await deleteWorkImagesT(workId, trx);
-			await deleteWorkT(workId, trx);
+	return await callDb(async(db)=>{
+		return db.transaction(async(trx)=>{
+			try{
+				await deleteWorkImagesT(workId, trx);
+				await deleteWorkT(workId, trx);
+			}catch(err_){
+				throw err_;
+			}
 		});
-		resolve(true);
-	});
+	})
 };
 
 export const getWorkById = async (workId:string) => {
@@ -118,29 +120,29 @@ export const getWork = async (profileId:string) => {
 };
 
 export const addWork = async (work:any) => {
-	return new Promise(async(resolve, reject)=>{
-		const db = await getDB();
-		const workId = await db.transaction(async(trx)=>{
-			let values = await addWorkT(work, trx);
-			const workId = values[0]?.id ?? null;
-			if(workId === null){
-				reject(new Error(`Failed to create new work record`));
-				return;
-			}
-			for(const i of work.images){
-				values = await addWorkImageT({...i, workId}, trx);
-				const imageId = values[0]?.id ?? null;
-				if(imageId === null){
-					reject(new Error("Failed to create new work image record"));
-					return;
+	return await callDb(async(db) => {
+		return db.transaction(async(trx) => {
+			try{
+				let values = await addWorkT(work, trx);
+				const workId = values[0]?.id ?? null;
+				if(workId === null){
+					throw new Error(`Failed to create new work record`);
 				}
-				const ext = getImageExtension(i.mime);
-				const file = `${imageId}.${ext}`;
-				const filePath = `${ENV.store.images}/${file}`;
-				await writeFile(filePath, Buffer.from(i.data, "base64"));
+				for(const i of work.images){
+					values = await addWorkImageT({...i, workId}, trx);
+					const imageId = values[0]?.id ?? null;
+					if(imageId === null){
+						throw new Error("Failed to create new work image record");
+					}
+					const ext = getImageExtension(i.mime);
+					const file = `${imageId}.${ext}`;
+					const filePath = `${ENV.store.images}/${file}`;
+					await writeFile(filePath, Buffer.from(i.data, "base64"));
+				}
+				return workId;
+			}catch(err_){
+				throw err_;
 			}
-			return workId;
 		});
-		resolve(workId);
 	});
 };

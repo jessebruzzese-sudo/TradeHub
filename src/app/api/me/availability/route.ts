@@ -37,8 +37,12 @@ export async function POST(request: NextRequest) {
 		return NextResponse.json({msg:"Invalid payload"}, {status:400});
 	}
 	try{
-		const { availability } = await getDataService();
-		await availability.addAvailability(payload, userId);
+		const { availability, business } = await getDataService();
+		const businessId = await business.getUserBusinessId(userId);
+		if(businessId === null){
+			return NextResponse.json({msg:"No business is linked with user"}, {status:500});
+		}
+		await availability.addAvailability(payload, userId, businessId);
 	}catch(err_){
 		return NextResponse.json({msg:"Failed to create availability record"}, {status:500});
 	}

@@ -39,7 +39,6 @@ export const getAxios = (token:string|null) => {
 };
 export const getMimeForFile = (path:string) => {
 	const tokens = path?.split("/") ?? [];
-	console.log(path);
 	if(tokens.length === 0){
 		throw new Error(`Failed to split path ${path} into tokens`);
 	}

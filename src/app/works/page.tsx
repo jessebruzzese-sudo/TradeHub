@@ -51,7 +51,7 @@ export default function CompletedWorksIndexPage() {
     router.replace('/works', { scroll: false });
   }, [searchParams, router]);
 
-  const primaryTradeLabel = currentUser?.business?.trades[0] ?? null;
+  const primaryTradeLabel = currentUser?.business?.primaryTrade ?? null;
   const TradeIcon = primaryTradeLabel ? getTradeIcon(primaryTradeLabel) : null;
 
   useEffect(() => {

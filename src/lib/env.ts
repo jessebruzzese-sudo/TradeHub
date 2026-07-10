@@ -58,7 +58,8 @@ export const ENV: TradeHubEnv = {
 			welcome: load("WELCOME_TEMPLATE_ID"),
 			userCreated: load("USER_CREATED_TEMPLATE_ID"),
 			forgotPassword: load("FORGOT_PASSWORD_TEMPLATE_ID"),
-			passwordChanged: load("PASSWORD_CHANGED_TEMPLATE_ID")
+			passwordChanged: load("PASSWORD_CHANGED_TEMPLATE_ID"),
+			messageSent: load("MESSAGE_SENT_TEMPLATE_ID")
 		}
 	},
 	jwt: {

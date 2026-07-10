@@ -39,10 +39,15 @@ export const deleteJobAttachments = async (job:any) => {
 
 export const loadImage = async (filePath:string) => {
 	return new Promise(async(resolve, reject)=>{
-		const mimeType = getMimeForFile(filePath);
-		const buffer = await readFile(filePath);
-		const url = `data:${mimeType};base64,${buffer.toString('base64')}`;
-		resolve(url);
+		try{
+			const mimeType = getMimeForFile(filePath);
+			const buffer = await readFile(filePath);
+			const url = `data:${mimeType};base64,${buffer.toString('base64')}`;
+			resolve(url);
+		}catch(err_){
+			reject(err_);
+			return;
+		}
 	});
 };
 

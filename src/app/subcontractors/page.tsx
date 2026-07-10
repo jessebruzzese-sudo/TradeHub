@@ -13,6 +13,7 @@ import {
 import { ArrowBack, People, PersonOutlined, CalendarTodayOutlined }  from "@mui/icons-material";
 import { getAxios } from "@/lib/utils";
 import { useEffect, useMemo, useState, useContext } from 'react';
+import { redirect } from "next/navigation";
 import { AppLayout } from '@/components/app-nav';
 import { TradeGate } from '@/components/trade-gate';
 import { PremiumUpsellBar } from '@/components/premium-upsell-bar';
@@ -202,8 +203,8 @@ export default function SubcontractorsPage() {
     setProfilesError(null);
 		// move filtering logic and sorting into server side
 		// along with pagination
-		const queryParams = `nameQuery=${nameQuery}&sortBy=${sortBy}&filterBy=${filterBy}`;
-		getAxios(null).get(`/api/discovery/trades/${effectiveTrade}?${queryParams}`).
+		const params = `sortBy=${sortBy}&filterBy=${filterBy}&nameQuery=${searchQuery}`;
+		getAxios(null).get(`/api/discovery/trades/${encodeURIComponent(effectiveTrade)}?${params}`).
 			then((response)=>{
 				const data = response.data;
 				setProfiles(data.matches);
@@ -214,7 +215,8 @@ export default function SubcontractorsPage() {
   }, [profiles]);
 
   if (!hasSession) {
-    return <UnauthorizedAccess redirectTo="/login" />;
+		redirect("/login");
+		return;
   }
 		
 	const profileCards = (profiles ?? []).map((e,i)=>{return <SubcontractorCard key={e.id} sub={e}/>});
@@ -289,8 +291,8 @@ export default function SubcontractorsPage() {
 										<TextField 
 											value={nameQuery} 
 											onChange={(event)=>{setNameQuery(event.target.value);}}
-											onBlur={(event)=>{}}
 											size={"small"}
+											onBlur={()=>{setProfiles(null);}}
 											fullWidth	
 											placeholder={"Search by name..."}
 											variant={"outlined"}

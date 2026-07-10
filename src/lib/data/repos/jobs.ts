@@ -1,7 +1,7 @@
 // vim: ts=2
 'use server'
 import { or, and, eq, ne, sql, isNull, inArray, asc, gte, gt, lt, lte } from "drizzle-orm";
-import { getDB, getDataService } from "@/lib/data/service";
+import { getDB, getDataService, callDb } from "@/lib/data/service";
 import { deleteJobAttachments } from "@/lib/images/service";
 import { jobsTable, jobAttachmentsTable } from "@/lib/data/defs/jobs";
 import { applicationTable, selectedApplicationTable } from "@/lib/data/defs/applications";
@@ -11,6 +11,33 @@ import { businessTable } from "@/lib/data/defs/business";
 import { writeFile, mkdir } from "node:fs/promises";
 import { ENV } from "@/lib/env";
 import { subDays } from "date-fns";
+
+export const cancelJob = async (job:any, payload:any) => {
+	return await callDb(async(db) => {
+		return db.transaction(async(trx) => {
+			try{
+				// change status
+				await updateJobStatusT(trx, job.id, "cancelled");
+				// set cancellation fields
+				const values = {
+					cancellationReason: payload.reason, 
+					cancelledBy: payload.cancelledBy, 
+					wasConfirmed: payload.wasConfirmed,
+					cancelledAt: new Date()
+				};
+				await trx.update(jobsTable).
+					set(values).
+					where(eq(jobsTable.id, job.id));
+				// TODO
+				// send message
+				// send email
+				return true;
+			}catch(err_){
+				throw err_;
+			}
+		});
+	});
+};
 
 export const getJobStatusBreakdown = async () => {
 	return new Promise(async(resolve, reject)=>{
@@ -70,17 +97,38 @@ const updateJobStatusT = async (trx:any, jobId:string, status:string) => {
 		where(eq(jobsTable.id, jobId));
 };
 
-export const confirmJob = async (job:any, app:any) => {
-	const db = await getDB();
-	const { applications: appRepo } = await getDataService();
-	return db.transaction(async(trx)=>{
-		await updateJobStatusT(trx, job.id, "confirmed");
-		await appRepo.updateApplicationStatusT(trx, app.id, "confirmed");
-		return { ok: true };
+export const completeJob = async (job:any, app:any) => {
+	const { applications: appRepo, profile: profileRepo } = await getDataService();
+	return await callDb(async(db) => {	
+		return db.transaction(async(trx) => {
+			try{
+				await updateJobStatusT(trx, job.id, "completed");
+				await appRepo.updateApplicationStatusT(trx, app.id, "completed");
+				await profileRepo.incCompletedJobsT(app.profileId, trx);
+				return true;
+			}catch(err_){
+				throw err_;
+			}
+		});
 	});
 };
 
-export const getSelectedApplications = async (jobId:string) => {
+export const confirmJob = async (job:any, app:any) => {
+	const { applications: appRepo } = await getDataService();
+	return await callDb(async(db) => {
+		return db.transaction(async(trx) => {
+			try{
+				await updateJobStatusT(trx, job.id, "confirmed");
+				await appRepo.updateApplicationStatusT(trx, app.id, "confirmed");
+				return true;
+			}catch(err_){
+				throw err_;
+			}
+		});
+	});
+};
+
+export const getAcceptedApplications = async (jobId:string) => {
 	return new Promise(async(resolve, reject) => {
 		const db = await getDB();	
 		const results = await db.select().from(applicationTable).
@@ -88,7 +136,7 @@ export const getSelectedApplications = async (jobId:string) => {
 			where(
 				and(
 					eq(selectedApplicationTable.jobId, jobId), 
-					eq(applicationTable.status, "selected")
+					eq(applicationTable.status, "accepted")
 				)
 			);
 		const apps = results.map((e,i)=>{ return  {...e.applications}});
@@ -96,15 +144,83 @@ export const getSelectedApplications = async (jobId:string) => {
 	});
 };
 
-export const selectApplication = async (job:any, app:any) => {
-	const db = await getDB();
+export const getConfirmedApplications = async (jobId:string) => {
+	return new Promise(async(resolve, reject) => {
+		const db = await getDB();	
+		const results = await db.select().from(applicationTable).
+			innerJoin(selectedApplicationTable, eq(applicationTable.id, selectedApplicationTable.applicationId)).
+			where(
+				and(
+					eq(selectedApplicationTable.jobId, jobId), 
+					eq(applicationTable.status, "confirmed")
+				)
+			);
+		const apps = results.map((e,i)=>{ return  {...e.applications}});
+		resolve(apps);
+	});
+};
+
+export const withdrawApplication = async (job:any, app:any, reason:string) => {
 	const { applications: appRepo } = await getDataService();
-	return db.transaction(async(trx)=>{
-		await updateJobStatusT(trx, job.id, "accepted");
-		await appRepo.updateApplicationStatusT(trx, app.id, "selected");
-		await appRepo.addLinkToJobT(trx, job.id, app.id, app.profileId);
-		// TODO send email
-		return { ok: true };
+	return await callDb(async(db) => {
+		return db.transaction(async(trx) => {
+			try{
+				await appRepo.updateApplicationStatusT(trx, app.id, "declined");
+				await appRepo.setWithdrawlReasonT(trx, app.id, reason);
+				await appRepo.deleteLinkFromJobT(trx, job.id, app.id);
+				// TODO send email
+				// confirm withdrawl of application
+				return true;
+			}catch(err_){
+				throw err_;
+			}
+		});
+	});
+};
+
+export const declineApplication = async (job:any, app:any) => {
+	const { applications: appRepo } = await getDataService();
+	return await callDb(async(db) => {
+		return db.transaction(async(trx) => {
+			await appRepo.updateApplicationStatusT(trx, app.id, "declined");
+			await appRepo.deleteLinkFromJobT(trx, job.id, app.id);
+			// TODO send email
+			// confirm withdrawl of application
+			return true;
+		});
+	});
+};
+
+export const acceptApplication = async (job:any, app:any) => {
+	const { applications: appRepo } = await getDataService();
+	return await callDb(async(db) => {
+		return db.transaction(async(trx) => {
+			try{
+				await appRepo.updateApplicationStatusT(trx, app.id, "accepted");
+				// TODO send email
+				// confirm accepted of application
+				return true;
+			}catch(err_){
+				throw err_;
+			}
+		});
+	});
+};
+
+export const selectApplication = async (job:any, app:any) => {
+	const { applications: appRepo } = await getDataService();
+	return await callDb(async(db) => {
+		return db.transaction(async(trx) => {
+			try{
+				await appRepo.updateApplicationStatusT(trx, app.id, "selected");
+				await appRepo.addLinkToJobT(trx, job.id, app.id, app.profileId);
+				// TODO send email
+				// alert applicant of selection
+				return true; 
+			}catch(err_){
+				throw err_;
+			}
+		});
 	});
 };
 
@@ -136,7 +252,8 @@ const jobApplicationReducer = (a, c) => {
 			avatarDataUrl: c.profile.avatarDataUrl,
 			completedJobs: 0,
 			userId: c.users.id,
-			name: c.users.visibleName ?? c.users.name
+			name: c.users.visibleName ?? c.users.name,
+			completedJobs: c.profile.completedJobs
 		};
 	}
 	return a;
@@ -168,31 +285,40 @@ export const getApplications = async (jobId: string) => {
 };
 
 export const updateJob = async (job:any) => {
-	return new Promise(async(resolve, reject)=>{
-		// make sure that job has id
-		// i.e. is an existing job and not a payload
-		const jobId = job?.id ?? null;
-		if(jobId === null){
-			reject(new Error("Job object doesn't have id"));
-			return;
-		}
-		const db = await getDB();
-		await db.transaction(async(trx)=>{
+	// make sure that job has id
+	// i.e. is an existing job and not a payload
+	const jobId = job?.id ?? null;
+	if(jobId === null){
+		throw new Error("Job object doesn't have id");
+	}
+	return await callDb(async(db) => {
+		return db.transaction(async(trx) => {
 			for(const a of job.attachments){
 				if(a.delete){
-					await trx.delete(jobAttachmentsTable).where(eq(jobAttachmentsTable.id, a.id));
+					try{
+						await trx.delete(jobAttachmentsTable).where(eq(jobAttachmentsTable.id, a.id));
+					}catch(err_){
+						throw err_;
+					}
 					continue;
 				}
 				if(a.create){
 					const path = `${ENV.store.jobs}/${jobId}`;
-					await addJobAttachmentT(trx, {...a, jobId}, path);
+					try{
+						await addJobAttachmentT(trx, {...a, jobId}, path);
+					}catch(err_){
+						throw err_;
+					}
 				}
 			}
-			await trx.update(jobsTable).
-				set({...job, updatedAt: new Date()}).
-				where(eq(jobsTable.id, jobId));
+			try{
+				await trx.update(jobsTable).
+					set({...job, updatedAt: new Date()}).
+					where(eq(jobsTable.id, jobId));
+			}catch(err_){
+				throw err_;
+			}
 		});
-		resolve(true);
 	});
 };
 
@@ -280,49 +406,52 @@ export const getJob = async (jobId:string) => {
 };
 
 export const deleteJob = async (job:any) => {
-	return new Promise(async(resolve, reject)=>{
-		const db = await getDB();
-		await db.transaction(async(trx)=>{
-			if(job.attachments.length > 0){
-				await trx.delete(jobAttachmentsTable).where(eq(jobAttachmentsTable.jobId, job.id));
-			}
-			await trx.delete(jobsTable).where(eq(jobsTable.id, job.id));
-			const removed = await deleteJobAttachments(job);
-			if(removed !== job.attachments.length){
-				throw new Error(`Failed to remove all attachments`);
+	return await callDb(async(db) => {
+		return db.transaction(async(trx) => {
+			try{
+				if(job.attachments.length > 0)
+					await trx.delete(jobAttachmentsTable).where(eq(jobAttachmentsTable.jobId, job.id));
+				await trx.delete(selectedApplicationTable).where(eq(selectedApplicationTable.jobId, job.id));
+				await trx.delete(applicationTable).where(eq(applicationTable.jobId, job.id));
+				await trx.delete(jobsTable).where(eq(jobsTable.id, job.id));
+				const removed = await deleteJobAttachments(job);
+				if(removed !== job.attachments.length)
+					throw new Error(`Failed to remove all attachments`);
+			}catch(err_){
+				throw err_;
 			}
 		});
-		resolve(true);
 	});
 };
 
 export const addJob = async (job:any) => {
-	return new Promise(async(resolve, reject)=>{
-		const db = await getDB();
-		const jobId = await db.transaction(async(trx)=>{
-			let results = await trx.insert(jobsTable).
-				values(job).
-				returning({id:jobsTable.id});
-			const jobId_ = results[0]?.id ?? null;
-			if(jobId_ === null){
-				reject(new Error(`Failed to create new job, null id`));
-				return;
-			}
-			// try to create directory for this job
-			const path = `${ENV.store.jobs}/${jobId_}`;
+	return await callDb(async(db) => {
+		return db.transaction(async(trx) => {
 			try{
-				await mkdir(path);
-			}catch(err__){
-				// ignore	
-				// already exists
+				let results = await trx.insert(jobsTable).
+					values(job).
+					returning({id:jobsTable.id});
+				const jobId_ = results[0]?.id ?? null;
+				if(jobId_ === null){
+					throw new Error(`Failed to create new job, null id`);
+				}
+				// try to create directory for this job
+				const path = `${ENV.store.jobs}/${jobId_}`;
+				try{
+					await mkdir(path);
+				}catch(err__){
+					// ignore	
+					// already exists
+				}
+				for(const a of job.attachments){
+					const copy = {...a, jobId: jobId_ }; // fileName, jobId
+					await addJobAttachmentT(trx, copy, path);
+				}
+				return jobId_;
+			}catch(err_){
+				throw err_;
 			}
-			for(const a of job.attachments){
-				const copy = {...a, jobId: jobId_ }; // fileName, jobId
-				await addJobAttachmentT(trx, copy, path);
-			}
-			return jobId_;
 		});
-		resolve(jobId);
 	});
 };
 

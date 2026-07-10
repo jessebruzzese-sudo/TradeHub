@@ -12,9 +12,9 @@ export async function GET(request: NextRequest, context) {
 	let HOOK_USER_LOCATION = ( queryParams.get("hookUserLocation") ?? "false" ) === "true";
 	let HOOK_HAVERSINE = ( queryParams.get("hookHaversine") ?? "false" ) === "true";
 	let HOOK_MATCHES = ( queryParams.get("hookMatches") ?? "false" ) === "true";
-	const sortBy = queryParams.get("sortBy");
-	const filterBy = queryParams.get("filterBy");
-	const nameQuery = queryParams.get("nameQuery");
+	const sortBy = queryParams.get("sortBy") ?? null;
+	const filterBy = queryParams.get("filterBy") ?? null;
+	const nameQuery = queryParams.get("nameQuery") ?? null;
 	// make sure that hooks are false in non
 	// development environments
 	const DEVELOPMENT = "development";
@@ -88,15 +88,86 @@ export async function GET(request: NextRequest, context) {
 	refined = refined.filter((x) => x.trades.find((j) => j === trade || trade === ALL_TRADES) !== undefined);
 	// find matching users
 	let matches = null;
+	let userDistanceMapping = null;
 	try{
-		const userIds = refined.map((e,i)=>e.userId);
+		userDistanceMapping = refined.reduce((a, c)=>{
+			const key = c.userId;
+			const value = c.distance;
+			a[key] = value;
+			return a;
+		}, {});
 		if(HOOK_MATCHES){
 			return NextResponse.json({ userIds, count: userIds.length }, { status: 200 });
 		}
-		matches = await userRepo.getUserProfilesById(userIds);
+		matches = await userRepo.getUserProfilesById(Object.keys(userDistanceMapping));
 	}catch(err_){
 		console.error(err_);
 		return NextResponse.json({ error: "Failed to query users" }, { status: 500 });
+	}
+	// apply filtering by name
+	if(nameQuery !== null){
+		const tokens = nameQuery.split(" ").map((e,i)=>{return e.trim().toLowerCase(); });
+		// check that any name of any matched user
+		// contains any sub string of the search input
+		const predicate = (user) => {
+			const name = user?.name?.toLowerCase() ?? null;
+			const visible = user?.visibleName?.toLowerCase() ?? null;
+			const businessName = user?.business?.businessName ?? null;
+			const abnName = user?.business?.abnEntityName ?? null;
+			const names = [];
+			if(name) names.push(name);
+			if(visible) names.push(visible);
+			if(businessName) names.push(businessName);
+			if(abnName) names.push(abnName);
+			return names.reduce((a, c)=>{
+				if(a === true){
+					return a;
+				}	
+				let found = false;
+				for(const t of tokens){
+					if(c.indexOf(t) !== -1){
+						found = true;
+						break;
+					}
+				}
+				return a || found;
+			}, false);
+		};
+		matches = matches.filter(predicate);
+	}
+	// apply filtering by verification status
+	// filter by onlyn accepts two parameters
+	// one being "all" and another being abn-verified
+	// all is irrelevant as its just all results
+	// only need to filter by abn verified
+	if(filterBy !== null && filterBy === "abn-verified"){
+		matches = matches.filter((x)=>x.business.abnVerified);
+	}
+	for(const m of matches){
+		const userId = m.id;
+		const distance = userDistanceMapping[userId] ?? null;
+		if(distance === null){
+			console.error(`Distance for user ${userId} was not defined`);
+			continue;
+		}
+		m.distance = distance;
+	}
+	// apply sorting
+	const DEFAULT_PRICE = 1000000;
+	const DEFAULT_RATING = 100;
+	const sortingMethods = {
+		"distance-closest": (l, r) => l.distance - r.distance,
+		"distance-furthest": (l, r) => r.distance - l.distance,
+		"price-lowest": (l, r) => ( l?.business?.price ?? DEFAULT_PRICE ) - ( r.business.price ?? DEFAULT_PRICE ),
+		"price-highest": (l, r) => ( r?.business?.price ?? DEFAULT_PRICE ) - ( l?.business?.price ?? DEFAULT_PRICE ),
+		"rating-lowest": (l, r) => ( l?.profile?.rating ?? DEFAULT_RATING ) - ( r?.profile?.rating ?? DEFAULT_RATING ),
+		"rating-highest": (l, r) => ( r?.profile?.rating ?? DEFAULT_RATING ) - ( l?.profile?.rating ?? DEFAULT_RATING )
+	};
+	console.log(`Sorting method is ${sortBy}`);
+	const appliedSort = sortingMethods[sortBy] ?? null;
+	if(appliedSort !== null){
+		console.log(`Applying sort ${sortBy}`);
+		matches.sort(appliedSort);	
 	}
 	return NextResponse.json({ matches: matches ?? [] }, { status: 200 });
 }

@@ -20,10 +20,9 @@ export async function DELETE(request: NextRequest) {
 	const cookie = store.get("authorization") ?? null;
 	const jwt = cookie?.value ?? null;
 	const claims = await jose.decodeJwt(jwt);
-	const email = claims.email;
 	let result = null;
 	const { business } = await getDataService();
-	const businessId = await business.getUserBusinessId(email);
+	const businessId = await business.getUserBusinessId(claims.id);
 	if(businessId === null){
 		return NextResponse.json({msg:"Could not find this users business"}, {status:500});
 	}
@@ -42,10 +41,9 @@ export async function POST(request: NextRequest) {
 	const cookie = store.get("authorization") ?? null;
 	const jwt = cookie?.value ?? null;
 	const claims = await jose.decodeJwt(jwt);
-	const email = claims.email;
 	let result = null;
 	const { business } = await getDataService();
-	const businessId = await business.getUserBusinessId(email);
+	const businessId = await business.getUserBusinessId(claims.id);
 	if(businessId === null){
 		return NextResponse.json({msg:"Could not find this users business"}, {status:500});
 	}
@@ -57,7 +55,7 @@ export async function POST(request: NextRequest) {
 		return NextResponse.json({msg:"Failed to parse payload", error:err_}, {status:400});
 	}
 	try{
-		await business.addGooglePlace({...place, businessId});
+		await business.upsertGooglePlace({...place, businessId});
 		return NextResponse.json({ok:true}, {status:200});	
 	}catch(err_){
 		console.error(err_);

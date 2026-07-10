@@ -6,8 +6,8 @@ import { useEffect, useMemo, useState, useContext } from 'react';
 import UserContext from "@/lib/user-context";
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { ShieldCheck, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useRouter, useSearchParams, redirect } from 'next/navigation';
+import { ShieldCheck, ArrowLeft, CheckCircle2, AlertCircle, Check } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { getSafeReturnUrl, safeRouterPush } from '@/lib/safe-nav';
 import { normalizeAbnForDb } from '@/lib/abn-normalize';
@@ -42,8 +42,8 @@ export default function VerifyBusinessPage() {
   }, [searchParams]);
 
 	const [currentUser, setCurrentUser] = useState<any|null>(UserSession.user);
-  const [abn, setAbn] = useState('');
-  const [businessName, setBusinessName] = useState('');
+  const [abn, setAbn] = useState(currentUser?.business?.abn ?? "");
+  const [businessName, setBusinessName] = useState(currentUser?.business?.abnEntityName ?? "");
   const [statusMsg, setStatusMsg] = useState<string>('');
   const [error, setError] = useState('');
 	const [isCheckingABN, setIsCheckingABN] = useState<boolean>(false); // is check happening now
@@ -70,7 +70,8 @@ export default function VerifyBusinessPage() {
   }, [currentUser]);
 
   if (!isLoggedIn) {
-    return <UnauthorizedAccess redirectTo="/login" />;
+		redirect("/login");
+		return;
   }
 
   const isVerified = currentUser?.business?.abnVerified ?? false;
@@ -160,6 +161,29 @@ export default function VerifyBusinessPage() {
   const handleSkip = () => {
     safeRouterPush(router, '/dashboard', '/dashboard');
   };
+	
+	const notVerifiedHeader = (
+		<>
+			<div className="flex justify-center mb-6">
+				<div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+					<ShieldCheck className="w-8 h-8 text-blue-600" />
+				</div>
+			</div>
+			<h2 className="text-center text-2xl font-bold text-gray-900 mb-2">
+				Verify your business
+			</h2>
+			<p className="text-center text-sm text-gray-600 mb-4">
+				Verify your ABN to unlock business features such as applying for work. You can post jobs without ABN
+				verification; optional verification also builds trust on your profile.
+			</p>
+		</>
+	);
+	
+	const submitVerification = (
+		<Button type="submit" disabled={isCheckingABN} className="w-full">
+			{ isCheckingABN ? 'Verifying...' : 'Verify ABN' }
+		</Button>
+	);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -176,21 +200,8 @@ export default function VerifyBusinessPage() {
         </Link>
 
         <div className="bg-white py-8 px-4 shadow-sm rounded-xl sm:px-10 border border-gray-200">
-          <div className="flex justify-center mb-6">
-            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
-              <ShieldCheck className="w-8 h-8 text-blue-600" />
-            </div>
-          </div>
-
-          <h2 className="text-center text-2xl font-bold text-gray-900 mb-2">
-            Verify your business
-          </h2>
-
-          <p className="text-center text-sm text-gray-600 mb-4">
-            Verify your ABN to unlock business features such as applying for work. You can post jobs without ABN
-            verification; optional verification also builds trust on your profile.
-          </p>
-
+					{/* only show this header when the user isn't verified */}
+					{ !isVerified ? notVerifiedHeader : null }
           {/* Current status */}
           <div className="mb-6 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
             <div className="flex items-center justify-between gap-3">
@@ -201,7 +212,7 @@ export default function VerifyBusinessPage() {
                   isVerified ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-800',
                 ].join(' ')}
               >
-                {isVerified ? "Verified" : "Not Verified"}
+                {isVerified ? <span>Verified<span style={{paddingLeft:"5px"}}><Check style={{display:"inline"}}/></span></span>: "Not Verified"}
               </span>
             </div>
             {isVerified ? (
@@ -239,11 +250,14 @@ export default function VerifyBusinessPage() {
                 onChange={(e) => setBusinessName(e.target.value)}
                 placeholder="Smith Construction"
                 className="mt-1"
+								disabled={isVerified}
                 autoComplete="organization"
               />
+							{isVerified ? null :
               <p className="text-xs text-gray-500 mt-1">
                 Optional — we’ll also fetch this automatically when you verify.
               </p>
+							}
             </div>
 
             <div>
@@ -257,19 +271,17 @@ export default function VerifyBusinessPage() {
                 placeholder="12 345 678 901"
                 className="mt-1"
                 required
+								disabled={isVerified}
                 inputMode="numeric"
               />
-              <p className="text-xs text-gray-500 mt-1">Enter your 11-digit ABN</p>
+              {isVerified ? null : <p className="text-xs text-gray-500 mt-1">Enter your 11-digit ABN</p>}
             </div>
 
             <div className="flex flex-col gap-3">
-              <Button type="submit" disabled={isCheckingABN} className="w-full">
-                {isCheckingABN ? 'Verifying...' : isVerified ? 'Re-verify ABN' : 'Verify ABN'}
-              </Button>
-
+							{isVerified ? null : submitVerification }
               <Button type="button" variant="outline" onClick={handleSkip} className="w-full" disabled={isCheckingABN}>
                 <ArrowLeft className="w-4 h-4 mr-2" />
-                Not now
+								{ isVerified ? "Back to dashboard" : "Not now" }
               </Button>
             </div>
           </form>

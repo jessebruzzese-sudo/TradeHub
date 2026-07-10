@@ -27,9 +27,10 @@ export async function GET(request: NextRequest){
 		if(business === null){
 			return NextResponse.json({msg:"User is not linked with a business"}, {status: 500});
 		}
-		const location = { latitude: business.locationLat, longitude: business.locationLng };
+		const location = { latitude: Number(business.locationLat), longitude: Number(business.locationLng) };
 		const near = await jobs.getJobsNear(location, profile.profile.id); // +/- 1 lat/long
 		const premium = profile?.profile?.premium ?? false;
+		const primaryTrade = business?.primaryTrade;
 		const radius = premium ? 100 : 20;
 		const refined = near.filter((x)=>haversineKm(x.latitude, x.longitude, location.latitude, location.longitude) <= radius);
 		if(refined.length === 0){
@@ -37,7 +38,13 @@ export async function GET(request: NextRequest){
 		}
 		const ids = refined.map((e,i)=>e.id);
 		const results = await jobs.getJobsForIds(ids);
-		return NextResponse.json(results, {status: 200});
+		// premium? return everything
+		if(premium){
+			return NextResponse.json(results, {status: 200});
+		}
+		// else filter by trade
+		const tradeFiltered = results.filter((x)=>x.tradeCategory === primaryTrade);
+		return NextResponse.json(tradeFiltered, {status: 200});
 	}catch(err_){
 		console.error(err_);
 		return NextResponse.json({msg:"Failed to search jobs"}, {status: 500});

@@ -103,21 +103,24 @@ export default function EditProfilePage() {
   const linkIconBoxClass =
     'flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white/70 shadow-sm';
 
+	const getPrimaryTrade = (user:any) => {
+		return user?.business?.primaryTrade ?? null;
+	};
+
   // Controlled values (always defined so hooks are stable)
 	const [currentUser, setCurrentUser] = useState<any|null>(UserSession?.user ?? null);
   const [name, setName] = useState<string>(UserSession.user?.name ?? "");
   const [miniBio, setMiniBio] = useState<string>(UserSession.user?.profile?.miniBio ?? "");
   const [businessName, setBusinessName] = useState<string>(UserSession.user?.business?.businessName ?? "");
   const [bio, setBio] = useState<string>(UserSession.user?.profile?.bio ?? "");
-  const [primaryTrade, setPrimaryTrade] = useState<string>(UserSession.user?.business?.trades[0] ?? null);
-  const [isPublicProfile, setIsPublicProfile] = useState<boolean>(UserSession.user?.public ?? false);
+  const [primaryTrade, setPrimaryTrade] = useState<string>(getPrimaryTrade(UserSession?.user ?? null));
   const [location, setLocation] = useState<string>(UserSession.user?.business?.location ?? "");
   const [postcode, setPostcode] = useState<string>(UserSession.user?.business?.postcode ?? "");
   const [locationLat, setLocationLat] = useState<number | null>(UserSession.user?.business?.locationLat ?? null);
   const [locationLng, setLocationLng] = useState<number | null>(UserSession.user?.business?.locationLng ?? null);
 
   // free-text skills field (comma separated)
-  const [tradesText, setTradesText] = useState<string>((UserSession.user?.business?.trades ?? []).join(", "));
+  const [tradesText, setTradesText] = useState<string>((UserSession.user?.profile?.skills ?? []).join(", "));
 
   // Links (website + socials)
   const [website, setWebsite] = useState<string>(UserSession.user?.profile?.website ?? "");
@@ -175,8 +178,7 @@ export default function EditProfilePage() {
 
   const [additionalLocations, setAdditionalLocations] = useState<Array<{ id: string; location: string; postcode?: string | null; lat?: number | null; lng?: number | null }>>([]);
   const [locationsLoading, setLocationsLoading] = useState(false);
-
-  const [userTrades, setUserTrades] = useState<Array<{ id: string | null; trade: string; is_primary: boolean }>>([]);
+  const [userTrades, setUserTrades] = useState<Array<string>>(UserSession?.user?.business?.trades?.filter((x)=>x!==primaryTrade) ?? []);
   const [tradesLoading, setTradesLoading] = useState(false);
   const [addTradeOpen, setAddTradeOpen] = useState(false);
   const { names: catalogTradeNames, loading: catalogTradesLoading } = useActiveTradesCatalog();
@@ -459,11 +461,11 @@ export default function EditProfilePage() {
   const parsedTrades = useMemo<string[]>(() => {
     return tradesText
       .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean);
+      .map((t) => t.trim());
   }, [tradesText]);
 
-  const selectedTrades = useMemo(() => userTrades.map((t) => t.trade), [userTrades]);
+  const selectedTrades = useMemo(() => userTrades.map((t) => t.trim()), [userTrades]);
+
   const availableTradeOptions = useMemo(
     () => catalogTradeNames.filter((t) => !selectedTrades.includes(t)),
     [catalogTradeNames, selectedTrades]
@@ -472,32 +474,20 @@ export default function EditProfilePage() {
   const handleAddTrade = (trade: string) => {
     if (!trade || !isMultiTradeEnabled) return;
     if (selectedTrades.includes(trade)) return;
-    setUserTrades((prev) => {
-      const next = [...prev.map((t) => ({ ...t, is_primary: false })), { id: null, trade, is_primary: false }];
-      if (prev.length === 0) {
-        next[next.length - 1].is_primary = true;
-      }
-      return next;
-    });
+		if (trade === primaryTrade){
+			toast.info(`${trade} is already your primary trade`);
+			return;
+		}
+    setUserTrades([...selectedTrades, trade]);
     setAddTradeOpen(false);
   };
 
   const handleRemoveTrade = (trade: string) => {
-    if (selectedTrades.length <= 1) return;
-    const primary = userTrades.find((t) => t.is_primary);
-    setUserTrades((prev) => {
-      const next = prev.filter((t) => t.trade !== trade);
-      if (primary?.trade === trade && next.length > 0) {
-        next[0].is_primary = true;
-      }
-      return next;
-    });
+    const next = selectedTrades.filter((t) => t !== trade);
+    setUserTrades(next);
   };
 
   const handleSetPrimaryTrade = (trade: string) => {
-    setUserTrades((prev) =>
-      prev.map((t) => ({ ...t, is_primary: t.trade === trade }))
-    );
     setPrimaryTrade(trade);
   };
 
@@ -571,30 +561,10 @@ export default function EditProfilePage() {
       toast.error('Password is required.');
       return;
     }
-
+		setDeleteLoading(true);
     try {
-      setDeleteLoading(true);
-
-      const res = await fetch('/api/account/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
-      });
-
-      if (!res.ok) {
-        const payload = await res.json().catch(() => ({}));
-        const code = payload?.error ?? payload?.message;
-        const msg =
-          code === 'INVALID_PASSWORD' ? 'Incorrect password.' :
-          code === 'PASSWORD_REQUIRED' ? 'Password is required.' :
-          typeof code === 'string' ? code :
-          'Could not delete account. Please check your password and try again.';
-        throw new Error(msg);
-      }
-
-      await getBrowserSupabase().auth.signOut();
-      toast.success('Account deleted.');
-      window.location.assign('/');
+			// toast and logout
+			toast.info("Coming soon");
     } catch (e: any) {
       toast.error(e?.message ?? 'Could not delete account. Please check your password and try again.');
     } finally {
@@ -607,10 +577,8 @@ export default function EditProfilePage() {
   const handleRefineBio = async () => {
     const raw = String(bio ?? '').trim();
     if (!raw) return;
-
     try {
       setIsRefiningBio(true);
-
       const res = await fetch('/api/ai/refine-bio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -619,20 +587,16 @@ export default function EditProfilePage() {
           text: raw,
         }),
       });
-
       const data = await res.json();
-
       if (!res.ok) {
         toast.error(data?.error ?? 'Could not refine bio.');
         return;
       }
-
       const refined = String(data?.refined ?? '').trim();
       if (!refined) {
         toast.error('AI did not return a refinement. Try again.');
         return;
       }
-
       setBio(refined);
       toast.success('Bio refined.');
     } catch (e) {
@@ -654,31 +618,13 @@ export default function EditProfilePage() {
     }
     const tradesToSave = normalizedTrades.length > 0 ? normalizedTrades : [effectivePrimary];
     if (tradesToSave.length > 1 && !isMultiTradeEnabled) {
-      toast.error('Multiple trades require Premium');
+      toast.error('Multiple trades require premium');
       return;
     }
     setIsSaving(true);
     try {
-      // Free users: primary trade is locked; skip trades API. Premium users: sync trades.
-      if (canEditTrades) {
-        const tradesRes = await fetch('/api/profile/trades', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            primaryTrade: effectivePrimary,
-            trades: tradesToSave,
-          }),
-        });
-        if (!tradesRes.ok) {
-          const data = await tradesRes.json().catch(() => ({}));
-          toast.error(data?.error || 'Failed to save trades');
-          setIsSaving(false);
-          return;
-        }
-      }
       const cleanedAbn = normalizeAbnForDb(abnNumber || '') ?? '';
       const enteredAbn = cleanedAbn.length > 0;
-
       const payload: Record<string, unknown> = {
         name: name?.trim() ?? null,
         miniBio: miniBio?.trim() ?? null,
@@ -700,19 +646,14 @@ export default function EditProfilePage() {
         price: pricingType && pricingType !== 'quote_on_request' && pricingAmount.trim()
           ? Number(pricingAmount) || null
           : null,
+				trades: isMultiTradeEnabled ? tradesToSave : null,
+				skills: parsedTrades,
+				primaryTrade: primaryTrade,
+				location,
+				postcode,
+				locationLat: String(locationLat),
+				locationLng: String(locationLng)
       };
-
-		/*
-        ...(canEditPrimaryLocation
-          ? {
-              location: location.trim() || null,
-              postcode: postcode.trim() || null,
-              locationLat,
-              locationLng,
-            }
-          : {}),
-*/	
-	
 			// persist changes
 			// clear context variables	
 			// therefore making the profile page load the user again
@@ -1374,18 +1315,6 @@ export default function EditProfilePage() {
                       value={primaryTradeValue || undefined}
                       onValueChange={(v) => {
                         setPrimaryTrade(v);
-                        if (selectedTrades.includes(v)) {
-                          handleSetPrimaryTrade(v);
-                        } else {
-                          setUserTrades(
-                            isMultiTradeEnabled
-                              ? (prev) => [
-                                  ...prev.map((t) => ({ ...t, is_primary: false })),
-                                  { id: null, trade: v, is_primary: true },
-                                ]
-                              : () => [{ id: null, trade: v, is_primary: true }]
-                          );
-                        }
                       }}
                       disabled={tradesLoading || catalogTradesLoading}
                     >
@@ -1434,19 +1363,15 @@ export default function EditProfilePage() {
                   <Label className="text-sm font-medium text-slate-800">Additional trades</Label>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {selectedTrades.map((trade) => {
-                      const isPrimary = trade === primaryTradeValue;
                       return (
                         <Badge
                           key={trade}
                           variant="secondary"
                           className={cn(
-                            'gap-1.5 py-1.5 pl-2.5 pr-1.5 text-sm font-medium',
-                            isPrimary && 'ring-2 ring-slate-400 ring-offset-1'
+                            'gap-1.5 py-1.5 pl-2.5 pr-1.5 text-sm font-medium'
                           )}
                         >
-                          {isPrimary && <span className="text-xs text-slate-500">Primary</span>}
                           <span>{trade}</span>
-                          {selectedTrades.length > 1 && (
                             <button
                               type="button"
                               onClick={() => handleRemoveTrade(trade)}
@@ -1456,7 +1381,6 @@ export default function EditProfilePage() {
                             >
                               <X className="h-3.5 w-3.5" />
                             </button>
-                          )}
                         </Badge>
                       );
                     })}
@@ -1498,7 +1422,9 @@ export default function EditProfilePage() {
 
               {/* Optional free-text skills (profile copy only) */}
                 <div>
-                  <Label htmlFor="tradesText" className="text-sm font-medium text-slate-800">Additional Trade Skills</Label>
+                  <Label htmlFor="tradesText" className="text-sm font-medium text-slate-800">
+										Additional Trade Skills	
+									</Label>
                   <Input
                     id="tradesText"
                     type="text"
@@ -1660,27 +1586,6 @@ export default function EditProfilePage() {
                 </div>
               </DialogContent>
             </Dialog>
-          </div>
-          )}
-
-          {!isAdmin && (
-          <div id="public-profile" className={cardClass}>
-            <div className="mb-3">
-              <h2 className="text-sm font-semibold text-slate-900">Public profile</h2>
-              <p className="text-xs text-slate-600">If enabled, you can appear in &quot;Trades near you&quot; lists.</p>
-            </div>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="isPublicProfile" className="cursor-pointer text-sm font-medium text-slate-800">
-                  Show my profile in discovery
-                </Label>
-                <Switch
-                  id="isPublicProfile"
-                  checked={isPublicProfile}
-                  onCheckedChange={setIsPublicProfile}
-                />
-              </div>
-            </div>
           </div>
           )}
 

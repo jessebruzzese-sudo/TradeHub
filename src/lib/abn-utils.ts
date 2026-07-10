@@ -1,3 +1,4 @@
+// vim: ts=2
 const DEFAULT_RETURN_URL = '/dashboard';
 
 /**

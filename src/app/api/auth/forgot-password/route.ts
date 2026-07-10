@@ -20,17 +20,20 @@ export async function POST(request: Request) {
 	}
 	const state = crypto.randomUUID();
 	const { users: usersRepo } = await getDataService();
+	let updated = null;
 	try{
-		await usersRepo.doForgotPassword(state, payload.email);
+		updated = await usersRepo.doForgotPassword(state, payload.email);
 	}catch(err_){
 		console.error(err_);
 		return NextResponse.json({ error:"Something went wrong, try again later."}, { status: 500 });
 	}
-	try{
-		// send email
-		await doForgotPassword(state, payload.email);	
-	}catch(err_){
-		console.error(err_);
+	if(updated?.length > 0){
+		try{
+			// send email
+			await doForgotPassword(state, payload.email);	
+		}catch(err_){
+			console.error(err_);
+		}
 	}
 	return NextResponse.json({ ok: true });
 }
