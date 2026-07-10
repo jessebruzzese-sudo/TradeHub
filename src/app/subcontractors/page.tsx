@@ -6,6 +6,7 @@ import Link from 'next/link';
 import UserContext from "@/lib/user-context";
 import { getAxios } from "@/lib/utils";
 import { useEffect, useMemo, useState, useContext } from 'react';
+import { redirect } from "next/navigation";
 import { AppLayout } from '@/components/app-nav';
 import { TradeGate } from '@/components/trade-gate';
 import { PremiumUpsellBar } from '@/components/premium-upsell-bar';
@@ -186,7 +187,8 @@ export default function SubcontractorsPage() {
     setProfilesError(null);
 		// move filtering logic and sorting into server side
 		// along with pagination
-		getAxios(null).get(`/api/discovery/trades/${encodeURIComponent(effectiveTrade)}?sortBy=${sortBy}&filterBy=${filterBy}`).
+		const params = `sortBy=${sortBy}&filterBy=${filterBy}&nameQuery=${searchQuery}`;
+		getAxios(null).get(`/api/discovery/trades/${encodeURIComponent(effectiveTrade)}?${params}`).
 			then((response)=>{
 				const data = response.data;
 				setProfiles(data.matches);
@@ -197,7 +199,8 @@ export default function SubcontractorsPage() {
   }, [profiles]);
 
   if (!hasSession) {
-    return <UnauthorizedAccess redirectTo="/login" />;
+		redirect("/login");
+		return;
   }
 
   return (
@@ -287,6 +290,7 @@ export default function SubcontractorsPage() {
                         className="pl-10"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
+												onBlur={()=>{setProfiles(null);}}
                       />
                     </div>
                   </div>

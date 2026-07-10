@@ -245,6 +245,12 @@ export const getUserProfilesById = async (userIds: array) => {
 		const results = [];
 		for(const userId of userIds){
 			const profile = await getUserProfile(userId);
+			const upVotes = profile?.profile?.upVotes ?? 0;
+			const downVotes = profile?.profile?.downVotes ?? 0;
+			const totalVotes = upVotes + downVotes;
+  		const starAverage = totalVotes === 0 ? 0 : Number((1 + (upVotes / totalVotes) * 4).toFixed(1));
+  		const avg = Number(starAverage);
+			profile.profile.rating = avg;
 			delete profile["password"];
 			results.push(profile);
 		}
