@@ -307,7 +307,7 @@ export default function SubcontractorsPage() {
 								<Grid item size={12}>
 								{/* FORM CONTAINER */}
 								<Grid container spacing={1}>
-									<Grid item size={{lg:3, xs:12}}>
+									<Grid item size={{lg:12, xs:12}}>
 										<TextField 
 											value={nameQuery} 
 											onChange={(event)=>{setNameQuery(event.target.value);}}
@@ -316,10 +316,10 @@ export default function SubcontractorsPage() {
 											fullWidth	
 											placeholder={"Search by name..."}
 											variant={"outlined"}
-											slotProps={{input:{endAdornment: <InputAdornment position={"end"}><Search/></InputAdornment>}}}
+											slotProps={{input:{startAdornment: <InputAdornment position={"start"}><Search/></InputAdornment>}}}
 										/>
 									</Grid>
-									<Grid item size={{lg:2, xs:12}}>
+									<Grid item size={{lg:6, xs:12}}>
 										<TextField 
 												value={selectedTrade} 
 												onChange={(event)=>{setSelectedTrade(event.target.value);setProfiles(null);}} 	
@@ -333,7 +333,7 @@ export default function SubcontractorsPage() {
 											})}	
 										</TextField>
 									</Grid>
-									<Grid item size={{lg:3, xs:12}}>
+									<Grid item size={{lg:6, xs:12}}>
 										<TextField 
 												value={sortBy} 
 												onChange={(event)=>{setSortBy(event.target.value);}} 	
@@ -347,23 +347,9 @@ export default function SubcontractorsPage() {
 											})}	
 										</TextField>
 									</Grid>
-									<Grid item size={{lg:2, xs:12}}>
-										<TextField 
-												value={filterBy} 
-												onChange={(event)=>{setFilterBy(event.target.value);}} 	
-												select 
-												size={"small"} 	
-												fullWidth
-												variant={"outlined"}
-											>
-											{verificationOptions.map((e,i)=>{
-												return <MenuItem value={e.value} key={`trade_${i}`}>{e.label}</MenuItem>
-											})}	
-										</TextField>
-									</Grid>
-									<Grid item size={{lg:2, xs:12}}>
+									<Grid item size={12}>
 										<Button fullWidth 
-												variant={"contained"} 
+												variant={"outlined"} 
 												onClick={(event)=>{setFilterByDate(!filterByDate);}}>
 											<CalendarTodayOutlined/><span style={{marginLeft:"5px"}}>Filter by date</span>
 										</Button>
@@ -372,6 +358,13 @@ export default function SubcontractorsPage() {
 								{/* END FORM CONTAINER */}
 								</Grid>
 								{/* END FORM WRAPPER ITEM */}
+								<Grid item size={12}>
+									<Typography variant={"body2"}>
+									<Switch checked={includeAvailable} onChange={()=>{setIncludeAvailable(!includeAvailable);}}/>
+									ABN verified only
+									</Typography>
+								</Grid>
+								{/* END SWITCH ROW */}
 								<Grid item size={12}>
 									<Typography variant={"body2"}>
 									<Switch checked={includeAvailable} onChange={()=>{setIncludeAvailable(!includeAvailable);}}/>
