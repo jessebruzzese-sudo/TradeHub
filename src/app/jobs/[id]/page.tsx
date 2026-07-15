@@ -480,8 +480,11 @@ export default function JobDetailPage() {
       </AppLayout>
     );
   }
-
-  const needsAbnForActions = needsBusinessVerification(currentUser);
+	
+	// remove requirement for business verification	
+	// during testing of mvp, put back later?
+  // original const needsAbnForActions = needsBusinessVerification(currentUser);
+  const needsAbnForActions = false;
   const returnUrl = `/jobs/${jobId}`;
   const abnRequiredActionToast =
     "This step requires a verified ABN. Verify your business to continue.";
