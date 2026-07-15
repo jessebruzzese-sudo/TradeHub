@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Dialog, DialogContent, DialogTitle, DialogActions, Typography } from "@mui/material";
 import Link from 'next/link';
 import Image from 'next/image';
 import { AppLayout } from '@/components/app-nav';
@@ -59,12 +60,14 @@ export default function LoginPage() {
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
+	const [activateOpen, setActivateOpen] = useState<boolean>(true);
   const [error, setError] = useState('');
 
   const { login } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const returnUrlParam = searchParams.get('returnUrl');
+  const returnUrlParam = searchParams.get("returnUrl");
+	const activate = searchParams.get("activate");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,9 +92,32 @@ export default function LoginPage() {
         </div>
     );
   }
+	
+	let activateDialog = null;
+	if(activate === "1"){
+		activateDialog = (
+			<Dialog open={activateOpen} onClose={()=>{setActivateOpen(false);}}>
+				<DialogTitle sx={{textAlign:"center"}}>
+					<Typography sx={{fontFamily:"inter", fontWeight:"400", fontSize:"1.5rem"}}>
+						Activation Required
+					</Typography>
+				</DialogTitle>
+				<DialogContent sx={{textAlign:"center", fontFamily:"inter"}}>
+					<Typography>
+						An activation email has been sent to your inbox. <br/>Please activate your account before logging in.	
+					</Typography>
+				</DialogContent>
+				<DialogActions>
+					<Button onClick={()=>{setActivateOpen(false);}}>OK</Button>
+				</DialogActions>
+			</Dialog>
+		);
+	}
 
   return (
       <div className="relative min-h-screen bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800">
+				{/* activate dialog */}
+				{activateDialog}
         {/* Dotted overlay - behind watermark */}
         <div
           className="pointer-events-none absolute inset-0 opacity-20"

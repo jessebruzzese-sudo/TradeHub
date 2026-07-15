@@ -44,7 +44,7 @@
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@hookform/resolvers": "^5.2.2",
-    "@mui/material": "^9.1.2",
+    "@mui/material": "^9.2.0",
     "@netlify/plugin-nextjs": "^5.15.11",
     "@next/swc-wasm-nodejs": "^16.2.6",
     "@react-email/render": "^2.0.8",
