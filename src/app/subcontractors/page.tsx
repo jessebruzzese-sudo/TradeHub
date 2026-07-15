@@ -6,11 +6,9 @@ import Link from 'next/link';
 import UserContext from "@/lib/user-context";
 import { getAxios } from "@/lib/utils";
 import { useEffect, useMemo, useState, useContext } from 'react';
-import { redirect } from "next/navigation";
 import { AppLayout } from '@/components/app-nav';
 import { TradeGate } from '@/components/trade-gate';
 import { PremiumUpsellBar } from '@/components/premium-upsell-bar';
-import { useAuth } from '@/lib/auth';
 import { isPremiumForDiscovery } from '@/lib/discovery';
 import { getTradeIcon } from '@/lib/trade-icons';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -140,7 +138,6 @@ function SubcontractorCard({ sub }: { sub: any }) {
 
 export default function SubcontractorsPage() {
 
-  const { jwt } = useAuth();
 	const UserSession = useContext(UserContext);
 	const [currentUser, setCurrentUser] = useState(UserSession?.user ?? null);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -155,8 +152,7 @@ export default function SubcontractorsPage() {
   const [allowedRadiusKm, setAllowedRadiusKm] = useState(20);
 	const [catalogTradeNames, setCatalogTradeNames] = useState([]);
 
-	const isLoading = profiles === null;
-	const hasSession = jwt !== undefined && jwt !== null;
+	const isLoading = currentUser === null || profiles === null;
 
   const popularTradesForChips = useMemo(
     () => POPULAR_TRADE_ORDER.filter((t) => catalogTradeNames.includes(t)),
@@ -197,11 +193,6 @@ export default function SubcontractorsPage() {
 				setProfilesError("Failed to load profiles");
 			});
   }, [profiles]);
-
-  if (!hasSession) {
-		redirect("/login");
-		return;
-  }
 
   return (
     <TradeGate>

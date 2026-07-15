@@ -1,17 +1,17 @@
 // vim: ts=2
 'use client';
-import { getAxios, getClaims} from "@/lib/utils";
+import UserContext from "@/lib/user-context";
+import { getAxios } from "@/lib/utils";
 import Image from 'next/image';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useContext } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, MapPin } from 'lucide-react';
 
 import { AppLayout } from '@/components/app-nav';
 import { CompletedWorksGradientShell } from '@/components/works/completed-works-gradient-shell';
 import { UserAvatar } from '@/components/user-avatar';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/lib/auth';
 import { getTradeIcon } from '@/lib/trade-icons';
 import { formatPostedDate } from '@/lib/completed-work-dates';
 import type { PreviousWorkListItem, PreviousWorkOwnerSummary } from '@/lib/previous-work';
@@ -19,11 +19,13 @@ import { cn } from '@/lib/utils';
 import { getPublicProfileHref } from '@/lib/url-utils';
 
 export default function CompletedWorkDetailPage() {
+
   const params = useParams();
   const router = useRouter();
   const rawId = typeof params?.id === 'string' ? params.id : '';
-  const { jwt } = useAuth(); // logged in user
+	const UserSession = useContext(UserContext);
 
+	const [currentUser, setCurrentUser] = useState<any|null>(UserSession?.user ??  null);
   const [item, setItem] = useState<PreviousWorkListItem | null>(null);
 	const [owner, setOwner] = useState<any|null>(null);
   const [ownerId, setOwnerId] = useState<string | null>(null);
@@ -33,20 +35,26 @@ export default function CompletedWorkDetailPage() {
 		
 	const loading = item === null;
 
+
+	// TODO add hook for checking user context
+
   useEffect(() => {
+		if(currentUser === null){
+			return;
+		}
 		if(item !== null){
 			return;
 		}
-		getAxios(jwt).
+		getAxios(null).
 			get(`/api/works/${rawId}`).
 			then(async(response)=>{
 				const data = response.data;
-				const { id } = await getClaims(jwt); // current user
+				const id = currentUser.id;
 				const ownerId = data?.userId ?? null; // owner of works
 				if(ownerId === null){
 					throw new Error(`Works has no userId`);
 				}
-				let owner = await getAxios(jwt).get(`/api/profile/${ownerId}`);
+				let owner = await getAxios(null).get(`/api/profile/${ownerId}`);
 				owner = owner.data;
 				setOwnerId(ownerId);
 				setCurrentUserId(id);

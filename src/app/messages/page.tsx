@@ -10,8 +10,6 @@
  */
 
 import { getAxios } from "@/lib/utils";
-import { UnauthorizedAccess } from "@/components/unauthorized-access";
-import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { 
@@ -82,8 +80,6 @@ import UserContext from "@/lib/user-context";
 
 export default function MessagesPage() {
 
-  const { jwt } = useAuth();
-	const hasSession = jwt !== null && jwt !== undefined;
 	const UserSession = useContext(UserContext);
   const router = useRouter();
   const hasRedirected = useRef(false);
@@ -120,9 +116,6 @@ export default function MessagesPage() {
 	/* START HOOKS */
 
   useEffect(() => {
-		if(!hasSession){
-			return;
-		}
 		if(conversations !== null){
 			return;
 		}
@@ -139,9 +132,6 @@ export default function MessagesPage() {
   }, [conversations]);
 	
   useEffect(() => {
-		if(!hasSession){
-			return;
-		}
 		if(selectedConversation === null){
 			return;
 		}
@@ -235,11 +225,6 @@ export default function MessagesPage() {
 	};
 
 	/* END EVENT HANDLERS */
-
-  if (!hasSession) {
-		redirect("/login");
-		return;
-  }
 
 	// selected conversation state
 	let showEmptyState = ( messages?.length ?? 0 ) === 0;

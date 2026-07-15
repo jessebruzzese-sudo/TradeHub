@@ -26,16 +26,16 @@ export function TopBar() {
 
 	const UserSession = useContext(UserContext);	
 	const currentUser = UserSession?.user ?? null;
-	const { jwt, logout } = useAuth();
+	const { logout } = useAuth();
 	const isAdmin = ( currentUser?.role?.toLowerCase() ?? "user" ) === "admin";
-
-  if (!currentUser) {
-    return null;
-  }
 
 	const doLogout = () => {
 		UserSession.user = null;
-		logout();
+		logout().then((response_)=>{
+		}).catch((error_)=>{
+		}).finally(()=>{
+			window.location.href = "/login";
+		});
 	};
 
   return (
@@ -55,7 +55,7 @@ export function TopBar() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem disabled className="truncate max-w-[200px]">{currentUser.name || 'TradeHub user'}</DropdownMenuItem>
+              <DropdownMenuItem disabled className="truncate max-w-[200px]">{currentUser?.name || 'TradeHub user'}</DropdownMenuItem>
               {!isAdmin && (
                 <>
                   <DropdownMenuItem asChild>
@@ -84,12 +84,8 @@ export function SideNav() {
   const router = useRouter();
 	const UserSession = useContext(UserContext);	
 	const currentUser = UserSession?.user ?? null;
-	const { jwt, logout } = useAuth();
+	const { logout } = useAuth();
 	const isAdmin = (currentUser?.role?.toLowerCase() ?? "user") === "admin";
-
-  if (!currentUser) {
-    return null;
-  }
 
   const onAdminRoute = pathname.startsWith('/admin');
   const navKey = onAdminRoute && isAdmin ? 'admin' : 'business';
@@ -217,15 +213,12 @@ export function SideNav() {
 }
 
 export function BottomNav() {
+
   const pathname = usePathname();
 	const UserSession = useContext(UserContext);	
 	const currentUser = UserSession?.user ?? null;
-	const { jwt, logOut } = useAuth();
+	const { logOut } = useAuth();
 	const isAdmin = ( currentUser?.role?.toLowerCase() ?? "user" ) === "admin";
-
-  if (!currentUser) {
-    return null;
-  }
 
   if (isAdmin) {
     return (
@@ -261,21 +254,6 @@ export function AppLayout({
   children,
   transparentBackground = false,
 }: AppLayoutProps) {
-
-	const UserSession = useContext(UserContext);	
-	const currentUser = UserSession?.user ?? null;
-	const { jwt } = useAuth();
-	const isAdmin = ( currentUser?.role?.toLowerCase() ?? "user" ) === "admin";
-	const hasSession = jwt !== undefined && jwt !== null;
-
-  if (!currentUser || !hasSession) {
-    return (
-      <>
-        {children}
-        <GlobalFooter />
-      </>
-    );
-  }
 
   return (
     <div className={`flex flex-col md:flex-row min-h-screen overflow-hidden ${transparentBackground ? 'bg-transparent' : 'bg-slate-50'}`}>

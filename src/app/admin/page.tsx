@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useContext } from 'react';
 import { UnauthorizedAccess } from '@/components/unauthorized-access';
 import { Button } from '@/components/ui/button';
+import { toast } from "sonner";
 import { useAuth } from '@/lib/auth';
 
 import {
@@ -31,14 +32,23 @@ type AdminStats = {
 };
 
 export default function AdminPage() {
-  const { jwt, logout } = useAuth();
+
+  const { logout } = useAuth();
 	const router = useRouter();
 	const UserSession = useContext(UserContext);
 	const [currentUser, setCurrentUser] = useState<any|null>(UserSession?.user ?? null);
 	const [stats, setStats] = useState<any|null>(null);
-	const hasSession = jwt !== undefined && jwt !== null;
   const isAdminUser = currentUser?.role?.toLowerCase() === "admin";
 	const isLoading = currentUser === null || stats === null;
+
+	const doLogout = () => {
+		logout().then(()=>{
+			toast.info("You've been logged out");
+		}).catch(()=>{
+		}).finally(()=>{
+			window.location.href = "/login";
+		});
+	};
 
   useEffect(() => {
 		if(currentUser !== null){
@@ -84,10 +94,6 @@ export default function AdminPage() {
     );          
 	}
 
-  if (!hasSession || !isAdminUser) {
-    return <UnauthorizedAccess redirectTo="/login" />;
-  }
-
   const stat = (value?: number) => (typeof value === 'number' ? value : '—');
 
   return (
@@ -100,7 +106,7 @@ export default function AdminPage() {
             <p className="text-gray-600">Manage users, verifications, and platform settings</p>
           </div>
 
-          <Button variant="outline" onClick={()=>{logout();}} className="hidden gap-2 md:flex">
+          <Button variant="outline" onClick={doLogout} className="hidden gap-2 md:flex">
             <LogOut className="h-4 w-4" />
             Log out
           </Button>

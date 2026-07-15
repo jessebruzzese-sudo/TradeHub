@@ -32,7 +32,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useAuth } from '@/lib/auth';
 import { isPremiumForDiscovery } from '@/lib/discovery';
 import { hasPremiumAccess } from '@/lib/billing/has-premium-access';
 import { buildLoginUrl } from '@/lib/url-utils';
@@ -89,17 +88,14 @@ function normalizeJobRow(row: Record<string, unknown>): Record<string, unknown> 
 }
 
 export default function JobsPage() {
-  const { jwt } = useAuth();
 	const UserSession = useContext(UserContext);	
   const router = useRouter();
   const hasRedirected = useRef(false);
-
 	const [currentUser, setCurrentUser] = useState(UserSession?.user ?? null);
   const [tab, setTab] = useState<JobsTab>('find');
   const [visibleJobs, setVisibleJobs] = useState<any[]>(null);
   const [jobsError, setJobsError] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<'newest' | 'nearest'>('newest');
-
   const [myPosts, setMyPosts] = useState<any[]>(null);
   const [myPostsError, setMyPostsError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -107,7 +103,6 @@ export default function JobsPage() {
   const [deleteConfirmJobId, setDeleteConfirmJobId] = useState<string | null>(null);
 		
 	const isLoading = currentUser === null || myPosts === null || visibleJobs === null;
-	const hasSession = jwt !== null && jwt !== undefined;
 
   const showAbnTrustNotice = useMemo(
     () => !(currentUser?.business?.abnVerified ?? false),
@@ -321,10 +316,6 @@ export default function JobsPage() {
         }
       />
     );
-  }
-  if (!hasSession) {
-		redirect("/login");
-		return;
   }
   if (isLoading) {
     return (

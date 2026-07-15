@@ -23,7 +23,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useAuth } from '@/lib/auth';
 import { getTradeIcon } from '@/lib/trade-icons';
 import { formatRelativeTime } from '@/lib/completed-work-dates';
 import type { PreviousWorkListItem } from '@/lib/previous-work';
@@ -31,7 +30,6 @@ import { cn } from '@/lib/utils';
 
 export default function CompletedWorksIndexPage() {
 
-  const { jwt } = useAuth();
 	const UserSession = useContext(UserContext);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -42,7 +40,6 @@ export default function CompletedWorksIndexPage() {
   const [deleteTarget, setDeleteTarget] = useState<PreviousWorkListItem | null>(null);
 
 	const isLoading = currentUser === null || items === null;
-	const hasSession = jwt !== undefined && jwt !== null;
 
   useEffect(() => {
     if (searchParams.get('created') !== '1') return;

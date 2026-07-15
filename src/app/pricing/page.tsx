@@ -9,7 +9,6 @@ export default function PricingPage() {
       <div className="sticky top-0 z-[100] border-b border-white/10 bg-blue-600/90 backdrop-blur">
         <MarketingHeader />
       </div>
-
       <PricingContent />
     </div>
   );

@@ -8,7 +8,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, useSearchParams, redirect } from 'next/navigation';
 import { ShieldCheck, ArrowLeft, CheckCircle2, AlertCircle, Check } from 'lucide-react';
-import { useAuth } from '@/lib/auth';
 import { getSafeReturnUrl, safeRouterPush } from '@/lib/safe-nav';
 import { normalizeAbnForDb } from '@/lib/abn-normalize';
 import { toast } from 'sonner';
@@ -31,7 +30,6 @@ function formatAbnPretty(input: string) {
 
 export default function VerifyBusinessPage() {
 
-  const { jwt } = useAuth();
 	const UserSession = useContext(UserContext);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -48,16 +46,13 @@ export default function VerifyBusinessPage() {
   const [error, setError] = useState('');
 	const [isCheckingABN, setIsCheckingABN] = useState<boolean>(false); // is check happening now
 
-	const isLoggedIn = jwt !== null && jwt !== undefined;
 	const isLoading = currentUser === null;
 
   useEffect(() => {
-		if(!isLoggedIn)
-			return;
 		if(currentUser !== null)
 			return;
 		if(UserSession.user === null){
-			getAxios(jwt).
+			getAxios(null).
 				get("/api/me").
 					then((response_)=>{
 						const data = response_.data;
@@ -68,11 +63,6 @@ export default function VerifyBusinessPage() {
 					});
 		}
   }, [currentUser]);
-
-  if (!isLoggedIn) {
-		redirect("/login");
-		return;
-  }
 
   const isVerified = currentUser?.business?.abnVerified ?? false;
 
@@ -117,7 +107,7 @@ export default function VerifyBusinessPage() {
 						abnEntityType: null,
 						abnGstActiveDate: null
 					};	
-					await getAxios(jwt).put("/api/me/business", delta);
+					await getAxios(null).put("/api/me/business", delta);
 				}catch(err_){
 				}
 				setIsCheckingABN(false);
@@ -135,7 +125,7 @@ export default function VerifyBusinessPage() {
 					abnVerified: data.success,
 					abnGstActiveDate: data.gst
 				};
-				await getAxios(jwt).put("/api/me/business", delta);
+				await getAxios(null).put("/api/me/business", delta);
       } catch (e) {
         toast.error('ABN verified, but could not save verification. Please try again.');
 				setIsCheckingABN(false);

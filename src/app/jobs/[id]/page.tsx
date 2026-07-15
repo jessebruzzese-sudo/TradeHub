@@ -13,7 +13,6 @@ export const dynamic = "force-dynamic";
 import { getAxios, getUserRating } from "@/lib/utils";
 import { AppLayout } from '@/components/app-nav';
 import { UnauthorizedAccess } from "@/components/unauthorized-access";
-import { useAuth } from '@/lib/auth';
 import type { PayType, JobStatus } from '@/lib/types';
 import { loadJobById, syncContractorIntoStore } from '@/lib/jobs/load-job-by-id';
 import { formatJobPriceDisplay } from '@/lib/job-pay-labels';
@@ -251,7 +250,6 @@ function formatJobDatesDisplay(input: any): { label: string; badge?: string } | 
 
 export default function JobDetailPage() {
 
-  const { jwt } = useAuth();
 	const UserSession = useContext(UserContext);
   const params = useParams();
   const router = useRouter();
@@ -279,7 +277,6 @@ export default function JobDetailPage() {
   const [lightboxItems, setLightboxItems] = useState([]);
 
 	const isLoadingJob = job === null;
-	const hasSession = jwt !== undefined && jwt !== null;
 
   useEffect(() => {
 		if(job !== null){
@@ -359,11 +356,6 @@ export default function JobDetailPage() {
     return [pt];
   }, [currentUser]);
 		
-	if(!hasSession){
-		redirect("/login");
-		return;
-	}
-
   if (isLoadingJob) {
     return (
       <AppLayout>

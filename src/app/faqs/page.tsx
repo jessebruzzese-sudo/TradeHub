@@ -4,7 +4,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
-import { useAuth } from '@/lib/auth';
 import { isAdmin } from '@/lib/is-admin';
 import { useRouter } from 'next/navigation';
 import {
@@ -15,9 +14,7 @@ import {
 } from '@/components/ui/accordion';
 
 export default function FAQsPage() {
-  const { currentUser } = useAuth();
   const router = useRouter();
-
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="sticky top-0 z-50 border-b border-gray-200 bg-white">
@@ -27,20 +24,12 @@ export default function FAQsPage() {
             <span className="text-sm font-medium">Back</span>
           </Link>
           <div className="flex items-center gap-3">
-            {currentUser ? (
-              <Button size="sm" onClick={() => router.push(isAdmin(currentUser) ? '/admin' : '/dashboard')}>
-                Dashboard
-              </Button>
-            ) : (
-              <>
-                <Link href="/login">
-                  <Button size="sm" variant="ghost">Log in</Button>
-                </Link>
-                <Link href="/signup">
-                  <Button size="sm">Create account</Button>
-                </Link>
-              </>
-            )}
+						<Link href="/login">
+            	<Button size="sm" variant="ghost">Log in</Button>
+            </Link>
+           	<Link href="/signup">
+            	<Button size="sm">Create account</Button>
+            </Link>
           </div>
         </div>
       </header>
@@ -130,13 +119,11 @@ export default function FAQsPage() {
         </Accordion>
 
         <div className="space-y-3">
-          {!currentUser && (
-            <Link href="/signup">
-              <Button size="lg" className="w-full">
-                Create account
-              </Button>
-            </Link>
-          )}
+          <Link href="/signup">
+           	<Button size="lg" className="w-full">
+             	Create account
+            </Button>
+          </Link>
           <Link href="/">
             <Button size="lg" variant="outline" className="w-full">
               Back to home

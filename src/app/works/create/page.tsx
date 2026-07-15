@@ -9,7 +9,6 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useContext } from 'react';
 import { ImagePlus, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-
 import { AppLayout } from '@/components/app-nav';
 import { PageHeader } from '@/components/page-header';
 import { RefinePillButton } from '@/components/ai/RefinePillButton';
@@ -18,7 +17,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { SuburbAutocomplete } from '@/components/suburb-autocomplete';
-import { useAuth } from '@/lib/auth';
 import { getTradeIcon } from '@/lib/trade-icons';
 import {
   PREVIOUS_WORK_ALLOWED_MIME,
@@ -33,10 +31,8 @@ import { cn } from '@/lib/utils';
 
 export default function CreateCompletedWorkPage() {
 
-  const { jwt } = useAuth();
   const router = useRouter();
 	const UserSession = useContext(UserContext);
-
 	const [currentUser, setCurrentUser] = useState(UserSession.user);
   const [title, setTitle] = useState("");
   const [titleError, setTitleError] = useState<string | null>(null);
@@ -57,14 +53,6 @@ export default function CreateCompletedWorkPage() {
 
   const primaryTradeLabel = currentUser?.business?.primaryTrade ?? null;
   const TradeIcon = primaryTradeLabel ? getTradeIcon(primaryTradeLabel) : null;
-	const hasSession = jwt !== null && jwt !== undefined;
-
-  useEffect(() => {
-    if (!hasSession) {
-      router.replace(`/login?returnUrl=${encodeURIComponent('/works/create')}`);
-    }
-  }, [hasSession]);
-
   const previewUrls = useMemo(() => files.map((f) => URL.createObjectURL(f)), [files]);
 
   useEffect(() => {

@@ -52,7 +52,6 @@ type Availability = Record<Day, boolean>;
 type AuthCtx = {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-	jwt: string|null;
 };
 
 const AuthContext = createContext<AuthCtx | null>(null);
@@ -85,10 +84,7 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
   );
   const logout: AuthCtx['logout'] = useCallback(
     async () => {
-			return new Promise(async(resolve, reject)=>{
-				deleteCookie("authorization");
-				resolve();
-			});
+			return getAxios(null).put("/api/auth/logout");
     },
     []
   );

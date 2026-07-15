@@ -8,22 +8,22 @@ import { useRouter, redirect } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { AppLayout } from '@/components/app-nav';
 import { ProfileView } from '@/components/profile/profile-view';
-import { useAuth } from '@/lib/auth';
 import { buildLoginUrl } from '@/lib/url-utils';
 import { getAxios } from "@/lib/utils";
 
 export default function ProfilePage() {
-  const { jwt } = useAuth();
+
   const router = useRouter();
 	const UserSession = useContext(UserContext);
-	const isLoggedIn = jwt !== null && jwt !== undefined;
 	const [profile, setProfile] = useState(UserSession.user);
+
 	const isLoading = profile === null;
+
 	useEffect(()=>{
 		if(profile !== null){
 			return;
 		}	
-		getAxios(jwt).
+		getAxios(null).
 			get("/api/me").
 				then((response_)=>{
 					const user_ = response_.data;
@@ -34,6 +34,7 @@ export default function ProfilePage() {
 					setProfile(null);
 				});
 	}, [profile]);
+
 	if(isLoading){
 		return (
 			<AppLayout>
@@ -43,9 +44,6 @@ export default function ProfilePage() {
 			</AppLayout>
 		);
 	}
-  if (!isLoggedIn) {
-		redirect("/login");
-		return;
-  }
+
   return <ProfileView mode="self" profile={profile} />;
 }
