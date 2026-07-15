@@ -181,7 +181,7 @@ export default function CreateCompletedWorkPage() {
 			location: location?.trim() ?? null,
 			images: imageObjects
 		};
-		getAxios(jwt).post("/api/me/works", payload).
+		getAxios(null).post("/api/me/works", payload).
 			then((response)=>{
 				setSubmitting(false);
       	router.push('/works?created=1');

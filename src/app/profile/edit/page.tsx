@@ -269,7 +269,7 @@ export default function EditProfilePage() {
         reviewCount: details?.reviewCount ?? null,
         claimed: true
       };
-			await getAxios(jwt).post("/api/me/business/google-listing", googlePayload);
+			await getAxios(null).post("/api/me/business/google-listing", googlePayload);
       toast.success('Google business listing linked');
     } catch(err_) {
 			console.error(err_);
@@ -295,7 +295,7 @@ export default function EditProfilePage() {
     setGoogleDropdownOpen(false);
     setGoogleHighlightedIndex(-1);
     try {
-			await getAxios(jwt).delete("/api/me/business/google-listing");
+			await getAxios(null).delete("/api/me/business/google-listing");
       toast.success('Google business listing removed');
     } catch {
       toast.error('Could not remove Google business listing');
@@ -644,7 +644,7 @@ export default function EditProfilePage() {
 			// persist changes
 			// clear context variables	
 			// therefore making the profile page load the user again
-			await getAxios(jwt).put("/api/me", payload);
+			await getAxios(null).put("/api/me", payload);
 			UserSession.user = null;
       toast.success('Profile updated successfully');
       setSavedTick(true);

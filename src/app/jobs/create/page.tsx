@@ -398,7 +398,7 @@ export default function CreateJobPage() {
 			longitude: jobLng,
 			attachments
 		};
-		getAxios(jwt).
+		getAxios(null).
 			post("/api/jobs", jobPayload).
 			then((response)=>{
 				const data_ = response.data;

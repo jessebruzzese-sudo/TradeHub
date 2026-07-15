@@ -42,6 +42,9 @@ export const ENV: TradeHubEnv = {
 		images: load("IMAGE_FILE_STORE"),
 		jobs: load("JOB_FILE_STORE")
 	},
+	avatar: {
+		defaultImage: load("AVATAR_DEFAULT_IMAGE")
+	},
 	database: {
 		host: load("POSTGRES_HOST"),
 		port: load("POSTGRES_PORT"),
