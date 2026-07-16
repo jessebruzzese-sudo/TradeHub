@@ -23,6 +23,7 @@ export const messagesTable = pgTable("messages", {
 	message: text("message"),
 	createdAt: timestamp("created_at").defaultNow(),
 	read: boolean("read").default(false), // recipient has read
+	isSystem: boolean("is_system").default(false), // system needs to be able to add messages too
 	conversationId: uuid("conversation_id").notNull().references(()=>conversationTable.id),
 	senderProfileId: uuid("sender_profile_id").notNull().references(()=>profileTable.id) // profile id of sender
 }, (table)=>[unique().on(table.conversationId, table.id)]);

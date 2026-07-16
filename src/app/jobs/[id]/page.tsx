@@ -277,6 +277,7 @@ export default function JobDetailPage() {
   const [lightboxItems, setLightboxItems] = useState([]);
 
 	const isLoadingJob = job === null;
+	const showHeadsUp = false;
 
   useEffect(() => {
 		if(job !== null){
@@ -525,10 +526,12 @@ export default function JobDetailPage() {
       message: applicationMessage
     };
 		getAxios(null).post("/api/me/applications", payload).
-			then((response_)=>{
-				toast.success("Application submitted");
-    		setShowApplyDialog(false);
-    		setApplicationMessage("");
+			then(async(response_)=>{
+				// a conversation with the job owner has already been created
+				// conversation id should be present in response
+				const data__ = response_.data;
+				const conversationId = data__.conversationId;
+    		router.push(`/messages?conversationId=${conversationId}`);
 			}).catch((error_)=>{
 				toast.error("Could not submit application, try again later");
     		setShowApplyDialog(false);
@@ -1027,7 +1030,7 @@ export default function JobDetailPage() {
               );
             })()}
 
-            {currentUser && (
+            {currentUser && showHeadsUp && (
               <p className="mb-4 text-xs text-slate-600">
                 <span className="font-medium text-slate-700">Heads up:</span> Posting a job does not require ABN
                 verification. Applying, selecting a subcontractor, and confirming hire require a verified ABN when you take

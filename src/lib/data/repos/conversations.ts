@@ -36,6 +36,15 @@ export const getUnreadMessagesT = async (trx:any, profileId:string) => {
 			);
 };
 
+export const addMessageT = async (msg:any, trx:any) => {
+	return trx.insert(messagesTable).
+		values(msg).
+		returning({
+			id: messagesTable.id, 
+			createdAt: messagesTable.createdAt
+		});
+};
+
 export const addMessage = async (msg:any) => {
 	return (await getDB()).insert(messagesTable).
 		values(msg).
@@ -45,38 +54,50 @@ export const addMessage = async (msg:any) => {
 		});
 };
 
+export const upsertConversationT = async (ownerProfileId, guestProfileId, trx) => {
+	return new Promise(async(resolve, reject) => {
+		// ensure that there is one conversation for *either* combination of
+		// owner and guest profile 
+		let results = await trx.select({id: conversationTable.id}).
+			from(conversationTable).
+			where(
+				or(
+					and(
+						eq(conversationTable.ownerProfileId, ownerProfileId), 
+						eq(conversationTable.guestProfileId, guestProfileId)
+					),
+					and(
+						eq(conversationTable.ownerProfileId, guestProfileId), 
+						eq(conversationTable.guestProfileId, ownerProfileId)
+					)
+				)
+			);
+			let conversationId = results[0]?.id ?? null;
+			if(conversationId){
+				resolve(conversationId);
+				return;
+			}
+			// conversation doesn't exist?
+			// create new one
+			results = await trx.insert(conversationTable).
+				values({ownerProfileId, guestProfileId}).
+				returning({id: conversationTable.id});
+			conversationId = results[0]?.id ?? null;
+			if(!conversationId){
+				reject(new Error(`Failed to determine conversation id`));
+				return;
+			}
+			resolve(conversationId);
+			return;
+	});
+};
+
 export const upsertConversation = async (ownerProfileId, guestProfileId) => {
 	return await callDb(async(db) => {
 		return db.transaction(async(trx) => {
 			try{
-				// ensure that there is one conversation for *either* combination of
-				// owner and guest profile 
-				let results = await trx.select({id: conversationTable.id}).
-					from(conversationTable).
-					where(
-						or(
-							and(
-								eq(conversationTable.ownerProfileId, ownerProfileId), 
-								eq(conversationTable.guestProfileId, guestProfileId)
-							),
-							and(
-								eq(conversationTable.ownerProfileId, guestProfileId), 
-								eq(conversationTable.guestProfileId, ownerProfileId)
-							)
-						)
-					);
-				let conversationId = results[0]?.id ?? null;
-				if(conversationId){
-					return conversationId;
-				}
-				results = await trx.insert(conversationTable).
-					values({ownerProfileId, guestProfileId}).
-					returning({id: conversationTable.id});
-				conversationId = results[0]?.id ?? null;
-				if(!conversationId){
-					throw new Error(`Failed to determine conversation id`);
-				}
-				return conversationId;
+				// make sure that we catch any rejected promises
+				return await upsertConversationT(ownerProfileId, guestProfileId, trx);
 			}catch(err_){
 				throw err_;
 			}

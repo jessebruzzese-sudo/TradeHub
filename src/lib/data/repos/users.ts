@@ -330,7 +330,6 @@ export const getUserProfile = async (userId:string) => {
 			if(mapped.business !== null){
 				const trades = await business.getTradesForBusiness(mapped.business.id);
 				const tradeIds = trades.map((e,i)=>{ return e.tradeId });
-				//console.log(`${JSON.stringify(trades)}`);
 				const primaryTradeId = trades.find((x)=>x.isPrimary)?.tradeId ?? null;
 				const otherTradeIds = tradeIds.filter((x)=>x!==primaryTradeId);
 				if(primaryTradeId === null){
