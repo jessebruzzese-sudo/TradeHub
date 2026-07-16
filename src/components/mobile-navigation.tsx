@@ -80,7 +80,11 @@ export function MobileDrawer() {
   };
 
   const handleLogout = () => {
-    logout();
+    logout().then(()=>{
+		}).catch(()=>{
+		}).finally(()=>{
+			window.location.href = "/login";
+		});
   };
 
   return (

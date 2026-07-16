@@ -223,6 +223,11 @@ export default function MessagesPage() {
 	const handleReportUser = () => {
 		toast.info("coming soon");
 	};
+	
+	const handleMobileBack = () => {
+		setSelectedConversation(null);
+		setMessages(null);
+	};
 
 	/* END EVENT HANDLERS */
 
@@ -349,7 +354,7 @@ export default function MessagesPage() {
                       variant="ghost"
                       size="icon"
                       className="h-10 w-10 shrink-0 -ml-2"
-                      onClick={()=>{ console.log("handle mobile back...");}}
+                      onClick={handleMobileBack}
                       aria-label="Back to messages"
                     >
                       <ChevronLeft className="h-5 w-5" />
