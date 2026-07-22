@@ -8,12 +8,12 @@ const UserProvider = (props) => {
 		if(currentUser !== null){
 			return;
 		}	
-		console.log("UserProvider :: Loading user");
+		//console.log("UserProvider :: Loading user");
 		getAxios(null).get("/api/me").
 			then((response)=>{
 				const data = response.data;
 				UserSession.user = data;
-				console.log("UserProvider :: User loaded");
+				//console.log("UserProvider :: User loaded");
 				props.onUserLoaded(UserSession.user);
 				setCurrentUser(data);
 			});

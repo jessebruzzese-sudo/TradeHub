@@ -1,11 +1,16 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { getAxios } from "@/lib/utils";
+import { toast } from "sonner";
+import UserContext from "@/lib/user-context";
+import UserProvider from "@/components/hoc/UserProvider";
+import { useState, useEffect, useMemo, useRef, useContext } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Container, Grid, CircularProgress } from "@mui/material";
 import {
   Select,
   SelectContent,
@@ -16,43 +21,17 @@ import {
 import { Search, Filter, Loader2, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
-import { useAuth } from '@/lib/auth';
-import { isAdmin } from '@/lib/is-admin';
 import { safeRouterReplace } from '@/lib/safe-nav';
-
-interface UserRow {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  accountType: 'qa' | 'real';
-  primaryTrade?: string;
-  trustStatus: string;
-  createdAt: string;
-  lastSeenAt?: string;
-  avatar?: string | null;
-}
-
-type SortBy =
-  | 'newest'
-  | 'oldest'
-  | 'online'
-  | 'today'
-  | 'week'
-  | 'month'
-  | 'inactive'
-  | 'never';
-
-type AccountTypeFilter = 'all' | 'qa' | 'real';
+import { useAuth } from "@/lib/auth-context";
 
 export default function AdminUsersPage() {
+
   const router = useRouter();
-  const { currentUser, isLoading } = useAuth();
-
-  const [users, setUsers] = useState<UserRow[]>([]);
-  const [loading, setLoading] = useState(true);
+	const { logout } = useAuth();
+	const UserSession = useContext(UserContext);
+	const [currentUser, setCurrentUser] = useState<any|null>(UserSession?.user ?? null);
+  const [users, setUsers] = useState<any|null>(null);
   const [errorMsg, setErrorMsg] = useState<string>('');
-
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<SortBy>('newest');
   const [accountTypeFilter, setAccountTypeFilter] = useState<AccountTypeFilter>('all');
@@ -60,85 +39,40 @@ export default function AdminUsersPage() {
   const [trades, setTrades] = useState<string[]>([]);
 
   const hasRedirected = useRef(false);
-
-  // ✅ Gate admin page (prevents non-admins hitting it)
-  useEffect(() => {
-    if (isLoading) return;
-    if (hasRedirected.current) return;
-
-    if (!currentUser) {
-      hasRedirected.current = true;
-      safeRouterReplace(router, '/login?returnUrl=/admin/users', '/login?returnUrl=/admin/users');
-      return;
-    }
-
-    if (!isAdmin(currentUser)) {
-      hasRedirected.current = true;
-      safeRouterReplace(router, '/dashboard', '/dashboard');
-    }
-  }, [isLoading, currentUser, router]);
+	const isLoading = users === null || currentUser === null;
+	const isAdmin = currentUser?.role?.toLowerCase() === "admin";
 
   useEffect(() => {
-    if (!currentUser || !isAdmin(currentUser)) return;
-    loadUsers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sortBy, tradeFilter, accountTypeFilter, currentUser?.id]);
-
-  const loadUsers = async () => {
-    try {
-      setLoading(true);
-      setErrorMsg('');
+		if(currentUser === null){
+			return;
+		}
+		if(!isAdmin){
+			return;
+		}
+		if(users !== null){	
+			return;
+		}
+		// TODO grab users
+		// include parameters
+		toast.info("Loading users ...");
       const params = new URLSearchParams({
         sortBy,
         trade: tradeFilter,
         accountType: accountTypeFilter,
       });
-      const res = await fetch(`/api/admin/users?${params.toString()}`, { cache: 'no-store' });
-      const payload = await res.json();
-
-      if (!res.ok) {
-        console.error('Error loading users:', payload);
-        setUsers([]);
-        setTrades([]);
-        setErrorMsg(payload?.error || `Failed to load users (${res.status})`);
-        return;
-      }
-
-      const data = Array.isArray(payload?.users) ? payload.users : [];
-      const tradesFromApi = Array.isArray(payload?.trades) ? payload.trades : [];
-      setTrades(tradesFromApi as string[]);
-
-      setUsers(
-        (data || []).map((u: any) => ({
-          id: u.id,
-          name: u.name ?? '',
-          email: u.email ?? '',
-          role: u.role ?? '',
-          accountType: u.account_type === 'qa' ? 'qa' : 'real',
-          primaryTrade: u.primary_trade ?? undefined,
-          trustStatus: u.trust_status ?? 'pending',
-          createdAt: u.created_at,
-          lastSeenAt: u.last_seen_at ?? undefined,
-          avatar: u.avatar ?? null,
-        }))
-      );
-    } catch (err: any) {
-      console.error('Error loading users:', err);
-      setUsers([]);
-      setTrades([]);
-      setErrorMsg(err?.message || 'Failed to load users');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const filteredUsers = useMemo(() => {
-    const q = searchTerm.trim().toLowerCase();
-    if (!q) return users;
-    return users.filter((user) => {
-      return (user.name || '').toLowerCase().includes(q) || (user.email || '').toLowerCase().includes(q);
-    });
-  }, [users, searchTerm]);
+		getAxios(null).get(`/api/admin/users?${params.toString()}`).
+			then((response)=>{
+				const data = response.data;
+				setTrades(data.trades);
+				setUsers(data.users);
+			}).catch((error)=>{
+				const msg = error?.response?.data?.msg ?? null;
+				if(msg){
+					toast.error(msg);
+				}
+			});
+		
+  }, [sortBy, tradeFilter, accountTypeFilter, currentUser]);
 
   const getOnlineStatus = (lastSeenAt?: string) => {
     if (!lastSeenAt) return 'Never';
@@ -156,13 +90,35 @@ export default function AdminUsersPage() {
       .join('')
       .toUpperCase()
       .slice(0, 2) || 'U';
-
-  // While redirecting / loading auth
-  if (isLoading || !currentUser) return null;
-  if (!isAdmin(currentUser)) return null;
+	
+	if(isLoading){
+		return (
+			<Grid container sx={{alignItems:"center", height:"100%"}}>
+				<Grid item size={12}>
+					<Grid container sx={{justifyContent:"center"}}>	
+						<Grid item>
+							<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
+								<CircularProgress aria-label="Loading..."/>
+							</UserProvider>
+						</Grid>
+					</Grid>
+				</Grid>
+			</Grid>
+		);	
+	}
+		
+	if(!isAdmin){
+		logout().then((response)=>{
+				window.location.href = "/";
+			}).catch((error)=>{
+				window.location.href = "/";
+			});
+		return null;
+	}
 
   return (
     <div className="p-8">
+			<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
       <PageHeader title="Users" description="Manage user accounts and permissions" />
 
       {errorMsg && (
@@ -235,11 +191,6 @@ export default function AdminUsersPage() {
         </div>
       </Card>
 
-      {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-        </div>
-      ) : (
         <Card>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -257,7 +208,7 @@ export default function AdminUsersPage() {
               </thead>
 
               <tbody className="divide-y divide-gray-200">
-                {filteredUsers.map((user) => (
+                {users.map((user) => (
                   <tr
                     key={user.id}
                     onClick={() => router.push(`/admin/users/${user.id}`)}
@@ -311,19 +262,20 @@ export default function AdminUsersPage() {
             </table>
           </div>
 
-          {filteredUsers.length === 0 && !errorMsg && (
+          {users.length === 0 && !errorMsg && (
             <div className="text-center py-12 text-gray-500">
               {searchTerm.trim() ? 'No users match your search' : 'No users found'}
             </div>
           )}
 
-          {filteredUsers.length === 0 && errorMsg && (
+          {users.length === 0 && errorMsg && (
             <div className="text-center py-12 text-red-500">
               Failed to load users — see error above
             </div>
           )}
+
         </Card>
-      )}
+		</UserProvider>
     </div>
   );
 }
