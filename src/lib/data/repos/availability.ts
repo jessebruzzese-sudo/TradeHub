@@ -5,6 +5,30 @@ import { usersTable, rolesTable } from "@/lib/data/defs/users";
 import { businessTable, businessTradeTable } from "@/lib/data/defs/business";
 import { availabilityTable } from "@/lib/data/defs/availability";
 import { callDb, getDB, getDataService } from "@/lib/data/service";
+import { parseISO } from "date-fns";
+
+export const getAvailabilityForBusinessIds = async (ids:array) => {
+	return new Promise(async(resolve, reject)=>{	
+		const db = await getDB();
+		let results = null;
+		try{	
+			results = await db.select().
+				from(availabilityTable).
+				where(inArray(availabilityTable.businessId, ids));
+		}catch(err_){
+			reject(err_);
+			return;
+		}
+		// map dates to business id
+		const grouped = results.reduce((a, c)=>{	
+			const dates = c.dates.map((e,i)=>{ return parseISO(e); });
+			const id = c.businessId;
+			a[id] = dates;
+			return a;
+		}, {});
+		resolve(grouped);
+	});
+};
 
 export const getAvailability = async (userId:string) => {
 	return new Promise(async(resolve, reject)=>{

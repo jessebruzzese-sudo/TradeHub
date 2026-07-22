@@ -2,6 +2,11 @@
 // vim:ts=2
 import { createTheme } from "@mui/material/styles";
 const TradeHubTheme = createTheme({
+	palette: {
+		secondary: {
+			main: "#dedede"
+		}
+	},
 	components: {
 		MuiTypography: {
 			style:{

@@ -10,7 +10,7 @@ import {
 	Grid, Button, Typography, 
 	Box, Chip, TextField, 
 	IconButton, Switch, InputAdornment, 
-	Drawer, Stack, Divider, Paper
+	Drawer, Stack, Divider, Paper,  useMediaQuery
 } from "@mui/material";
 import { DayPicker } from "react-day-picker";
 import { ArrowBack, People, PersonOutlined, CalendarTodayOutlined }  from "@mui/icons-material";
@@ -38,7 +38,7 @@ import { useActiveTradesCatalog } from '@/lib/trades/use-active-trades-catalog';
 import { cn } from '@/lib/utils';
 import { getPublicProfileHref } from '@/lib/url-utils';
 import { useTheme } from "@mui/material/styles";
-import { format } from 'date-fns';
+import { format, startOfDay, addDays, addMonths, endOfMonth } from 'date-fns';
 
 /** Display order for empty-state chips; labels must exist in `public.trades` / `/api/trades`. */
 const POPULAR_TRADE_ORDER = [
@@ -56,11 +56,6 @@ const SORT_OPTIONS = [
   { value: 'price-lowest', label: 'Price: Lowest' },
   { value: 'rating-highest', label: 'Rating: Highest' },
   { value: 'rating-lowest', label: 'Rating: Lowest' },
-] as const;
-
-const FILTER_OPTIONS = [
-  { value: 'all', label: 'All' },
-  { value: 'abn-verified', label: 'ABN verified only' },
 ] as const;
 
 function SubcontractorCard({ sub }: { sub: any }) {
@@ -155,11 +150,12 @@ function SubcontractorCard({ sub }: { sub: any }) {
 export default function SubcontractorsPage() {
 
 	const UserSession = useContext(UserContext);
+	const router = useRouter();
 	const [currentUser, setCurrentUser] = useState(UserSession?.user ?? null);
   const [nameQuery, setNameQuery] = useState<string>("");
   const [selectedTrade, setSelectedTrade] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('distance-closest');
-  const [filterBy, setFilterBy] = useState<string>('all');
+  const [abnVerifiedOnly, setAbnVerifiedOnly] = useState<boolean>(false);
 	const [filterDates, setFilterDates] = useState([]);
   const [availLoading, setAvailLoading] = useState(true);
 	const [filterByDate, setFilterByDate] = useState<boolean>(false);
@@ -211,7 +207,9 @@ export default function SubcontractorsPage() {
     setProfilesError(null);
 		// move filtering logic and sorting into server side
 		// along with pagination
-		const params = `sortBy=${sortBy}&filterBy=${filterBy}&nameQuery=${nameQuery}`;
+		const filterDateValues = filterDates.map((e,i)=>{ return format(e, "yyyy-MM-dd"); });
+		const filterDateParam = filterDateValues.join(",");
+		const params = `includeAvailableOnly=${includeAvailable}&sortBy=${sortBy}&abnVerifiedOnly=${abnVerifiedOnly}&nameQuery=${nameQuery}&filterDates=${filterDateParam}`;
 		getAxios(null).get(`/api/discovery/trades/${encodeURIComponent(effectiveTrade)}?${params}`).
 			then((response)=>{
 				const data = response.data;
@@ -221,13 +219,82 @@ export default function SubcontractorsPage() {
 				setProfilesError("Failed to load profiles");
 			});
   }, [profiles]);
-
+	
+	const doWeekSelection = () => {
+		let now = new Date();
+		const selection = [];
+		const weekFromNow = addDays(now, 7);
+		while(now <= weekFromNow){
+			selection.push(now);
+			now = addDays(now, 1);	
+		}
+		setFilterDates(selection);
+	};
+	const doFortnightSelection = () => {
+		let now = new Date();
+		const selection = [];
+		const weekFromNow = addDays(now, 14);
+		while(now <= weekFromNow){
+			selection.push(now);
+			now = addDays(now, 1);	
+		}
+		setFilterDates(selection);
+	};
+	const doEndOfMonthSelection = () => {
+		let now = new Date();
+		const selection = [];
+		const end = endOfMonth(now);
+		while(now <= end){
+			selection.push(now);
+			now = addDays(now, 1);	
+		}
+		setFilterDates(selection);
+	};
+	const doQuarterSelection = () => {
+		let now = new Date();
+		const selection = [];
+		const end = addMonths(now, 3);
+		while(now <= end){
+			selection.push(now);
+			now = addDays(now, 1);	
+		}
+		setFilterDates(selection);
+	};
+	
+	const onClearFilterDates = () => {
+		setFilterDates([]);
+	};
+	
+	const onSubmitFilterDates = () => {
+		setFilterByDate(false);	
+		setProfiles(null);
+	};
+	
+	const onFilterDatesChanged = (dates) => {
+		const test = false;
+		if(test){
+			const newFilterDates = [...filterDates, date];
+			const SHORT_DATE_FORMAT = "yyyy-MM-dd";
+			const unique = filterDates.reduce((a, c)=>{
+				const date_ = format(c, SHORT_DATE_FORMAT);
+				a[date_] = 1;
+				return a;
+			}, {});
+			const dates_ = Object.keys(unique).map((e,i)=>{ return parse(e, SHORT_DATE_FORMAT); });
+			setFilterDates(dates_);
+			return;
+		}
+		setFilterDates(dates);
+	};
+	
 	const profileCards = (profiles ?? []).map((e,i)=>{return <SubcontractorCard key={e.id} sub={e}/>});
-	const isMobile = theme.breakpoints.down("sm");
+	const theme = useTheme();
+	const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   return (
 		<AppLayout>
 			<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
+				<input type="hidden" value={isMobile} id="isMobile"/>
 				<Container fluid maxWidth>
 				<Grid container sx={{mt:2}}>
 					{/* LEFT MARGIN */}
@@ -270,7 +337,7 @@ export default function SubcontractorsPage() {
 									</Grid>
 									{/*CENTER RHS*/}
 									<Grid item size={{lg:6, xs:12}}>
-										<Grid container spacing={1} direction={"row"}>
+										<Grid container spacing={1}>
 											<Grid item size={{lg:12, xs:6}}>
 												<Grid container sx={{justifyContent: isMobile ? "center" : "flex-end"}}>
 													<Grid item>
@@ -331,7 +398,7 @@ export default function SubcontractorsPage() {
 									<Grid item size={{lg:6, xs:12}}>
 										<TextField 
 												value={sortBy} 
-												onChange={(event)=>{setSortBy(event.target.value);}} 	
+												onChange={(event)=>{setSortBy(event.target.value);setProfiles(null);}} 	
 												select 
 												size={"small"} 	
 												fullWidth
@@ -344,9 +411,12 @@ export default function SubcontractorsPage() {
 									</Grid>
 									<Grid item size={12}>
 										<Button fullWidth 
-												variant={"outlined"} 
-												onClick={(event)=>{setFilterByDate(!filterByDate);}}>
-											<CalendarTodayOutlined/><span style={{marginLeft:"5px"}}>Filter by date</span>
+											variant={"outlined"} 
+											size={"large"}
+											onClick={(event)=>{setFilterByDate(!filterByDate);}}>
+												<CalendarTodayOutlined/>
+												<span style={{marginLeft:"5px"}}>Filter by date</span>
+												{filterDates?.length ?? 0 > 0 ? <Chip sx={{ml: theme.spacing(2)}}color={"primary"} label={`${filterDates.length} dates selected`}/> : null}
 										</Button>
 									</Grid>
 								</Grid>
@@ -355,14 +425,16 @@ export default function SubcontractorsPage() {
 								{/* END FORM WRAPPER ITEM */}
 								<Grid item size={12}>
 									<Typography variant={"body2"}>
-									<Switch checked={includeAvailable} onChange={()=>{setIncludeAvailable(!includeAvailable);}}/>
+									<Switch checked={abnVerifiedOnly} 
+										onChange={()=>{setAbnVerifiedOnly(!abnVerifiedOnly);setProfiles(null);}}/>
 									ABN verified only
 									</Typography>
 								</Grid>
 								{/* END SWITCH ROW */}
 								<Grid item size={12}>
 									<Typography variant={"body2"}>
-									<Switch checked={includeAvailable} onChange={()=>{setIncludeAvailable(!includeAvailable);}}/>
+									<Switch checked={includeAvailable} 
+										onChange={()=>{setIncludeAvailable(!includeAvailable);setProfiles(null);}}/>
 									Only show profiles with upcoming availability
 									</Typography>
 								</Grid>
@@ -405,7 +477,7 @@ export default function SubcontractorsPage() {
 						<Grid item size={12}>
 							<Grid container sx={{alignItems:"center", justifyContent:"flex-start", mb:theme.spacing(2)}}>
 								<Grid item>
-								<CalendarTodayOutlined sx={{color:"blue", mr:theme.spacing(2)}}/>
+									<CalendarTodayOutlined sx={{color:"blue", mr:theme.spacing(2)}}/>
 								</Grid>
 								<Grid item>
 								<Typography variant={"h6"}>
@@ -418,7 +490,8 @@ export default function SubcontractorsPage() {
 						<Grid item>
 							<DayPicker 
 								animate 
-								onSelect={()=>{}} 
+								disabled={(date)=>{ return date < startOfDay(new Date()); }}	
+								onSelect={onFilterDatesChanged} 
 								selected={filterDates} 
 								mode={"multiple"}
 							/>
@@ -427,10 +500,39 @@ export default function SubcontractorsPage() {
 							<Typography variant={"body2"} sx={{mb:theme.spacing(1)}}>
 								QUICK SELECT
 							</Typography>
-								<Chip variant={"outlined"} color={"primary"} label={"This week"} onClick={()=>{}} />
-								<Chip variant={"outlined"} color={"primary"} label={"Next 2 weeks"} onClick={()=>{}} />
-								<Chip variant={"outlined"} color={"primary"} label={"This month"} onClick={()=>{}} />
-								<Chip variant={"outlined"} color={"primary"} label={"Next 3 months"} onClick={()=>{}} />
+								<Chip variant={"outlined"} color={"primary"} 
+									label={"This week"} onClick={doWeekSelection} />
+								<Chip variant={"outlined"} color={"primary"} 
+									label={"Next 2 weeks"} onClick={doFortnightSelection} />
+								<Chip variant={"outlined"} color={"primary"} 
+									label={"This month"} onClick={doEndOfMonthSelection} />
+								<Chip variant={"outlined"} color={"primary"} 
+									label={"Next 3 months"} onClick={doQuarterSelection} />
+						</Grid>
+						<Grid item size={12} sx={{position:"absolute", bottom:"0px", padding: theme.spacing(2)}}>
+							<Grid container spacing={2}>
+								<Grid item size={6}>
+									<Grid container sx={{justifyContent:"center", alignItems:"flex-end"}}>
+										<Grid item size={12}>
+											<Button onClick={onClearFilterDates} 
+													color={"secondary"} size={"large"} 
+													fullWidth variant={"contained"}>
+												Clear
+											</Button>
+										</Grid>
+									</Grid>
+								</Grid>
+								<Grid item size={6}>
+									<Grid container sx={{justifyContent:"center", alignItems:"flex-end"}}>
+										<Grid item size={12}>
+											<Button onClick={onSubmitFilterDates} color={"primary"} 
+												size={"large"} fullWidth variant={"contained"}>
+													Submit
+											</Button>
+										</Grid>
+									</Grid>
+								</Grid>
+							</Grid>
 						</Grid>
 					</Grid>
 				</Drawer>

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDataService } from "@/lib/data/service";
 import { getClaims } from "@/lib/claims/service";
 import { haversineKm } from "@/lib/discovery";
+import { parse, format } from "date-fns";
 
 export async function GET(request: NextRequest, context) {
 	// debugging hooks
@@ -13,7 +14,9 @@ export async function GET(request: NextRequest, context) {
 	let HOOK_HAVERSINE = ( queryParams.get("hookHaversine") ?? "false" ) === "true";
 	let HOOK_MATCHES = ( queryParams.get("hookMatches") ?? "false" ) === "true";
 	const sortBy = queryParams.get("sortBy") ?? null;
-	const filterBy = queryParams.get("filterBy") ?? null;
+	const abnVerifiedOnly = queryParams.get("abnVerifiedOnly") ?? null;
+	const includeAvailableOnly = queryParams.get("includeAvailableOnly") ?? null;
+	const filterDates = queryParams.get("filterDates") ?? null;
 	const nameQuery = queryParams.get("nameQuery") ?? null;
 	// make sure that hooks are false in non
 	// development environments
@@ -30,7 +33,7 @@ export async function GET(request: NextRequest, context) {
 	}catch(err_){
 		return NextResponse.json({ error: "Not authorized" }, { status: 401 });
 	}
-	const { users: userRepo, trades: tradeRepo } = await getDataService();
+	const { users: userRepo, trades: tradeRepo, availability: availRepo } = await getDataService();
 	const tradeMapping = await tradeRepo.getMapping(true);
 	const lcTradeMapping = {};
 	for(const name of Object.keys(tradeMapping)){
@@ -140,8 +143,41 @@ export async function GET(request: NextRequest, context) {
 	// one being "all" and another being abn-verified
 	// all is irrelevant as its just all results
 	// only need to filter by abn verified
-	if(filterBy !== null && filterBy === "abn-verified"){
-		matches = matches.filter((x)=>x.business.abnVerified);
+	if(abnVerifiedOnly !== null && abnVerifiedOnly === "true"){
+		matches = matches.filter((user)=>user.business.abnVerified);
+	}
+	// apply availability to remaining profiles
+	const businessIds = matches.map((user,i)=>user.business.id);
+	const availMap = await availRepo.getAvailabilityForBusinessIds(businessIds);
+	matches = matches.map((user,i)=>{
+		return {
+			...user, 
+			availability: availMap[user.business.id] ?? []
+		};	
+	});
+	// filter by upcoming availability
+	// if a profile has anything marked as available in the future
+	// this profile is returned
+	if(includeAvailableOnly !== null && includeAvailableOnly === "true"){
+		const now = new Date();
+		matches = matches.filter((user)=>{
+			const future = user.availability.filter((x)=>x >= now);
+			return future.length > 0;
+		});
+	}
+	// check for specific dates
+	if(filterDates !== null && filterDates !== ""){
+		const selectedDates = filterDates.split(",").map((e,i)=>{ return e.trim(); });
+		const mappedDates = selectedDates.reduce((a, c)=>{ a[c] = 1; return a; }, {});
+		matches = matches.filter((user)=>{
+			const dates = user.availability.map((e,i)=>{ return format(e, "yyyy-MM-dd"); });
+			for(const d of dates){
+				if(mappedDates[d] !== undefined){
+					return true;
+				}
+			}
+			return false;
+		});
 	}
 	for(const m of matches){
 		const userId = m.id;
