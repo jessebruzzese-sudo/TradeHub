@@ -1,6 +1,7 @@
 // vim: ts=2
 'use client';
 import UserContext from "@/lib/user-context";
+import UserProvider from "@/components/hoc/UserProvider";
 import { getAxios } from "@/lib/utils";
 import Image from 'next/image';
 import Link from 'next/link';
@@ -33,10 +34,7 @@ export default function CompletedWorkDetailPage() {
   const [notFound, setNotFound] = useState(false);
   const [imgIdx, setImgIdx] = useState(0);
 		
-	const loading = item === null;
-
-
-	// TODO add hook for checking user context
+	const loading = item === null || currentUser === null;
 
   useEffect(() => {
 		if(currentUser === null){
@@ -64,7 +62,7 @@ export default function CompletedWorkDetailPage() {
 				// TODO handle not found
 				console.error(err_);
 			});
-  }, [item]);
+  }, [item, currentUser]);
 
   const imgs = item?.images ?? [];
   const imgCount = imgs.length;
@@ -101,6 +99,7 @@ export default function CompletedWorkDetailPage() {
 
   return (
     <AppLayout transparentBackground>
+			<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
       <CompletedWorksGradientShell className="max-w-4xl">
         <div className="mb-6">
           <Button
@@ -254,6 +253,7 @@ export default function CompletedWorkDetailPage() {
           </article>
         )}
       </CompletedWorksGradientShell>
+			</UserProvider>
     </AppLayout>
   );
 }

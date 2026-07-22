@@ -4,6 +4,7 @@
 
 import Link from 'next/link';
 import UserContext from "@/lib/user-context";
+import UserProvider from "@/components/hoc/UserProvider";
 import { getAxios } from "@/lib/utils";
 import { useEffect, useMemo, useState, useContext } from 'react';
 import { AppLayout } from '@/components/app-nav';
@@ -195,8 +196,8 @@ export default function SubcontractorsPage() {
   }, [profiles]);
 
   return (
-    <TradeGate>
-      <AppLayout>
+		<AppLayout>
+			<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
         {/* slate wrapper */}
         <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-slate-50 via-slate-100 to-slate-200">
 					{/* Dotted overlay */}
@@ -430,8 +431,8 @@ export default function SubcontractorsPage() {
               </CardContent>
             </Card>
           </div>
-        </div>
-      </AppLayout>
-    </TradeGate>
-  );
+        </div>	
+		</UserProvider>
+	</AppLayout>
+);
 }

@@ -1,8 +1,7 @@
 // vim: ts=2
 import { NextRequest, NextResponse } from 'next/server';
 import { getDataService } from "@/lib/data/service";
-import { cookies } from "next/headers";
-import * as jose from "jose";
+import { getClaims } from "@/lib/claims/service";
 import * as z from "zod";
 
 const UpdateProfileSchema = z.object({
@@ -34,11 +33,7 @@ const UpdateProfileSchema = z.object({
 });
 
 export async function PUT(request: NextRequest){
-	const store = await cookies();
-	const cookie = store.get("authorization") ?? null;
-	const jwt = cookie?.value ?? null;
-	const claims = await jose.decodeJwt(jwt);
-	const email = claims.email;
+	const claims = await getClaims();
 	// check payload
 	let payload = null;
 	try{
@@ -48,7 +43,7 @@ export async function PUT(request: NextRequest){
 	}
 	try{
 		const { users } = await getDataService();
-		await users.updateUserProfile(payload, email);
+		await users.updateUserProfile(payload, claims.id);
 		return NextResponse.json({ok:true}, {status: 200});
 	}catch(err_){
 		console.error(err_);
@@ -57,15 +52,11 @@ export async function PUT(request: NextRequest){
 }
 
 export async function GET(request: NextRequest) {
-	const store = await cookies();
-	const cookie = store.get("authorization") ?? null;
-	const jwt = cookie?.value ?? null;
-	const claims = await jose.decodeJwt(jwt);
-	const userId = claims.id;
+	const claims = await getClaims();
 	let userProfile = null;
 	try{
 		const { users } = await getDataService();
-		userProfile = await users.getUserProfile(userId);
+		userProfile = await users.getUserProfile(claims.id);
 	}catch(err_){
 		console.error(err_);
 		return NextResponse.json({msg:"Failed to query user profile"}, { status: 500 });

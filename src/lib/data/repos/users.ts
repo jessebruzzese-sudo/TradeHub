@@ -121,8 +121,11 @@ export const getUserLocation = async (userId:string) => {
 	});
 };
 
-export const updateLastActive = async (email:string) => {
-	return (await getDB()).update(usersTable).set({lastActiveAt:new Date()}).where(eq(usersTable.email, email));
+export const updateLastActive = async (userId:string) => {
+	return (await getDB()).
+		update(usersTable).
+		set({lastActiveAt:new Date()}).
+		where(eq(usersTable.id, userId));
 };
 
 export const findUserWithPasswordState = async (state:string) => {
@@ -206,16 +209,11 @@ export const getUserByEmail = async (email:string) => {
 	});
 };
 
-export const setVisibility = async (email:string, visibility:boolean) => {
-	return new Promise(async(resolve, reject)=>{
-		const db = await getDB();
-		try{
-			await db.update(usersTable).set({"public":visibility}).where(eq(usersTable.email, email));
-		}catch(err_){
-			reject(err_);
-		}
-		resolve(true);
-	});
+export const setVisibility = async (userId:string, visibility:boolean) => {
+	return (await getDB()).
+		update(usersTable).
+		set({"public":visibility}).
+		where(eq(usersTable.id, userId));
 };
 
 const nearUserReducer = (a, c) => {

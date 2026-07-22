@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic";
 import { getAxios } from "@/lib/utils";
 import Link from 'next/link';
 import UserContext from "@/lib/user-context";
+import UserProvider from "@/components/hoc/UserProvider";
 import { redirect, useRouter } from 'next/navigation';
 import { useContext, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Briefcase, Plus, Info, ArrowRight, Trash2 } from 'lucide-react';
@@ -319,9 +320,11 @@ export default function JobsPage() {
   }
   if (isLoading) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center text-sm text-gray-600">
-        Loading jobs…
-      </div>
+			<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
+      	<div className="flex min-h-[60vh] items-center justify-center text-sm text-gray-600">
+        	Loading jobs…
+      	</div>
+			</UserProvider>
     );
   }
 	const premium = currentUser?.profile?.premium ?? false;
@@ -331,6 +334,7 @@ export default function JobsPage() {
 	}
   return (
     <AppLayout>
+			<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
       {/* Grey wrapper */}
       <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-blue-50 via-white to-blue-100">
         {/* dotted overlay */}
@@ -664,6 +668,7 @@ export default function JobsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+		</UserProvider>
     </AppLayout>
   );
 }

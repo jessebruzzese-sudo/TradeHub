@@ -1,8 +1,7 @@
 // vim: ts=2
 import { NextRequest, NextResponse } from 'next/server';
 import { getDataService } from "@/lib/data/service";
-import { cookies } from "next/headers";
-import * as jose from "jose";
+import { getClaims } from "@/lib/claims/service";
 const { readFile, writeFile } = require("node:fs/promises");
 const { Buffer } = require("node:buffer");
 import { ENV } from "@/lib/env";
@@ -14,11 +13,7 @@ const ProfileCoverPayload = z.object({
 });
 
 export async function PUT(request: NextRequest) {
-	const store = await cookies();
-	const cookie = store.get("authorization") ?? null;
-	const jwt = cookie?.value ?? null;
-	const claims = await jose.decodeJwt(jwt);
-	const email = claims.email;
+	const claims = await getClaims();
 	let payload = null;
 	// parse image payload
 	try{
@@ -54,11 +49,7 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-	const store = await cookies();
-	const cookie = store.get("authorization") ?? null;
-	const jwt = cookie?.value ?? null;
-	const claims = await jose.decodeJwt(jwt);
-	const email = claims.email;
+	const claims = await getClaims();
 	let images = null;
 	try{
 		const { profile } = await getDataService();

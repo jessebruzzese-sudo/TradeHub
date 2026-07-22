@@ -3,6 +3,7 @@
 
 import Link from 'next/link';
 import UserContext from "@/lib/user-context";
+import UserProvider from "@/components/hoc/UserProvider";
 import { useEffect, useState, useContext } from 'react';
 import { useRouter, redirect } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -16,34 +17,23 @@ export default function ProfilePage() {
   const router = useRouter();
 	const UserSession = useContext(UserContext);
 	const [profile, setProfile] = useState(UserSession.user);
-
 	const isLoading = profile === null;
-
-	useEffect(()=>{
-		if(profile !== null){
-			return;
-		}	
-		getAxios(null).
-			get("/api/me").
-				then((response_)=>{
-					const user_ = response_.data;
-					setProfile(user_);
-					UserSession.user = user_;
-				}).catch((err_)=>{
-					console.error(err_);
-					setProfile(null);
-				});
-	}, [profile]);
 
 	if(isLoading){
 		return (
 			<AppLayout>
-				<div className="flex min-h-screen items-center justify-center text-sm text-slate-500">
-					Redirecting...
-				</div>
+				<UserProvider onUserLoaded={(user)=>{setProfile(user);}}>
+					<div className="flex min-h-screen items-center justify-center text-sm text-slate-500">
+						Redirecting...
+					</div>
+				</UserProvider>
 			</AppLayout>
 		);
 	}
 
-  return <ProfileView mode="self" profile={profile} />;
+  return (
+		<UserProvider onUserLoaded={(user)=>{setProfile(user);}}>
+			<ProfileView mode="self" profile={profile} />;
+		</UserProvider>
+	);
 }

@@ -5,6 +5,7 @@
 import Link from 'next/link';
 import { useState, useEffect, useCallback, useContext } from 'react';
 import UserContext from "@/lib/user-context";
+import UserProvider from "@/components/hoc/UserProvider";
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import { AppLayout } from '@/components/app-nav';
@@ -105,6 +106,7 @@ export default function AvailabilityPage() {
 				post("/api/me/availability", payload).
 				then((response)=>{
       		toast.success('Subcontracting dates updated successfully');
+					UserSession.user = null;
      			router.push('/dashboard');
 				}).catch((err_)=>{
       		console.error('Error saving availability:', err_);
@@ -164,15 +166,18 @@ export default function AvailabilityPage() {
   if (isLoading){
     return (
       <AppLayout>
+				<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
         <div className="flex min-h-[60vh] items-center justify-center text-sm text-slate-600">
           Loading availability…
         </div>
+				</UserProvider>
       </AppLayout>
     );
   }
 
   return (
     <AppLayout>
+				<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
       {/* Grey wrapper — matches Jobs / Profile */}
       <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-slate-50 via-slate-100 to-slate-200">
         {/* Dotted overlay */}
@@ -342,6 +347,7 @@ export default function AvailabilityPage() {
           </Card>
         </div>
       </div>
+			</UserProvider>
     </AppLayout>
   );
 }

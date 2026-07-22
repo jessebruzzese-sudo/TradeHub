@@ -3,6 +3,7 @@
 
 import { getAxios } from "@/lib/utils";
 import UserContext from "@/lib/user-context";
+import UserProvider from "@/components/hoc/UserProvider";
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -82,6 +83,7 @@ export default function CompletedWorksIndexPage() {
 
   return (
     <AppLayout>
+			<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
       <CompletedWorksGradientShell className="max-w-5xl">
         <PageHeader
           tone="light"
@@ -250,6 +252,7 @@ export default function CompletedWorksIndexPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+			</UserProvider>
     </AppLayout>
   );
 }

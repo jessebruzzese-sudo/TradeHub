@@ -2,6 +2,7 @@
 'use client';
 import React, { useEffect, useMemo, useState, useContext } from 'react';
 import UserContext from "@/lib/user-context";
+import UserProvider from "@/components/hoc/UserProvider";
 import Link from 'next/link';
 import { redirect, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
@@ -276,25 +277,6 @@ export default function DashboardPage() {
 		currentUser?.business?.businessName ||
 		"").split(' ')[0];
 
-	// hook to load user
-	useEffect(()=>{
-		if(currentUser !== null){
-			return;
-		}
-		// check if user needs to be loaded
-		if(UserSession.user === null){
-			// user not set this session
-			// need to grab from api
-			apiClient.get("/api/me").then(async(response)=>{
-				const user_ = response.data;
-				setCurrentUser(user_);
-				UserSession.user = user_;
-			});
-			return;
-		}
-		setCurrentUser(UserSession.user);
-	}, [currentUser]);
-	
 	// hook to load dates	
 	useEffect(()=>{
 		if(availDates !== null){
@@ -431,14 +413,17 @@ export default function DashboardPage() {
 	
   if (isLoading) {
     return (
+			<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
       <div className="flex min-h-[60vh] items-center justify-center text-sm text-gray-600">
         Loading dashboard…
       </div>
+			</UserProvider>
     );
   }
 
   return (
     <AppLayout>
+			<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
       <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200">
 
         {/* Dotted overlay */}
@@ -864,6 +849,7 @@ export default function DashboardPage() {
         </div>
         </div>
       </div>
+		</UserProvider>
     </AppLayout>
   );
 }

@@ -3,6 +3,7 @@
 import { getAxios } from "@/lib/utils";
 import React, { useEffect, useMemo, useState, useContext } from 'react';
 import UserContext from "@/lib/user-context";
+import UserProvider from "@/components/hoc/UserProvider";
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';

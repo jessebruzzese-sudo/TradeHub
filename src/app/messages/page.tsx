@@ -77,6 +77,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import UserContext from "@/lib/user-context";
+import UserProvider from "@/components/hoc/UserProvider";
 
 export default function MessagesPage() {
 
@@ -267,6 +268,7 @@ export default function MessagesPage() {
 
   return (
     <AppLayout>
+			<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
       <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-white">
         {/* Messaging workspace — flex-1 min-h-0 to stretch within parent */}
         <div className="flex flex-1 min-h-0 overflow-hidden">
@@ -934,6 +936,7 @@ export default function MessagesPage() {
           </div>
         </div>
       </div>
+			</UserProvider>
     </AppLayout>
   );
 }

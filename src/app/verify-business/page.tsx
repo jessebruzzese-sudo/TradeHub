@@ -4,6 +4,7 @@
 
 import { useEffect, useMemo, useState, useContext } from 'react';
 import UserContext from "@/lib/user-context";
+import UserProvider from "@/components/hoc/UserProvider";
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, useSearchParams, redirect } from 'next/navigation';
@@ -39,32 +40,20 @@ export default function VerifyBusinessPage() {
     return getSafeReturnUrl(returnUrlParam, '/dashboard');
   }, [searchParams]);
 
-	const [currentUser, setCurrentUser] = useState<any|null>(UserSession.user);
+	const [currentUser, setCurrentUser] = useState<any|null>(UserSession?.user ?? null);
   const [abn, setAbn] = useState(currentUser?.business?.abn ?? "");
   const [businessName, setBusinessName] = useState(currentUser?.business?.abnEntityName ?? "");
   const [statusMsg, setStatusMsg] = useState<string>('');
   const [error, setError] = useState('');
 	const [isCheckingABN, setIsCheckingABN] = useState<boolean>(false); // is check happening now
 
-	const isLoading = currentUser === null;
-
-  useEffect(() => {
-		if(currentUser !== null)
-			return;
-		if(UserSession.user === null){
-			getAxios(null).
-				get("/api/me").
-					then((response_)=>{
-						const data = response_.data;
-						setCurrentUser(data);
-						UserSession.user = data;
-					}).catch((err_)=>{
-						console.error(`Failed to load user, ${err_}`);
-					});
-		}
-  }, [currentUser]);
-
   const isVerified = currentUser?.business?.abnVerified ?? false;
+	
+	const refreshUser = (user:any) => {
+		setCurrentUser(user);
+		setAbn(user.business.abn);
+		setBusinessName(user.business.abnEntityName);
+	};
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -176,6 +165,7 @@ export default function VerifyBusinessPage() {
 	);
 
   return (
+		<UserProvider onUserLoaded={refreshUser}>
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <Link href="/" className="flex justify-center mb-6">
@@ -289,5 +279,6 @@ export default function VerifyBusinessPage() {
         </div>
       </div>
     </div>
+		</UserProvider>
   );
 }

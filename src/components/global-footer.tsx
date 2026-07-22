@@ -11,25 +11,11 @@ export function GlobalFooter() {
             TradeHub is not a party to any agreement, does not employ users, and does not guarantee work, payment, or outcomes.
             Availability indicators are informational only and do not represent a commitment or guarantee of work.
           </p>
-          <div className="flex flex-wrap gap-4 pt-2">
-            <Link
-              href="/terms"
-              className="text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              Terms of Service
-            </Link>
-            <Link
-              href="/privacy"
-              className="text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              Privacy Policy
-            </Link>
-          </div>
         </div>
       </div>
 
       <Link
-        href="/"
+        href="#"
         aria-label="Return to homepage"
         className="absolute bottom-6 right-6 md:bottom-8 md:right-8 group"
       >

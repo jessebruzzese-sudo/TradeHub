@@ -81,7 +81,7 @@ export const updateBusiness = async (userId:string, delta:any) => {
 	});
 };
 
-export const getPricing = async (email:string) => {
+export const getPricing = async (userId:string) => {
 	return new Promise(async(resolve, reject)=>{
 		const db = await getDB();
 		let results = null;
@@ -89,7 +89,7 @@ export const getPricing = async (email:string) => {
 			results = await db.select().
 				from(usersTable).
 				leftJoin(businessTable, eq(usersTable.businessId, businessTable.id)).
-				where(eq(usersTable.email, email));
+				where(eq(usersTable.id, userId));
 		}catch(err_){
 			reject(err_);
 			return;

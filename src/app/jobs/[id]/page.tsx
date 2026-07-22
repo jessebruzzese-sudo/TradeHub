@@ -4,7 +4,7 @@
 
 /*
  * QA notes — Job detail:
- * - Browse and view always allowed. Posting/editing job listings requires contractor role (RLS); ABN not required for those.
+ * - Browse and view always allowed. ABN not required for those.
  * - Apply, select applicant, confirm hire, etc. still require verified ABN — copy and toasts say so clearly.
  */
 
@@ -46,6 +46,7 @@ import Link from 'next/link';
 import { useParams, useRouter, redirect } from 'next/navigation';
 import { format } from 'date-fns';
 import UserContext from "@/lib/user-context";
+import UserProvider from "@/components/hoc/UserProvider";
 import { useContext, useState, useEffect, useLayoutEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -276,7 +277,7 @@ export default function JobDetailPage() {
   const [lightboxIndex, setLightboxIndex] = useState<number>(0);
   const [lightboxItems, setLightboxItems] = useState([]);
 
-	const isLoadingJob = job === null;
+	const isLoadingJob = job === null || currentUser === null;
 	const showHeadsUp = false;
 
   useEffect(() => {
@@ -360,6 +361,7 @@ export default function JobDetailPage() {
   if (isLoadingJob) {
     return (
       <AppLayout>
+				<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
         {/* Grey wrapper (match /jobs) */}
         <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-blue-50 via-white to-blue-100">
           {/* dotted overlay */}
@@ -388,6 +390,7 @@ export default function JobDetailPage() {
             </div>
           </div>
         </div>
+				</UserProvider>
       </AppLayout>
     );
   }
@@ -395,6 +398,7 @@ export default function JobDetailPage() {
   if (!job) {
     return (
       <AppLayout>
+				<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
         {/* Grey wrapper (match /jobs) */}
         <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-blue-50 via-white to-blue-100">
           {/* dotted overlay */}
@@ -426,6 +430,7 @@ export default function JobDetailPage() {
             </div>
           </div>
         </div>
+				</UserProvider>
       </AppLayout>
     );
   }
@@ -436,6 +441,7 @@ export default function JobDetailPage() {
   if (!isMyJob && !isAdminUser && !jobTradeMatchesViewer && !viewerPremium) {
     return (
       <AppLayout>
+				<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
         {/* Grey wrapper (match /jobs) */}
         <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-blue-50 via-white to-blue-100">
           {/* dotted overlay */}
@@ -478,6 +484,7 @@ export default function JobDetailPage() {
             </div>
           </div>
         </div>
+				</UserProvider>
       </AppLayout>
     );
   }
@@ -709,6 +716,7 @@ export default function JobDetailPage() {
 
   return (
     <AppLayout>
+			<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
       {/* Grey wrapper (match /jobs) */}
       <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-blue-50 via-white to-blue-100">
         {/* dotted overlay */}
@@ -1342,7 +1350,7 @@ export default function JobDetailPage() {
           {recipientId && (
             <ReliabilityReviewForm
               job={job}
-              recipientId={recipientId!}
+              recipientId={recipientId}
               recipientName={"TradeHub user"}
               open={showReviewDialog}
               onOpenChange={setShowReviewDialog}
@@ -1352,6 +1360,7 @@ export default function JobDetailPage() {
           </div>
         </div>
       </div>
+			</UserProvider>
     </AppLayout>
   );
 }
