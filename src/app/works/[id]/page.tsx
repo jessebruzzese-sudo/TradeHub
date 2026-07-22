@@ -1,17 +1,18 @@
 // vim: ts=2
 'use client';
-import { getAxios, getClaims} from "@/lib/utils";
+import UserContext from "@/lib/user-context";
+import UserProvider from "@/components/hoc/UserProvider";
+import { getAxios } from "@/lib/utils";
 import Image from 'next/image';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useContext } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, MapPin } from 'lucide-react';
 
 import { AppLayout } from '@/components/app-nav';
 import { CompletedWorksGradientShell } from '@/components/works/completed-works-gradient-shell';
 import { UserAvatar } from '@/components/user-avatar';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/lib/auth';
 import { getTradeIcon } from '@/lib/trade-icons';
 import { formatPostedDate } from '@/lib/completed-work-dates';
 import type { PreviousWorkListItem, PreviousWorkOwnerSummary } from '@/lib/previous-work';
@@ -19,11 +20,13 @@ import { cn } from '@/lib/utils';
 import { getPublicProfileHref } from '@/lib/url-utils';
 
 export default function CompletedWorkDetailPage() {
+
   const params = useParams();
   const router = useRouter();
   const rawId = typeof params?.id === 'string' ? params.id : '';
-  const { jwt } = useAuth(); // logged in user
+	const UserSession = useContext(UserContext);
 
+	const [currentUser, setCurrentUser] = useState<any|null>(UserSession?.user ??  null);
   const [item, setItem] = useState<PreviousWorkListItem | null>(null);
 	const [owner, setOwner] = useState<any|null>(null);
   const [ownerId, setOwnerId] = useState<string | null>(null);
@@ -31,22 +34,25 @@ export default function CompletedWorkDetailPage() {
   const [notFound, setNotFound] = useState(false);
   const [imgIdx, setImgIdx] = useState(0);
 		
-	const loading = item === null;
+	const loading = item === null || currentUser === null;
 
   useEffect(() => {
+		if(currentUser === null){
+			return;
+		}
 		if(item !== null){
 			return;
 		}
-		getAxios(jwt).
+		getAxios(null).
 			get(`/api/works/${rawId}`).
 			then(async(response)=>{
 				const data = response.data;
-				const { id } = await getClaims(jwt); // current user
+				const id = currentUser.id;
 				const ownerId = data?.userId ?? null; // owner of works
 				if(ownerId === null){
 					throw new Error(`Works has no userId`);
 				}
-				let owner = await getAxios(jwt).get(`/api/profile/${ownerId}`);
+				let owner = await getAxios(null).get(`/api/profile/${ownerId}`);
 				owner = owner.data;
 				setOwnerId(ownerId);
 				setCurrentUserId(id);
@@ -56,7 +62,7 @@ export default function CompletedWorkDetailPage() {
 				// TODO handle not found
 				console.error(err_);
 			});
-  }, [item]);
+  }, [item, currentUser]);
 
   const imgs = item?.images ?? [];
   const imgCount = imgs.length;
@@ -93,6 +99,7 @@ export default function CompletedWorkDetailPage() {
 
   return (
     <AppLayout transparentBackground>
+			<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
       <CompletedWorksGradientShell className="max-w-4xl">
         <div className="mb-6">
           <Button
@@ -246,6 +253,7 @@ export default function CompletedWorkDetailPage() {
           </article>
         )}
       </CompletedWorksGradientShell>
+			</UserProvider>
     </AppLayout>
   );
 }

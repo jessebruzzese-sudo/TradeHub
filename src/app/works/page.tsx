@@ -3,6 +3,7 @@
 
 import { getAxios } from "@/lib/utils";
 import UserContext from "@/lib/user-context";
+import UserProvider from "@/components/hoc/UserProvider";
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -23,7 +24,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useAuth } from '@/lib/auth';
 import { getTradeIcon } from '@/lib/trade-icons';
 import { formatRelativeTime } from '@/lib/completed-work-dates';
 import type { PreviousWorkListItem } from '@/lib/previous-work';
@@ -31,7 +31,6 @@ import { cn } from '@/lib/utils';
 
 export default function CompletedWorksIndexPage() {
 
-  const { jwt } = useAuth();
 	const UserSession = useContext(UserContext);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -42,7 +41,6 @@ export default function CompletedWorksIndexPage() {
   const [deleteTarget, setDeleteTarget] = useState<PreviousWorkListItem | null>(null);
 
 	const isLoading = currentUser === null || items === null;
-	const hasSession = jwt !== undefined && jwt !== null;
 
   useEffect(() => {
     if (searchParams.get('created') !== '1') return;
@@ -85,6 +83,7 @@ export default function CompletedWorksIndexPage() {
 
   return (
     <AppLayout>
+			<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
       <CompletedWorksGradientShell className="max-w-5xl">
         <PageHeader
           tone="light"
@@ -253,6 +252,7 @@ export default function CompletedWorksIndexPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+			</UserProvider>
     </AppLayout>
   );
 }

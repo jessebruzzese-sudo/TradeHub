@@ -60,7 +60,9 @@ export const getImageExtension = (mime:string) => {
 		"image/png": "png",
 		"image/jpg": "jpg",
 		"image/jpeg": "jpg",
-		"image/bmp": "bmp"
+		"image/bmp": "bmp",
+		"image/gif": "gif",
+		"image/webp": "webp"
 	};
 	const ext = known[mime] ?? null;
 	if(ext === null){

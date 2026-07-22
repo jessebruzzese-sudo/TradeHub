@@ -37,7 +37,6 @@ import { DayPicker } from 'react-day-picker';
 import "react-day-picker/style.css";
 import { Switch } from '@/components/ui/switch';
 import { SuburbAutocomplete } from '@/components/suburb-autocomplete';
-import { useAuth } from '@/lib/auth';
 import { isPremiumForDiscovery } from '@/lib/discovery';
 import { getABNStatus, getABNStatusMessage, hasValidABN } from '@/lib/abn-utils';
 import { useActiveTradesCatalog } from '@/lib/trades/use-active-trades-catalog';
@@ -71,14 +70,10 @@ function formatTimeDisplay(time24: string): string {
 
 export default function CreateJobPage() {
 
-  const { jwt } = useAuth();
 	const UserSession = useContext(UserContext);
 	const [currentUser, setCurrentUser] = useState(UserSession?.user ?? null);
-
   const router = useRouter();
-	const hasSession = jwt !== undefined && jwt !== null;
 	const isLoading = currentUser === null;
-
   const hasRedirected = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -205,15 +200,6 @@ export default function CreateJobPage() {
   useEffect(() => {
     void refreshPostLimit();
   }, [refreshPostLimit]);
-
-  useEffect(() => {
-    if (!hasSession) {
-      hasRedirected.current = true;
-      const loginUrl = '/login?returnUrl=/jobs/create';
-      safeRouterPush(router, loginUrl, '/login');
-      return;
-    }
-  }, []);
 
   if (isLoading) {
     return (
@@ -412,7 +398,7 @@ export default function CreateJobPage() {
 			longitude: jobLng,
 			attachments
 		};
-		getAxios(jwt).
+		getAxios(null).
 			post("/api/jobs", jobPayload).
 			then((response)=>{
 				const data_ = response.data;

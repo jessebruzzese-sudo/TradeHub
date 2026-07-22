@@ -60,9 +60,9 @@ export function MobileBottomNav() {
 
 export function MobileDrawer() {
 	const UserSession = useContext(UserContext);
-	const [currentUser, setCurrentUser] = useState<any|null>(UserSession.user);
+	const [currentUser, setCurrentUser] = useState<any|null>(UserSession?.user ?? null);
   const [open, setOpen] = useState(false);
-  const { jwt, logout } = useAuth();
+  const { logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const isVerified = hasValidABN(currentUser);
@@ -80,7 +80,11 @@ export function MobileDrawer() {
   };
 
   const handleLogout = () => {
-    logout();
+    logout().then(()=>{
+		}).catch(()=>{
+		}).finally(()=>{
+			window.location.href = "/login";
+		});
   };
 
   return (
@@ -118,7 +122,7 @@ export function MobileDrawer() {
                     )}
                   >
                     <ProfileAvatar
-                      userId={currentUser.id}
+                      userId={currentUser?.id}
                       currentAvatarUrl={currentUser?.avatar ?? undefined}
                       userName={currentUser?.name ?? ''}
                       onAvatarUpdate={() => {}}
@@ -141,7 +145,7 @@ export function MobileDrawer() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-gray-900 truncate">
-                    {currentUser.name || 'TradeHub user'}
+                    {currentUser?.name || 'TradeHub user'}
                   </h3>
                   <p className="text-sm text-gray-600 truncate">
                     {primaryTrade ? String(primaryTrade) : '—'}

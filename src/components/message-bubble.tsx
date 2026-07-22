@@ -8,7 +8,7 @@ interface MessageBubbleProps {
 }
 
 export function MessageBubble({ message, isMe }: MessageBubbleProps) {
-  if (message.isSystemMessage) {
+  if (message.isSystem) {
     return (
       <div className="flex justify-center my-4">
         <div className="bg-gray-100 border border-gray-200 rounded-lg px-4 py-2 max-w-md">

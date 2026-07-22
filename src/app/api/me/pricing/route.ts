@@ -1,22 +1,17 @@
 // vim: ts=2
 import { NextRequest, NextResponse } from 'next/server';
 import { getDataService } from "@/lib/data/service";
-import { cookies } from "next/headers";
-import * as jose from "jose";
-import * as z from "zod";
+import { getClaims } from "@/lib/claims/service";
 
 export async function GET(request: NextRequest) {
-	const store = await cookies();
-	const cookie = store.get("authorization") ?? null;
-	const jwt = cookie?.value ?? null;
-	const claims = await jose.decodeJwt(jwt);
-	const email = claims.email;
+	const claims = await getClaims();
 	let result = null;
 	try{
 		const { business } = await getDataService();
-		result = await business.getPricing(email);
+		result = await business.getPricing(claims.id);
 	}catch(err_){
-		return NextResponse.json({msg:"Failed to create availability record"}, {status:500});
+		console.error(err_);
+		return NextResponse.json({msg:"Failed to query business pricing"}, {status:500});
 	}
 	return NextResponse.json(result, {status: 200});
 }

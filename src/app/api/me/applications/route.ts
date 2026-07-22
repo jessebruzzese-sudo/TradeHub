@@ -28,7 +28,8 @@ export async function POST(request: NextRequest) {
 	const { 
 		applications: applicationRepo, 
 		jobs: jobRepo, 
-		profile: profileRepo 
+		profile: profileRepo,
+		users: userRepo
 	} = await getDataService();
 	let job = null;
 	try{
@@ -49,22 +50,24 @@ export async function POST(request: NextRequest) {
 	}
 	// find profile id of user
 	// need to link against job
-	let profileId = null;
+	let userProfile = null;
 	try{
-		profileId = await profileRepo.getProfileId(claims.id);
+		userProfile = await userRepo.getUserProfile(claims.id);
 	}catch(err_){
 		console.error(err_);
 		return NextResponse.json({ msg: "Failed to query profile id" }, { status: 500 });
 	}
+	const profileId = userProfile.profile.id;
 	if(profileId === null){
 		return NextResponse.json({ msg: "Profile id was null" }, { status: 500 });
 	}
 	// create application
 	// send email to applicant
 	// and job owner
+	// return covnersation id to client
 	try{
-		const applicationId = await applicationRepo.addApplication({...payload, profileId});
-		return NextResponse.json({ applicationId }, { status: 200 });
+		const conversationId = await applicationRepo.addApplication({...payload, profileId}, userProfile, job);
+		return NextResponse.json({ conversationId }, { status: 200 });
 	}catch(err_){
 		console.error(err_);
 		return NextResponse.json({ msg: "Failed to query user profile" }, { status: 500 });

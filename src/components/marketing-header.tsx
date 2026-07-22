@@ -1,15 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useAuth } from '@/lib/auth';
-import { buildLoginUrl } from '@/lib/url-utils';
 
 export function MarketingHeader() {
-  const { session } = useAuth();
-  const isAuthed = !!session?.user;
-
-  const jobsHref = isAuthed ? '/jobs' : buildLoginUrl('/jobs');
-  const searchHref = isAuthed ? '/search' : buildLoginUrl('/search');
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white/95 backdrop-blur">
@@ -23,12 +16,6 @@ export function MarketingHeader() {
         </Link>
 
         <nav className="hidden flex-1 items-center justify-center gap-6 md:flex">
-          <Link href={jobsHref} className="text-sm font-medium text-gray-600 hover:text-gray-900">
-            Jobs
-          </Link>
-          <Link href={searchHref} className="text-sm font-medium text-gray-600 hover:text-gray-900">
-            Search
-          </Link>
           <Link href="/how-it-works" className="text-sm font-medium text-gray-600 hover:text-gray-900">
             How it works
           </Link>
@@ -38,18 +25,9 @@ export function MarketingHeader() {
         </nav>
 
         <div className="flex shrink-0 items-center gap-3">
-          {isAuthed ? (
-            <Link
-              href="/dashboard"
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-            >
-              Dashboard
-            </Link>
-          ) : (
-            <>
-              <Link
-                href="/login"
-                className="rounded-md px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+					<Link
+           	href="/login"
+            className="rounded-md px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900"
               >
                 Sign in
               </Link>
@@ -59,8 +37,6 @@ export function MarketingHeader() {
               >
                 Get started
               </Link>
-            </>
-          )}
         </div>
       </div>
     </header>

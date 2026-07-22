@@ -7,10 +7,8 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { isUserAdmin } from '@/lib/is-admin';
 
-export function TradeGate({ children }: { children: React.ReactNode }) {
-  const { jwt } = useAuth();
-	const session = useContext(UserContext);
-	const currentUser = session?.user ?? null;
+export function TradeGate({ children, currentUser }: { children: React.ReactNode, currentUser: any }) {
+
 	const isAdmin = isUserAdmin(currentUser);
   const router = useRouter();
   const pathname = usePathname();
@@ -29,7 +27,6 @@ export function TradeGate({ children }: { children: React.ReactNode }) {
     }
   }, [hasChecked]);
 	
-	// TODO redirect to login ??
   if (!currentUser) {
     return null;
   }

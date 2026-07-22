@@ -1,7 +1,7 @@
 // vim: ts=2
 'use server'
 import { or, and, eq, sql, isNull, inArray, asc } from "drizzle-orm";
-import { getDB, callDb } from "@/lib/data/service";
+import { getDB, callDb, getDataService } from "@/lib/data/service";
 import { applicationTable, selectedApplicationTable } from "@/lib/data/defs/applications";
 import { ENV } from "@/lib/env";
 
@@ -42,20 +42,41 @@ export const getApplication = async (applicationId:string) => {
 		where(eq(applicationTable.id, applicationId));
 };
 
-export const addApplication = async (application:any) => {
+export const addApplication = async (application:any, sender:any, job:any) => {
+	const { conversations: convRepo } = await getDataService();
 	return await callDb(async(db) => {
 		return db.transaction(async(trx) => {
-			let values = null;
+			// within transaction create application
+			// create conversation
+			// create system message
+			// send application received, message received
+			// return conversation id
 			try{
-				values = await addApplicationT(application, trx);
+				const profileId = application.profileId;
+				const jobProfileId = job.owner.profileId;
+				await addApplicationT(application, trx);
+				const conversationId = await convRepo.upsertConversationT(profileId, jobProfileId, trx);
+				const senderName = sender.visibleName ?? sender.name;
+				const intro = {
+					message: `Hi ${job.owner.name}, ${senderName} has applied for the job - ${job.title}`,	
+					isSystem: true,
+					senderProfileId: profileId,
+					conversationId
+				};
+				// add introduction first
+				// system generated message
+				await convRepo.addMessageT(intro, trx);
+				const applicationMsg = {
+					message: application.message,	
+					senderProfileId: profileId,
+					conversationId
+				};
+				// then applicant message
+				await convRepo.addMessageT(applicationMsg, trx);
+				return conversationId;
 			}catch(err_){
 				throw err_;
 			}
-			const id = values[0]?.id ?? null;
-			if(id === null){
-				throw new Error(`Failed to create new application record`);
-			}
-			return id;
 		});
 	});
 };

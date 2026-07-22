@@ -9,24 +9,29 @@ import {
 	MenuItem, Container, 
 	Grid, Button, Typography, 
 	Box, Chip, TextField, 
-	IconButton, Switch, InputAdornment, Drawer, Stack, Divider, Paper
+	IconButton, Switch, InputAdornment, 
+	Drawer, Stack, Divider, Paper
 } from "@mui/material";
 import { DayPicker } from "react-day-picker";
 import { ArrowBack, People, PersonOutlined, CalendarTodayOutlined }  from "@mui/icons-material";
+import UserProvider from "@/components/hoc/UserProvider";
 import { getAxios } from "@/lib/utils";
 import { useEffect, useMemo, useState, useContext } from 'react';
 import { redirect, useRouter } from "next/navigation";
 import { AppLayout } from '@/components/app-nav';
 import { TradeGate } from '@/components/trade-gate';
 import { PremiumUpsellBar } from '@/components/premium-upsell-bar';
-import { useAuth } from '@/lib/auth';
 import { isPremiumForDiscovery } from '@/lib/discovery';
 import { getTradeIcon } from '@/lib/trade-icons';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { primaryButtonClass } from '@/components/ui/primary-button';
-import { Search, Lightbulb, Users, ArrowLeft, MapPin, BadgeCheck, Crown, ArrowRight, Calendar } from 'lucide-react';
+import { 
+	Search, Lightbulb, Users, 
+	ArrowLeft, MapPin, BadgeCheck, 
+	Crown, ArrowRight, Calendar 
+} from 'lucide-react';
 import { UserAvatar } from '@/components/user-avatar';
 import { UnauthorizedAccess } from '@/components/unauthorized-access';
 import { useActiveTradesCatalog } from '@/lib/trades/use-active-trades-catalog';
@@ -149,9 +154,6 @@ function SubcontractorCard({ sub }: { sub: any }) {
 
 export default function SubcontractorsPage() {
 
-  const { jwt } = useAuth();
-	const theme = useTheme();
-	const router = useRouter();
 	const UserSession = useContext(UserContext);
 	const [currentUser, setCurrentUser] = useState(UserSession?.user ?? null);
   const [nameQuery, setNameQuery] = useState<string>("");
@@ -166,8 +168,7 @@ export default function SubcontractorsPage() {
   const [profiles, setProfiles] = useState<ProfileCard[]>(null);
   const [profilesError, setProfilesError] = useState<string | null>(null);
 
-	const isLoading = profiles === null;
-	const hasSession = jwt !== undefined && jwt !== null;
+	const isLoading = currentUser === null || profiles === null;
 
   const nextAvailableLabel = useMemo(() => {
     if (!nextAvailable) return null;
@@ -221,18 +222,12 @@ export default function SubcontractorsPage() {
 			});
   }, [profiles]);
 
-  if (!hasSession) {
-		redirect("/login");
-		return;
-  }
-		
 	const profileCards = (profiles ?? []).map((e,i)=>{return <SubcontractorCard key={e.id} sub={e}/>});
-		
 	const isMobile = theme.breakpoints.down("sm");
 
   return (
-    <TradeGate>
-      <AppLayout>
+		<AppLayout>
+			<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
 				<Container fluid maxWidth>
 				<Grid container sx={{mt:2}}>
 					{/* LEFT MARGIN */}
@@ -439,7 +434,7 @@ export default function SubcontractorsPage() {
 						</Grid>
 					</Grid>
 				</Drawer>
-      </AppLayout>
-    </TradeGate>
+			</UserProvider>
+		</AppLayout>
   );
 }

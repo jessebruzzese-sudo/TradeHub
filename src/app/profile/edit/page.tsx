@@ -3,6 +3,7 @@
 import { getAxios } from "@/lib/utils";
 import React, { useEffect, useMemo, useState, useContext } from 'react';
 import UserContext from "@/lib/user-context";
+import UserProvider from "@/components/hoc/UserProvider";
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -31,7 +32,6 @@ import { Badge } from '@/components/ui/badge';
 import { RefinePillButton } from '@/components/ai/RefinePillButton';
 import { PremiumUpsellBar } from '@/components/premium-upsell-bar';
 import { SuburbAutocomplete } from '@/components/suburb-autocomplete';
-import { useAuth } from '@/lib/auth';
 import { useActiveTradesCatalog } from '@/lib/trades/use-active-trades-catalog';
 import { normalizeTrade, normalizeTradesList } from '@/lib/trades/normalizeTrade';
 import { cn } from '@/lib/utils';
@@ -81,17 +81,9 @@ function normalizePrimaryLocationSource(user: any): {
 }
 export default function EditProfilePage() {
 
-  const { jwt } = useAuth();
   const router = useRouter();
-  const hasSession = jwt !== null && jwt !== undefined;
 	const UserSession = useContext(UserContext);
 	const isAdmin = UserSession?.user?.role === "admin";
-
-  useEffect(() => {
-    if (!hasSession) {
-      router.replace(`/login?returnUrl=${encodeURIComponent('/profile/edit')}`);
-    }
-  }, [hasSession]);
 
   const cardClass =
     'mb-5 rounded-2xl border border-slate-200/70 bg-white/75 p-5 shadow-sm backdrop-blur ' +
@@ -183,11 +175,7 @@ export default function EditProfilePage() {
   const [addTradeOpen, setAddTradeOpen] = useState(false);
   const { names: catalogTradeNames, loading: catalogTradesLoading } = useActiveTradesCatalog();
 
-  // Load additional locations from API (Premium users only)
-  useEffect(() => {
-    if (!hasSession) return;
-		// TODO load locations	
-  }, [hasSession]);
+  // TODO Load additional locations from API (Premium users only)
 
   useEffect(() => {
     if (!googleLookupMode) return;
@@ -282,7 +270,7 @@ export default function EditProfilePage() {
         reviewCount: details?.reviewCount ?? null,
         claimed: true
       };
-			await getAxios(jwt).post("/api/me/business/google-listing", googlePayload);
+			await getAxios(null).post("/api/me/business/google-listing", googlePayload);
       toast.success('Google business listing linked');
     } catch(err_) {
 			console.error(err_);
@@ -308,7 +296,7 @@ export default function EditProfilePage() {
     setGoogleDropdownOpen(false);
     setGoogleHighlightedIndex(-1);
     try {
-			await getAxios(jwt).delete("/api/me/business/google-listing");
+			await getAxios(null).delete("/api/me/business/google-listing");
       toast.success('Google business listing removed');
     } catch {
       toast.error('Could not remove Google business listing');
@@ -657,7 +645,7 @@ export default function EditProfilePage() {
 			// persist changes
 			// clear context variables	
 			// therefore making the profile page load the user again
-			await getAxios(jwt).put("/api/me", payload);
+			await getAxios(null).put("/api/me", payload);
 			UserSession.user = null;
       toast.success('Profile updated successfully');
       setSavedTick(true);

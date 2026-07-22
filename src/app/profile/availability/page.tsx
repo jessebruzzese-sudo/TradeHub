@@ -5,11 +5,11 @@
 import Link from 'next/link';
 import { useState, useEffect, useCallback, useContext } from 'react';
 import UserContext from "@/lib/user-context";
+import UserProvider from "@/components/hoc/UserProvider";
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import { AppLayout } from '@/components/app-nav';
 import { RefinePillButton } from '@/components/ai/RefinePillButton';
-import { useAuth } from '@/lib/auth';
 import { AvailabilityCalendar } from '@/components/availability-calendar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,14 +25,13 @@ import { notifyContractorsAboutAvailability } from '@/lib/notification-utils';
 
 export default function AvailabilityPage() {
 
-  const { jwt } = useAuth();
   const router = useRouter();
 	const UserSession = useContext(UserContext);
 		
 	const [isLoading, setIsLoading] = useState<boolean>(true);
 	const [currentUser, setCurrentUser] = useState<any|null>(UserSession?.user ?? null);
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
-  const [description, setDescription] = useState('');
+	const [description, setDescription] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [isRefining, setIsRefining] = useState(false);
   const [pricingType, setPricingType] = useState<string>('');
@@ -41,7 +40,7 @@ export default function AvailabilityPage() {
 
   const loadAvailability = useCallback(async () => {
   	if (!isLoading) return;
-		const response_ = await getAxios(jwt).get("/api/me/availability");
+		const response_ = await getAxios(null).get("/api/me/availability");
 		const availability: any = response_.data; // description with dates ...
 		const dates: string[] = availability.dates; 
 		const description: string = availability.description;
@@ -54,7 +53,7 @@ export default function AvailabilityPage() {
 	
 	const loadPricing = useCallback(async()=>{
 		if(!isLoading) return;
-		const response_ = await getAxios(jwt).get("/api/me/pricing");
+		const response_ = await getAxios(null).get("/api/me/pricing");
 		const { price, priceType, showPricing } = response_.data;
 		setPricingType(priceType);
 		setPricingAmount(price);
@@ -103,10 +102,11 @@ export default function AvailabilityPage() {
 					showPricing: false
 				};
       }
-			getAxios(jwt).
+			getAxios(null).
 				post("/api/me/availability", payload).
 				then((response)=>{
       		toast.success('Subcontracting dates updated successfully');
+					UserSession.user = null;
      			router.push('/dashboard');
 				}).catch((err_)=>{
       		console.error('Error saving availability:', err_);
@@ -163,24 +163,21 @@ export default function AvailabilityPage() {
     }
   }
 
-	const isLoggedIn = (jwt !== null && jwt !== undefined);
-
-  if (!isLoggedIn) {
-    return <UnauthorizedAccess redirectTo="/login" />;
-  }
-
   if (isLoading){
     return (
       <AppLayout>
+				<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
         <div className="flex min-h-[60vh] items-center justify-center text-sm text-slate-600">
           Loading availability…
         </div>
+				</UserProvider>
       </AppLayout>
     );
   }
 
   return (
     <AppLayout>
+				<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
       {/* Grey wrapper — matches Jobs / Profile */}
       <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-slate-50 via-slate-100 to-slate-200">
         {/* Dotted overlay */}
@@ -350,6 +347,7 @@ export default function AvailabilityPage() {
           </Card>
         </div>
       </div>
+			</UserProvider>
     </AppLayout>
   );
 }

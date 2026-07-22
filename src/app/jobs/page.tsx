@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic";
 import { getAxios } from "@/lib/utils";
 import Link from 'next/link';
 import UserContext from "@/lib/user-context";
+import UserProvider from "@/components/hoc/UserProvider";
 import { redirect, useRouter } from 'next/navigation';
 import { useContext, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Briefcase, Plus, Info, ArrowRight, Trash2 } from 'lucide-react';
@@ -32,7 +33,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useAuth } from '@/lib/auth';
 import { isPremiumForDiscovery } from '@/lib/discovery';
 import { hasPremiumAccess } from '@/lib/billing/has-premium-access';
 import { buildLoginUrl } from '@/lib/url-utils';
@@ -89,17 +89,14 @@ function normalizeJobRow(row: Record<string, unknown>): Record<string, unknown> 
 }
 
 export default function JobsPage() {
-  const { jwt } = useAuth();
 	const UserSession = useContext(UserContext);	
   const router = useRouter();
   const hasRedirected = useRef(false);
-
 	const [currentUser, setCurrentUser] = useState(UserSession?.user ?? null);
   const [tab, setTab] = useState<JobsTab>('find');
   const [visibleJobs, setVisibleJobs] = useState<any[]>(null);
   const [jobsError, setJobsError] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<'newest' | 'nearest'>('newest');
-
   const [myPosts, setMyPosts] = useState<any[]>(null);
   const [myPostsError, setMyPostsError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -107,7 +104,6 @@ export default function JobsPage() {
   const [deleteConfirmJobId, setDeleteConfirmJobId] = useState<string | null>(null);
 		
 	const isLoading = currentUser === null || myPosts === null || visibleJobs === null;
-	const hasSession = jwt !== null && jwt !== undefined;
 
   const showAbnTrustNotice = useMemo(
     () => !(currentUser?.business?.abnVerified ?? false),
@@ -322,15 +318,13 @@ export default function JobsPage() {
       />
     );
   }
-  if (!hasSession) {
-		redirect("/login");
-		return;
-  }
   if (isLoading) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center text-sm text-gray-600">
-        Loading jobs…
-      </div>
+			<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
+      	<div className="flex min-h-[60vh] items-center justify-center text-sm text-gray-600">
+        	Loading jobs…
+      	</div>
+			</UserProvider>
     );
   }
 	const premium = currentUser?.profile?.premium ?? false;
@@ -340,6 +334,7 @@ export default function JobsPage() {
 	}
   return (
     <AppLayout>
+			<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
       {/* Grey wrapper */}
       <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-blue-50 via-white to-blue-100">
         {/* dotted overlay */}
@@ -673,6 +668,7 @@ export default function JobsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+		</UserProvider>
     </AppLayout>
   );
 }

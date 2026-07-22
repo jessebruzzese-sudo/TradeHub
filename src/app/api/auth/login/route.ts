@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { getDataService } from "@/lib/data/service";
 import { ENV } from "@/lib/env";
 import bcrypt from "bcrypt";
+import { addYears } from "date-fns";
 import * as jose from "jose";
 type LoginPayload = {
   email: string;
@@ -37,15 +38,21 @@ export async function POST(req: Request) {
 	// generate jwt
 	const alg = "HS256";
 	const secret = new TextEncoder().encode(ENV.jwt.secret);
-	const claims = { email: user.email, role: user.role, id: user.id };
+	const claims = { role: user.role, id: user.id };
 	const jwt = await new jose.SignJWT(claims).
 		setProtectedHeader({alg}).
 		setIssuedAt().
-		setExpirationTime("2h").
 		sign(secret);
 	// set authorization header
 	// as cookie
 	const response_ = NextResponse.json({ token: jwt }, { status: 200 });
-	response_.cookies.set("authorization", jwt, {httpOnly: true});
+	const now = new Date();
+	const expiry = addYears(now, 1);
+	response_.cookies.set("authorization", jwt, { 
+		httpOnly: true, 
+		secure: true, 
+		expires: expiry, 
+		sameSite: true 
+	});
 	return response_;
 }

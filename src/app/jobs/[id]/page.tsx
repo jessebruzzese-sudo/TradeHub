@@ -4,7 +4,7 @@
 
 /*
  * QA notes — Job detail:
- * - Browse and view always allowed. Posting/editing job listings requires contractor role (RLS); ABN not required for those.
+ * - Browse and view always allowed. ABN not required for those.
  * - Apply, select applicant, confirm hire, etc. still require verified ABN — copy and toasts say so clearly.
  */
 
@@ -13,7 +13,6 @@ export const dynamic = "force-dynamic";
 import { getAxios, getUserRating } from "@/lib/utils";
 import { AppLayout } from '@/components/app-nav';
 import { UnauthorizedAccess } from "@/components/unauthorized-access";
-import { useAuth } from '@/lib/auth';
 import type { PayType, JobStatus } from '@/lib/types';
 import { loadJobById, syncContractorIntoStore } from '@/lib/jobs/load-job-by-id';
 import { formatJobPriceDisplay } from '@/lib/job-pay-labels';
@@ -47,6 +46,7 @@ import Link from 'next/link';
 import { useParams, useRouter, redirect } from 'next/navigation';
 import { format } from 'date-fns';
 import UserContext from "@/lib/user-context";
+import UserProvider from "@/components/hoc/UserProvider";
 import { useContext, useState, useEffect, useLayoutEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -251,7 +251,6 @@ function formatJobDatesDisplay(input: any): { label: string; badge?: string } | 
 
 export default function JobDetailPage() {
 
-  const { jwt } = useAuth();
 	const UserSession = useContext(UserContext);
   const params = useParams();
   const router = useRouter();
@@ -278,8 +277,8 @@ export default function JobDetailPage() {
   const [lightboxIndex, setLightboxIndex] = useState<number>(0);
   const [lightboxItems, setLightboxItems] = useState([]);
 
-	const isLoadingJob = job === null;
-	const hasSession = jwt !== undefined && jwt !== null;
+	const isLoadingJob = job === null || currentUser === null;
+	const showHeadsUp = false;
 
   useEffect(() => {
 		if(job !== null){
@@ -359,14 +358,10 @@ export default function JobDetailPage() {
     return [pt];
   }, [currentUser]);
 		
-	if(!hasSession){
-		redirect("/login");
-		return;
-	}
-
   if (isLoadingJob) {
     return (
       <AppLayout>
+				<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
         {/* Grey wrapper (match /jobs) */}
         <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-blue-50 via-white to-blue-100">
           {/* dotted overlay */}
@@ -395,6 +390,7 @@ export default function JobDetailPage() {
             </div>
           </div>
         </div>
+				</UserProvider>
       </AppLayout>
     );
   }
@@ -402,6 +398,7 @@ export default function JobDetailPage() {
   if (!job) {
     return (
       <AppLayout>
+				<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
         {/* Grey wrapper (match /jobs) */}
         <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-blue-50 via-white to-blue-100">
           {/* dotted overlay */}
@@ -433,6 +430,7 @@ export default function JobDetailPage() {
             </div>
           </div>
         </div>
+				</UserProvider>
       </AppLayout>
     );
   }
@@ -443,6 +441,7 @@ export default function JobDetailPage() {
   if (!isMyJob && !isAdminUser && !jobTradeMatchesViewer && !viewerPremium) {
     return (
       <AppLayout>
+				<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
         {/* Grey wrapper (match /jobs) */}
         <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-blue-50 via-white to-blue-100">
           {/* dotted overlay */}
@@ -485,11 +484,15 @@ export default function JobDetailPage() {
             </div>
           </div>
         </div>
+				</UserProvider>
       </AppLayout>
     );
   }
-
-  const needsAbnForActions = needsBusinessVerification(currentUser);
+	
+	// remove requirement for business verification	
+	// during testing of mvp, put back later?
+  // original const needsAbnForActions = needsBusinessVerification(currentUser);
+  const needsAbnForActions = false;
   const returnUrl = `/jobs/${jobId}`;
   const abnRequiredActionToast =
     "This step requires a verified ABN. Verify your business to continue.";
@@ -530,10 +533,12 @@ export default function JobDetailPage() {
       message: applicationMessage
     };
 		getAxios(null).post("/api/me/applications", payload).
-			then((response_)=>{
-				toast.success("Application submitted");
-    		setShowApplyDialog(false);
-    		setApplicationMessage("");
+			then(async(response_)=>{
+				// a conversation with the job owner has already been created
+				// conversation id should be present in response
+				const data__ = response_.data;
+				const conversationId = data__.conversationId;
+    		router.push(`/messages?conversationId=${conversationId}`);
 			}).catch((error_)=>{
 				toast.error("Could not submit application, try again later");
     		setShowApplyDialog(false);
@@ -711,6 +716,7 @@ export default function JobDetailPage() {
 
   return (
     <AppLayout>
+			<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
       {/* Grey wrapper (match /jobs) */}
       <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-gradient-to-b from-blue-50 via-white to-blue-100">
         {/* dotted overlay */}
@@ -1032,7 +1038,7 @@ export default function JobDetailPage() {
               );
             })()}
 
-            {currentUser && (
+            {currentUser && showHeadsUp && (
               <p className="mb-4 text-xs text-slate-600">
                 <span className="font-medium text-slate-700">Heads up:</span> Posting a job does not require ABN
                 verification. Applying, selecting a subcontractor, and confirming hire require a verified ABN when you take
@@ -1344,7 +1350,7 @@ export default function JobDetailPage() {
           {recipientId && (
             <ReliabilityReviewForm
               job={job}
-              recipientId={recipientId!}
+              recipientId={recipientId}
               recipientName={"TradeHub user"}
               open={showReviewDialog}
               onOpenChange={setShowReviewDialog}
@@ -1354,6 +1360,7 @@ export default function JobDetailPage() {
           </div>
         </div>
       </div>
+			</UserProvider>
     </AppLayout>
   );
 }

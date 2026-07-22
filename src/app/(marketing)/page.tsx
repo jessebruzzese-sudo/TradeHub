@@ -6,15 +6,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { HeroCard } from '@/components/marketing/HeroCard';
 import { HowItWorksBand } from '@/components/marketing/HowItWorksBand';
-import { useAuth } from '@/lib/auth';
 import { safeRouterPush } from '@/lib/safe-nav';
 
 export default function HomePage() {
 
   const [heroOpen, setHeroOpen] = useState(false);
   const router = useRouter();
-  const { jwt } = useAuth();
-  const isAuthed = jwt !== undefined && jwt !== null;
+  const isAuthed = false; // TODO check cookie
 
   const handleJoinFree = () => {
     if (isAuthed) {

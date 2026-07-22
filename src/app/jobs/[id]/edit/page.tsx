@@ -12,7 +12,6 @@ import { getAxios } from "@/lib/utils";
 import UserContext from "@/lib/user-context";
 import { AppLayout } from '@/components/app-nav';
 import { PageHeader } from '@/components/page-header';
-import { useAuth } from '@/lib/auth';
 import { safeRouterPush } from '@/lib/safe-nav';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -65,7 +64,6 @@ function prettySize(bytes?: number) {
 
 export default function EditJobPage() {
 
-  const { jwt } = useAuth();
   const params = useParams();
   const router = useRouter();
 	const UserSession = useContext(UserContext);

@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDataService } from "@/lib/data/service";
 import { readFile } from "node:fs/promises";
+import { ENV } from "@/lib/env";
 
 export async function GET(request: NextRequest, context:any) {
 	const { id } = await context.params;
@@ -13,9 +14,10 @@ export async function GET(request: NextRequest, context:any) {
 		console.error(err_);
 		return NextResponse.json({msg:"Failed to query user profile"}, { status: 500 });
 	}
-	const filePath = images.avatar;
+	let filePath = images.avatar;
 	if(filePath === null){
-		return NextResponse.json({ok:false}, { status: 404 });
+		const defaultImage = ENV.avatar.defaultImage;
+		filePath = `${ENV.store.images}/${defaultImage}`;
 	}
 	let data = null;
 	try{

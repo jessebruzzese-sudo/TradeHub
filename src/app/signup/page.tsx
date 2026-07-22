@@ -360,7 +360,7 @@ export default function SignupPage() {
 				}
 			};
 			await getAxios().post("/api/auth/signup", payload);
-      router.push('/login');
+      router.push('/login?activate=1');
     } catch (err: any) {
 			const msg = err?.response?.data?.error?.toLowerCase();
 			if (msg === "email already exists") {

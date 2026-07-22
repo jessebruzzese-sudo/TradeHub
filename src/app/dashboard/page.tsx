@@ -2,6 +2,7 @@
 'use client';
 import React, { useEffect, useMemo, useState, useContext } from 'react';
 import UserContext from "@/lib/user-context";
+import UserProvider from "@/components/hoc/UserProvider";
 import Link from 'next/link';
 import { redirect, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
@@ -18,7 +19,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { useAuth } from '@/lib/auth';
 import { isAdmin } from "@/lib/is-admin";
 import { useDevUnread } from '@/lib/dev-unread-context';
 import { isPremiumForDiscovery } from '@/lib/discovery';
@@ -233,10 +233,8 @@ export default function DashboardPage() {
 
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { jwt } = useAuth();
 	const UserSession = useContext(UserContext);
-  const hasSession = jwt !== null && jwt !== undefined;
-	const apiClient = getAxios(jwt);
+	const apiClient = getAxios(null);
 	
 	{/* STATE */}
 	const [currentUser, setCurrentUser] = useState<any|null>(UserSession?.user ?? null);
@@ -246,6 +244,7 @@ export default function DashboardPage() {
   const [availLoading, setAvailLoading] = useState(true);
   const [savedLocations, setSavedLocations] = useState<{ id: string }[] | null>(null);
 	const [statistics, setStatistics] = useState<any|null>(null);
+	const [triggerActive, setTriggerActive] = useState<boolean>(true);
 
 	{/*  DERIVED STATE */}
 	const isLoading = currentUser === null;
@@ -278,25 +277,6 @@ export default function DashboardPage() {
 		currentUser?.business?.businessName ||
 		"").split(' ')[0];
 
-	// hook to load user
-	useEffect(()=>{
-		if(currentUser !== null){
-			return;
-		}
-		// check if user needs to be loaded
-		if(UserSession.user === null){
-			// user not set this session
-			// need to grab from api
-			apiClient.get("/api/me").then(async(response)=>{
-				const user_ = response.data;
-				setCurrentUser(user_);
-				UserSession.user = user_;
-			});
-			return;
-		}
-		setCurrentUser(UserSession.user);
-	}, [currentUser]);
-	
 	// hook to load dates	
 	useEffect(()=>{
 		if(availDates !== null){
@@ -311,7 +291,7 @@ export default function DashboardPage() {
 	}, [availDates]);
 	
 	// update  last active timestamp
-	useActivityPing(jwt);
+	useActivityPing(triggerActive, (result:boolean)=>{setTriggerActive(result);});
 	
 	// take memo of most recent upcoming
 	// date of availability
@@ -391,9 +371,6 @@ export default function DashboardPage() {
 		if(currentUser === null){
 			return;
 		}
-		if(!hasSession){
-			return;
-		}
 		if(statistics !== null){
 			return;
 		}
@@ -434,21 +411,19 @@ export default function DashboardPage() {
 
 	{ /*END HOOKS */ }
 	
-  if (!hasSession) {
-		redirect("/login");
-		return;
-  }
-
   if (isLoading) {
     return (
+			<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
       <div className="flex min-h-[60vh] items-center justify-center text-sm text-gray-600">
         Loading dashboard…
       </div>
+			</UserProvider>
     );
   }
 
   return (
     <AppLayout>
+			<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
       <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200">
 
         {/* Dotted overlay */}
@@ -874,6 +849,7 @@ export default function DashboardPage() {
         </div>
         </div>
       </div>
+		</UserProvider>
     </AppLayout>
   );
 }

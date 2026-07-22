@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Dialog, DialogContent, DialogTitle, DialogActions, Typography } from "@mui/material";
 import Link from 'next/link';
 import Image from 'next/image';
 import { AppLayout } from '@/components/app-nav';
@@ -14,7 +15,6 @@ import { getSafeReturnUrl, safeRouterReplace } from '@/lib/safe-nav';
 import { toast } from "sonner";
 import { isAdmin } from '@/lib/is-admin';
 
-// TODO get rid of this shit
 function getFriendlyLoginError(error: any): string {
   if (!error) {
     return 'Invalid email or password. Please check your credentials and try again.';
@@ -60,12 +60,14 @@ export default function LoginPage() {
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
+	const [activateOpen, setActivateOpen] = useState<boolean>(true);
   const [error, setError] = useState('');
 
-  const { login, jwt } = useAuth();
+  const { login } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const returnUrlParam = searchParams.get('returnUrl');
+  const returnUrlParam = searchParams.get("returnUrl");
+	const activate = searchParams.get("activate");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,17 +87,37 @@ export default function LoginPage() {
 
   if (isLoading) {
     return (
-      <AppLayout>
         <div className="relative min-h-screen bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800 flex items-center justify-center">
         	<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
-      </AppLayout>
     );
   }
+	
+	let activateDialog = null;
+	if(activate === "1"){
+		activateDialog = (
+			<Dialog open={activateOpen} onClose={()=>{setActivateOpen(false);}}>
+				<DialogTitle sx={{textAlign:"center"}}>
+					<Typography sx={{fontFamily:"inter", fontWeight:"400", fontSize:"1.5rem"}}>
+						Activation Required
+					</Typography>
+				</DialogTitle>
+				<DialogContent sx={{textAlign:"center", fontFamily:"inter"}}>
+					<Typography>
+						An activation email has been sent to your inbox. <br/>Please activate your account before logging in.	
+					</Typography>
+				</DialogContent>
+				<DialogActions>
+					<Button onClick={()=>{setActivateOpen(false);}}>OK</Button>
+				</DialogActions>
+			</Dialog>
+		);
+	}
 
   return (
-    <AppLayout>
       <div className="relative min-h-screen bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800">
+				{/* activate dialog */}
+				{activateDialog}
         {/* Dotted overlay - behind watermark */}
         <div
           className="pointer-events-none absolute inset-0 opacity-20"
@@ -209,6 +231,5 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
-    </AppLayout>
   );
 }

@@ -6,52 +6,16 @@ import { Check, Crown, Sparkles, TrendingUp, BadgeCheck } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { toast } from 'sonner';
-import { useAuth } from '@/lib/auth';
 import { isPremiumForDiscovery } from '@/lib/discovery';
 
 export default function PricingContent() {
-  const { currentUser } = useAuth();
-  const userForDiscovery = currentUser
-    ? {
-        plan: currentUser.plan ?? null,
-        subscription_status: currentUser.subscriptionStatus ?? null,
-        complimentary_premium_until: currentUser.complimentaryPremiumUntil ?? null,
-      }
-    : null;
-  const isPremium = isPremiumForDiscovery(userForDiscovery);
+
+  const isPremium = true;
+	const currentUser = null;
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [showWaitlist, setShowWaitlist] = useState(false);
 
   const handleUpgrade = async () => {
-    if (!currentUser) {
-      window.location.href = '/signup';
-      return;
-    }
-    setCheckoutLoading(true);
-    setShowWaitlist(false);
-    try {
-      const res = await fetch('/api/billing/create-checkout-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.status === 503 && data?.code === 'stripe_not_configured') {
-        toast.error('Payments are not live yet — join the Premium waitlist');
-        setShowWaitlist(true);
-        return;
-      }
-      if (!res.ok) {
-        toast.error(data?.error || 'Could not start checkout');
-        return;
-      }
-      if (data?.url) {
-        window.location.href = data.url;
-        return;
-      }
-      toast.error('Could not start checkout');
-    } finally {
-      setCheckoutLoading(false);
-    }
   };
 
   return (
