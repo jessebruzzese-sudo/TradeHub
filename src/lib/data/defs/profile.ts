@@ -26,7 +26,6 @@ export const profileTable = pgTable("profile", {
 	avatarDataUrl: text("avatar_data_url"),
 	coverDataUrl: text("cover_data_url"),
 	completedJobs: integer("completed_jobs").notNull().default(0),
-	bio: text("bio"),
 	rating: real("rating"),
 	reliabilityRating: real("reliability_rating"),
 	upVotes: integer("up_votes").default(0),
