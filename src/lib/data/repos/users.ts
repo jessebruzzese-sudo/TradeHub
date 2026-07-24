@@ -81,7 +81,7 @@ export const doForgotPassword = async (state:string, email:string) => {
 	return (await getDB()).
 		update(usersTable).
 		set({forgotPasswordState: state}).
-		where(eq(usersTable.email, email)).
+		where(sql`lower(${usersTable.email}) = ${email}`).
 		returning({id: usersTable.id});
 };
 
@@ -240,19 +240,43 @@ type UserLocation = {
 	longitude: number;
 };
 
+export const getUserIds = async (tradeId:string, term:string) => {
+	// check for all trades
+	// and no term, if this is the case
+	// just return all users
+	// include profile join
+	if(tradeId === "all" && (term === "" || term === null)){
+		return (await getDB()).execute(sql`SELECT a.id FROM users a INNER JOIN profile b ON a.profile_id = b.id ORDER BY a.id asc`);
+	}
+	// filter by trade only
+	if(tradeId !== "all" && (term === "" || term === null)){
+		return (await getDB()).execute(sql`SELECT a.id FROM users a INNER JOIN business b ON a.business_id = b.id INNER JOIN business_trade c ON c.business_id = b.id WHERE c.is_primary = true AND c.trade_id = ${tradeId}`);
+	}
+	// filter by term only
+	if(tradeId === "all" && term !== "" && term !== null){
+		return (await getDB()).execute(sql`SELECT a.id FROM users a INNER JOIN business b ON a.business_id = b.id INNER JOIN business_trade c ON c.business_id = b.id WHERE position(${term} in lower(a.name)) <> 0 OR position(${term} in lower(a.visible_name)) <> 0 OR position(${term} in lower(a.email)) <> 0 OR position(${term} in lower(b.business_name)) <> 0 OR position(${term} in lower(b.abn_entity_name)) <> 0`);
+	}
+	// filter by trade and term
+	return (await getDB()).execute(sql`SELECT a.id FROM users a INNER JOIN business b ON a.business_id = b.id INNER JOIN business_trade c ON c.business_id = b.id WHERE c.is_primary = true AND c.trade_id = ${tradeId} AND ( position(${term} in lower(a.name)) <> 0 OR position(${term} in lower(a.visible_name)) <> 0 OR position(${term} in lower(a.email)) <> 0 OR position(${term} in lower(b.business_name)) <> 0 OR position(${term} in lower(b.abn_entity_name)) <> 0 )`);
+};
+
 export const getUserProfilesById = async (userIds: array) => {
 	return new Promise(async(resolve, reject)=>{
 		const results = [];
 		for(const userId of userIds){
-			const profile = await getUserProfile(userId);
-			const upVotes = profile?.profile?.upVotes ?? 0;
-			const downVotes = profile?.profile?.downVotes ?? 0;
-			const totalVotes = upVotes + downVotes;
-  		const starAverage = totalVotes === 0 ? 0 : Number((1 + (upVotes / totalVotes) * 4).toFixed(1));
-  		const avg = Number(starAverage);
-			profile.profile.rating = avg;
-			delete profile["password"];
-			results.push(profile);
+			try{
+				const profile = await getUserProfile(userId);
+				const upVotes = profile?.profile?.upVotes ?? 0;
+				const downVotes = profile?.profile?.downVotes ?? 0;
+				const totalVotes = upVotes + downVotes;
+  			const starAverage = totalVotes === 0 ? 0 : Number((1 + (upVotes / totalVotes) * 4).toFixed(1));
+  			const avg = Number(starAverage);
+				profile.profile.rating = avg;
+				delete profile["password"];
+				results.push(profile);
+			}catch(err_){
+				console.error(`Broken user ${userId}`); // probably admin user, fix later
+			}
 		}
 		resolve(results);
 	});	

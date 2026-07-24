@@ -27,6 +27,7 @@ export const usersTable = pgTable("users", {
 	public: boolean("public").default(false), // could be in profile?
 	activated: boolean("activated").default(false),
 	activatedAt: timestamp("activated_at"),
+	createdAt: timestamp("created_at").defaultNow(),
 	activationCode: text("activation_code"),
 	forgotPasswordState: text("forgot_password_state")
 });

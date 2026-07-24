@@ -1,152 +1,95 @@
+// vim: ts=2
 import { NextRequest, NextResponse } from 'next/server';
 import { applyExcludeTestAccountsFilters } from '@/lib/test-account';
 import { loadActiveTradeNames } from '@/lib/trades/load-active-trades';
 import { normalizeTrade } from '@/lib/trades/normalizeTrade';
+import { getClaims } from "@/lib/claims/service";
+import { getDataService } from "@/lib/data/service";
+import * as dateFunctions from "date-fns";
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-type SortBy =
-  | 'newest'
-  | 'oldest'
-  | 'online'
-  | 'today'
-  | 'week'
-  | 'month'
-  | 'inactive'
-  | 'never';
-
-type AccountType = 'all' | 'qa' | 'real';
-
-function normalizeSortBy(input: string | null): SortBy {
-  const value = String(input || 'newest');
-  const allowed: SortBy[] = ['newest', 'oldest', 'online', 'today', 'week', 'month', 'inactive', 'never'];
-  return allowed.includes(value as SortBy) ? (value as SortBy) : 'newest';
-}
-
-function normalizeAccountType(input: string | null): AccountType {
-  const value = String(input || 'all').toLowerCase();
-  const allowed: AccountType[] = ['all', 'qa', 'real'];
-  return allowed.includes(value as AccountType) ? (value as AccountType) : 'all';
-}
-
-function classifyAccountType(emailInput: unknown, nameInput: unknown): 'qa' | 'real' {
-  const email = String(emailInput || '').trim().toLowerCase();
-  const name = String(nameInput || '').trim().toLowerCase();
-
-  const isQaEmail =
-    email.endsWith('@tradehub.test') ||
-    email.startsWith('emailtest_') ||
-    /^test\d+@gmail\.com$/.test(email) ||
-    email.includes('+') ||
-    email.includes('test');
-
-  const isQaName = name.startsWith('qa ') || name.includes('qa test') || name.includes('manual premium qa');
-
-  return isQaEmail || isQaName ? 'qa' : 'real';
-}
-
 export async function GET(request: NextRequest) {
-		/*
-  try {
-    const authSupabase = createServerSupabase();
-    const serviceSupabase = createServiceSupabase();
-
-    const {
-      data: { user },
-      error: userErr,
-    } = await authSupabase.auth.getUser();
-
-    if (userErr || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: profile, error: adminErr } = await serviceSupabase
-      .from('users')
-      .select('is_admin')
-      .eq('id', user.id)
-      .maybeSingle();
-
-    const isAdmin = profile?.is_admin === true;
-    if (adminErr || !isAdmin) {
-      if (adminErr) console.error('Admin users auth failed:', adminErr);
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    const searchParams = request.nextUrl.searchParams;
-    const sortBy = normalizeSortBy(searchParams.get('sortBy'));
-    const trade = String(searchParams.get('trade') || 'all');
-    const accountType = normalizeAccountType(searchParams.get('accountType'));
-
-    let query = serviceSupabase
-      .from('users')
-      .select('id, name, email, role, primary_trade, trust_status, created_at, last_seen_at, avatar')
-      .limit(5000);
-    query = applyExcludeTestAccountsFilters(query);
-
-    const now = new Date();
-    const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000);
-    const startOfToday = new Date(new Date().setHours(0, 0, 0, 0));
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-
-    switch (sortBy) {
-      case 'newest':
-        query = query.order('created_at', { ascending: false });
-        break;
-      case 'oldest':
-        query = query.order('created_at', { ascending: true });
-        break;
-      case 'online':
-        query = query.gte('last_seen_at', twoMinutesAgo.toISOString()).order('last_seen_at', { ascending: false });
-        break;
-      case 'today':
-        query = query.gte('last_seen_at', startOfToday.toISOString()).order('last_seen_at', { ascending: false });
-        break;
-      case 'week':
-        query = query.gte('last_seen_at', sevenDaysAgo.toISOString()).order('last_seen_at', { ascending: false });
-        break;
-      case 'month':
-        query = query.gte('last_seen_at', thirtyDaysAgo.toISOString()).order('last_seen_at', { ascending: false });
-        break;
-      case 'inactive':
-        query = query.lt('last_seen_at', thirtyDaysAgo.toISOString()).order('last_seen_at', { ascending: false });
-        break;
-      case 'never':
-        query = query.is('last_seen_at', null).order('created_at', { ascending: false });
-        break;
-    }
-
-    const { data, error } = await query;
-    if (error) {
-      console.error('Admin users list failed:', error);
-      return NextResponse.json({ error: 'Failed to load users' }, { status: 500 });
-    }
-
-    let rows = data ?? [];
-    if (trade && trade !== 'all') {
-      rows = rows.filter((u: any) => normalizeTrade(String(u?.primary_trade ?? '').trim()) === trade);
-    }
-
-    const users = rows.map((u: any) => ({
-      ...u,
-      account_type: classifyAccountType(u?.email, u?.name),
-    }));
-    const usersFilteredByType =
-      accountType === 'all' ? users : users.filter((u: any) => u.account_type === accountType);
-
-    let catalogTrades: string[];
-    try {
-      catalogTrades = await loadActiveTradeNames(serviceSupabase);
-    } catch {
-      catalogTrades = [];
-    }
-
-    return NextResponse.json({ users: usersFilteredByType, trades: catalogTrades });
-  } catch (err: any) {
-    console.error('Admin users route error:', err);
-    return NextResponse.json({ error: err?.message || 'Internal Server Error' }, { status: 500 });
-  }
-		*/
-    return NextResponse.json({ users: [], trades: [] });
+	const claims = await getClaims();
+	const role = claims.role;
+	if(role?.toLowerCase() !== "admin"){
+		return NextResponse.json({ msg: `Forbidden, role was ${role}` }, { status: 403 });
+	}
+	const { users: userRepo, trades: tradeRepo } = await getDataService();
+	const DEFAULT_PAGE_SIZE = 10;
+	const DEFAULT_PAGE = 0;
+	const searchParams = request.nextUrl.searchParams;
+	const sortBy = searchParams.get("sortBy") ?? null;
+	const trade = searchParams.get("trade")?.toLowerCase() ?? "all";
+	const searchTerm = searchParams.get("searchTerm")?.toLowerCase() ?? null;
+	let pageSize = searchParams.get("pageSize") ?? DEFAULT_PAGE_SIZE;
+	let page = searchParams.get("page") ?? DEFAULT_PAGE;
+	page *= 1
+	pageSize *= 1
+	// validate input params
+	// must be non null numbers (integers)
+	if(isNaN(page) || isNaN(pageSize) || pageSize === null || page === null){
+		return NextResponse.json({ msg: "Both page and page size must be integers" }, { status: 400 });
+	}
+	// query trades
+	// find trade id for trade parameter
+	let trades = null;
+	let tradeId = "all";
+	try{
+		trades = await tradeRepo.getActiveTrades();
+		if(trade !== "all"){
+			const match = trades.find((x)=>x.name.toLowerCase() === trade);
+			if(match === undefined){
+				return NextResponse.json({ msg: `Could not find trade ${trade}` }, { status: 400 });
+			}
+			tradeId = match.id;
+		}
+		// grab trade names for ui	
+		// should really using a combination of id and name
+		trades = trades.map((e,i)=>{ return e.name; });
+	}catch(err){
+		console.error(err);
+		return NextResponse.json({ msg: "Failed to query trades" }, { status: 500 });
+	}
+	let ids = null;
+	try{
+		const results = await userRepo.getUserIds(tradeId, searchTerm);
+		ids = results.rows;
+	}catch(err){
+		return NextResponse.json({ msg: "Failed to query user ids", error:err }, { status: 500 });
+	}
+	if(ids === null){
+		return NextResponse.json({ msg: "User ids was null" }, { status: 500 });
+	}
+	// paginate
+	const offset = page * pageSize;
+	const total = ids.length;
+	const pages = Math.ceil(total / pageSize);
+	ids = ids.slice(offset, offset + pageSize);
+	let users = null;
+	try{
+		const allIds = ids.map((e,i)=>e.id);
+		users = await userRepo.getUserProfilesById(allIds);
+	}catch(err){
+		console.error(err);
+		return NextResponse.json({ msg: "Failed to query users" }, { status: 500 });
+	}
+	const now = new Date();
+	const twoMinutesAgo = dateFunctions.subMinutes(now, 2);
+	const startOfToday = dateFunctions.startOfDay(now);
+	const sevenDaysAgo = dateFunctions.subDays(now, 7);
+	const thirtyDaysAgo = dateFunctions.subDays(now, 30);
+	const sortFunctions = {
+		"newest": (l, r) => { return l.createdAt - r.createdAt; },
+		"oldest": (l, r) => { return r.createdAt - l.createdAt; },
+		"online": (l, r) => { return ( l.lastActiveAt - twoMinutesAgo ) - ( r.lastActiveAt - twoMinutesAgo ); },
+		"today": (l, r) => { return ( l.lastActiveAt - startOfToday ) - ( r.lastActiveAt - startOfToday ); },
+		"week": (l, r) => { return ( l.lastActiveAt - sevenDaysAgo ) - ( r.lastActiveAt - sevenDaysAgo ); },
+		"month": (l, r) => { return ( l.lastActiveAt - thirtyDaysAgo ) - ( r.lastActiveAt - thirtyDaysAgo ); },
+		"inactive": (l, r) => { return r.lastActiveAt - l.lastActiveAt; },
+		"never": (l, r) => { return r.lastActiveAt === null || l.lastActiveAt === null ? -1 : 1; }
+	};
+	users.sort(sortFunctions[sortBy]);
+	return NextResponse.json({ users, trades, pages, total });
 }

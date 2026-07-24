@@ -4,7 +4,7 @@ import { createTheme } from "@mui/material/styles";
 const TradeHubTheme = createTheme({
 	palette: {
 		secondary: {
-			main: "#dedede"
+			main: "#ededed"
 		}
 	},
 	components: {

@@ -22,7 +22,7 @@ export async function POST(request: Request) {
 	const { users: usersRepo } = await getDataService();
 	let updated = null;
 	try{
-		updated = await usersRepo.doForgotPassword(state, payload.email);
+		updated = await usersRepo.doForgotPassword(state, payload.email.toLowerCase());
 	}catch(err_){
 		console.error(err_);
 		return NextResponse.json({ error:"Something went wrong, try again later."}, { status: 500 });

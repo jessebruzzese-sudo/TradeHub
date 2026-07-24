@@ -10,10 +10,15 @@ import {
 	Grid, Button, Typography, 
 	Box, Chip, TextField, 
 	IconButton, Switch, InputAdornment, 
-	Drawer, Stack, Divider, Paper,  useMediaQuery
+	Drawer, Stack, Divider, Paper, 
+	useMediaQuery, Select, InputLabel, 
+	FormControl, CircularProgress
 } from "@mui/material";
 import { DayPicker } from "react-day-picker";
-import { ArrowBack, People, PersonOutlined, CalendarTodayOutlined }  from "@mui/icons-material";
+import { 
+	ArrowBack, People, PersonOutlined, 
+	CalendarTodayOutlined, CloseRounded
+}  from "@mui/icons-material";
 import UserProvider from "@/components/hoc/UserProvider";
 import { getAxios } from "@/lib/utils";
 import { useEffect, useMemo, useState, useContext } from 'react';
@@ -25,7 +30,6 @@ import { isPremiumForDiscovery } from '@/lib/discovery';
 import { getTradeIcon } from '@/lib/trade-icons';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { primaryButtonClass } from '@/components/ui/primary-button';
 import { 
 	Search, Lightbulb, Users, 
@@ -154,6 +158,7 @@ export default function SubcontractorsPage() {
 	const [currentUser, setCurrentUser] = useState(UserSession?.user ?? null);
   const [nameQuery, setNameQuery] = useState<string>("");
   const [selectedTrade, setSelectedTrade] = useState<string>('all');
+	const [trades, setTrades] = useState<any|null>(null);
   const [sortBy, setSortBy] = useState<string>('distance-closest');
   const [abnVerifiedOnly, setAbnVerifiedOnly] = useState<boolean>(false);
 	const [filterDates, setFilterDates] = useState([]);
@@ -164,7 +169,7 @@ export default function SubcontractorsPage() {
   const [profiles, setProfiles] = useState<ProfileCard[]>(null);
   const [profilesError, setProfilesError] = useState<string | null>(null);
 
-	const isLoading = currentUser === null || profiles === null;
+	const isLoading = currentUser === null || profiles === null || trades === null;
 
   const nextAvailableLabel = useMemo(() => {
     if (!nextAvailable) return null;
@@ -179,10 +184,13 @@ export default function SubcontractorsPage() {
   const tradeDisplayValue = isPremium ? selectedTrade : ( primaryTrade || 'All Trades' );
   const TradeIcon = getTradeIcon(primaryTrade || undefined);
 
-	const tradeOptions = [
-		{value:"all", label:"All Trades"}, 
+	let tradeOptions = [
 		{value:primaryTrade, label:primaryTrade}
 	];
+	if(isPremium && trades !== null){
+		tradeOptions = trades.map((e,i)=>{ return {value:e, label:e}; });
+		tradeOptions = [{ value: "all", label:"All Trades"}, ...tradeOptions];
+	}
 	const sortOptions = [
 		{value:"distance-closest", label:"Distance: Closest"},
 		{value:"distance-furthest", label:"Distance: Furthest"},
@@ -219,6 +227,25 @@ export default function SubcontractorsPage() {
 				setProfilesError("Failed to load profiles");
 			});
   }, [profiles]);
+		
+	useEffect(()=>{
+		if(!isLoading){
+			return;
+		}
+		if(trades !== null){
+			return;
+		}
+		getAxios(null).get("/api/trades").
+			then((response)=>{
+				const data = response.data;
+				const results = data.results;
+				const active = results.filter((x)=>x.isActive);
+				const names = active.map((e,i)=>e.name);
+				setTrades(names);
+			}).catch((error)=>{
+				toast.error("Could not load trades");
+			});
+	}, [trades]);
 	
 	const doWeekSelection = () => {
 		let now = new Date();
@@ -287,9 +314,49 @@ export default function SubcontractorsPage() {
 		setFilterDates(dates);
 	};
 	
-	const profileCards = (profiles ?? []).map((e,i)=>{return <SubcontractorCard key={e.id} sub={e}/>});
+	let profileCards = null;
+	let resultsMessage = null;
 	const theme = useTheme();
 	const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+		
+	if(isLoading){
+		resultsMessage = (
+				<Grid item size={12}>
+					<Typography variant={"body2"}>
+						Loading...
+					</Typography>
+				</Grid>
+		);
+		profileCards = (
+			<Grid item size={12}>
+				<Grid container sx={{justifyContent:"center", mt:"15px"}}>
+					<Grid item>
+						<CircularProgress/>
+					</Grid>
+				</Grid>
+			</Grid>
+		);
+	}else{
+		const profileCount = profiles?.length ?? 0;
+		if(profileCount === 0){
+			resultsMessage = (
+				<Grid item size={12}>
+					<Typography variant={"body2"}>
+						No results could be found, please try changing your filters.
+					</Typography>
+				</Grid>
+			);
+		}else{
+			resultsMessage = (
+				<Grid item size={12}>
+					<Typography variant={"body2"}>
+						Showing subcontractors in your trade: <b>{tradeDisplayValue}</b>
+					</Typography>
+				</Grid>
+			);
+		}
+		profileCards = (profiles ?? []).map((e,i)=>{return <SubcontractorCard key={e.id} sub={e}/>});
+	}
 
   return (
 		<AppLayout>
@@ -368,7 +435,7 @@ export default function SubcontractorsPage() {
 								<Grid container spacing={1}>	
 								<Grid item size={12}>
 								{/* FORM CONTAINER */}
-								<Grid container spacing={1}>
+								<Grid container spacing={2}>
 									<Grid item size={{lg:12, xs:12}}>
 										<TextField 
 											value={nameQuery} 
@@ -376,38 +443,50 @@ export default function SubcontractorsPage() {
 											size={"small"}
 											onBlur={()=>{setProfiles(null);}}
 											fullWidth	
+											label={"Search"}
 											placeholder={"Search by name..."}
 											variant={"outlined"}
 											slotProps={{input:{startAdornment: <InputAdornment position={"start"}><Search/></InputAdornment>}}}
 										/>
 									</Grid>
 									<Grid item size={{lg:6, xs:12}}>
-										<TextField 
-												value={selectedTrade} 
-												onChange={(event)=>{setSelectedTrade(event.target.value);setProfiles(null);}} 	
-												select 
-												size={"small"} 	
-												fullWidth
-												variant={"outlined"}
-											>
-											{tradeOptions.map((e,i)=>{
-												return <MenuItem value={e.value} key={`trade_${i}`}>{e.label}</MenuItem>
-											})}	
-										</TextField>
+										<FormControl fullWidth>
+											<InputLabel id={"labelTrade"}>Trade</InputLabel>
+											<Select 
+													id={"selectedTrade"}
+													labelId={"labelTrade"}
+													value={selectedTrade} 
+													onChange={(event)=>{setSelectedTrade(event.target.value);setProfiles(null);}} 	
+													size={"small"} 	
+													label={"Trade"}
+													fullWidth
+													variant={"outlined"}
+													MenuProps={{disableScrollLock: true}}
+												>
+												{tradeOptions.map((e,i)=>{
+													return <MenuItem value={e.value} key={`trade_${i}`}>{e.label}</MenuItem>
+												})}	
+											</Select>
+										</FormControl>
 									</Grid>
 									<Grid item size={{lg:6, xs:12}}>
-										<TextField 
+										<FormControl fullWidth>
+										<InputLabel id={"labelTrade"}>Sort by</InputLabel>
+										<Select
 												value={sortBy} 
 												onChange={(event)=>{setSortBy(event.target.value);setProfiles(null);}} 	
 												select 
 												size={"small"} 	
 												fullWidth
+												label={"Sort by"}
 												variant={"outlined"}
+												MenuProps={{disableScrollLock: true}}
 											>
 											{sortOptions.map((e,i)=>{
 												return <MenuItem value={e.value} key={`trade_${i}`}>{e.label}</MenuItem>
 											})}	
-										</TextField>
+										</Select>
+										</FormControl>
 									</Grid>
 									<Grid item size={12}>
 										<Button fullWidth 
@@ -443,19 +522,7 @@ export default function SubcontractorsPage() {
 								<Grid item size={12}>
 									<Grid container spacing={2}>
 										{/* START RESULTS CARDS */}
-										{( profiles?.length ?? 0 ) > 0 ? 
-											<Grid item size={12}>
-												<Typography variant={"body2"}>
-													Showing subcontractors in your trade: <b>{tradeDisplayValue}</b>
-												</Typography>
-											</Grid>
-										: 
-											<Grid item size={12}>
-												<Typography variant={"body2"}>
-													No results could be found, please try changing your filters.
-												</Typography>
-											</Grid>
-										}
+										{resultsMessage}
 										{profileCards}
 										{/* END RESULTS CARDS */}
 									</Grid>
@@ -473,16 +540,25 @@ export default function SubcontractorsPage() {
 				</Grid>
 				</Container>
 				<Drawer open={filterByDate} onClose={()=>{setFilterByDate(!filterByDate);}} anchor={"right"}>
-					<Grid container spacing={2} sx={{margin:theme.spacing(2), width:"400px", justifyContent:"center"}}>
+					<Grid container spacing={2} sx={{margin:theme.spacing(2), justifyContent:"center", maxWidth:"400px"}}>
 						<Grid item size={12}>
 							<Grid container sx={{alignItems:"center", justifyContent:"flex-start", mb:theme.spacing(2)}}>
-								<Grid item>
+								<Grid item size={1}>
 									<CalendarTodayOutlined sx={{color:"blue", mr:theme.spacing(2)}}/>
 								</Grid>
-								<Grid item>
-								<Typography variant={"h6"}>
-									Filter by dates
-								</Typography>
+								<Grid item size={5}>
+									<Typography variant={"h6"}>
+										Filter by dates
+									</Typography>
+								</Grid>
+								<Grid item size={6}>
+									<Grid container sx={{justifyContent:"flex-end", alignItems:"center"}}>
+										<Grid item>
+											<IconButton onClick={()=>{setFilterByDate(!filterByDate);}}>
+												<CloseRounded/>
+											</IconButton>
+										</Grid>
+									</Grid>
 								</Grid>
 							</Grid>
 							<Divider/>
