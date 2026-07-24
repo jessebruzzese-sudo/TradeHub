@@ -18,7 +18,6 @@ export async function GET(request: NextRequest, context: RouteContext) {
 		console.error(err_);
 		return NextResponse.json({msg:"Failed to query user profile"}, { status: 500 });
 	}
-	// TODO check public
 	delete userProfile["password"];
 	const avatar = userProfile?.profile?.avatarDataUrl ?? null;
 	if(avatar !== null){

@@ -7,6 +7,12 @@ import { usersTable } from "@/lib/data/defs/users";
 import { getDB, getDataService, callDb } from "@/lib/data/service";
 import { subDays } from "date-fns";
 
+export const setProfilePremium = async (profileId:string, premium:boolean) => {
+	return (await getDB()).update(profileTable).
+		set({premium: premium}).
+		where(eq(profileTable.id, profileId));
+};
+
 export const incCompletedJobsT = async (profileId:string, trx:any) => {
 	return new Promise(async(resolve, reject)=>{
 		const existing = await trx.select({completedJobs: profileTable.completedJobs}).

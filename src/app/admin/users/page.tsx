@@ -135,6 +135,61 @@ export default function AdminUsersPage() {
 		pageButtons.push(pageButton);
 	}
 
+	const handleDelete = (event:any, profileId:string) => {	
+		event.stopPropagation();
+		toast.info("Coming soon");
+	};
+
+	const handleFree = (event:any, profileId:string) => {
+		event.stopPropagation();
+		getAxios(null).put(`/api/profile/${profileId}/premium`, {premium:false}).
+			then((response)=>{
+				toast.success("Profile is now free tier");
+				setUsers(null);
+			}).catch((error)=>{
+				const msg = error?.response?.data?.msg ?? null;
+				if(msg){
+					toast.error(msg);
+				}
+			});
+	};
+
+	const handlePremium = (event:any, profileId:string) => {
+		event.stopPropagation();
+		getAxios(null).put(`/api/profile/${profileId}/premium`, {premium:true}).
+			then((response)=>{
+				toast.success("Profile is now premium tier");
+				setUsers(null);
+			}).catch((error)=>{
+				const msg = error?.response?.data?.msg ?? null;
+				if(msg){
+					toast.error(msg);
+				}
+			});
+	};
+	
+	const getActionButtons = (userId:string) => {
+		return (
+			<Grid key={`action_buttons_${userId}`} container spacing={2} sx={{justifyContent: "center", alignItems:"center"}}>
+				<Grid item>
+					<Button color={"primary"} variant={"contained"} size={"small"} onClick={(event)=>{handlePremium(event, userId);}}>
+						Premium
+					</Button>
+				</Grid>
+				<Grid item>
+					<Button color={"secondary"} variant={"contained"} size={"small"} onClick={(event)=>{handleFree(event, userId);}}>
+						Free
+					</Button>
+				</Grid>
+				<Grid item>
+					<Button color={"error"} variant={"contained"} size={"small"} onClick={(event)=>{handleDelete(event, userId);}}>
+						Delete
+					</Button>
+				</Grid>
+			</Grid>
+		);
+	};
+
   return (
 		<Grid container>
 		<Grid item size={12}>
@@ -204,11 +259,12 @@ export default function AdminUsersPage() {
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tier</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Trade</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Online</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
 
@@ -231,11 +287,9 @@ export default function AdminUsersPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
 											{user.email || '—'}
 										</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <Badge variant="outline" className="capitalize">
-                        {user.role || '—'}
-                      </Badge>
-                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+											{user.profile.premium ? "Premium" : "Free"}
+										</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
 											{user?.business?.primaryTrade || '-'}
 										</td>
@@ -252,6 +306,9 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                       {getOnlineStatus(user.lastActiveAt)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      {getActionButtons(user.profile.id)}
                     </td>
                   </tr>
                 ))}
