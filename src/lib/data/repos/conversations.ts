@@ -154,6 +154,18 @@ export const getConversation = async (conversationId:string) => {
 	});
 };
 
+const getUnreadCountT = async (conversationId:string, trx:any) => {
+	return new Promise(async(resolve, reject)=>{
+		const results = await trx.select({id: messagesTable.id}).
+			from(messagesTable).
+			where(
+				and(
+					eq(messagesTable.conversationId, conversationId), 
+					eq(messagesTable.read, false)));
+		resolve(results?.length ?? 0);
+	});
+};
+
 export const getConversations = async (userId:string, owner:boolean) => {
 	return await callDb(async(db) => {
 		return db.transaction(async(trx) => {
@@ -183,6 +195,7 @@ export const getConversations = async (userId:string, owner:boolean) => {
 					const guestProfile = await getConversationProfileT(guestProfileId, trx);
 					const guestName = guestProfile[0]?.visibleName ?? guestProfile[0]?.name;
 					const guestUserId = guestProfile[0]?.id ?? null;
+					conversation.unreadCount = await getUnreadCountT(conversation.id, trx);
 					conversation.guestName = guestName;
 					conversation.guestUserId = guestUserId;
 				}else{
@@ -192,6 +205,7 @@ export const getConversations = async (userId:string, owner:boolean) => {
 					const ownerProfile = await getConversationProfileT(ownerProfileId, trx);
 					const ownerName = ownerProfile[0]?.visibleName ?? ownerProfile[0]?.name;
 					const ownerUserId = ownerProfile[0]?.id;
+					conversation.unreadCount = await getUnreadCountT(conversation.id, trx);
 					conversation.ownerName = ownerName;
 					conversation.ownerUserId = ownerUserId;
 				}

@@ -76,9 +76,7 @@ export const ACCOUNT_SECTION: NavSectionConfig = {
 export const SUPPORT_LEGAL_SECTION: NavSectionConfig = {
   title: 'Support & Legal',
   items: [
-    { label: 'Help / Support', href: SUPPORT_MAILTO, icon: HelpCircle, isExternal: true },
-    { label: 'Terms of Service', href: '/terms', icon: FileText },
-    { label: 'Privacy Policy', href: '/privacy', icon: Eye },
+    { label: 'Help', href: "/support", icon: HelpCircle }
   ],
 };
 
@@ -86,7 +84,8 @@ export const SUPPORT_LEGAL_SECTION: NavSectionConfig = {
 export const BUSINESS_NAV_SECTIONS: NavSectionConfig[] = [
   MAIN_ACTIONS_SECTION,
   COMMUNICATION_SECTION,
-  ACCOUNT_SECTION
+  ACCOUNT_SECTION,
+	SUPPORT_LEGAL_SECTION	
 ];
 
 /** Get account items with Pricing filtered by MVP_FREE_MODE */

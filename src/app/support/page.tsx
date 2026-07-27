@@ -1,13 +1,8 @@
-import { MarketingPageLayout } from '@/components/marketing-page-layout';
-
-export const metadata = {
-  title: 'Terms of Service – TradeHub',
-  description: 'TradeHub Terms of Service – marketplace platform connecting Australian contractors and subcontractors.',
-};
+import { AppLayout } from '@/components/app-nav';
 
 export default function TermsPage() {
   return (
-    <MarketingPageLayout>
+    <AppLayout>
         <div className="bg-gray-50">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 md:p-12">
@@ -109,6 +104,6 @@ export default function TermsPage() {
             </div>
           </div>
         </div>
-    </MarketingPageLayout>
+    </AppLayout>
   );
 }

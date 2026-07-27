@@ -172,6 +172,11 @@ export default function MessagesPage() {
 		getAxios(null).
 			put(`/api/conversations/${selectedConversation}/read`).
 			then((response_)=>{
+				// set unread count to zero
+				const c = conversations.find((x)=>x.id === selectedConversation);
+				if(c){
+					c.unreadCount = 0;
+				}
 				// reset trigger
 				// regardless of if this worked or not
 				setTriggerRead(false);
@@ -296,7 +301,7 @@ export default function MessagesPage() {
                   ) : (
                     <div className="space-y-2">
                       {conversations.map((conv) => {
-                        const unread = (conv as { unreadCount?: number }).unreadCount ?? 0;
+                        const unread = conv?.unreadCount ?? 0;
 												const isOwner_ = currentUser.id === conv.ownerUserId;
 												let convOtherName = null;
 												let convOtherProfileId = null;
@@ -310,6 +315,11 @@ export default function MessagesPage() {
 													convOtherProfileId = conv.ownerProfileId;
 													convOtherUserId = conv.ownerUserId;
 												}
+												const unreadHint = (
+														<span className="shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold text-white bg-blue-600 rounded-full" aria-label="Unread messages">
+															{unread > 99 ? '99+' : unread}
+														</span>
+												);
                         return (
                           <button
                             key={conv.id}
@@ -328,11 +338,7 @@ export default function MessagesPage() {
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center justify-between gap-2">
                                   <p className="font-medium text-gray-900 truncate">{convOtherName}</p>
-                                  {unread > 0 && (
-                                    <span className="shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold text-white bg-blue-600 rounded-full">
-                                      {unread > 99 ? '99+' : unread}
-                                    </span>
-                                  )}
+                                  {unread > 0 ? unreadHint : null}
                         					<p className="text-xs text-slate-600 truncate">
                           					{conv.lastMessage?.text ?? conv.jobTitle ?? 'Direct message'}
                         					</p>
@@ -596,7 +602,7 @@ export default function MessagesPage() {
                 />
               ) : null}
               {(conversations ?? []).map((conv) => {
-                const unread = (conv as { unreadCount?: number }).unreadCount ?? 0;
+                const unread = conv?.unreadCount ?? 0;
 								const isOwner_ = currentUser.id === conv.ownerUserId;
 								let convOtherName = null;
 								let convOtherProfileId = null;
@@ -610,6 +616,11 @@ export default function MessagesPage() {
 									convOtherProfileId = conv.ownerProfileId;
 									convOtherUserId = conv.ownerUserId;
 								}
+								const unreadHint = (
+										<span className="shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold text-white bg-blue-600 rounded-full" aria-label="Unread messages">
+											{unread > 99 ? '99+' : unread}
+										</span>
+								);
                 return (
                   <button
                     key={conv.id}
@@ -630,11 +641,7 @@ export default function MessagesPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
                           <p className="font-medium text-gray-900 truncate">{convOtherName}</p>
-                          {unread > 0 && (
-                            <span className="shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold text-white bg-blue-600 rounded-full">
-                              {unread > 99 ? '99+' : unread}
-                            </span>
-                          )}
+                          {unread > 0 ? unreadHint : null}
                         </div>
                         <p className="text-xs text-slate-600 truncate">
                           {conv.lastMessage?.text ?? conv.jobTitle ?? 'Direct message'}
