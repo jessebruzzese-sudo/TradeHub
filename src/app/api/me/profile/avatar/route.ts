@@ -62,9 +62,10 @@ export async function GET(request: NextRequest) {
 		console.error(err_);
 		return NextResponse.json({msg:"Failed to query user profile"}, { status: 500 });
 	}
-	const filePath = images.avatar;
-	if(filePath === null){
-		return NextResponse.json({data: null, mime:null}, { status: 200 });
+	let filePath = images.avatar;
+	if(filePath === null || filePath === undefined){
+		filePath = `${ENV.store.images}/${ENV.avatar.defaultImage}`;
+		//console.log(`Loading default image ${filePath}`);
 	}
 	let data = null;
 	try{

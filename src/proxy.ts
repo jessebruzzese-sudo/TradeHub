@@ -182,7 +182,11 @@ export async function proxy(request: NextRequest) {
   // -------------------------
   if (isAuthenticated && pathname === '/') {
     const url = request.nextUrl.clone();
-    url.pathname = '/dashboard';
+		if(!isAdmin){
+    	url.pathname = '/dashboard';
+		}else{
+    	url.pathname = '/admin';
+		}
     const redirect = NextResponse.redirect(url);
 		redirect.headers.set("Cache-Control", "public, no-transform, must-revalidate");
 		return redirect;

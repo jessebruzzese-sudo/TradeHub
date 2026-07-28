@@ -240,24 +240,32 @@ type UserLocation = {
 	longitude: number;
 };
 
-export const getUserIds = async (tradeId:string, term:string) => {
+export const getUserIds = async (tradeId:string, term:string, sortBy:string) => {
+	const sortFunctions = {
+		"newest": "ORDER BY a.created_at DESC",
+		"oldest": "ORDER BY a.created_at ASC",
+		"active": "ORDER BY COALESCE(a.last_active_at, NOW() - interval '90 days') DESC",
+		"inactive": "ORDER BY COALESCE(a.last_active_at, NOW() - interval '90 days') ASC",
+		"never": "ORDER BY NOW() - COALESCE(a.last_active_at, NOW()) ASC"
+	};
+	const sort_ = sortFunctions[sortBy];
 	// check for all trades
 	// and no term, if this is the case
 	// just return all users
 	// include profile join
 	if(tradeId === "all" && (term === "" || term === null)){
-		return (await getDB()).execute(sql`SELECT a.id FROM users a INNER JOIN profile b ON a.profile_id = b.id ORDER BY a.id asc`);
+		return (await getDB()).execute(sql`SELECT a.id FROM users a INNER JOIN profile b ON a.profile_id = b.id ${sql.raw(sort_)}`);
 	}
 	// filter by trade only
 	if(tradeId !== "all" && (term === "" || term === null)){
-		return (await getDB()).execute(sql`SELECT a.id FROM users a INNER JOIN business b ON a.business_id = b.id INNER JOIN business_trade c ON c.business_id = b.id WHERE c.is_primary = true AND c.trade_id = ${tradeId}`);
+		return (await getDB()).execute(sql`SELECT a.id FROM users a INNER JOIN business b ON a.business_id = b.id INNER JOIN business_trade c ON c.business_id = b.id WHERE c.is_primary = true AND c.trade_id = ${tradeId} ${sql.raw(sort_)}`);
 	}
 	// filter by term only
 	if(tradeId === "all" && term !== "" && term !== null){
-		return (await getDB()).execute(sql`SELECT a.id FROM users a INNER JOIN business b ON a.business_id = b.id INNER JOIN business_trade c ON c.business_id = b.id WHERE position(${term} in lower(a.name)) <> 0 OR position(${term} in lower(a.visible_name)) <> 0 OR position(${term} in lower(a.email)) <> 0 OR position(${term} in lower(b.business_name)) <> 0 OR position(${term} in lower(b.abn_entity_name)) <> 0`);
+		return (await getDB()).execute(sql`SELECT a.id FROM users a INNER JOIN business b ON a.business_id = b.id INNER JOIN business_trade c ON c.business_id = b.id WHERE position(${term} in lower(a.name)) <> 0 OR position(${term} in lower(a.visible_name)) <> 0 OR position(${term} in lower(a.email)) <> 0 OR position(${term} in lower(b.business_name)) <> 0 OR position(${term} in lower(b.abn_entity_name)) <> 0 ${sql.raw(sort_)}`);
 	}
 	// filter by trade and term
-	return (await getDB()).execute(sql`SELECT a.id FROM users a INNER JOIN business b ON a.business_id = b.id INNER JOIN business_trade c ON c.business_id = b.id WHERE c.is_primary = true AND c.trade_id = ${tradeId} AND ( position(${term} in lower(a.name)) <> 0 OR position(${term} in lower(a.visible_name)) <> 0 OR position(${term} in lower(a.email)) <> 0 OR position(${term} in lower(b.business_name)) <> 0 OR position(${term} in lower(b.abn_entity_name)) <> 0 )`);
+	return (await getDB()).execute(sql`SELECT a.id FROM users a INNER JOIN business b ON a.business_id = b.id INNER JOIN business_trade c ON c.business_id = b.id WHERE c.is_primary = true AND c.trade_id = ${tradeId} AND ( position(${term} in lower(a.name)) <> 0 OR position(${term} in lower(a.visible_name)) <> 0 OR position(${term} in lower(a.email)) <> 0 OR position(${term} in lower(b.business_name)) <> 0 OR position(${term} in lower(b.abn_entity_name)) <> 0 ) ${sql.raw(sort_)}`);
 };
 
 export const getUserProfilesById = async (userIds: array) => {

@@ -1,6 +1,7 @@
 'use client';
 // vim:ts=2
 
+import { LoadingSpinner } from "@/components/loading-spinner";
 import { getAxios } from "@/lib/utils";
 import { toast } from "sonner";
 import UserContext from "@/lib/user-context";
@@ -99,17 +100,7 @@ export default function AdminUsersPage() {
 	
 	if(isLoading){
 		return (
-			<Grid container sx={{alignItems:"center", height:"100%"}}>
-				<Grid item size={12}>
-					<Grid container sx={{justifyContent:"center"}}>	
-						<Grid item>
-							<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
-								<CircularProgress aria-label="Loading..."/>
-							</UserProvider>
-						</Grid>
-					</Grid>
-				</Grid>
-			</Grid>
+			<LoadingSpinner onUserLoaded={(user)=>{setCurrentUser(user);}}/>
 		);	
 	}
 		
@@ -220,7 +211,7 @@ export default function AdminUsersPage() {
             	</div>
           	</div>
           	<div className="flex gap-3">
-            	<Select value={sortBy} onValueChange={(value) => setSortBy(value as SortBy)}>
+            	<Select value={sortBy} onValueChange={(v)=>{setSortBy(v);setUsers(null);}}>
               	<SelectTrigger className="w-[180px]">
                 	<Filter className="h-4 w-4 mr-2" />
                 	<SelectValue placeholder="Sort by" />
@@ -228,11 +219,8 @@ export default function AdminUsersPage() {
               	<SelectContent>
                 	<SelectItem value="newest">Newest first</SelectItem>
                 	<SelectItem value="oldest">Oldest first</SelectItem>
-                	<SelectItem value="online">Online now</SelectItem>
-                	<SelectItem value="today">Active today</SelectItem>
-                	<SelectItem value="week">Last 7 days</SelectItem>
-                	<SelectItem value="month">Last 30 days</SelectItem>
-                	<SelectItem value="inactive">Inactive 30+ days</SelectItem>
+                	<SelectItem value="active">Active</SelectItem>
+                	<SelectItem value="inactive">Inactive</SelectItem>
                 	<SelectItem value="never">Never logged in</SelectItem>
               	</SelectContent>
             	</Select>

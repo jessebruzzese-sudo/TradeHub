@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
 	}
 	let ids = null;
 	try{
-		const results = await userRepo.getUserIds(tradeId, searchTerm);
+		const results = await userRepo.getUserIds(tradeId, searchTerm, sortBy);
 		ids = results.rows;
 	}catch(err){
 		return NextResponse.json({ msg: "Failed to query user ids", error:err }, { status: 500 });
@@ -75,21 +75,23 @@ export async function GET(request: NextRequest) {
 		console.error(err);
 		return NextResponse.json({ msg: "Failed to query users" }, { status: 500 });
 	}
-	const now = new Date();
-	const twoMinutesAgo = dateFunctions.subMinutes(now, 2);
-	const startOfToday = dateFunctions.startOfDay(now);
-	const sevenDaysAgo = dateFunctions.subDays(now, 7);
-	const thirtyDaysAgo = dateFunctions.subDays(now, 30);
-	const sortFunctions = {
-		"newest": (l, r) => { return l.createdAt - r.createdAt; },
-		"oldest": (l, r) => { return r.createdAt - l.createdAt; },
-		"online": (l, r) => { return ( l.lastActiveAt - twoMinutesAgo ) - ( r.lastActiveAt - twoMinutesAgo ); },
-		"today": (l, r) => { return ( l.lastActiveAt - startOfToday ) - ( r.lastActiveAt - startOfToday ); },
-		"week": (l, r) => { return ( l.lastActiveAt - sevenDaysAgo ) - ( r.lastActiveAt - sevenDaysAgo ); },
-		"month": (l, r) => { return ( l.lastActiveAt - thirtyDaysAgo ) - ( r.lastActiveAt - thirtyDaysAgo ); },
-		"inactive": (l, r) => { return r.lastActiveAt - l.lastActiveAt; },
-		"never": (l, r) => { return r.lastActiveAt === null || l.lastActiveAt === null ? -1 : 1; }
-	};
-	users.sort(sortFunctions[sortBy]);
+	// sort after pagination?
+	// should really sort while querying all ids
+	// I'll turn this off but keep the code
+	const USE_PAGE_SORT = false;
+	if(USE_PAGE_SORT){
+		const now = new Date();
+		const twoMinutesAgo = dateFunctions.subMinutes(now, 2);
+		const startOfToday = dateFunctions.startOfDay(now);
+		const sevenDaysAgo = dateFunctions.subDays(now, 7);
+		const thirtyDaysAgo = dateFunctions.subDays(now, 30);
+		const sortFunctions = {
+			"newest": (l, r) => { return l.createdAt - r.createdAt; },
+			"oldest": (l, r) => { return r.createdAt - l.createdAt; },
+			"active": (l, r) => { return ( l.lastActiveAt - twoMinutesAgo ) - ( r.lastActiveAt - twoMinutesAgo ); },
+			"never": (l, r) => { return r.lastActiveAt === null || l.lastActiveAt === null ? -1 : 1; }
+		};
+		users.sort(sortFunctions[sortBy]);
+	}
 	return NextResponse.json({ users, trades, pages, total });
 }

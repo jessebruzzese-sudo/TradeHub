@@ -12,6 +12,31 @@ import { writeFile, mkdir } from "node:fs/promises";
 import { ENV } from "@/lib/env";
 import { subDays } from "date-fns";
 
+export const getJobIds = async (sortBy:string) => {
+	const sortFunctions = {
+		"newest": sql`${jobsTable.createdAt} DESC`,
+		"oldest": sql`${jobsTable.createdAt} ASC`
+	};
+	const sorting = sortFunctions[sortBy];
+	return (await getDB()).select({id: jobsTable.id}).
+		from(jobsTable).
+		orderBy(sorting);
+};
+
+export const getJobIdsInWindow = async (days:integer, sortBy:string) => {
+	const now = new Date();
+	const start = subDays(now, days);
+	const sortFunctions = {
+		"newest": sql`${jobsTable.createdAt} DESC`,
+		"oldest": sql`${jobsTable.createdAt} ASC`
+	};
+	const sorting = sortFunctions[sortBy];
+	return (await getDB()).select({id: jobsTable.id}).
+		from(jobsTable).
+		where(gte(jobsTable.createdAt, start)).
+		orderBy(sorting);
+};
+
 export const cancelJob = async (job:any, payload:any) => {
 	return await callDb(async(db) => {
 		return db.transaction(async(trx) => {
@@ -363,7 +388,14 @@ export const getJobsForIds = async (ids:string[]) => {
 			innerJoin(businessTable, eq(businessTable.id, usersTable.businessId)).
 			leftJoin(jobAttachmentsTable, eq(jobAttachmentsTable.jobId, jobsTable.id)).
 			where(inArray(jobsTable.id, ids));
-		resolve(getJobObjects(results));
+		const jobs = getJobObjects(results);
+		const group = {};
+		for(const j of jobs){
+			const key = j.id;
+			group[key] = j;
+		}
+		const sorted = ids.map((e,i)=>{return group[e];}).filter((x)=>x!==undefined);
+		resolve(sorted);
 	});
 };
 

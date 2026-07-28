@@ -1,89 +1,55 @@
+// vim: ts=2
 import { NextResponse } from 'next/server';
-import { requireAdmin, adminAuthErrorToResponse } from '@/lib/admin/require-admin';
-import { jobsListingWindowStartIso } from '@/lib/jobs/listing-window';
+import { getClaims } from "@/lib/claims/service";
+import { getDataService } from "@/lib/data/service";
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request:NextRequest) {
+	// make sure that user is admin
+	const claims = await getClaims();
+	const role = claims.role;
+	if(role?.toLowerCase() !== "admin"){
+		return NextResponse.json({ msg: `Forbidden, role was ${role}` }, { status: 403 });
+	}
+	const { jobs: jobsRepo } = await getDataService();
+	const DEFAULT_PAGE_SIZE = 10;
+	const DEFAULT_PAGE = 0;
+	const searchParams = request.nextUrl.searchParams;
+	const sortBy = searchParams.get("sortBy") ?? null;
+	const inWindow = searchParams.get("inWindow") ?? "true";
+	const searchTerm = searchParams.get("searchTerm")?.toLowerCase() ?? null;
+	let pageSize = searchParams.get("pageSize") ?? DEFAULT_PAGE_SIZE;
+	let page = searchParams.get("page") ?? DEFAULT_PAGE;
+	const DAYS_IN_WINDOW = 30;
+	let jobs = null;
+	let total = null;
+	let ids = null;
+	const useListingWindow = inWindow === "true";
+	try{
+		const allJobs = await jobsRepo.getJobIds(sortBy);
+		total = allJobs.length;
+		if(!useListingWindow){
+			ids = allJobs.map((e,i)=>e.id);
+		}else{	
+			const jobIds = await jobsRepo.getJobIdsInWindow(DAYS_IN_WINDOW, sortBy);
+			ids = jobIds.map((e,i)=>e.id);
+		}
+		jobs = await jobsRepo.getJobsForIds(ids);
+		if(jobs === null){
+    	return NextResponse.json({ msg: "Jobs results was null" }, { status: 500 });
+		}
+	}catch(err_){
+    console.error(err_);
+    return NextResponse.json({ error: err_, msg: "Failed to query jobs" }, { status: 500 });
+	}
   try {
-	/*
-    try {
-      await requireAdmin();
-    } catch (err) {
-      return adminAuthErrorToResponse(err);
-    }
-
-    if (!process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
-      console.error('🔥 Missing SUPABASE_SERVICE_ROLE_KEY');
-      return NextResponse.json({ error: 'MISSING_SERVICE_ROLE_KEY' }, { status: 500 });
-    }
-
-    const adminSupabase = createClient<Database>(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { persistSession: false } }
-    );
-
-    const listingSince = jobsListingWindowStartIso();
-    const { count: totalJobCount, error: countError } = await adminSupabase
-      .from('jobs')
-      .select('*', { count: 'exact', head: true })
-      .gte('created_at', listingSince);
-
-    if (countError) {
-      console.error('🔥 JOB COUNT FAILED:', countError);
-    }
-
-    const { data: jobs, error } = await adminSupabase
-      .from('jobs')
-      .select('*')
-      .gte('created_at', listingSince)
-      .order('created_at', { ascending: false })
-      .limit(500);
-
-    if (error) {
-      console.error('🔥 JOB QUERY FAILED:', error);
-      return NextResponse.json(
-        { error: 'JOBS_QUERY_FAILED', details: error.message },
-        { status: 500 }
-      );
-    }
-
-    const ids = [...new Set((jobs ?? []).map((j) => j.contractor_id).filter(Boolean))];
-    let contractorNames: Record<string, string | null> = {};
-    if (ids.length > 0) {
-      const { data: contractors, error: contractorsErr } = await adminSupabase
-        .from('users')
-        .select('id, name')
-        .in('id', ids);
-
-      if (contractorsErr) {
-        console.error('🔥 CONTRACTOR LOOKUP FAILED:', contractorsErr);
-      } else {
-        contractorNames = Object.fromEntries((contractors ?? []).map((u) => [u.id, u.name]));
-      }
-    }
-
-    const jobsWithContractor = (jobs ?? []).map((j) => ({
-      ...j,
-      contractor_name: contractorNames[j.contractor_id] ?? null,
-    }));
-
-    // totalInListingWindow: count of rows matching the same created_at window as `jobs` (30 days).
     return NextResponse.json({
       ok: true,
-      count: jobs?.length || 0,
-      totalInListingWindow: totalJobCount ?? 0,
-      jobs: jobsWithContractor,
+      count: total,
+      totalInListingWindow: jobs.length,
+      jobs
     });
-	*/
-    return NextResponse.json({
-      ok: true,
-      count:  0,
-      totalInListingWindow: 0,
-      jobs: []
-    });
-	
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: 'CRASHED' }, { status: 500 });
