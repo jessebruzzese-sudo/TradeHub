@@ -154,7 +154,7 @@ const addUserT = async (payload:any, businessId:string, profileId:string, roleId
 			name: payload.name,
 			visibleName: payload.visibleName,
 			accountStatus: payload?.accountStatus ?? "active",
-			public: payload?.public ?? false,
+			public: true, // force true by default
 			activationCode
 		};
 		const results = await trx.insert(usersTable).
@@ -388,21 +388,21 @@ export const getUserProfile = async (userId:string) => {
 	});
 };
 
-const updateUserT = async (trx:any, payload:any, email:string) => {	
+const updateUserT = async (trx:any, payload:any, userId:string) => {	
 	const values = { name: payload.name };
 	return trx.update(usersTable).set(values).
-		where(eq(usersTable.email, email)).
+		where(eq(usersTable.id, userId)).
 		returning({businessId: usersTable.businessId, profileId: usersTable.profileId});
 };
 
-export const updateUserProfile = async (payload:any, email:string) => {
+export const updateUserProfile = async (payload:any, userId:string) => {
 	const { business, profile, trades } = await getDataService();
 	return callDb(async(db)=>{
 		const mapping = await trades.getMapping(true);
 		return db.transaction(async(trx)=>{
 			let results = null;
 			try{
-				results = await updateUserT(trx, payload, email);
+				results = await updateUserT(trx, payload, userId);
 			}catch(err_){
 				throw err_;
 			}

@@ -1,21 +1,21 @@
+// vim: ts=2
 'use client';
-
-import { useEffect, useState } from 'react';
+import { getAxios } from "@/lib/utils";
+import { useEffect, useState, useContext } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { AppLayout } from '@/components/app-nav';
-import { useAuth } from '@/lib/auth';
-import { isAdmin } from '@/lib/is-admin';
-import { getStore } from '@/lib/store';
-import { UnauthorizedAccess } from '@/components/unauthorized-access';
 import StatusPill from '@/components/status-pill';
-import { Button } from '@/components/ui/button';
+import { Button } from "@mui/material";
+import UserProvider from "@/components/hoc/UserProvider";
+import UserContext from "@/lib/user-context";
+import { LoadingSpinner } from "@/components/loading-spinner";
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { getJobTimeline } from "@/lib/admin-utils";
 import { JobTimelineView } from '@/components/job-timeline-view';
 import { AuditLogView } from '@/components/audit-log-view';
 import { ArrowLeft, Lock, MapPin, Calendar, DollarSign } from 'lucide-react';
-import { buildJobTimeline, createAuditLog } from '@/lib/admin-utils';
 import { formatJobPayTypeLabel, formatJobPriceDisplay } from '@/lib/job-pay-labels';
 import type { Job, JobStatus, PayType, User } from '@/lib/types';
 
@@ -157,109 +157,54 @@ function namesToUsers(row: AdminJobApiRow): User[] {
 }
 
 export default function AdminJobDetailPage() {
-  const { currentUser } = useAuth();
+
   const params = useParams();
-  const store = getStore();
   const jobId = params.id as string;
-
-  const [apiRow, setApiRow] = useState<AdminJobApiRow | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!currentUser || !isAdmin(currentUser) || !jobId) {
-      setLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`/api/admin/jobs/${jobId}`, { cache: 'no-store' });
-        const data = (await res.json().catch(() => ({}))) as {
-          ok?: boolean;
-          job?: AdminJobApiRow;
-          error?: string;
-        };
-
-        if (cancelled) return;
-
-        if (!res.ok) {
-          setError(data.error || 'Failed to load job');
-          setApiRow(null);
-          return;
-        }
-
-        if (!data.job) {
-          setError('JOB_NOT_FOUND');
-          setApiRow(null);
-          return;
-        }
-
-        setApiRow(data.job);
-        setError(null);
-      } catch {
-        if (!cancelled) setError('Failed to load job');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [currentUser, jobId]);
-
-  const job = apiRow ? apiJobToAppJob(apiRow) : null;
-  const timelineUsers = apiRow ? namesToUsers(apiRow) : [];
+	const UserSession = useContext(UserContext);
+	const [currentUser, setCurrentUser] = useState<any|null>(UserSession?.user ?? null);// current user from session
+  const [jobData, setJobData] = useState<any|null>(null); // job record
+	const isLoading = jobData === null || currentUser === null;
+	const role = currentUser?.role?.toLowerCase() ?? "user";
+	const isAdmin = role === "admin";
 
   useEffect(() => {
-    if (!currentUser || !isAdmin(currentUser) || !job) return;
-    const auditLog = createAuditLog(
-      currentUser.id,
-      'job_viewed',
-      `Admin viewed job details: ${job.title}`,
-      { targetJobId: jobId }
-    );
-    store.addAuditLog(auditLog);
-  }, [currentUser, job, jobId, store]);
+		// TODO load job
+		if(!currentUser){
+			return;
+		}
+		if(jobData !== null){
+			return;
+		}
+		if(!isAdmin){
+			return;
+		}
+		// load job
+		getAxios(null).get(`/api/admin/jobs/${jobId}`).
+			then((response_)=>{
+				const data = response_.data; 
+				setJobData(data); // { job, applications }
+			}).catch((error_)=>{
+				const msg = error_?.response?.data?.msg ?? null;
+				if(msg){
+					toast.error(msg);
+				}
+			});
+  }, [jobData, currentUser]);
+		
+	if(isLoading){
+		return (
+			<LoadingSpinner onUserLoaded={(user)=>{setCurrentUser(user);}} />
+		);
+	}
 
-  if (!currentUser || !isAdmin(currentUser)) {
-    return <UnauthorizedAccess redirectTo={currentUser ? '/dashboard' : '/login'} />;
-  }
-
-  if (loading) {
-    return (
-      <AppLayout>
-        <div className="max-w-7xl mx-auto p-4 md:p-6">
-          <p className="text-gray-600">Loading job…</p>
-        </div>
-      </AppLayout>
-    );
-  }
-
-  if (error || !job || !apiRow) {
-    return (
-      <AppLayout>
-        <div className="max-w-7xl mx-auto p-4 md:p-6">
-          <Link href="/admin/jobs">
-            <Button variant="ghost" size="sm" className="mb-4">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Jobs
-            </Button>
-          </Link>
-          <p className="text-gray-600">{error === 'JOB_NOT_FOUND' ? 'Job not found' : error || 'Job not found'}</p>
-        </div>
-      </AppLayout>
-    );
-  }
-
-  const contractorName = apiRow.contractor_name || 'Unknown';
-  const timeline = buildJobTimeline(job, [], [], timelineUsers);
-  const auditLogs = store.getAuditLogsByJob(jobId);
+	const job = jobData.job;
+	const applications = jobData.applications;
+  const contractorName = job?.owner?.name ?? "Unknown";
+	const timeline = getJobTimeline(job, applications);
+  const auditLogs = [];
 
   return (
-    <AppLayout>
+		<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
       <div className="max-w-7xl mx-auto p-4 md:p-6">
         <div className="mb-6">
           <Link href="/admin/jobs">
@@ -268,14 +213,12 @@ export default function AdminJobDetailPage() {
               Back to Jobs
             </Button>
           </Link>
-
           <Alert className="bg-blue-50 border-blue-200 mb-4">
             <Lock className="w-4 h-4 text-blue-600" />
             <AlertDescription className="ml-2 text-sm text-blue-800">
               This is a read-only view for admin purposes. You cannot post jobs, apply, or participate in messaging.
             </AlertDescription>
           </Alert>
-
           <div className="flex items-start justify-between gap-4">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">{job.title}</h1>
@@ -286,7 +229,6 @@ export default function AdminJobDetailPage() {
             <StatusPill type="job" status={job.status} />
           </div>
         </div>
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl p-6">
             <h3 className="font-semibold text-gray-900 mb-4">Job Details</h3>
@@ -331,7 +273,6 @@ export default function AdminJobDetailPage() {
               )}
             </div>
           </div>
-
           <div className="bg-white border border-gray-200 rounded-xl p-6">
             <h3 className="font-semibold text-gray-900 mb-4">Job Statistics</h3>
             <p className="text-xs text-gray-500 mb-3">
@@ -340,7 +281,7 @@ export default function AdminJobDetailPage() {
             <div className="space-y-3">
               <div>
                 <p className="text-xs text-gray-500 uppercase">Applications</p>
-                <p className="text-2xl font-bold text-gray-400">—</p>
+                <p className="text-2xl font-bold text-gray-400">{applications.length}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-500 uppercase">Messages</p>
@@ -368,20 +309,18 @@ export default function AdminJobDetailPage() {
             </div>
           </div>
         </div>
-
         <div className="mb-6">
           <JobTimelineView timeline={timeline} />
         </div>
-
         {auditLogs.length > 0 && (
           <AuditLogView
             logs={auditLogs}
-            users={store.users}
+            users={[]}
             title="Admin Actions for This Job"
             emptyMessage="No admin actions recorded"
           />
         )}
       </div>
-    </AppLayout>
+		</UserProvider>
   );
 }

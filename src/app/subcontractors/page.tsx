@@ -417,7 +417,7 @@ export default function SubcontractorsPage() {
 													<Grid item>
 														<Button color={"primary"} 	
 															size={"md"} variant={"contained"} 
-															onClick={()=>{toast.info("coming soon");}}>
+															onClick={()=>{router.push("/profile/availability");}}>
 																Update Availability
 														</Button>				
 													</Grid>

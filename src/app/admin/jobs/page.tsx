@@ -85,7 +85,17 @@ export default function AdminJobsPage() {
 	};
 	
 	const confirmJobDelete = () => {
-		toast.info("Deleting job");	
+		getAxios(null).delete(`/api/admin/jobs/${deletingJob}`).
+			then((response_)=>{
+				toast.success("Job deleted");
+				setDeletingJob(null);
+				setJobs(null);
+			}).catch((error_)=>{
+				const msg = error_?.repsonse?.data?.msg ?? null;
+				if(msg){
+					toast.error(msg);
+				}
+			});
 	};
 		
 	if(isLoading){

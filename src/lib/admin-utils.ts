@@ -1,5 +1,6 @@
 import { AuditLog, AuditActionType, User, Job } from './types';
 import { isAdmin } from '@/lib/is-admin';
+import { parseISO, formatISO } from "date-fns";
 
 export interface AdminSafeguard {
   canAccess: boolean;
@@ -127,104 +128,106 @@ export interface JobTimeline {
   type: 'status' | 'application' | 'message' | 'cancellation' | 'completion';
 }
 
-export function buildJobTimeline(
+export function getJobTimeline(
   job: Job,
-  applications: any[],
-  messages: any[],
-  users: User[]
+  applications: any[]
 ): JobTimeline[] {
+
   const timeline: JobTimeline[] = [];
 
   timeline.push({
-    timestamp: job.createdAt,
+    timestamp: parseISO(job.createdAt),
     event: 'Job Posted',
     description: `Job "${job.title}" was posted`,
-    actor: users.find((u) => u.id === job.contractorId)?.name,
+    actor: job.owner.name,
     type: 'status',
   });
 
+	// add entry for application submission
   applications.forEach((app) => {
     timeline.push({
-      timestamp: app.createdAt,
+      timestamp: parseISO(app.createdAt),
       event: 'Application Received',
-      description: `Application received from ${users.find((u) => u.id === app.subcontractorId)?.name || 'Unknown'}`,
-      actor: users.find((u) => u.id === app.subcontractorId)?.name,
+      description: `Application received from ${app.applicant.name}`,
+      actor: app.applicant.name,
       type: 'application',
     });
-
-    if (app.respondedAt) {
-      timeline.push({
-        timestamp: app.respondedAt,
-        event: `Application ${app.status}`,
-        description: `Application was ${app.status}`,
-        actor: users.find((u) => u.id === app.subcontractorId)?.name,
-        type: 'application',
-      });
-    }
+		if(app.status === "selected"){
+    	timeline.push({
+      	timestamp: parseISO(app.updatedAt),
+      	event: 'Application Selected',
+      	description: `Job owner has selected application`,
+      	actor: job.owner.name,
+      	type: 'application',
+    	});
+		}
+		if(app.status === "accepted"){
+    	timeline.push({
+      	timestamp: parseISO(app.updatedAt),
+      	event: 'Application Accepted',
+      	description: `Job owner has accepted application`,
+      	actor: job.owner.name,
+      	type: 'application',
+    	});
+		}
+		if(app.status === "confirmed"){
+    	timeline.push({
+      	timestamp: parseISO(app.updatedAt),
+      	event: 'Application Confirmed',
+      	description: `Job owner has confirmed application`,
+      	actor: job.owner.name,
+      	type: 'application',
+    	});
+		}
+		if(app.status === "completed"){
+    	timeline.push({
+      	timestamp: parseISO(app.updatedAt),
+      	event: 'Application Completed',
+      	description: `Applicant ${app.applicant.name} has completed the job.`,
+      	actor: job.owner.name,
+      	type: 'application',
+    	});
+		}
+		if(app.status === "declined"){
+    	timeline.push({
+      	timestamp: parseISO(app.updatedAt),
+      	event: 'Application Declined',
+      	description: `${app.applicant.name} has declined their application.`,
+      	actor: app.applicant.name,
+      	type: 'application',
+    	});
+		}
   });
 
-  const firstMessage = messages[0];
-  if (firstMessage) {
-    timeline.push({
-      timestamp: firstMessage.createdAt,
-      event: 'Messaging Started',
-      description: 'First message sent',
-      actor: users.find((u) => u.id === firstMessage.senderId)?.name,
-      type: 'message',
-    });
-  }
-
-  if (job.status === 'accepted' || job.status === 'confirmed') {
-    const selectedApp = applications.find((a) => a.subcontractorId === job.selectedSubcontractor);
-    if (selectedApp) {
-      timeline.push({
-        timestamp: selectedApp.createdAt,
-        event: 'Subcontractor Selected',
-        description: `${users.find((u) => u.id === job.selectedSubcontractor)?.name || 'Unknown'} was selected`,
-        actor: users.find((u) => u.id === job.contractorId)?.name,
-        type: 'status',
-      });
-    }
-  }
-
-  if (job.status === 'accepted' || job.status === 'confirmed') {
-    timeline.push({
-      timestamp: new Date(),
-      event: 'Job Accepted',
-      description: 'Subcontractor accepted the job',
-      actor: users.find((u) => u.id === job.selectedSubcontractor)?.name,
-      type: 'status',
-    });
-  }
-
+	// look at selected applications
+	
   if (job.status === 'confirmed') {
     timeline.push({
-      timestamp: new Date(),
+      timestamp: parseISO(job?.updatedAt ?? formatISO(new Date())),
       event: 'Job Confirmed',
       description: 'Contractor confirmed the hire',
-      actor: users.find((u) => u.id === job.contractorId)?.name,
+      actor: job.owner.name,
       type: 'status',
-    });
-  }
-
-  if (job.status === 'cancelled' && job.cancelledAt) {
-    const cancelledBy = users.find((u) => u.id === job.cancelledBy);
-    timeline.push({
-      timestamp: job.cancelledAt,
-      event: 'Job Cancelled',
-      description: `Cancelled by ${cancelledBy?.name || 'Unknown'}: ${job.cancellationReason || 'No reason provided'}`,
-      actor: cancelledBy?.name,
-      type: 'cancellation',
     });
   }
 
   if (job.status === 'completed') {
     timeline.push({
-      timestamp: new Date(),
+      timestamp: parseISO(job?.updatedAt ?? formatISO(new Date())),
       event: 'Job Completed',
       description: 'Job marked as completed',
-      actor: users.find((u) => u.id === job.contractorId)?.name,
+      actor: job.owner.name,
       type: 'completion',
+    });
+  }
+
+  if (job.status === 'cancelled') {
+    timeline.push({
+      timestamp: parseISO(job?.updatedAt ?? formatISO(new Date())),
+      event: 'Job Cancelled',
+      description: `Cancelled by ${job.owner.name || 'Unknown'}: ${job.cancellationReason || 'No reason provided'}`,
+      actor: job.owner.name,
+      type: 'cancellation',
     });
   }
 

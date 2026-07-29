@@ -164,7 +164,7 @@ export const getAcceptedApplications = async (jobId:string) => {
 					eq(applicationTable.status, "accepted")
 				)
 			);
-		const apps = results.map((e,i)=>{ return  {...e.applications}});
+		const apps = results.map((e,i)=>{ return  {...e.applications, acceptedAt: e.selected_applications.createdAt}});
 		resolve(apps);
 	});
 };
@@ -180,7 +180,7 @@ export const getConfirmedApplications = async (jobId:string) => {
 					eq(applicationTable.status, "confirmed")
 				)
 			);
-		const apps = results.map((e,i)=>{ return  {...e.applications}});
+		const apps = results.map((e,i)=>{ return  {...e.applications, confirmedAt: e.selected_applications.createdAt}});
 		resolve(apps);
 	});
 };
@@ -394,7 +394,7 @@ export const getJobsForIds = async (ids:string[]) => {
 			const key = j.id;
 			group[key] = j;
 		}
-		const sorted = ids.map((e,i)=>{return group[e];}).filter((x)=>x!==undefined);
+		const sorted = ids.map((e,i)=>{return group[e];}).filter((x) => x!== undefined);
 		resolve(sorted);
 	});
 };
