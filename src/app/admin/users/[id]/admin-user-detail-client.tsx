@@ -1,10 +1,11 @@
+// vim: ts=2
 'use client';
-
+import { getAxios } from "@/lib/utils";
 import { useRouter } from 'next/navigation';
 import { AppLayout } from '@/components/app-nav';
-import { useAuth } from '@/lib/auth';
-import { isAdmin } from '@/lib/is-admin';
-import { UnauthorizedAccess } from '@/components/unauthorized-access';
+import { LoadingSpinner } from "@/components/loading-spinner";
+import UserProvider from "@/components/hoc/UserProvider";
+import UserContext from "@/lib/user-context";
 import { AdminNotesPanel } from '@/components/admin-notes-panel';
 import { AuditLogView } from '@/components/audit-log-view';
 import { AdminConfirmationDialog } from '@/components/admin-confirmation-dialog';
@@ -28,7 +29,7 @@ import {
 	FileWarning, Ban 
 } from 'lucide-react';
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { createAuditLog } from '@/lib/admin-utils';
 import { AdminNote } from '@/lib/types';
 import { toast } from 'sonner';
@@ -94,31 +95,29 @@ interface AdminUserDetailClientProps {
   user: User;
   accountReview: AccountReview | null;
   userId: string;
-  profileData: Record<string, unknown>;
   strengthCalc: ProfileStrengthCalc | null;
   viewerLikeState: { liked: boolean; count: number } | null;
   profileIsViewer: boolean;
 }
 
 export function AdminUserDetailClient({
-  user,
   accountReview: initialAccountReview,
   userId,
-  profileData,
   strengthCalc,
   viewerLikeState,
   profileIsViewer,
 }: AdminUserDetailClientProps) {
-  const { currentUser } = useAuth();
+
   const router = useRouter();
-	
-  const [accountReview, setAccountReview] = useState<AccountReview | null>(initialAccountReview);
+	const UserSession = useContext(UserContext);
+	const [currentUser, setCurrentUser] = useState<any|null>(UserSession?.user ?? null); // logged in user
+	const [user, setUser] = useState<any|null>(null); // user being viewed
+  const [accountReview, setAccountReview] = useState<AccountReview|null>(initialAccountReview);
   const [showAccountReviewDialog, setShowAccountReviewDialog] = useState(false);
   const [reviewAction, setReviewAction] = useState<'reviewed' | 'flagged' | 'suspended'>('reviewed');
   const [reviewNotes, setReviewNotes] = useState('');
   const [flagReason, setFlagReason] = useState('');
   const [savingReview, setSavingReview] = useState(false);
-
   const [showAbnDialog, setShowAbnDialog] = useState(false);
   const [abnAction, setAbnAction] = useState<'verify' | 'reject'>('verify');
   const [abnRejectionReason, setAbnRejectionReason] = useState('');
@@ -143,23 +142,26 @@ export function AdminUserDetailClient({
   const [messagingSafetyLoading, setMessagingSafetyLoading] = useState(true);
   const [updatingReportId, setUpdatingReportId] = useState<string | null>(null);
 
+	const isLoading = currentUser === null || user === null;
+
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setMessagingSafetyLoading(true);
-      try {
-        const res = await fetch(`/api/admin/users/${userId}/messaging-safety`);
-        if (!res.ok) throw new Error('Failed to load messaging safety');
-        const data = await res.json();
-        if (!cancelled) setMessagingSafety(data);
-      } catch {
-        if (!cancelled) setMessagingSafety({ reportsReceived: [], reportsSubmitted: [], blocksByUser: [], blocksOfUser: [] });
-      } finally {
-        if (!cancelled) setMessagingSafetyLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [userId]);
+		if(user !== null){
+			return;
+		}
+		if(userId === null || userId === undefined){
+			return;
+		}
+		getAxios(null).get(`/api/admin/users/${userId}`).
+			then((response_)=>{
+				const data = response_.data;
+				setUser(data.user);
+			}).catch((error_)=>{
+				const msg = error_?.response?.data?.msg ?? null;
+				if(msg){
+					toast.error(msg);
+				}
+			});
+  }, [userId, user]);
 
   const handleReportStatusUpdate = async (reportId: string, status: 'reviewed' | 'resolved' | 'dismissed') => {
     setUpdatingReportId(reportId);
@@ -202,6 +204,7 @@ export function AdminUserDetailClient({
     const notes = reviewAction === 'reviewed' ? reviewNotes : flagReason;
 
     setSavingReview(true);
+
     try {
       const res = await fetch(`/api/admin/users/${userId}/account-review`, {
         method: 'POST',
@@ -265,7 +268,6 @@ export function AdminUserDetailClient({
         `${abnAction === 'verify' ? 'Verified' : 'Rejected'} ABN for ${user.name} (${user.email})`,
         { targetUserId: user.id, additionalData: abnAction === 'reject' ? { reason: abnRejectionReason } : undefined }
       );
-      store.addAuditLog(auditLog);
 
       toast.success(`ABN ${abnAction === 'verify' ? 'verified' : 'rejected'} successfully`);
       setShowAbnDialog(false);
@@ -278,13 +280,15 @@ export function AdminUserDetailClient({
       setSavingAbn(false);
     }
   };
+	
+	if(isLoading){
+		return (
+			<LoadingSpinner onUserLoaded={(u)=>{setCurrentUser(u);}}/>	
+		);
+	}
 
-  if (!currentUser || !isAdmin(currentUser)) {
-    return <UnauthorizedAccess redirectTo={currentUser ? '/dashboard' : '/login'} />;
-  }
-
-  const auditLogs = store.getAuditLogsByUser(userId);
-  const adminNotes = store.getAdminNotesByUser(userId);
+  const auditLogs = [];
+  const adminNotes = [];
 
   const handleAddNote = (noteText: string) => {
     const note: AdminNote = {
@@ -295,9 +299,6 @@ export function AdminUserDetailClient({
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-
-    store.addAdminNote(note);
-
     const auditLog = createAuditLog(
       currentUser.id,
       'admin_note_added',
@@ -307,8 +308,6 @@ export function AdminUserDetailClient({
         additionalData: { notePreview: noteText.substring(0, 50) },
       }
     );
-    store.addAuditLog(auditLog);
-
     router.refresh();
   };
 
@@ -325,7 +324,6 @@ export function AdminUserDetailClient({
           `Verified user ${user.name} (${user.email})`,
           { targetUserId: user.id }
         );
-        store.addAuditLog(auditLog);
 
         alert('User verification functionality coming soon');
         setConfirmDialog((prev) => ({ ...prev, open: false }));
@@ -348,7 +346,6 @@ export function AdminUserDetailClient({
           `Placed account on hold for ${user.name} (${user.email})`,
           { targetUserId: user.id }
         );
-        store.addAuditLog(auditLog);
 
         alert('Account hold functionality coming soon');
         setConfirmDialog((prev) => ({ ...prev, open: false }));
@@ -358,7 +355,7 @@ export function AdminUserDetailClient({
   };
 
   return (
-    <AppLayout>
+		<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
       <div className="max-w-7xl mx-auto space-y-6 p-4 md:p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <Link href="/admin/users">
@@ -388,7 +385,7 @@ export function AdminUserDetailClient({
 
         <ProfileView
           mode="public"
-          profile={profileData}
+          profile={user}
           isMe={profileIsViewer}
           strengthCalc={strengthCalc}
           viewerLikeState={viewerLikeState}
@@ -529,11 +526,11 @@ export function AdminUserDetailClient({
           </Card>
         )}
 
-        <AdminNotesPanel notes={adminNotes} users={store.users} onAddNote={handleAddNote} />
+        <AdminNotesPanel notes={adminNotes} users={[]} onAddNote={handleAddNote} />
 
         <AuditLogView
           logs={auditLogs}
-          users={store.users}
+          users={[]}
           title="User Activity Log"
           emptyMessage="No audit entries for this user"
         />
@@ -616,7 +613,6 @@ export function AdminUserDetailClient({
                   )}
                 </CardContent>
               </Card>
-
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-base">
@@ -656,7 +652,6 @@ export function AdminUserDetailClient({
                   )}
                 </CardContent>
               </Card>
-
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-base">
@@ -700,7 +695,6 @@ export function AdminUserDetailClient({
             </>
           ) : null}
         </div>
-
         <AdminConfirmationDialog
           open={confirmDialog.open}
           onOpenChange={(open) => setConfirmDialog((prev) => ({ ...prev, open }))}
@@ -802,7 +796,6 @@ export function AdminUserDetailClient({
                 </div>
               )}
             </div>
-
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowAbnDialog(false)}>
                 Cancel
@@ -818,6 +811,6 @@ export function AdminUserDetailClient({
           </DialogContent>
         </Dialog>
       </div>
-    </AppLayout>
+		</UserProvider>
   );
 }
