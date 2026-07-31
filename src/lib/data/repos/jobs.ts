@@ -356,7 +356,8 @@ export const getJobsNear = async (location:any, profileId:string) => {
 	return db.select({
 			id: jobsTable.id, 
 			latitude: jobsTable.latitude, 
-			longitude: jobsTable.longitude
+			longitude: jobsTable.longitude,
+			createdAt: jobsTable.createdAt
 		}).
 		from(jobsTable).
 		where(
@@ -389,12 +390,14 @@ export const getJobsForIds = async (ids:string[]) => {
 			leftJoin(jobAttachmentsTable, eq(jobAttachmentsTable.jobId, jobsTable.id)).
 			where(inArray(jobsTable.id, ids));
 		const jobs = getJobObjects(results);
+		// preserve the order of the jobs 
+		// to keep pagination correct
 		const group = {};
 		for(const j of jobs){
 			const key = j.id;
 			group[key] = j;
 		}
-		const sorted = ids.map((e,i)=>{return group[e];}).filter((x) => x!== undefined);
+		const sorted = ids.map((e,i)=>{return group[e];}).filter((x) => x !== undefined);
 		resolve(sorted);
 	});
 };

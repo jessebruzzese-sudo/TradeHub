@@ -10,6 +10,7 @@
 export const dynamic = "force-dynamic";
 
 import { getAxios } from "@/lib/utils";
+import { LoadingSpinner } from "@/components/loading-spinner";
 import Link from 'next/link';
 import UserContext from "@/lib/user-context";
 import UserProvider from "@/components/hoc/UserProvider";
@@ -89,6 +90,7 @@ function normalizeJobRow(row: Record<string, unknown>): Record<string, unknown> 
 }
 
 export default function JobsPage() {
+
 	const UserSession = useContext(UserContext);	
   const router = useRouter();
   const hasRedirected = useRef(false);
@@ -182,14 +184,14 @@ export default function JobsPage() {
 		if(visibleJobs !== null){
 			return;
 		}	
-		getAxios(null).get("/api/me/jobs/search").
+		getAxios(null).get(`/api/me/jobs/search?sortBy=${sortMode}`).
 			then((response)=>{
 				const data = response.data;
 				setVisibleJobs(data);
 			}).catch((err_)=>{
 				setJobsError(err_);
 			});
-  }, [visibleJobs]);
+  }, [visibleJobs, sortMode]);
 
   useEffect(() => {
 		if(myPosts != null){
@@ -318,13 +320,11 @@ export default function JobsPage() {
       />
     );
   }
-  if (isLoading) {
+  if(isLoading){
     return (
-			<UserProvider onUserLoaded={(user)=>{setCurrentUser(user);}}>
-      	<div className="flex min-h-[60vh] items-center justify-center text-sm text-gray-600">
-        	Loading jobs…
-      	</div>
-			</UserProvider>
+    	<AppLayout>
+				<LoadingSpinner onUserLoaded={(user)=>{setCurrentUser(user);}} />
+    	</AppLayout>
     );
   }
 	const premium = currentUser?.profile?.premium ?? false;
@@ -505,7 +505,7 @@ export default function JobsPage() {
 
                       <button
                         type="button"
-                        onClick={() => setSortMode('newest')}
+                        onClick={()=>{setSortMode('newest');setVisibleJobs(null);}}
                         className={`rounded-lg px-2 py-1 text-xs font-medium ring-1 ring-black/5 ${
                           sortMode === 'newest'
                             ? 'bg-white text-slate-900'
@@ -517,7 +517,7 @@ export default function JobsPage() {
 
                       <button
                         type="button"
-                        onClick={() => setSortMode('nearest')}
+                        onClick={()=>{setSortMode('nearest');setVisibleJobs(null);}}
                         className={`rounded-lg px-2 py-1 text-xs font-medium ring-1 ring-black/5 ${
                           sortMode === 'nearest'
                             ? 'bg-white text-slate-900'
