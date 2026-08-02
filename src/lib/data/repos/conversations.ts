@@ -7,6 +7,27 @@ import { profileTable } from "@/lib/data/defs/profile";
 import { getConversationProfileT } from "@/lib/data/repos/profile";
 import { usersTable } from "@/lib/data/defs/users";
 
+export const deleteMessage = async (conversationId:string, msgId:string, senderProfileId:string) => {
+	return await callDb(async(db) => {
+		return db.transaction(async(trx) => {
+			try{
+				return await trx.delete(messagesTable).
+					where(
+						and(
+							and(
+								eq(messagesTable.id, msgId), 
+								eq(messagesTable.conversationId, conversationId)
+							),
+							eq(messagesTable.senderProfileId, senderProfileId)
+						)
+					).returning({id: messagesTable.id});
+			}catch(err_){
+				throw err_;
+			}
+		});
+	});
+};
+
 export const markMessagesAsRead = async (conversationId:string, receiverProfileId:string) => {
 	return (await getDB()).
 		update(messagesTable).

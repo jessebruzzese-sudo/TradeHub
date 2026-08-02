@@ -194,6 +194,21 @@ export default function MessagesPage() {
 
 	/* START EVENT HANDLERS */
 
+	const handleDeleteMessage = (msgId: string, mine: boolean) => {
+		if(!mine){
+			return;
+		}
+		getAxios(null).delete(`/api/conversations/${selectedConversation}/messages/${msgId}`).
+			then((response_)=>{
+				setMessages(null);
+			}).catch((error_)=>{
+				const msg = error_?.response?.data?.msg ?? null;
+				if(msg){
+					toast.error(msg);
+				}
+			});
+	};
+
 	const handleSendMessage = () => {
 		const payload = {
 			message: messageText,
@@ -473,7 +488,14 @@ export default function MessagesPage() {
                       )}
                       {messages.map((msg) => {
                         const isMe = msg.senderProfileId === currentUser.profile.id;
-                        return <MessageBubble key={msg.id} message={msg} isMe={isMe} />;
+                        return (
+                        	<MessageBubble 
+														key={msg.id} 
+														message={msg} 
+														isMe={isMe} 
+														onDeleteClicked={()=>{handleDeleteMessage(msg.id, isMe);}} 
+													/>
+												);
                       })}
                       <div ref={messagesEndRef} />
                     </div>
@@ -813,7 +835,12 @@ export default function MessagesPage() {
                     {messages.map((msg) => {
                       const isMe = msg.senderProfileId === currentUser.profile.id;
                       return (
-                        <MessageBubble key={msg.id} message={msg} isMe={isMe} />
+                        <MessageBubble 
+													key={msg.id} 
+													message={msg} 
+													isMe={isMe} 
+													onDeleteClicked={()=>{handleDeleteMessage(msg.id, isMe);}} 
+												/>
                       );
                     })}
                     <div ref={messagesEndRef} />
