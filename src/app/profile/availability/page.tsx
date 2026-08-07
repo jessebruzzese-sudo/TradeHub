@@ -236,7 +236,7 @@ export default function AvailabilityPage() {
                 selectedDates={selectedDates}
                 onDatesChange={setSelectedDates}
                 onUpgrade={handleUpgrade}
-                embedded
+                embedded={true}
               />
 
               {/* Description — softer supporting section */}
