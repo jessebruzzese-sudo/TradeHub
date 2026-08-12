@@ -1,14 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import {
   CircleDollarSign,
   UserCircle,
   MapPin,
+  Briefcase,
+  Plus,
 } from 'lucide-react';
 import { safeRouterPush } from '@/lib/safe-nav';
 import { cn } from '@/lib/utils';
@@ -30,96 +30,76 @@ type HeroCardProps = {
 
 export function HeroCard({ mobileMinimal, heroOpen: _heroOpen, onHeroToggle: _onHeroToggle, detailsPrefix }: HeroCardProps) {
   const [showDetails, setShowDetails] = useState(false);
-  const { session, currentUser } = useAuth();
   const router = useRouter();
-  const isAuthed = !!session?.user;
-
-  const handleJoinFree = () => {
-    if (isAuthed) {
-      safeRouterPush(router, '/dashboard', '/dashboard');
-      return;
-    }
-    safeRouterPush(router, '/signup', '/signup');
-  };
-
-  const tradesNearYouHref = isAuthed ? '/discover/plumber' : '/login?returnUrl=%2Fdiscover%2Fplumber';
-  const handleTradesNearYou = () => safeRouterPush(router, tradesNearYouHref, tradesNearYouHref);
 
   const headline = (
-    <h1 className="mt-2 text-3xl font-bold leading-tight tracking-tight text-white md:text-5xl">
-      <span className="block">Contract yourself or your staff.</span>
-      <span className="mt-2 block">
-        Be your own agency — <span className="text-blue-100">fill in your schedule.</span>
-      </span>
+    <h1 className="mt-2 text-3xl font-bold leading-tight tracking-tight text-slate-900 md:text-5xl">
+      <span className="block">Find <span className="text-blue-600">work.</span></span>
+      <span className="mt-2 block">Find <span className="text-blue-600">workers.</span></span>
+      <span className="mt-2 block">Connect <span className="text-blue-600">directly.</span></span>
     </h1>
   );
 
   const primaryCta = (
     <Button
       size="lg"
-      className="w-full rounded-xl bg-white px-6 py-6 text-base font-semibold text-blue-600 hover:bg-blue-50 sm:w-auto"
-      onClick={handleJoinFree}
+      className="w-full rounded-xl bg-blue-600 px-6 py-6 text-base font-semibold text-white hover:bg-blue-700 sm:w-auto"
+      onClick={() => safeRouterPush(router, '/jobs', '/jobs')}
     >
-      Join free
+      <Briefcase className="mr-2 h-5 w-5" />
+      View Jobs
     </Button>
   );
 
   const minimalPrimaryCta = (
     <Button
       size="lg"
-      className="w-full rounded-xl bg-white px-6 py-6 text-base font-semibold text-blue-600 hover:bg-blue-50"
-      onClick={handleJoinFree}
+      className="w-full rounded-xl bg-blue-600 px-6 py-6 text-base font-semibold text-white hover:bg-blue-700"
+      onClick={() => safeRouterPush(router, '/jobs', '/jobs')}
     >
-      Create a free account
+      <Briefcase className="mr-2 h-5 w-5" />
+      View Jobs
     </Button>
   );
 
   const minimalSecondaryCta = (
     <Button
-      asChild
       size="lg"
-      variant="outline"
-      className="w-full rounded-xl border-white/30 bg-white/10 px-6 py-6 text-base font-semibold text-white shadow-sm transition hover:bg-white/15"
+      className="w-full rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-6 text-base font-semibold text-white shadow-sm hover:from-amber-600 hover:to-orange-600"
+      onClick={() => safeRouterPush(router, '/jobs/create', '/jobs/create')}
     >
-      <Link href="/how-it-works">How to grow my network?</Link>
+      <Plus className="mr-2 h-5 w-5" />
+      Post Job
     </Button>
   );
 
   const detailsContent = (
     <>
       {detailsPrefix}
-      <span className="mb-6 inline-block rounded-full bg-white/10 px-4 py-1 text-sm font-medium text-white backdrop-blur">
+      <span className="mb-6 inline-block rounded-full bg-blue-50 px-4 py-1 text-sm font-medium text-blue-700">
         Built for Aussie tradies
       </span>
-      <p className="max-w-2xl text-lg text-blue-100">
+      <p className="mx-auto max-w-2xl text-lg text-slate-600">
         Get booked locally through real jobs and discovery — no lead fees.
       </p>
-      <div className="flex flex-wrap gap-3">
-        <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium md:text-sm">
-          <CircleDollarSign className="h-4 w-4 text-emerald-300" />
+      <div className="flex flex-wrap justify-center gap-3">
+        <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 md:text-sm">
+          <CircleDollarSign className="h-4 w-4 text-emerald-600" />
           No lead fees
         </span>
-        <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium md:text-sm">
-          <UserCircle className="h-4 w-4 text-sky-200" />
+        <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 md:text-sm">
+          <UserCircle className="h-4 w-4 text-sky-600" />
           Public profiles + reviews
         </span>
-        <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium md:text-sm">
-          <MapPin className="h-4 w-4 text-amber-200" />
+        <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 md:text-sm">
+          <MapPin className="h-4 w-4 text-amber-600" />
           20km free • 100km Premium
         </span>
       </div>
-      <Button
-        variant="outline"
-        size="lg"
-        onClick={handleTradesNearYou}
-        className="w-full rounded-xl border-white/40 bg-transparent px-6 py-6 text-base font-medium text-white hover:bg-white/15 md:hidden"
-      >
-        See trades near you
-      </Button>
-      <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-blue-100">
+      <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-slate-600">
         {PROOF_ITEMS.map((label) => (
           <span key={label} className="inline-flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-emerald-300/70" aria-hidden />
+            <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden />
             <span>{label}</span>
           </span>
         ))}
@@ -130,9 +110,9 @@ export function HeroCard({ mobileMinimal, heroOpen: _heroOpen, onHeroToggle: _on
   if (mobileMinimal) {
     return (
       <div
-        className="relative overflow-hidden rounded-2xl bg-blue-600 p-6 text-white shadow-sm md:hidden"
+        className="relative overflow-hidden rounded-2xl bg-white text-slate-900 border border-slate-200 p-6 shadow-sm md:hidden text-center"
           style={{
-            backgroundImage: `radial-gradient(circle at 1px 1px, rgba(255,255,255,0.15) 1px, transparent 0)`,
+            backgroundImage: `radial-gradient(circle at 1px 1px, rgba(0,0,0,0.06) 1px, transparent 0)`,
             backgroundSize: '20px 20px',
           }}
         >
@@ -144,7 +124,7 @@ export function HeroCard({ mobileMinimal, heroOpen: _heroOpen, onHeroToggle: _on
           <button
             type="button"
             onClick={() => setShowDetails((v) => !v)}
-            className="mt-4 inline-flex w-full items-center justify-center gap-2 text-white/90 transition hover:text-white"
+            className="mt-4 inline-flex w-full items-center justify-center gap-2 text-slate-600 transition hover:text-slate-900"
             aria-expanded={showDetails}
           >
             <span className="text-sm font-semibold">
@@ -163,51 +143,51 @@ export function HeroCard({ mobileMinimal, heroOpen: _heroOpen, onHeroToggle: _on
 
   return (
     <div
-      className="relative overflow-hidden rounded-2xl bg-blue-600 p-6 text-white shadow-sm md:p-10 hidden md:block"
+      className="relative overflow-hidden rounded-2xl bg-white text-slate-900 border border-slate-200 p-6 shadow-sm md:p-10 hidden md:block text-center"
         style={{
-          backgroundImage: `radial-gradient(circle at 1px 1px, rgba(255,255,255,0.15) 1px, transparent 0)`,
+          backgroundImage: `radial-gradient(circle at 1px 1px, rgba(0,0,0,0.06) 1px, transparent 0)`,
           backgroundSize: '20px 20px',
         }}
       >
-        <span className="mb-6 inline-block rounded-full bg-white/10 px-4 py-1 text-sm font-medium text-white backdrop-blur">
+        <span className="mb-6 inline-block rounded-full bg-blue-50 px-4 py-1 text-sm font-medium text-blue-700">
           Built for Aussie tradies
         </span>
         {headline}
         <div className="mt-6 flex flex-col">
           <div className="space-y-4 md:order-1 md:block">
-            <p className="max-w-2xl text-lg text-blue-100">
+            <p className="mx-auto max-w-2xl text-lg text-slate-600">
               Get booked locally through real jobs and discovery — no lead fees.
             </p>
-            <div className="flex flex-wrap gap-3">
-              <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium md:text-sm">
-                <CircleDollarSign className="h-4 w-4 text-emerald-300" />
+            <div className="flex flex-wrap justify-center gap-3">
+              <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 md:text-sm">
+                <CircleDollarSign className="h-4 w-4 text-emerald-600" />
                 No lead fees
               </span>
-              <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium md:text-sm">
-                <UserCircle className="h-4 w-4 text-sky-200" />
+              <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 md:text-sm">
+                <UserCircle className="h-4 w-4 text-sky-600" />
                 Public profiles + reviews
               </span>
-              <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium md:text-sm">
-                <MapPin className="h-4 w-4 text-amber-200" />
+              <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 md:text-sm">
+                <MapPin className="h-4 w-4 text-amber-600" />
                 20km free • 100km Premium
               </span>
             </div>
           </div>
-          <div className="order-1 flex flex-col gap-3 sm:flex-row sm:items-center md:order-2 md:mt-6">
+          <div className="order-1 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-center md:order-2 md:mt-6">
             {primaryCta}
             <Button
-              variant="outline"
               size="lg"
-              onClick={handleTradesNearYou}
-              className="w-full rounded-xl border-white/40 bg-transparent px-6 py-6 text-base font-medium text-white hover:bg-white/15 sm:w-auto"
+              className="w-full rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-6 text-base font-semibold text-white shadow-sm hover:from-amber-600 hover:to-orange-600 sm:w-auto"
+              onClick={() => safeRouterPush(router, '/jobs/create', '/jobs/create')}
             >
-              See trades near you
+              <Plus className="mr-2 h-5 w-5" />
+              Post Job
             </Button>
           </div>
-          <div className="order-3 mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-blue-100">
+          <div className="order-3 mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-slate-600">
             {PROOF_ITEMS.map((label) => (
               <span key={label} className="inline-flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-emerald-300/70" aria-hidden />
+                <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden />
                 <span>{label}</span>
               </span>
             ))}
