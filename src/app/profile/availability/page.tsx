@@ -229,7 +229,7 @@ export default function AvailabilityPage() {
 
           {/* Single main card */}
           <Card className="rounded-xl border-slate-200/80 bg-white shadow-sm">
-            <CardContent className="p-6 sm:p-8">
+            <CardContent className="p-4">
               {/* Calendar section — visual focal point */}
               <AvailabilityCalendar
                 user={currentUser}
