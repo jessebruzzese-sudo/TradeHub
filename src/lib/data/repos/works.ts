@@ -41,6 +41,32 @@ export const deleteWorkImagesT = async (workId:string, trx:any) => {
 	return trx.delete(workImageTable).where(eq(workImageTable.workId, workId));
 };
 
+export const deleteWorksT = async (profileId:string, trx:any) => {
+	return new Promise(async(resolve, reject)=>{
+		try{
+			// grab work ids
+			const results = await trx.select({id: workTable.id}).
+				from(workTable).
+				where(eq(workTable.profileId, profileId));
+			// for each one
+			for(const result of results){
+				const workId = result?.id ?? null;
+				if(workId === null){
+					reject(new Error("Error, work id is null"));
+					return;
+				}
+				// delete work images and record
+				await deleteWorkImagesT(workId, trx);
+				await deleteWorkT(workId, trx);
+			}
+		}catch(err_){
+			reject(err_);
+			return;
+		}
+		resolve(true);
+	});
+};
+
 export const deleteWork = async (workId:string) => {
 	return await callDb(async(db)=>{
 		return db.transaction(async(trx)=>{

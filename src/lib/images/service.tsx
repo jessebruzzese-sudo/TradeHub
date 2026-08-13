@@ -1,7 +1,7 @@
 // vim: ts=2
 "use server"
 import { ENV } from "@/lib/env";
-import { readFile, unlink } from "node:fs/promises";
+import { readFile, unlink, rm } from "node:fs/promises";
 import { getImageExtension, getMimeForFile } from "@/lib/utils";
 
 export const loadWorkImages = async (work:any) => {
@@ -19,21 +19,16 @@ export const loadWorkImages = async (work:any) => {
   });
 };
 
-export const deleteJobAttachments = async (job:any) => {
+export const deleteJobAttachments = async (jobId: any) => {
 	return new Promise(async(resolve, reject) => {
-		let removed = 0;
-		for(const a of job.attachments){
-			const root = ENV.store.jobs;
-			const jobPath = `${root}/${job.id}`;
-			const filePath = `${jobPath}/${a.id}`;
-			try{
-				await unlink(filePath);
-			}catch(err_){
-				// ignore
-			}
-			removed += 1;
+		const root = ENV.store.jobs;
+		const jobPath = `${root}/${jobId}`;
+		try{
+			await rm(jobPath, {recursive: true, force: true });
+		}catch(err_){
+			// ignore
 		}
-		resolve(removed);	
+		resolve(true);	
 	});
 };
 

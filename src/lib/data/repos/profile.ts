@@ -116,6 +116,31 @@ export const updateRating = async (rating:number, profileId:string) => {
 	});
 };
 
+export const deleteProfileT = async (userId:string, profileId:string, trx:any) => {
+	return new Promise(async(resolve, reject)=>{
+		try{
+			const { works: worksRepo, jobs: jobsRepo } = await getDataService();
+			// delete works 
+			await worksRepo.deleteWorksT(profileId, trx);
+			// delete profile views, likes
+			// then user, jobs and finally profile
+			await trx.delete(profileViewTable).where(eq(profileViewTable.profileId, profileId));
+			await trx.delete(profileViewTable).where(eq(profileViewTable.userId, userId));
+			await trx.delete(profileLikeTable).where(eq(profileLikeTable.profileId, profileId));
+			await trx.delete(profileLikeTable).where(eq(profileLikeTable.userId, userId));
+			await jobsRepo.deleteJobsT(profileId, trx);
+			await jobsRepo.deleteSelectedApplicationsT(profileId, trx);
+			await jobsRepo.deleteApplicationsT(profileId, trx);
+			await trx.delete(usersTable).where(eq(usersTable.profileId, profileId));
+			await trx.delete(profileTable).where(eq(profileTable.id, profileId));
+		}catch(err_){
+			reject(err_);
+			return;
+		}
+		resolve(true);
+	});
+};
+
 export const toggleLike = async (viewerId:string, profileId:string) => {
 	return await callDb(async(db)=>{
 		return db.transaction(async(trx)=>{

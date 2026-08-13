@@ -551,10 +551,12 @@ export default function EditProfilePage() {
     }
 		setDeleteLoading(true);
     try {
-			// toast and logout
-			toast.info("Coming soon");
+			const payload = { password };
+			await getAxios(null).post("/api/me/delete-account", payload);
+			toast.info("Account deleted");
+			router.refresh();
     } catch (e: any) {
-      toast.error(e?.message ?? 'Could not delete account. Please check your password and try again.');
+      toast.error("Could not delete account. Please check your password and try again.");
     } finally {
       setDeleteLoading(false);
       setDeleteOpen(false);

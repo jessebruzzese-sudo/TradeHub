@@ -1,7 +1,12 @@
 // vim: ts=2
 'use server'
 import { or, and, eq, sql, isNull, inArray, asc } from "drizzle-orm";
-import { businessTable, businessTradeTable, googlePlacesTable } from "@/lib/data/defs/business";
+import { 
+	businessTable, 
+	businessTradeTable, 
+	googlePlacesTable
+} from "@/lib/data/defs/business";
+import { availabilityTable } from "@/lib/data/defs/availability";
 import { tradesTable } from "@/lib/data/defs/trades";
 import { usersTable } from "@/lib/data/defs/users";
 import { getDB, getDataService, callDb } from "@/lib/data/service";
@@ -139,6 +144,21 @@ export const upsertGooglePlace = async (place:any) => {
 				throw err_;
 			}
 		});
+	});
+};
+
+export const deleteBusinessT = async (businessId:string, trx:any) => {
+	return new Promise(async(resolve, reject)=>{
+		try{
+			await trx.delete(availabilityTable).where(eq(availabilityTable.businessId, businessId));
+			await trx.delete(googlePlacesTable).where(eq(googlePlacesTable.businessId, businessId));
+			await trx.delete(businessTradeTable).where(eq(businessTradeTable.businessId, businessId));
+			await trx.delete(businessTable).where(eq(businessTable.id, businessId));
+		}catch(err_){
+			reject(err_);
+			return;
+		}
+		resolve(true);
 	});
 };
 

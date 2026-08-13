@@ -7,6 +7,40 @@ import { profileTable } from "@/lib/data/defs/profile";
 import { getConversationProfileT } from "@/lib/data/repos/profile";
 import { usersTable } from "@/lib/data/defs/users";
 
+// delete all conversations linked to the specified profile
+// profile could be either an owner or a guest to a conversation
+export const deleteConversationsT = async (profileId:string, trx:any) => {
+	return new Promise(async(resolve, reject)=>{
+		try{
+			// find appropriate conversations
+			const results = await trx.select({id: conversationTable.id}).
+				from(conversationTable).
+				where(
+					or(
+						eq(conversationTable.ownerProfileId, profileId), 
+						eq(conversationTable.guestProfileId, profileId)
+					)
+				);
+			// for each convo
+			for(const result of results){
+				const conversationId = result?.id ?? null;
+				if(conversationId === null){
+					reject(new Error(`Conversation id is null`));	
+					return;
+				}
+				// delete messages and conversation
+				await trx.delete(messagesTable).where(eq(messagesTable.conversationId, conversationId));
+				await trx.delete(conversationTable).where(eq(conversationTable.id, conversationId));
+			}
+			resolve(true);
+			return;
+		}catch(err_){
+			reject(err_);
+			return;
+		}
+	});
+};
+
 export const deleteMessage = async (conversationId:string, msgId:string, senderProfileId:string) => {
 	return await callDb(async(db) => {
 		return db.transaction(async(trx) => {

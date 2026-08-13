@@ -440,18 +440,47 @@ export const getJob = async (jobId:string) => {
 	});
 };
 
+export const deleteSelectedApplicationsT = async (profileId:string, trx:any) => {
+	return trx.delete(selectedApplicationTable).where(eq(selectedApplicationTable.applicantProfileId, profileId));
+};
+
+export const deleteApplicationsT = async (profileId:string, trx:any) => {
+	return trx.delete(applicationTable).where(eq(applicationTable.profileId, profileId));
+};
+
+export const deleteJobsT = async (profileId:string, trx:any) => {
+	return new Promise(async(resolve, reject)=>{
+		const results = await trx.select({id: jobsTable.id}).
+			from(jobsTable).
+			where(eq(jobsTable.profileId, profileId));
+		for(const result of results){
+			const jobId = result?.id ?? null;
+			if(jobId === null){
+				reject(new Error(`Job id is null`));
+				return;
+			}
+			await deleteJobT(jobId, trx);
+		}
+		resolve(true);
+	});
+};
+
+export const deleteJobT = async (jobId:string, trx:any) => {
+	return new Promise(async(resolve, reject)=>{
+		await trx.delete(jobAttachmentsTable).where(eq(jobAttachmentsTable.jobId, jobId));
+		await trx.delete(selectedApplicationTable).where(eq(selectedApplicationTable.jobId, jobId));
+		await trx.delete(applicationTable).where(eq(applicationTable.jobId, jobId));
+		await trx.delete(jobsTable).where(eq(jobsTable.id, jobId));
+		await deleteJobAttachments(jobId);
+		resolve(true);
+	});
+};
+
 export const deleteJob = async (job:any) => {
 	return await callDb(async(db) => {
 		return db.transaction(async(trx) => {
 			try{
-				if(job.attachments.length > 0)
-					await trx.delete(jobAttachmentsTable).where(eq(jobAttachmentsTable.jobId, job.id));
-				await trx.delete(selectedApplicationTable).where(eq(selectedApplicationTable.jobId, job.id));
-				await trx.delete(applicationTable).where(eq(applicationTable.jobId, job.id));
-				await trx.delete(jobsTable).where(eq(jobsTable.id, job.id));
-				const removed = await deleteJobAttachments(job);
-				if(removed !== job.attachments.length)
-					throw new Error(`Failed to remove all attachments`);
+				await deleteJobT(job.id, trx);
 			}catch(err_){
 				throw err_;
 			}

@@ -13,6 +13,47 @@ import * as bcrypt from "bcrypt";
 const CUSTOMER_ROLE_ID = 2;	
 const SALT_ROUNDS = 10;
 
+export const validatePassword = async (userId:string, password:string) => {
+	const db = await getDB();
+	const results = await db.select({password: usersTable.password}).
+		from(usersTable).
+		where(eq(usersTable.id, userId));
+	const hashed = results[0]?.password ?? null;
+	return bcrypt.compare(password, hashed); // Promise<boolean>
+};
+
+export const getUserRecord = async (userId:string)=> {
+	return (await getDB()).select().
+		from(usersTable).
+		where(eq(usersTable.id, userId));
+};
+
+export const deleteUser = async (userId:string) => {
+	const { business: businessRepo, profile: profileRepo, users: userRepo, conversations: convoRepo } = await getDataService();
+	const matches = await userRepo.getUserRecord(userId);
+	const userRecord = matches[0] ?? null;
+	if(!userRecord){
+		throw new Error(`Failed to find user record for id ${userId}`);
+	}
+	const profileId = userRecord?.profileId ?? null;
+	const businessId = userRecord?.businessId ?? null;
+	if(profileId === null || businessId === null){
+		throw new Error(`Profile id or business id is null`);
+	}
+	return callDb(async(db)=>{
+		return db.transaction(async(trx)=>{
+			try{
+				await convoRepo.deleteConversationsT(profileId, trx);
+				await profileRepo.deleteProfileT(userId, profileId, trx);
+				await businessRepo.deleteBusinessT(businessId, trx);
+			}catch(err_){
+				console.error(err_);
+				throw err_;
+			}	
+		});
+	});
+};
+
 export const isUserAdmin = async (userId:string) => {
 	return new Promise(async(resolve, reject)=>{
 		const db = await getDB();
