@@ -126,6 +126,13 @@ export const doForgotPassword = async (state:string, email:string) => {
 		returning({id: usersTable.id});
 };
 
+export const getUserIdByProfileId = async (profileId:string) => {
+	return (await getDB()).
+		select({id:usersTable.id}).
+		from(usersTable).
+		where(eq(usersTable.profileId, profileId));
+};
+
 export const getUserIdsForEmail = async (email:string) => {
 	return (await getDB()).
 		select({id:usersTable.id}).

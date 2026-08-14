@@ -128,7 +128,16 @@ export default function AdminUsersPage() {
 
 	const handleDelete = (event:any, profileId:string) => {	
 		event.stopPropagation();
-		toast.info("Coming soon");
+		getAxios(null).delete(`/api/profile/${profileId}`).
+			then((response)=>{
+				toast.success("Profile deleted");
+				setUsers(null);
+			}).catch((error)=>{
+				const msg = error?.response?.data?.msg ?? null;
+				if(msg){
+					toast.error(msg);
+				}
+			});
 	};
 
 	const handleFree = (event:any, profileId:string) => {

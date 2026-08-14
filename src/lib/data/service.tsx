@@ -13,11 +13,13 @@ import * as workRepo from "@/lib/data/repos/works";
 import * as jobRepo from "@/lib/data/repos/jobs";
 import * as applicationRepo from "@/lib/data/repos/applications";
 import * as conversationRepo from "@/lib/data/repos/conversations";
-const MAX_CONNECTIONS = 10;
+import * as fs from "fs";
+const MAX_CONNECTIONS = 20;
 const IDLE_TIMEOUT = 10;
 const pgPool = new Pool({
 	ssl: {
-    rejectUnauthorized: false,
+    rejectUnauthorized: true, // false for dev
+		ca: fs.readFileSync(ENV.database.cert).toString() // dont need for dev
   },
   host: ENV.database.host,
   port: ENV.database.port,

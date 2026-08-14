@@ -12,6 +12,7 @@ export type TradeHubDatabase = {
 	username: string;
 	database: string;
 	password: string;
+	cert: string;
 };
 export type SendgridTemplates = {
 	welcome: string;
@@ -50,7 +51,8 @@ export const ENV: TradeHubEnv = {
 		port: load("POSTGRES_PORT"),
 		password: load("POSTGRES_PASSWORD"),
 		username: load("POSTGRES_USERNAME"),
-		database: load("POSTGRES_DATABASE")
+		database: load("POSTGRES_DATABASE"),
+		cert: load("POSTGRES_SSL_CERT")
 	},
 	sendgrid: {
 		key: load("SENDGRID_KEY"),	
