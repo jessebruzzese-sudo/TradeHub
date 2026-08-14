@@ -37,3 +37,6 @@ test-results/
 
 # Local script output (trade audit manual review)
 tmp/
+
+# AWS RDS root cert
+global-bundle.pem
