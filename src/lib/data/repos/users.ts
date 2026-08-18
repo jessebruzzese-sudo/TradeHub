@@ -234,15 +234,29 @@ export const addBusinessUser = async (payload:any) => {
 	});
 };
 
+export const getUserId = async (email:string) => {
+	return new Promise(async(resolve, reject)=>{
+		const Q = sql`SELECT id FROM users a WHERE lower(a.email) = lower(${email})`;	
+		const results = await (await getDB()).execute(Q);
+		const userId = results.rows[0]?.id ?? null;
+		if(userId === null){
+			reject(new Error(`The user ${email} doesn't exist`));
+			return;
+		}
+		resolve(userId);
+	});
+};
+
 export const getUserByEmail = async (email:string) => {
 	return new Promise(async(resolve, reject)=>{
 		let results = null;
 		const DB = await getDB();
 		try{
+			const userId = await getUserId(email);
 			results = await DB.select()
 				.from(usersTable)
 				.innerJoin(rolesTable, eq(usersTable.roleId, rolesTable.id))
-				.where(eq(usersTable.email, email));
+				.where(eq(usersTable.id, userId));
 		}catch(err_){
 			reject(err_);
 			return;

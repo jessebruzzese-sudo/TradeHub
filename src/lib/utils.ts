@@ -30,7 +30,7 @@ export const getClaims = async (token:string) => {
 export const getAxios = (token:string|null) => {
 	return Axios.create({
 		baseURL: ENV.public.api.baseURL,
-		timeout: 10000,
+		timeout: 60000,
 		headers: {
 			"Authorization": token,
 			"Content-Type": "application/json"

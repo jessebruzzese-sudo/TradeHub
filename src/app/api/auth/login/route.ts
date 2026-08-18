@@ -15,7 +15,8 @@ export async function POST(req: Request) {
 	let user:any|null = null
 	try{
 		// find user
-		user = await users.getUserByEmail(creds.email);
+		const lowerEmail = creds.email.toLowerCase();
+		user = await users.getUserByEmail(lowerEmail);
 	}catch(err_){
 		console.error(err_);
 		return NextResponse.json({ error: 'Invalid username or password' }, { status: 400 });

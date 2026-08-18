@@ -30,7 +30,9 @@ export const profileTable = pgTable("profile", {
 	reliabilityRating: real("reliability_rating"),
 	upVotes: integer("up_votes").default(0),
 	downVotes: integer("down_votes").default(0),
-	skills: text("skills").array()
+	skills: text("skills").array(),
+	updatedAt: timestamp("updated_at"),
+	createdAt: timestamp("created_at").defaultNow()
 });
 
 export const profileViewTable = pgTable("profile_view", {

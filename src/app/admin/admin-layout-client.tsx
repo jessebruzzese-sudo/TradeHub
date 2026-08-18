@@ -19,6 +19,7 @@ export default function AdminLayoutClient({
     { href: '/admin/account-reviews', icon: AlertTriangle, label: 'Reviews' },
     { href: '/admin/verifications', icon: CheckCircle, label: 'Verifications' },
     { href: '/admin/users', icon: Users, label: 'Users' },
+    { href: '/admin/email', icon: Mail, label: 'Email' },
   ];
 
   const overflowNavItems = [

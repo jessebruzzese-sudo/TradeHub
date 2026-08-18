@@ -13,6 +13,7 @@ export type TradeHubDatabase = {
 	database: string;
 	password: string;
 	cert: string;
+	ssl: boolean;
 };
 export type SendgridTemplates = {
 	welcome: string;
@@ -52,7 +53,8 @@ export const ENV: TradeHubEnv = {
 		password: load("POSTGRES_PASSWORD"),
 		username: load("POSTGRES_USERNAME"),
 		database: load("POSTGRES_DATABASE"),
-		cert: load("POSTGRES_SSL_CERT")
+		cert: load("POSTGRES_SSL_CERT"),
+		ssl: load("POSTGRES_USE_SSL") === "true"
 	},
 	sendgrid: {
 		key: load("SENDGRID_KEY"),	
@@ -64,7 +66,8 @@ export const ENV: TradeHubEnv = {
 			userCreated: load("USER_CREATED_TEMPLATE_ID"),
 			forgotPassword: load("FORGOT_PASSWORD_TEMPLATE_ID"),
 			passwordChanged: load("PASSWORD_CHANGED_TEMPLATE_ID"),
-			messageSent: load("MESSAGE_SENT_TEMPLATE_ID")
+			messageSent: load("MESSAGE_SENT_TEMPLATE_ID"),
+			earlyUser: load("EARLY_USER_TEMPLATE_ID")
 		}
 	},
 	jwt: {

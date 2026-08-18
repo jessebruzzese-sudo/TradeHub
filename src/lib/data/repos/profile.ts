@@ -250,6 +250,7 @@ export const updateProfileT = async (trx:any, payload:any, profileId:string) => 
 			showPhone: payload.showPhone, showEmail: payload.showEmail, 
 			showAbn: payload.showAbn, showBusinessName: payload.showBusinessName, 
 			showListingPrice: payload.showListingPrice,
-			skills: payload.skills
+			skills: payload.skills,
+			updatedAt: new Date()
 		}).where(eq(profileTable.id, profileId));
 };

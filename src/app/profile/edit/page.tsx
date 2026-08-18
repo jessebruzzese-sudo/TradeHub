@@ -660,6 +660,43 @@ export default function EditProfilePage() {
     }
   };
 
+	const onUserLoaded = (user:any) => {
+		setCurrentUser(user);
+		setName(user?.name ?? "");
+		setMiniBio(user?.profile?.miniBio ?? "");
+		setBusinessName(user?.business?.businessName ?? "");
+  	setBio(user?.profile?.bio ?? "");
+		setPrimaryTrade(getPrimaryTrade(user ?? null));
+		setLocation(user?.business?.location ?? "");
+		setPostcode(user?.business?.postcode ?? "");
+		setLocationLat(user?.business?.locationLat ?? null);
+  	setLocationLng(user?.business?.locationLng ?? null);
+		setTradesText((UserSession.user?.profile?.skills ?? []).join(", "));
+  	setWebsite(UserSession.user?.profile?.website ?? "");
+  	setInstagram(UserSession.user?.profile?.instagram ?? "");
+  	setFacebook(UserSession.user?.profile?.facebook ?? "");
+		setLinkedin(UserSession.user?.profile?.linkedin ?? "");
+		setTiktok(UserSession.user?.profile?.tiktok ?? "");
+		setYoutube(UserSession.user?.profile?.youtube ?? "");
+		const place = UserSession.user?.business?.googlePlace ?? null;
+		setGoogleBusinessUrl(place?.mapsUrl ?? "");
+		setGoogleBusinessName(place?.businessName ?? "");
+		setGooglePlaceId(place?.placeId ?? "");
+		setGoogleRating(place?.googleRating ?? "");
+		setGoogleReviewCount(place?.reviewCount ?? "");
+		setGoogleBusinessAddress(place?.businessAddress ?? null);
+		setUserTrades(UserSession?.user?.business?.trades?.filter((x)=>x !== primaryTrade) ?? []);
+		setPhone(UserSession.user?.profile?.phone ?? "");
+		setShowPhoneOnProfile(UserSession.user?.profile?.showPhone ?? false);
+		setShowEmailOnProfile(UserSession.user?.profile?.showEmail ?? false);
+		setShowAbnOnProfile(UserSession.user?.profile?.showAbn ?? true);
+		setShowBusinessNameOnProfile(UserSession.user?.profile?.showBusinessName ?? false);
+  	setPricingType(UserSession.user?.business?.priceType ?? "");
+		setPricingAmount(String(UserSession.user?.business?.price ?? ""));
+		setShowPricingOnProfile(UserSession.user?.business?.showPricing ?? false);
+		setShowPricingInListings(UserSession.user?.profile?.showListingPrice ?? false);
+	};
+
   const saveActionBar = (placement: 'top' | 'bottom') => (
     <div
       className={cn(
@@ -690,7 +727,7 @@ export default function EditProfilePage() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => router.back()}
+            onClick={() => router.push("/profile")}
             disabled={isSaving}
           >
             Cancel
@@ -706,6 +743,7 @@ export default function EditProfilePage() {
 
   return (
     <AppLayout>
+			<UserProvider onUserLoaded={onUserLoaded}>
       <div className="relative min-h-screen bg-gradient-to-b from-slate-50 via-slate-100 to-slate-200">
         {/* Dotted overlay - behind watermark */}
         <div
@@ -753,6 +791,7 @@ export default function EditProfilePage() {
                       <ProfileAvatar
                         userName={currentUser?.name ?? 'User'}
                         size={154}
+												editable={true}
                       />
                     </div>
                   </div>
@@ -1761,6 +1800,7 @@ export default function EditProfilePage() {
           </div>
         </div>
       </div>
+			</UserProvider>
     </AppLayout>
   );
 }

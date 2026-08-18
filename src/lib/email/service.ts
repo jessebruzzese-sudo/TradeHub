@@ -132,3 +132,57 @@ export const doWelcome = async (welcome:WelcomePayload) => {
 	};	
 	return getEmailClient().post("/mail/send", payload);
 };
+export const sendEmail = async (templateId:any, user:any) => {
+	return new Promise(async(resolve, reject)=>{
+		// common data
+		// shared across templates
+		const currentYear = d.format(new Date(), "yyyy");
+		const companyName = "TradeHub";
+		const companyAddress = "25 Martin Close, South Morang, 3752";
+		const appUrl = ENV.sendgrid.appBaseUrl;
+		const editUrl = `${appUrl}/profile/edit`;
+		const dashboardUrl = `${appUrl}/dashboard`;
+		const unsubscribeUrl = `${appUrl}/dashboard`;
+		const notificationUrl = `${appUrl}/dashboard`;
+		const name = user?.visibleName ?? user?.name ??  null;
+		const email = user.email;	
+		const shared = { 
+			currentYear, companyName, 
+			companyAddress, name, appUrl, 
+			dashboardUrl, notificationUrl, 
+			unsubscribeUrl, email
+		};
+		// generate dynamic template data
+		// for user that was passed in
+		const mappers = {
+			"earlyUser": (user) => { return { ...shared, editUrl } },	
+		};
+		const mapper = mappers[templateId];
+		if(mapper === undefined){
+			reject(new Error(`Failed to find mapper for template ${templateId}`));
+			return;
+		}
+		const data = mapper(user);
+		const sendgridId = ENV.sendgrid.templates[templateId];
+		if(sendgridId === undefined){
+			reject(new Error(`Failed to find sendgrid id for template ${templateId}`));
+			return;
+		}
+		// construct payload
+		const payload = {
+			from: { email: ENV.sendgrid.fromEmail },
+			template_id: sendgridId,
+			personalizations: [{
+				to: [{ email: data.email }],
+				dynamic_template_data: { ...data }
+			}]
+		};
+		try{
+			await getEmailClient().post("/mail/send", payload);
+			resolve(true);
+			return;
+		}catch(err_){
+			reject(err_);
+		}
+	});
+}
