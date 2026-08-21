@@ -4,6 +4,7 @@ import { or, and, eq, sql, isNull, inArray, asc, ne } from "drizzle-orm";
 import { getDB, callDb } from "@/lib/data/service";
 import { conversationTable, messagesTable } from "@/lib/data/defs/conversations";
 import { profileTable } from "@/lib/data/defs/profile";
+import { jobsTable } from "@/lib/data/defs/jobs";
 import { getConversationProfileT } from "@/lib/data/repos/profile";
 import { usersTable } from "@/lib/data/defs/users";
 
@@ -109,50 +110,85 @@ export const addMessage = async (msg:any) => {
 		});
 };
 
-export const upsertConversationT = async (ownerProfileId, guestProfileId, trx) => {
+export const upsertConversationT = async (ownerProfileId, guestProfileId, jobId, trx) => {
 	return new Promise(async(resolve, reject) => {
 		// ensure that there is one conversation for *either* combination of
 		// owner and guest profile 
-		let results = await trx.select({id: conversationTable.id}).
-			from(conversationTable).
-			where(
-				or(
-					and(
-						eq(conversationTable.ownerProfileId, ownerProfileId), 
-						eq(conversationTable.guestProfileId, guestProfileId)
-					),
-					and(
-						eq(conversationTable.ownerProfileId, guestProfileId), 
-						eq(conversationTable.guestProfileId, ownerProfileId)
+		let results = null;
+		if(jobId === null){
+			// jobId is null
+			// cannot use eq() here
+			// must use isNull()
+			results = await trx.select({id: conversationTable.id}).
+				from(conversationTable).
+				where(
+					or(
+						and(
+							and(
+								eq(conversationTable.ownerProfileId, ownerProfileId), 
+								eq(conversationTable.guestProfileId, guestProfileId)
+							),
+							isNull(conversationTable.jobId, jobId)
+						),
+						and(
+							and(
+								eq(conversationTable.ownerProfileId, guestProfileId), 
+								eq(conversationTable.guestProfileId, ownerProfileId)
+							),
+							isNull(conversationTable.jobId, jobId)
+						)
 					)
-				)
-			);
-			let conversationId = results[0]?.id ?? null;
-			if(conversationId){
-				resolve(conversationId);
-				return;
-			}
-			// conversation doesn't exist?
-			// create new one
-			results = await trx.insert(conversationTable).
-				values({ownerProfileId, guestProfileId}).
-				returning({id: conversationTable.id});
-			conversationId = results[0]?.id ?? null;
-			if(!conversationId){
-				reject(new Error(`Failed to determine conversation id`));
-				return;
-			}
+				);
+		}else{
+			// jobId is not null
+			// need to include in where clause
+			results = await trx.select({id: conversationTable.id}).
+				from(conversationTable).
+				where(
+					or(
+						and(
+							and(
+								eq(conversationTable.ownerProfileId, ownerProfileId), 
+								eq(conversationTable.guestProfileId, guestProfileId)
+							),
+							eq(conversationTable.jobId, jobId)
+						),
+						and(
+							and(
+								eq(conversationTable.ownerProfileId, guestProfileId), 
+								eq(conversationTable.guestProfileId, ownerProfileId)
+							),
+							eq(conversationTable.jobId, jobId)
+						)
+					)
+				);
+		}
+		let conversationId = results[0]?.id ?? null;
+		if(conversationId){
 			resolve(conversationId);
 			return;
+		}
+		// conversation doesn't exist?
+		// create new one
+		results = await trx.insert(conversationTable).
+			values({ownerProfileId, guestProfileId, jobId}).
+			returning({id: conversationTable.id});
+		conversationId = results[0]?.id ?? null;
+		if(!conversationId){
+			reject(new Error(`Failed to determine conversation id`));
+			return;
+		}
+		resolve(conversationId);
+		return;
 	});
 };
 
-export const upsertConversation = async (ownerProfileId, guestProfileId) => {
+export const upsertConversation = async (ownerProfileId, guestProfileId, jobId) => {
 	return await callDb(async(db) => {
 		return db.transaction(async(trx) => {
 			try{
 				// make sure that we catch any rejected promises
-				return await upsertConversationT(ownerProfileId, guestProfileId, trx);
+				return await upsertConversationT(ownerProfileId, guestProfileId, jobId, trx);
 			}catch(err_){
 				throw err_;
 			}
@@ -235,6 +271,7 @@ export const getConversations = async (userId:string, owner:boolean) => {
 				results = await trx.select().from(conversationTable).
 					innerJoin(profileTable, eq(profileTable.id, conversationTable.ownerProfileId)).
 					innerJoin(usersTable, eq(usersTable.profileId, profileTable.id)).
+					leftJoin(jobsTable, eq(jobsTable.id, conversationTable.jobId)).
 					where(eq(usersTable.id, userId)).
 					orderBy(asc(conversationTable.createdAt));
 			}else{
@@ -242,12 +279,19 @@ export const getConversations = async (userId:string, owner:boolean) => {
 				results = await trx.select().from(conversationTable).
 					innerJoin(profileTable, eq(profileTable.id, conversationTable.guestProfileId)).
 					innerJoin(usersTable, eq(usersTable.profileId, profileTable.id)).
+					leftJoin(jobsTable, eq(jobsTable.id, conversationTable.jobId)).
 					where(eq(usersTable.id, userId)).
 					orderBy(asc(conversationTable.createdAt));
 			}
 			const mapped = [];
 			for(const c of results){
 				const conversation = { ...c.conversations };
+				const jobId = c?.jobs?.id ?? null;
+				if(jobId){
+					// may aswell grab the entire job
+					// if this conversation is linked with a job
+					conversation.job = { ...c.jobs };
+				}
 				if(owner){
 					conversation.ownerName = c.users.visibleName ?? c.users.name;
 					conversation.ownerUserId = c.users.id;

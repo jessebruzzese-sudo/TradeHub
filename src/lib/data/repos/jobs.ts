@@ -233,15 +233,18 @@ export const acceptApplication = async (job:any, app:any) => {
 };
 
 export const selectApplication = async (job:any, app:any) => {
-	const { applications: appRepo } = await getDataService();
+	const { applications: appRepo, conversations: convoRepo } = await getDataService();
 	return await callDb(async(db) => {
 		return db.transaction(async(trx) => {
 			try{
+				// check for existing conversation
+				// job.profileId as owner
+				// app.profileId as guest
+				// include jobId
+				const convId = await convoRepo.upsertConversationT(job.profileId, app.profileId, job.id, trx);
 				await appRepo.updateApplicationStatusT(trx, app.id, "selected");
 				await appRepo.addLinkToJobT(trx, job.id, app.id, app.profileId);
-				// TODO send email
-				// alert applicant of selection
-				return true; 
+				return convId; 
 			}catch(err_){
 				throw err_;
 			}

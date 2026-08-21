@@ -32,17 +32,18 @@ const doSelectApplication = async (job:any, owner:boolean, applicationId:any) =>
 		return NextResponse.json({ error: "Failed to query application" }, { status: 500 });
 	}
 	const { jobs: jobsRepo } = await getDataService();
+	let conversationId = null;
 	try{
 		// update job status to accepted
 		// create linkage between job and application
 		// update application status to selected
 		// send email to job recipient
-		await jobsRepo.selectApplication(job, app);
+		conversationId = await jobsRepo.selectApplication(job, app);
 	}catch(err_){
 		console.error(err_);
 		return NextResponse.json({ error: "Failed to select application" }, { status: 500 });
 	}
-	return NextResponse.json({ ok: true }, { status: 200 });
+	return NextResponse.json({ ok: true, conversationId }, { status: 200 });
 };
 
 const getApplication = async (applicationId:string) => {

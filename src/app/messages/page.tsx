@@ -112,7 +112,6 @@ export default function MessagesPage() {
 
 	const loadingConversations = conversations === null;
 	const loadingMessages = !loadingConversations && messages === null;
-	const loadingJob = job === null;
 
 	/* START HOOKS */
 
@@ -133,6 +132,10 @@ export default function MessagesPage() {
   }, [conversations]);
 	
   useEffect(() => {
+		// conversations must be loaded before messages
+		if(conversations === null){
+			return;
+		}
 		if(selectedConversation === null){
 			return;
 		}
@@ -140,8 +143,21 @@ export default function MessagesPage() {
 			return;
 		}
 		getAxios(null).get(`/api/conversations/${selectedConversation}/messages`).
-			then((response_)=>{
+			then(async(response_)=>{
+				// before setting messages check to see if the selected conversation is
+				// linked with a job, if so load it 
 				const messages = response_.data;
+				const convo = conversations.find((x)=>x.id === selectedConversation);
+				if(convo !== undefined){
+					// dont need to do this for DMs
+					// only job related conversations
+					const jobId = convo?.jobId ?? null;
+					if(jobId !== null){
+						const jobResponse = await getAxios(null).get(`/api/jobs/${jobId}`);
+						const jobData = jobResponse.data;
+						setJob(jobData);
+					}
+				}
 				setMessages(messages);
 				setTriggerRead(true);
 			}).catch((err_)=>{
@@ -151,7 +167,7 @@ export default function MessagesPage() {
 				}
 				setTriggerRead(false);
 			});
-  }, [selectedConversation, messages]);
+  }, [selectedConversation, messages, conversations]);
 	
 	useEffect(()=>{
 		// dont mark as read unless we're told to
@@ -355,7 +371,7 @@ export default function MessagesPage() {
                                   <p className="font-medium text-gray-900 truncate">{convOtherName}</p>
                                   {unread > 0 ? unreadHint : null}
                         					<p className="text-xs text-slate-600 truncate">
-                          					{conv.lastMessage?.text ?? conv.jobTitle ?? 'Direct message'}
+                          					{conv?.job?.title ?? "Direct message"}
                         					</p>
                                 </div>
                               </div>
@@ -385,12 +401,14 @@ export default function MessagesPage() {
                     <UserAvatar avatarUrl={`/api/profile/${otherProfileId}/avatar`} userName={otherName} size="md" className="shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-gray-900 truncate">{otherName}</p>
-                      <p className="text-xs text-slate-600 truncate">{job?.title ?? convo?.jobTitle ?? 'Direct message'}</p>
+                      <p className="text-xs text-slate-600 truncate">{convo?.job?.title ?? "Direct message"}</p>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
-                      {(convo?.jobId ?? job?.id) && (
-                        <Link href={`/jobs/${covo?.jobId ?? job?.id}`}>
-                          <Button variant="outline" size="sm" className="h-9 text-xs">View Job</Button>
+                      {(convo?.jobId ?? null) && (
+                        <Link href={`/jobs/${convo.jobId}`}>
+                          <Button variant="outline" size="sm" className="h-9 text-xs">
+														View Job
+													</Button>
                         </Link>
                       )}
                       {otherProfileId && (
@@ -666,7 +684,7 @@ export default function MessagesPage() {
                           {unread > 0 ? unreadHint : null}
                         </div>
                         <p className="text-xs text-slate-600 truncate">
-                          {conv.lastMessage?.text ?? conv.jobTitle ?? 'Direct message'}
+                          {conv?.job?.title ?? "Direct message"}
                         </p>
                       </div>
                     </div>
@@ -700,7 +718,7 @@ export default function MessagesPage() {
                   <p className="text-sm text-slate-600 break-words">Choose a conversation from the sidebar to start messaging</p>
                 </div>
               </div>
-            ) : (
+            ) : selectedConversation && conversations !== null && (
               <div className="flex flex-1 min-h-0 w-full overflow-hidden">
               <div className="flex h-full w-full min-h-0 items-stretch justify-center p-4 md:p-6">
                 <div className="flex h-full min-h-0 w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -716,12 +734,12 @@ export default function MessagesPage() {
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-gray-900 truncate break-words">{otherName}</p>
                           <p className="text-sm text-gray-600 truncate break-words">
-                            {job?.title ?? convo?.jobTitle ?? 'Direct message'}
+                            {convo?.job?.title ?? "Direct message"}
                           </p>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          {(convo?.jobId ?? job?.id) && (
-                            <Link href={`/jobs/${convo?.jobId ?? job?.id}`}>
+                          {(convo?.jobId ?? null) && (
+                            <Link href={`/jobs/${convo.jobId}`}>
                               <Button variant="outline" size="sm" className="text-xs sm:text-sm whitespace-nowrap">
                                 View Job
                               </Button>

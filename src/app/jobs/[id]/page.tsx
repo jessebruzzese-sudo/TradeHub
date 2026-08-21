@@ -562,6 +562,9 @@ export default function JobDetailPage() {
       	toast.success('Application selected');
       	setActionSubmitting(false);
 				setApplications(null);
+				const data__ = response_.data;
+				const conversationId = data__.conversationId;
+    		router.push(`/messages?conversationId=${conversationId}`);
 			}).catch((error_)=>{
       	toast.error("Could not select application");
       	setActionSubmitting(false);
@@ -690,7 +693,7 @@ export default function JobDetailPage() {
 
   const handleMessagePoster = () => {
 		const posterId = job?.owner?.profileId ?? null;
-		getAxios(null).post(`/api/conversations`, {otherProfileId: posterId}).
+		getAxios(null).post(`/api/conversations`, { otherProfileId: posterId, jobId: job.id }).
 			then((response_)=>{
 				const data_ = response_.data;
 				const conversationId = data_.conversationId;

@@ -8,12 +8,13 @@ import * as z from "zod";
 export const dynamic = 'force-dynamic';
 
 const ConversationSchema = z.object({
-	otherProfileId: z.uuid()
+	otherProfileId: z.uuid(),
+	jobId: z.uuid().optional()
 });
 
 /**
  * POST /api/conversations
- * Body: { otherProfileId }
+ * Body: { otherProfileId, jobId }
  * Creates the direct conversation for (currentUser, otherUserId) if it doesn't exist.
  */
 export async function POST(request: NextRequest) {
@@ -51,7 +52,9 @@ export async function POST(request: NextRequest) {
 	let convoId = null;
 	try{
 		const { conversations: convRepo }	= await getDataService();
-		convoId = await convRepo.upsertConversation(profileId, payload.otherProfileId);
+		const otherProfileId = payload.otherProfileId;
+		const jobId = payload?.jobId ?? null;
+		convoId = await convRepo.upsertConversation(profileId, otherProfileId, jobId);
 	}catch(err_){
 		console.error(err_);
 		return NextResponse.json({ error: "Could not add conversation", err: err_ }, { status: 500 });

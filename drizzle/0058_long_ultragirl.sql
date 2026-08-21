@@ -1,0 +1,2 @@
+ALTER TABLE "conversations" DROP CONSTRAINT "conversations_owner_profile_id_guest_profile_id_unique";--> statement-breakpoint
+ALTER TABLE "conversations" ADD CONSTRAINT "conversations_owner_profile_id_guest_profile_id_job_id_unique" UNIQUE("owner_profile_id","guest_profile_id","job_id");

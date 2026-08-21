@@ -55,7 +55,7 @@ export const addApplication = async (application:any, sender:any, job:any) => {
 				const profileId = application.profileId;
 				const jobProfileId = job.owner.profileId;
 				await addApplicationT(application, trx);
-				const conversationId = await convRepo.upsertConversationT(profileId, jobProfileId, trx);
+				const conversationId = await convRepo.upsertConversationT(profileId, jobProfileId, job.id, trx);
 				const senderName = sender.visibleName ?? sender.name;
 				const intro = {
 					message: `Hi ${job.owner.name}, ${senderName} has applied for the job - ${job.title}`,	
