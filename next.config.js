@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
 	distDir: "dist",
+	logging: {
+		serverFunctions: true
+	},
   experimental: {
 		serverActions: true
   },

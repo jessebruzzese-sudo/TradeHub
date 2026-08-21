@@ -61,6 +61,11 @@ export const ENV: TradeHubEnv = {
 		fromEmail: load("SENDGRID_FROM_EMAIL"),
 		appBaseUrl: load("SENDGRID_APP_BASE_URL"),
 		adminEmails: load("SENDGRID_ADMIN_EMAILS"),
+		alerts: {
+			userCreated: load("SEND_USER_CREATED") === "true",
+			messageSent: load("SEND_MESSAGE_SENT") === "true",
+			earlyUser: load("SEND_EARLY_USER") === "true"
+		},
 		templates: {
 			welcome: load("WELCOME_TEMPLATE_ID"),
 			userCreated: load("USER_CREATED_TEMPLATE_ID"),

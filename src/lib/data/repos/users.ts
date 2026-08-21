@@ -169,6 +169,13 @@ export const getUserLocation = async (userId:string) => {
 	});
 };
 
+export const getLastActive = async (userId:string) => {
+	return (await getDB()).
+		select({lastActiveAt: usersTable.lastActiveAt}).
+		from(usersTable).
+		where(eq(usersTable.id, userId));
+};
+
 export const updateLastActive = async (userId:string) => {
 	return (await getDB()).
 		update(usersTable).

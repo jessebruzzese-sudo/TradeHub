@@ -16,7 +16,7 @@ export const conversationTable = pgTable("conversations", {
 	jobId: uuid("job_id").references(()=>jobsTable.id),
 	createdAt: timestamp("created_at").defaultNow(),
 	updatedAt: timestamp("updated_at")
-}, (table)=>[unique().on(table.ownerProfileId, table.guestProfileId)]);
+}, (table)=>[unique().on(table.ownerProfileId, table.guestProfileId, table.jobId)]);
 
 export const messagesTable = pgTable("messages", {
 	id: uuid("id").notNull().primaryKey().default(sql`gen_random_uuid()`),

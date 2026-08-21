@@ -58,7 +58,7 @@ export const getAvailability = async (userId:string) => {
 		}
 		const result = results[0];
 		const dates: string[] = result?.availability?.dates ?? [];
-		const description: string = result?.availability.description ?? null;
+		const description: string = result?.availability?.description ?? null;
 		const businessId = result?.business?.id ?? null;
 		resolve({
 			dates: dates, 

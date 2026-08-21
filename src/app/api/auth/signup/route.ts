@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { getDataService } from "@/lib/data/service";
 import { doWelcome, doUserCreated } from "@/lib/email/service";
+import { ENV } from "@/lib/env";
 import * as z from "zod";
 
 export type BusinessPayload = {
@@ -55,16 +56,20 @@ export async function POST(req: Request) {
 		const userId = added.userId;
 		const code = added.activationCode;
 		try{
+			// always send welcome email
 			const welcome = { name, email, code, userId };
 			await doWelcome(welcome);
 		}catch(err_){
 			console.error("Failed to send welcome email");
 		}
-		try{
-			await doUserCreated(payload);
-		}catch(err_){
-			console.error("Failed to send user created email");
-			console.error(err_);
+		// send alert for user created if desired
+		if(ENV.sendgrid.alerts.userCreated){
+			try{
+				await doUserCreated(payload);
+			}catch(err_){
+				console.error("Failed to send user created email");
+				console.error(err_);
+			}
 		}
 		return NextResponse.json({userId}, {status:201});
 	}catch(err_){

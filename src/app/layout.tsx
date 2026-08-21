@@ -27,7 +27,6 @@ export const metadata: Metadata = {
   other: {
     'mobile-web-app-capable': 'yes',
   },
-  themeColor: '#0ea5e9',
   openGraph: {
     title: 'TradeHub - B2B Marketplace for Australian Contractors',
     description: 'Connecting contractors and subcontractors without lead fees.',
