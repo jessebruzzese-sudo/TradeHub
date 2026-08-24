@@ -99,7 +99,9 @@ function validateReturnUrl(url: string | null, fallback: string): string {
 }
 
 export async function proxy(request: NextRequest) {
+
   const { pathname, search } = request.nextUrl;
+	const method = request.method;
 
   if (pathname.startsWith('/how-it-works/subcontractors')) {
     const passthrough = NextResponse.next();
@@ -114,22 +116,23 @@ export async function proxy(request: NextRequest) {
 		return response;
   }
 
-  // Only mutate response cookies (no request.cookies.set / no NextResponse.next() per cookie).
-  // That pattern can disturb or lock request bodies for downstream handlers (e.g. POST in Playwright).
-  let response = NextResponse.next();
-	response.headers.set("Cache-Control", "public, no-transform, must-revalidate");
-	
 	const store = await cookies();	
 	const cookie = store.get("authorization") ?? null;
 	const authorization = cookie?.value ?? null;
+	const userAgent = request.headers.get("user-agent") ?? null;
+	const referer = request.headers.get("referer") ?? null;
+	const forwardedFor = request.headers.get("x-forwarded-for") ?? null;
 	let isAuthenticated = false;
 	let isAdmin = false;
+	let userId = null;
+
 	try{
 		const secret = new TextEncoder().encode(ENV.jwt.secret);
 		await jose.jwtVerify(authorization, secret);
 		const claims = await jose.decodeJwt(authorization);
 		isAuthenticated = true;
 		isAdmin = claims.role?.toLowerCase() === "admin";
+		userId = claims.id;
 	}catch(err_){
 		isAuthenticated = false;
 	}
@@ -201,7 +204,10 @@ export async function proxy(request: NextRequest) {
 		redirect.headers.set("Cache-Control", "public, no-transform, must-revalidate");
 		return redirect;
   }
-
+  let response = NextResponse.next();
+	response.headers.set("Cache-Control", "public, no-transform, must-revalidate");
+	const time = new Date().getTime();
+	console.log(`${userId}\t${method}\t${pathname}\t${isAuthenticated}\t${response.status}\t${userAgent}\t${referer}\t${forwardedFor}\t${time}`);
   return response;
 }
 
