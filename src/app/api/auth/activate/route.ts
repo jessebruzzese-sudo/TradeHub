@@ -12,6 +12,23 @@ export async function GET(request: NextRequest) {
 	const query = request.nextUrl.searchParams;
 	const userId = query.get("uid") ?? null;
 	const code = query.get("code") ?? null;
+	// check for mobile activation code
+	// different from email activation code
+	const mobileCode = query.get("activationCode") ?? null;
+	if(mobileCode !== null){
+		const { users: userRepo } = await getDataService();
+		try{
+			await userRepo.activateUserMobile(mobileCode);
+			return NextResponse.json({ ok: true }, { status: 200 });
+		}catch(err_){
+			console.error(err_);
+			console.error("Failed to activate via mobile code");
+			return NextResponse.json({ 
+				error: "Failed to activate user"
+			}, { status: 500 });
+		}
+	}
+	// normal email activation
 	const payload = { code, userId };
 	try{
 		ActivationPayload.parse(payload);

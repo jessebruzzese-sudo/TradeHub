@@ -92,6 +92,7 @@
     "tailwindcss": "^3.3.3",
     "tailwindcss-animate": "^1.0.7",
     "tesseract.js": "^7.0.0",
+    "twilio": "^6.1.0",
     "typescript": "^6.0.3",
     "unpdf": "^1.6.2",
     "uuid": "^14.0.0",

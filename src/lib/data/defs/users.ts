@@ -29,6 +29,7 @@ export const usersTable = pgTable("users", {
 	activatedAt: timestamp("activated_at"),
 	createdAt: timestamp("created_at").defaultNow(),
 	activationCode: text("activation_code"),
+	mobileCode: text("mobile_code").unique(),
 	forgotPasswordState: text("forgot_password_state")
 });
 

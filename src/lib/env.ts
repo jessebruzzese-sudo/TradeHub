@@ -75,6 +75,11 @@ export const ENV: TradeHubEnv = {
 			earlyUser: load("EARLY_USER_TEMPLATE_ID")
 		}
 	},
+	twilio: {
+		sid: load("TWILIO_ACCOUNT_SID"),
+		authToken: load("TWILIO_AUTH_TOKEN"),
+		from: load("TWILIO_PHONE_NUMBER")
+	},
 	jwt: {
 		secret: load("JWT_SECRET")
 	},

@@ -287,9 +287,6 @@ export default function HowItWorksPage() {
                 <Link href="/privacy" className="text-gray-600 hover:text-gray-900">
                   Privacy Policy
                 </Link>
-                <Link href="/terms" className="text-gray-600 hover:text-gray-900">
-                  Terms of Service
-                </Link>
               </div>
             </div>
           </div>

@@ -473,11 +473,7 @@ export default function SignupForm({ role }: Props) {
           </div>
 
           <div className="mt-6 text-center text-sm text-gray-600">
-            By creating an account, you agree to our{' '}
-            <Link href="/terms" className="text-blue-600 hover:underline">
-              Terms of Service
-            </Link>{' '}
-            and{' '}
+            By creating an account, you agree to our&nbsp;
             <Link href="/privacy" className="text-blue-600 hover:underline">
               Privacy Policy
             </Link>

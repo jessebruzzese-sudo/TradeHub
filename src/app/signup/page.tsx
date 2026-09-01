@@ -16,6 +16,7 @@ import { getSafeReturnUrl, safeRouterReplace } from '@/lib/safe-nav';
 import { normalizeTradesList } from '@/lib/trades/normalizeTrade';
 import { toast } from 'sonner';
 import { normalizeAbnForDb } from '@/lib/abn-normalize';
+import * as z from "zod";
 
 import {
   AlertCircle,
@@ -200,6 +201,7 @@ export default function SignupPage() {
   const [fullName, setFullName] = useState('');
   const [visibleName, setVisibleName] = useState('');
   const [email, setEmail] = useState('');
+	const [mobile, setMobile] = useState("");
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 	/* BUSINESS DETAILS */
@@ -236,8 +238,17 @@ export default function SignupPage() {
   const progressPct = Math.round((completedCount / TOTAL_STEPS) * 100);
 
   // Step 1 validation
-  // TODO check this validation
-  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+	const emailSchema = z.object({email: z.string().email()});
+  let emailValid = false;
+	try{
+		emailSchema.parse({email});
+		emailValid = true;
+	}catch(err_){
+		emailValid = false;
+	}
+
+	const normalMobile = mobile.replace(/\s/g, ""); // remove any spaces
+	const mobileValid = /[0-9]{10}/.test(normalMobile); // make sure that mobile is 10 digits
   const hasLetter = /[A-Za-z]/.test(password);
   const hasNumber = /[0-9]/.test(password);
   const minLen = password.length >= 8;
@@ -247,8 +258,10 @@ export default function SignupPage() {
   const step1Valid =
     fullName.trim().length > 1 &&
     emailValid &&
+		mobileValid &&
     passwordValid &&
     passwordsMatch;
+
   const step2Valid = tradeCategories.length > 0;
   const step3Valid = true; // no required fields on step 3
   const step3HasValues =
@@ -343,6 +356,7 @@ export default function SignupPage() {
 				email,
 				password,
 				accountStatus: "active",
+				mobile: mobile.replace(/\s/g, ""),
 				business: {
 					primaryTrade,
 					businessName,
@@ -510,6 +524,18 @@ export default function SignupPage() {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="john@example.com"
                     className="mt-1 w-full"
+										autocomplete="email username"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <Label htmlFor="email">Mobile Number *</Label>
+                  <Input
+                    id="mobile"
+                    type="mobile"
+                    value={mobile}
+                    onChange={(e) => setMobile(e.target.value)}
+                    placeholder="04 1234 1234"
+                    className="mt-1 w-full"
                   />
                 </div>
                 <div className="min-w-0">
@@ -522,6 +548,7 @@ export default function SignupPage() {
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="At least 8 characters, letters and numbers"
                       className="pr-12 w-full"
+											autocomplete="new-password"
                     />
                     <button
                       type="button"
@@ -571,6 +598,16 @@ export default function SignupPage() {
                     Please complete all required fields correctly to continue.
                   </p>
                 )}
+								{email !== null && email !== "" && !emailValid && (
+                  <p className="mt-3 text-sm text-red-600">
+										Email is not valid, please check your email.
+                  </p>
+								)}
+								{mobile !== null && mobile !== "" && !mobileValid && (
+                  <p className="mt-3 text-sm text-red-600">
+										Mobile number is not valid, please check your mobile number.
+                  </p>
+								)}
                 <div className="mt-6 flex justify-end">
                   <Button
                     type="button"
@@ -872,11 +909,7 @@ export default function SignupPage() {
           </div>
 
           <div className="mt-6 text-center text-xs sm:text-sm text-blue-100 break-words px-2">
-            By creating an account, you agree to our{' '}
-            <Link href="/terms" className="text-white hover:underline break-words">
-              Terms of Service
-            </Link>{' '}
-            and{' '}
+            By creating an account, you agree to our&nbsp;
             <Link href="/privacy" className="text-white hover:underline break-words">
               Privacy Policy
             </Link>

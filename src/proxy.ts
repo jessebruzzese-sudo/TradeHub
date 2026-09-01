@@ -207,7 +207,7 @@ export async function proxy(request: NextRequest) {
   let response = NextResponse.next();
 	response.headers.set("Cache-Control", "public, no-transform, must-revalidate");
 	const time = new Date().getTime();
-	console.log(`${userId}\t${method}\t${pathname}\t${isAuthenticated}\t${response.status}\t${userAgent}\t${referer}\t${forwardedFor}\t${time}`);
+	console.log(`${userId}|${method}|${pathname}|${isAuthenticated}|${userAgent}|${referer}|${forwardedFor}|${time}`);
   return response;
 }
 

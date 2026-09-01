@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD CONSTRAINT "users_mobile_code_unique" UNIQUE("mobile_code");

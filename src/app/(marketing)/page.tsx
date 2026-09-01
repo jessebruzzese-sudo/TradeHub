@@ -182,13 +182,9 @@ export default function HomePage() {
                 © 2024 TradeHub. Australian construction marketplace.
               </span>
             </div>
-
             <div className="mt-3 flex items-center justify-center gap-6 text-sm md:mt-0 md:text-base">
               <Link href="/privacy" className="text-gray-600 hover:text-gray-900">
                 Privacy Policy
-              </Link>
-              <Link href="/terms" className="text-gray-600 hover:text-gray-900">
-                Terms of Service
               </Link>
             </div>
           </div>

@@ -14,6 +14,7 @@ import * as jobRepo from "@/lib/data/repos/jobs";
 import * as applicationRepo from "@/lib/data/repos/applications";
 import * as templateRepo from "@/lib/data/repos/templates";
 import * as conversationRepo from "@/lib/data/repos/conversations";
+import * as alertsRepo from "@/lib/data/repos/alerts";
 import * as fs from "fs";
 const MAX_CONNECTIONS = 20;
 const IDLE_TIMEOUT = 10;
@@ -87,7 +88,8 @@ export const getDataService = async () => {
 			jobs: jobRepo,
 			applications: applicationRepo,
 			conversations: conversationRepo,
-			templates: templateRepo
+			templates: templateRepo,
+			alerts: alertsRepo
 		});
 	});
 };

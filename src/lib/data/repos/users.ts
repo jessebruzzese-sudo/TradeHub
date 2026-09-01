@@ -146,6 +146,24 @@ export const getActivationStatus = async (email:string) => {
 		where(eq(usersTable.email, email));
 };
 
+export const activateUserMobile = async (mobileCode:string) => {
+	return new Promise(async(resolve, reject)=>{
+		const results = await (await getDB()).update(usersTable).
+			set({activated:true, activatedAt: new Date()}).
+			where(
+				and(	
+					eq(usersTable.mobileCode, mobileCode), 
+					eq(usersTable.activated, false)
+				)
+			).returning({id: usersTable.id});
+		if(results.length === 0){
+			reject(new Error(`Failed to find user for activation code ${mobileCode}`));
+			return;
+		}
+		resolve(true);
+	});
+};
+
 export const activateUser = async (payload:any) => {
 	return (await getDB()).update(usersTable).
 		set({activated:true, activatedAt: new Date()}).
@@ -196,10 +214,45 @@ export const changePassword = async (password:string, userId:string) => {
 		where(eq(usersTable.id, userId));
 };
 
+const doesMobileCodeExist = async (code:string) => {
+	return new Promise(async(resolve, reject)=>{	
+		const users = await (await getDB()).
+			select({id: usersTable.id}).
+			from(usersTable).
+			where(eq(usersTable.mobileCode, code));
+		resolve(users.length > 0);
+	});
+};
+
+const getMobileCode = async (n:integer) => {	
+	return new Promise(async(resolve, reject)=>{
+		// generate some uuids for source characters
+		const uuids = [randomUUID(), randomUUID(), randomUUID()];
+		// remove all non digits and join together
+		const result = uuids.reduce((a, c)=>{
+			return a + c.replace(/[^0-9]/g,"");
+		}, "");
+		// choose N random digits from source string
+		let exists = true;
+		let code = "";
+		while(exists){
+			code = "";
+			for(let i = 0; i < n; i++){
+				const j = Math.random() * result.length;
+				code += result.charAt(j);
+			}
+			exists = await doesMobileCodeExist(code);
+		}
+		resolve(code);
+	});
+};
+
 const addUserT = async (payload:any, businessId:string, profileId:string, roleId:integer, trx:any) => {
 	return new Promise(async(resolve, reject)=>{
 		const hashed = await bcrypt.hash(payload.password, SALT_ROUNDS);
 		const activationCode = randomUUID();
+		const CODE_LENGTH = 6;
+		const mobileCode = await getMobileCode(CODE_LENGTH);
 		const values = {
 			roleId,
 			businessId,
@@ -210,7 +263,8 @@ const addUserT = async (payload:any, businessId:string, profileId:string, roleId
 			visibleName: payload.visibleName,
 			accountStatus: payload?.accountStatus ?? "active",
 			public: true, // force true by default
-			activationCode
+			activationCode,
+			mobileCode
 		};
 		const results = await trx.insert(usersTable).
 			values(values). 
@@ -220,7 +274,7 @@ const addUserT = async (payload:any, businessId:string, profileId:string, roleId
 			reject(new Error("Failed to create new user record"));
 			return;
 		}
-		resolve({userId, activationCode});
+		resolve({userId, activationCode, mobileCode});
 	});
 };
 
@@ -229,7 +283,7 @@ export const addBusinessUser = async (payload:any) => {
 		const { business, profile } = await getDataService();
 		return db.transaction(async(trx)=>{
 			try{
-				const profileId = await profile.addProfileT(trx);
+				const profileId = await profile.addProfileT(payload.mobile, trx);
 				const businessId = await business.addBusinessT(payload.business, trx);
 				if(businessId === null)
 					throw new Error("Failed to create business record");

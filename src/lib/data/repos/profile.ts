@@ -226,9 +226,9 @@ export const setProfileAvatar = async (profileId:integer, filePath:string) => {
 		where(eq(profileTable.id, profileId));
 };
 
-export const addProfileT = async (trx:any) => {
+export const addProfileT = async (mobile:string, trx:any) => {
 	return new Promise(async(resolve, reject) => {
-		const values = { showAbn: false }; // just a single value is required
+		const values = { showAbn: false, phone: mobile }; // just a single value is required
 		const results = await trx.insert(profileTable).values(values).returning({id:profileTable.id});
 		const profileId = results[0]?.id ?? null;
 		if(profileId === null){

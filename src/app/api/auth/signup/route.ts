@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { getDataService } from "@/lib/data/service";
 import { doWelcome, doUserCreated } from "@/lib/email/service";
+import { sendSMS } from "@/lib/sms/service";
 import { ENV } from "@/lib/env";
 import * as z from "zod";
 
@@ -24,6 +25,7 @@ export type SignUpPayload = {
 	name: string;
 	visibleName: string;
 	email: string;
+	mobile: string;
 	password: string;
 	business: BusinessPayload;
 };
@@ -53,14 +55,33 @@ export async function POST(req: Request) {
 		const added: any = await users.addBusinessUser(payload);
 		const name = payload.name;
 		const email = payload.email;
+		const mobile = payload.mobile;
 		const userId = added.userId;
 		const code = added.activationCode;
+		const mobileCode = added.mobileCode;
 		try{
 			// always send welcome email
 			const welcome = { name, email, code, userId };
 			await doWelcome(welcome);
 		}catch(err_){
 			console.error("Failed to send welcome email");
+		}
+		try{
+			// send mobile activation sms
+			const link = "https://www.tradehub.com.au/activate";
+			const body = `Welcome to TradeHub your activation code is ${mobileCode}. Please visit ${link} to activate.`;
+			let to = mobile;
+			// validate this from frontend
+			if(to.charAt(0) !== "0"){
+				throw new Error("First digit was not zero");
+			}		
+			// replace first zero with international code for Australia
+			to = to.replace("0", "+61");
+			const msg = await sendSMS(to, body);
+			console.log(msg);
+		}catch(err_){	
+			console.error(err_);
+			console.error("Failed to send welcome sms");
 		}
 		// send alert for user created if desired
 		if(ENV.sendgrid.alerts.userCreated){
