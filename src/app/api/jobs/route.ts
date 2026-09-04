@@ -2,9 +2,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDataService } from "@/lib/data/service";
 import { cookies } from "next/headers";
+import { doJobCreated }  from "@/lib/email/service";
+import { ENV } from "@/lib/env";
 export const dynamic = 'force-dynamic';
 import * as z from "zod";
 import * as jose from "jose";
+import * as df from "date-fns";
 
 const AttachmentSchema = z.object({
 	fileName: z.string(),
@@ -84,8 +87,21 @@ export async function POST(request: NextRequest) {
 	const isPremium = user_.profile.premium;
 	if (!isPremium && DO_VALIDATIONS) {
 		const userTrades = user_.business.trades;
-		const resolvedCategory = payload.tradeCategory;
-		if (!userTrades.includes(resolvedCategory)) {
+		const primaryTrade = user_?.business?.primaryTrade?.toLowerCase() ?? null;
+		if(primaryTrade === null){
+			return NextResponse.json(
+				{ error: "Primary trade was null" },
+				{ status: 500 }
+			);
+		}
+		const resolvedCategory = payload?.tradeCategory?.toLowerCase() ?? null;
+		if(resolvedCategory === null){
+			return NextResponse.json(
+				{ error: "Submitted category was null" },
+				{ status: 500 }
+			);
+		}
+		if (primaryTrade !== resolvedCategory) {
 			return NextResponse.json(
 				{ error: 'Free accounts can only post jobs in their listed trade(s). Upgrade to Premium to post in any trade.' },
 				{ status: 403 }
@@ -122,6 +138,16 @@ export async function POST(request: NextRequest) {
 			{ error: "Failed to create new job record" },
 			{ status: 500 }
 		);
+	}
+	// alert admins about new job
+	// swallow exceptions
+	try{
+		const name = user_.visibleName ?? user_.name;
+		const createdAt = df.format(new Date(), "MMM d yyyy, 'at' hh:mm a");
+		const jobUrl = `${ENV.sendgrid.appBaseUrl}/admin/jobs/${newId}`;
+		await doJobCreated({jobId: newId, createdAt, name, jobUrl });
+	}catch(err_){
+		console.error(err_);
 	}
 	return NextResponse.json({ id: newId });
 }

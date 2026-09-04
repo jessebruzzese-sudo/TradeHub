@@ -72,7 +72,9 @@ export const ENV: TradeHubEnv = {
 			forgotPassword: load("FORGOT_PASSWORD_TEMPLATE_ID"),
 			passwordChanged: load("PASSWORD_CHANGED_TEMPLATE_ID"),
 			messageSent: load("MESSAGE_SENT_TEMPLATE_ID"),
-			earlyUser: load("EARLY_USER_TEMPLATE_ID")
+			earlyUser: load("EARLY_USER_TEMPLATE_ID"),
+			jobCreated: load("JOB_CREATED_TEMPLATE_ID"),
+			availUpdated: load("AVAIL_UPDATED_TEMPLATE_ID")
 		}
 	},
 	twilio: {

@@ -4,6 +4,23 @@ import { ENV } from "@/lib/env";
 import * as d from "date-fns";
 import * as z from "zod";
 
+const getCommonTemplateData = () => {
+	const currentYear = d.format(new Date(), "yyyy");
+	const companyName = "TradeHub";
+	const companyAddress = "25 Martin Close, South Morang, 3752";
+	const appUrl = ENV.sendgrid.appBaseUrl;
+	const editUrl = `${appUrl}/profile/edit`;
+	const dashboardUrl = `${appUrl}/dashboard`;
+	const unsubscribeUrl = `${appUrl}/dashboard`;
+	const notificationUrl = `${appUrl}/dashboard`;
+	return { 
+		currentYear, companyName, 
+		companyAddress, appUrl, 
+		editUrl, dashboardUrl, 
+		unsubscribeUrl, notificationUrl 
+	};
+};
+
 const getEmailClient = () => {
 	return axios.create({
 		baseURL: "https://api.sendgrid.com/v3",
@@ -39,11 +56,6 @@ export const doUserCreated = async (user:any) => {
 		}]
 	};	
 	return getEmailClient().post("/mail/send", payload);
-};
-export const doJobCreated = async () => {
-	return new Promise(async(resolve, reject)=>{
-		resolve();
-	});
 };
 export const doJobApplicationReceived = () => {
 	return new Promise(async(resolve, reject)=>{
@@ -132,26 +144,73 @@ export const doWelcome = async (welcome:WelcomePayload) => {
 	};	
 	return getEmailClient().post("/mail/send", payload);
 };
+const JobCreatedTemplateData = z.object({
+	jobId: z.uuid(),
+	createdAt: z.string(),
+	name: z.string()
+});
+export const doJobCreated = async (data:any) => {
+	return new Promise(async(resolve, reject)=>{
+		const common = getCommonTemplateData();
+		try{
+			JobCreatedTemplateData.parse(data);
+		}catch(err_){
+			reject(err_);
+			return;
+		}
+		const payload = {
+			from: { email: ENV.sendgrid.fromEmail },
+			template_id: ENV.sendgrid.templates.jobCreated,
+			personalizations: [{
+				to: ENV.sendgrid.adminEmails.split(",").map((e,i)=>{ return { email: e }; }),
+				dynamic_template_data: { 
+					...common,
+					...data
+				}
+			}]
+		};	
+		await getEmailClient().post("/mail/send", payload);
+		resolve(true);
+	});
+};
+const AvailabilityUpdatedTemplateData = z.object({
+	name: z.string(),		
+	updatedAt: z.string(),
+	adminUrl: z.string()
+});
+export const doAvailabilityUpdated = async (data:any) => {
+	return new Promise(async(resolve, reject)=>{
+		const common = getCommonTemplateData();
+		try{
+			AvailabilityUpdatedTemplateData.parse(data);
+		}catch(err_){
+			reject(err_);
+			return;
+		}
+		const payload = {
+			from: { email: ENV.sendgrid.fromEmail },
+			template_id: ENV.sendgrid.templates.availUpdated,
+			personalizations: [{
+				to: ENV.sendgrid.adminEmails.split(",").map((e,i)=>{ return { email: e }; }),
+				dynamic_template_data: { 
+					...common,
+					...data
+				}
+			}]
+		};	
+		await getEmailClient().post("/mail/send", payload);
+		resolve(true);	
+	});
+};
+// for user based templates
+// for user interactions
 export const sendEmail = async (templateId:any, user:any) => {
 	return new Promise(async(resolve, reject)=>{
 		// common data
 		// shared across templates
-		const currentYear = d.format(new Date(), "yyyy");
-		const companyName = "TradeHub";
-		const companyAddress = "25 Martin Close, South Morang, 3752";
-		const appUrl = ENV.sendgrid.appBaseUrl;
-		const editUrl = `${appUrl}/profile/edit`;
-		const dashboardUrl = `${appUrl}/dashboard`;
-		const unsubscribeUrl = `${appUrl}/dashboard`;
-		const notificationUrl = `${appUrl}/dashboard`;
 		const name = user?.visibleName ?? user?.name ??  null;
 		const email = user.email;	
-		const shared = { 
-			currentYear, companyName, 
-			companyAddress, name, appUrl, 
-			dashboardUrl, notificationUrl, 
-			unsubscribeUrl, email
-		};
+		const shared = { ...getCommonTemplateData(), name, email };
 		// generate dynamic template data
 		// for user that was passed in
 		const mappers = {

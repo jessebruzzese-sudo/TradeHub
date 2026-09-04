@@ -408,7 +408,10 @@ export default function CreateJobPage() {
 				toast.success('Job posted');
 				safeRouterPush(router, `/jobs/${createdJobId}`, '/jobs');
 			}).catch((err)=>{
-				toast.error("Failed to create new job");
+				const msg = err?.response?.data?.error ?? null;
+				if(msg){
+					toast.error(msg);
+				}
 				setIsSubmitting(false);
 			});
   };
