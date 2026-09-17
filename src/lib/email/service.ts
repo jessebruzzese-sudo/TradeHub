@@ -214,7 +214,7 @@ export const sendEmail = async (templateId:any, user:any) => {
 		// generate dynamic template data
 		// for user that was passed in
 		const mappers = {
-			"earlyUser": (user) => { return { ...shared, editUrl } },	
+			"earlyUser": (user) => { return { ...shared } },	
 		};
 		const mapper = mappers[templateId];
 		if(mapper === undefined){

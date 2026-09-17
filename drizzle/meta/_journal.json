@@ -456,6 +456,48 @@
       "when": 1788137723887,
       "tag": "0064_worthless_nemesis",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1788491751091,
+      "tag": "0065_wandering_chimera",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1788492200876,
+      "tag": "0066_polite_scrambler",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1788501641663,
+      "tag": "0067_lazy_alex_wilder",
+      "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1788504319839,
+      "tag": "0068_graceful_the_renegades",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1788761685162,
+      "tag": "0069_empty_roland_deschain",
+      "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1788832493521,
+      "tag": "0070_reflective_greymalkin",
+      "breakpoints": true
     }
   ]
 }

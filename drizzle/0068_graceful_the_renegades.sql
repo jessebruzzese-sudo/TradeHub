@@ -1,0 +1,1 @@
+ALTER TABLE "daily_referer_clicks" ADD COLUMN "referer" text;
