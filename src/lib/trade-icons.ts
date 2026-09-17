@@ -19,6 +19,7 @@ import {
   Droplets,
   AirVent,
   User,
+  Shovel
 } from 'lucide-react';
 
 /** Canonical trade → Lucide icon. Keys are lowercase canonical labels from TRADES. */
@@ -64,6 +65,8 @@ const tradeIconMap: Record<string, LucideIcon> = {
   builder: HardHat,
   construction: HardHat,
   transport: Truck,
+  cladding: Home,
+  "earthmoving & excavation": Shovel
 };
 
 /** Default fallback when trade has no mapped icon. */

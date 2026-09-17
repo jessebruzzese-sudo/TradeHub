@@ -265,6 +265,7 @@ export default function AdminUsersPage() {
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tier</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Trade</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
@@ -292,6 +293,9 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
 											{user.email || '—'}
+										</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+											{user.profile.phone || '—'}
 										</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
 											{user.profile.premium ? "Premium" : "Free"}

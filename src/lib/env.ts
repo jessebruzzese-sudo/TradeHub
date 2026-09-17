@@ -29,6 +29,7 @@ export type TradeHubEnv = {
 	database: TradeHubDatabase;
 	sendgrid: TradeHubSendgrid;
 	jwt: TradeHubJWT;
+	premiumSignUp: boolean;
 };
 const load = (key:string) => {
 	const value: string = process.env[key] ?? null;
@@ -40,6 +41,7 @@ const load = (key:string) => {
 	return value;
 };
 export const ENV: TradeHubEnv = {
+	premiumSignUp: load("PREMIUM_ON_SIGN_UP") === "true",
 	store: {
 		images: load("IMAGE_FILE_STORE"),
 		jobs: load("JOB_FILE_STORE")

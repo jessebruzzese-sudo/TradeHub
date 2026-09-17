@@ -4,6 +4,7 @@
 export const dynamic = "force-dynamic";
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { ENV } from "@/lib/env";
 import { getAxios } from "@/lib/utils";
 import Link from 'next/link';
 import Image from 'next/image';
@@ -315,7 +316,7 @@ export default function SignupPage() {
       setAbnVerifying(false);
     }
   };
-  const isPremium = false;
+  const isPremium = true; // Change post release
   const router = useRouter();
   const searchParams = useSearchParams();
   const returnUrlParam = searchParams.get('returnUrl');
