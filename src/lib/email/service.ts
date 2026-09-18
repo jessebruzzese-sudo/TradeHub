@@ -131,6 +131,9 @@ export const doForgotPassword = async (state:string, email:string) => {
 	};	
 	return getEmailClient().post("/mail/send", payload);
 };
+const getActivationLink = (user:any) => {
+	return `${ENV.sendgrid.appBaseUrl}/activate?uid=${user.id}&code=${user.activationCode}`;
+};
 export const doWelcome = async (welcome:WelcomePayload) => {
 	const link = `${ENV.sendgrid.appBaseUrl}/activate?uid=${welcome.userId}&code=${welcome.code}`;
 	const currentYear = d.format(new Date(), "yyyy");
@@ -215,6 +218,7 @@ export const sendEmail = async (templateId:any, user:any) => {
 		// for user that was passed in
 		const mappers = {
 			"earlyUser": (user) => { return { ...shared } },	
+			"welcome": (user) => { return {...shared, link: getActivationLink(user) } },
 		};
 		const mapper = mappers[templateId];
 		if(mapper === undefined){
