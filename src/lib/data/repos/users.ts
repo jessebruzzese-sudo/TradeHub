@@ -344,6 +344,7 @@ const nearUserReducer = (a, c) => {
 	if(key !== null && a[key] === undefined){
 		a[key] = {
 			userId: key,
+			email: c?.email,
 			name: c?.name,
 			visibleName: c?.visible_name,
 			latitude: c?.latitude,
@@ -423,7 +424,7 @@ export const getUsersNear = async (location:UserLocation, userId:string) => {
 		const db = await getDB();
 		// need a customised query for this one
 		// due to some casting shenanigans
-		const Q = sql`SELECT * FROM ( SELECT ${usersTable.id}, ${usersTable.visibleName}, ${usersTable.name}, CAST(${businessTable.locationLat} AS DOUBLE PRECISION) as latitude, CAST(${businessTable.locationLng} AS DOUBLE PRECISION) as longitude, ${businessTradeTable.tradeId}, ${businessTradeTable.isPrimary} FROM ${usersTable} INNER JOIN ${rolesTable} ON ${usersTable.roleId} = ${rolesTable.id} LEFT JOIN ${businessTable} ON ${usersTable.businessId} = ${businessTable.id} LEFT JOIN ${businessTradeTable} ON ${businessTradeTable.businessId} = ${businessTable.id} WHERE ${usersTable.id} <> ${userId} AND ${rolesTable.name} = ${USER_ROLE} AND ${usersTable.public} ) a WHERE a.latitude >= ${minLat} AND a.latitude <= ${maxLat} AND a.longitude >= ${minLng} AND a.longitude <= ${maxLng}`;
+		const Q = sql`SELECT * FROM ( SELECT ${usersTable.id}, ${usersTable.email}, ${usersTable.visibleName}, ${usersTable.name}, CAST(${businessTable.locationLat} AS DOUBLE PRECISION) as latitude, CAST(${businessTable.locationLng} AS DOUBLE PRECISION) as longitude, ${businessTradeTable.tradeId}, ${businessTradeTable.isPrimary} FROM ${usersTable} INNER JOIN ${rolesTable} ON ${usersTable.roleId} = ${rolesTable.id} LEFT JOIN ${businessTable} ON ${usersTable.businessId} = ${businessTable.id} LEFT JOIN ${businessTradeTable} ON ${businessTradeTable.businessId} = ${businessTable.id} WHERE ${usersTable.id} <> ${userId} AND ${rolesTable.name} = ${USER_ROLE} AND ${usersTable.public} ) a WHERE a.latitude >= ${minLat} AND a.latitude <= ${maxLat} AND a.longitude >= ${minLng} AND a.longitude <= ${maxLng}`;
 		const results = await db.execute(Q);
 		const { trades: tradeRepo } = await getDataService();
 		const tradeMapping = await tradeRepo.getMapping(false); // ID => NAME

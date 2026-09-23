@@ -2,7 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDataService } from "@/lib/data/service";
 import { cookies } from "next/headers";
-import { doJobCreated }  from "@/lib/email/service";
+import { doJobCreated, doJobAlert }  from "@/lib/email/service";
+import { haversineKm } from "@/lib/discovery";
 import { ENV } from "@/lib/env";
 export const dynamic = 'force-dynamic';
 import * as z from "zod";
@@ -141,11 +142,44 @@ export async function POST(request: NextRequest) {
 	}
 	// alert admins about new job
 	// swallow exceptions
+	const createdAt = df.format(new Date(), "MMM d yyyy, 'at' hh:mm a");
 	try{
 		const name = user_.visibleName ?? user_.name;
-		const createdAt = df.format(new Date(), "MMM d yyyy, 'at' hh:mm a");
 		const jobUrl = `${ENV.sendgrid.appBaseUrl}/admin/jobs/${newId}`;
 		await doJobCreated({jobId: newId, createdAt, name, jobUrl });
+	}catch(err_){
+		console.error(err_);
+	}
+	try{
+		const addedJobs = await jobs.getJob(newId); // returns array
+		const addedJob = addedJobs[0] ?? null; // hence why this exists
+		if(!addedJob){
+			throw new Error("Added job was null, cannot send alert");
+		}
+		// job coordinates are indeed reals
+		const location_ = { latitude: addedJob.latitude, longitude: addedJob.longitude };
+		const possible = await users.getUsersNear(location_, claims.id);
+		console.log("Found {possible.length} user(s) near this job");
+		const filtered = possible.filter((x)=>{
+			const userLat = x.latitude;
+			const userLong = x.longitude;
+			// compare against location
+			// make sure that radius is < 100 km
+			const radius = haversineKm(location_.latitude, location_.longitude, userLat, userLong);	
+			const PREMIUM_DISTANCE_RADIUS = 100;
+			return radius <= PREMIUM_DISTANCE_RADIUS;
+		});
+		console.log("Found {filtered.length} user(s) to alert about this job");
+		const promises = filtered.map((e,i)=>{
+			const templateData = {
+				jobTitle: addedJob.title,	
+				jobLocation: addedJob.location,
+				jobId: addedJob.id,
+				timestamp: createdAt
+			};
+			return doJobAlert(templateData, e.email)
+		});
+		await Promise.all(promises);
 	}catch(err_){
 		console.error(err_);
 	}

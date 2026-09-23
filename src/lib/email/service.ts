@@ -7,7 +7,7 @@ import * as z from "zod";
 const getCommonTemplateData = () => {
 	const currentYear = d.format(new Date(), "yyyy");
 	const companyName = "TradeHub";
-	const companyAddress = "25 Martin Close, South Morang, 3752";
+	const companyAddress = "Victoria";
 	const appUrl = ENV.sendgrid.appBaseUrl;
 	const editUrl = `${appUrl}/profile/edit`;
 	const dashboardUrl = `${appUrl}/dashboard`;
@@ -152,6 +152,33 @@ const JobCreatedTemplateData = z.object({
 	createdAt: z.string(),
 	name: z.string()
 });
+const JobAlertTemplateData = z.object({
+	jobId: z.uuid(),	
+	jobLocation: z.string(),
+	jobTitle: z.string(),
+	timestamp: z.string()
+});
+export const doJobAlert = async (data:any, email:string) => {
+	const common = getCommonTemplateData();
+	try{
+		JobAlertTemplateData.parse(data);
+	}catch(err_){
+		reject(err_);
+		return;
+	}
+	const payload = {
+		from: { email: ENV.sendgrid.fromEmail },
+		template_id: ENV.sendgrid.templates.jobAlert,
+		personalizations: [{
+			to: [{email}],
+			dynamic_template_data: { 
+				...common,
+				...data
+			}
+		}]
+	};	
+	return getEmailClient().post("/mail/send", payload);
+};
 export const doJobCreated = async (data:any) => {
 	return new Promise(async(resolve, reject)=>{
 		const common = getCommonTemplateData();
@@ -218,7 +245,7 @@ export const sendEmail = async (templateId:any, user:any) => {
 		// for user that was passed in
 		const mappers = {
 			"earlyUser": (user) => { return { ...shared } },	
-			"welcome": (user) => { return {...shared, link: getActivationLink(user) } },
+			"welcome": (user) => { return {...shared, link: getActivationLink(user) } }
 		};
 		const mapper = mappers[templateId];
 		if(mapper === undefined){

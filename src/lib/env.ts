@@ -15,6 +15,16 @@ export type TradeHubDatabase = {
 	cert: string;
 	ssl: boolean;
 };
+export type TradeHubGoogleEnv = {
+	placesApiKey: string;
+	oAuthClientId: string;
+	oAuthClientSecret: string;
+	oAuthRedirectURI: string;
+	oAuthProjectID: string;
+	oAuthURI: string;
+	oAuthTokenURI: string;
+	oAuthCerts: string;
+};
 export type SendgridTemplates = {
 	welcome: string;
 };
@@ -30,6 +40,7 @@ export type TradeHubEnv = {
 	sendgrid: TradeHubSendgrid;
 	jwt: TradeHubJWT;
 	premiumSignUp: boolean;
+	google: TradeHubGoogleEnv;
 };
 const load = (key:string) => {
 	const value: string = process.env[key] ?? null;
@@ -48,6 +59,16 @@ export const ENV: TradeHubEnv = {
 	},
 	avatar: {
 		defaultImage: load("AVATAR_DEFAULT_IMAGE")
+	},
+	google: {
+		placesApiKey: load("GOOGLE_PLACES_API_KEY"),
+		oAuthClientID: load("GOOGLE_OAUTH_CLIENT_ID"),
+		oAuthClientSecret: load("GOOGLE_OAUTH_CLIENT_SECRET"),	
+		oAuthRedirectURI: load("GOOGLE_OAUTH_REDIRECT_URI"),
+		oAuthProjectID: load("GOOGLE_OAUTH_PROJECT_ID"),
+		oAuthURI: load("GOOGLE_OAUTH_URI"),
+		oAuthTokenURI: load("GOOGLE_OAUTH_TOKEN_URI"),
+		oAuthCertURL: load("GOOGLE_OAUTH_CERT_URL")
 	},
 	database: {
 		host: load("POSTGRES_HOST"),
@@ -76,7 +97,8 @@ export const ENV: TradeHubEnv = {
 			messageSent: load("MESSAGE_SENT_TEMPLATE_ID"),
 			earlyUser: load("EARLY_USER_TEMPLATE_ID"),
 			jobCreated: load("JOB_CREATED_TEMPLATE_ID"),
-			availUpdated: load("AVAIL_UPDATED_TEMPLATE_ID")
+			availUpdated: load("AVAIL_UPDATED_TEMPLATE_ID"),
+			jobAlert: load("JOB_ALERT_TEMPLATE_ID")
 		}
 	},
 	twilio: {

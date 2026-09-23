@@ -254,9 +254,30 @@ export function ProfileView({
 	}, [viewTrigger]);
 
   useEffect(() => {
-    if (!availLoading) return;
+    if (!availLoading){
+			return;
+		}
+		// load availability for self
+		if(isSelf){
+			getAxios(jwt).
+				get("/api/me/availability").
+					then((response_)=>{
+						const availability = response_.data;
+						const dates = availability.dates;
+						const desc = availability.description;
+						setAvailDates(dates);
+						setAvailDesc(desc);
+						setAvailLoading(false);
+					}).catch((err_)=>{
+						toast.error("Could not load availability");
+						console.error(`Failed to load availability, ${err_}`);
+						setAvailLoading(false);
+					});
+			return;
+		}
+		// load someone elses availability
 		getAxios(jwt).
-			get("/api/me/availability").
+			get(`/api/users/${profileUserId}/availability`).
 				then((response_)=>{
 					const availability = response_.data;
 					const dates = availability.dates;
@@ -265,7 +286,9 @@ export function ProfileView({
 					setAvailDesc(desc);
 					setAvailLoading(false);
 				}).catch((err_)=>{
-					console.error(`Failed to load availability, ${err_}`);
+					toast.error("Could not load availability");
+					console.error(`Could not load availability, ${err_}`);
+					setAvailLoading(false);
 				});
   }, [availLoading]);
 
@@ -804,7 +827,6 @@ export function ProfileView({
               />
             ) : null}
 
-            {isSelf && (
               <Card className="mb-6 border-blue-200 bg-gradient-to-b from-blue-50/60 to-white">
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-base">
@@ -834,6 +856,7 @@ export function ProfileView({
                   ) : null}
 
                   <div className="pt-1">
+										{isSelf && (
                     <Button asChild className={primaryButtonClass}>
                       <Link href="/profile/availability" className="flex items-center gap-2">
                         {!nextAvailable && !availLoading && (
@@ -846,10 +869,10 @@ export function ProfileView({
                         {nextAvailable ? 'Update availability' : 'List availability'}
                       </Link>
                     </Button>
+										)}
                   </div>
                 </CardContent>
               </Card>
-            )}
 
             {isSelf && ENABLE_TRADE_ALERTS && (
               <div className="mb-6">

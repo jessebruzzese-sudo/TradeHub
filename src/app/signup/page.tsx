@@ -8,6 +8,8 @@ import { ENV } from "@/lib/env";
 import { getAxios } from "@/lib/utils";
 import Link from 'next/link';
 import Image from 'next/image';
+import { Grid, Container, Typography, Divider, Tooltip } from "@mui/material";
+import { Button as MuiButton } from "@mui/material";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -182,12 +184,17 @@ function CollapsibleSection({
   );
 }
 
+
 export default function SignupPage() {
 
   const EMAIL_EXISTS = "An account with this email already exists. Please try a different one.";
+	const METHOD_GOOGLE = 1;
+	const METHOD_TRADE = 2;
   const [openSection, setOpenSection] = useState<number>(1);
   const [currentStep, setCurrentStep] = useState(1);
   const [maxUnlockedStep, setMaxUnlockedStep] = useState<number>(1);
+	const [method, setMethod] = useState(null); // METHOD_GOOGLE, METHOD_TRADE
+	const ENABLE_OAUTH = false;
 
   const stepCardClass = (step: number) =>
     `relative overflow-hidden rounded-2xl bg-white transition-all duration-300 transform
@@ -388,6 +395,79 @@ export default function SignupPage() {
       setLoading(false);
     }
   };
+
+	const doGoogleOAuth = () => {
+		getAxios(null).get("/api/auth/google/oauth").
+			then((response_)=>{
+				const data = response_.data;
+				const url = data.url;
+				window.location.href = url;
+			}).catch((err_)=>{
+					// TODO handle
+			});
+	};
+
+	// user needs to chose method of sign up
+	// google, tradehub ...
+	if(method === null && ENABLE_OAUTH){
+		return (
+			<Grid container>
+				<Grid item size={12} className={"bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800 min-h-screen"}>
+					<div className="pointer-events-none fixed bottom-[-220px] right-[-220px] z-0">
+          <img
+           src="/TradeHub-Mark-whiteout.svg"
+            alt=""
+            aria-hidden="true"
+            className="h-[1600px] w-[1600px] opacity-[0.08]"
+          />
+        </div>
+					<Container maxWidth={"sm"} fullWidth fluid id={"container"} sx={{height:"100%"}}>
+						<Grid container id={"gc1"} sx={{height:"100%", alignItems:"center"}}>	
+							<Grid item>
+							<Grid container spacing={3}>
+							<Grid item size={12}>
+								<Image
+                  src="/tradehub-logo-white.svg"
+                  alt="TradeHub"
+                  width={180}
+                  height={48}
+                  priority
+                  className="h-14 sm:h-16 md:h-36 lg:h-44 w-auto object-contain"
+                />
+							</Grid>
+							<Grid item size={12}>
+								<h2 className="text-center text-2xl sm:text-3xl font-bold text-white break-words px-2">
+									Choose a sign up method
+								</h2>
+							</Grid>
+							<Grid item size={12}>
+								<Grid container spacing={4} 
+										sx={{backgroundColor:"white", borderRadius:"15px", p:6, alignItems:"center"}}>
+									<Grid item size={{xs:12, lg:8}} offset={{lg:2}}>
+										<Tooltip title={"Use a gmail account to signup to TradeHub"}>
+											<MuiButton variant={"contained"} size={"lg"} fullWidth onClick={doGoogleOAuth}>
+												Sign up with Google
+											</MuiButton>
+										</Tooltip>
+									</Grid>
+									<Grid item size={12}>
+										<Divider/>
+									</Grid>
+									<Grid item size={{xs:12, lg:8}} offset={{lg:2}}>
+										<Tooltip title={"Complete our form to signup"}>
+											<MuiButton variant={"contained"} size={"lg"} fullWidth onClick={()=>{setMethod(METHOD_TRADE);}}>Continue with TradeHub</MuiButton>
+										</Tooltip>
+									</Grid>
+								</Grid>
+							</Grid>
+						</Grid>
+						</Grid>
+						</Grid>
+					</Container>
+				</Grid>
+			</Grid>
+		);
+	}
 
   return (
     <div className="relative min-h-screen bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800">
