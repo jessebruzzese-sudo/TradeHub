@@ -153,6 +153,7 @@ export async function POST(request: NextRequest) {
 	try{
 		const addedJobs = await jobs.getJob(newId); // returns array
 		const addedJob = addedJobs[0] ?? null; // hence why this exists
+		const resolvedCat = addedJob?.tradeCategory?.toLowerCase() ?? null;
 		if(!addedJob){
 			throw new Error("Added job was null, cannot send alert");
 		}
@@ -163,11 +164,13 @@ export async function POST(request: NextRequest) {
 		const filtered = possible.filter((x)=>{
 			const userLat = x.latitude;
 			const userLong = x.longitude;
+			const userTrades = x.trades;
+			const matchedTrade = userTrades.find((t)=>{ return t === resolvedCat });
 			// compare against location
 			// make sure that radius is < 100 km
 			const radius = haversineKm(location_.latitude, location_.longitude, userLat, userLong);	
 			const PREMIUM_DISTANCE_RADIUS = 100;
-			return radius <= PREMIUM_DISTANCE_RADIUS;
+			return radius <= PREMIUM_DISTANCE_RADIUS && matchedTrade !== undefined;
 		});
 		console.log("Found {filtered.length} user(s) to alert about this job");
 		const promises = filtered.map((e,i)=>{
