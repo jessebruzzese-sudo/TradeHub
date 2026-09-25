@@ -83,7 +83,7 @@ html {
   body {
     @apply text-foreground;
     overflow-x: hidden;
-    background-color: #eef2f7;
+    background-color: white;
     background-image:
       radial-gradient(circle at 1px 1px, rgba(15, 23, 42, 0.035) 1px, transparent 0);
     background-size: 26px 26px;
