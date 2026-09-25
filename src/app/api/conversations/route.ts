@@ -1,5 +1,5 @@
 // vim: ts=2
-// @ts-nocheck - Supabase client type inference
+// @ts-nocheck
 import { NextRequest, NextResponse } from 'next/server';
 import { getDataService } from "@/lib/data/service";
 import { getClaims } from "@/lib/claims/service";
