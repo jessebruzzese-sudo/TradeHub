@@ -51,6 +51,11 @@ const TradeHubTheme = createTheme({
 			lineHeight:"1.2",
 			letterSpacing:"-0.9px",
 			fontWeight:"650"
+		},
+		h4: {
+			color: "#000767",
+			fontSize:"27px",
+			letterSpacing: "-0.8px"
 		}
 	},
 	components: {
