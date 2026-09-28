@@ -1,0 +1,1 @@
+ALTER TABLE "google_sessions" DROP CONSTRAINT "google_sessions_email_unique";

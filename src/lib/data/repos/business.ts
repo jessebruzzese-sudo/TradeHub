@@ -177,15 +177,15 @@ export const getBusinessLocationT = async (trx:any, profileId:string) => {
 export const addBusinessT = async (business:any, trx:any) => {
 	return new Promise(async(resolve, reject)=>{
 		const values = {
-			businessName: business.businessName,
-			abn: business.abn,
-			abnEntityName: business.abnEntityName,
-			abnEntityType: business.abnEntityType,
-			abnVerified: business.abnVerified,
-			location: business.location,
-			postcode: business.postcode,
-			locationLat: business.locationLat,
-			locationLng: business.locationLng
+			businessName: business?.businessName ?? null,
+			abn: business?.abn ?? null,
+			abnEntityName: business?.abnEntityName ?? null,
+			abnEntityType: business?.abnEntityType ?? null,
+			abnVerified: business?.abnVerified ?? null,
+			location: business?.location ?? null,
+			postcode: business?.postcode ?? null,
+			locationLat: business?.locationLat ?? null,
+			locationLng: business?.locationLng ?? null
 		};
 		// create business record first
 		const results = await trx.insert(businessTable).values(values).returning({id:businessTable.id});
@@ -195,7 +195,7 @@ export const addBusinessT = async (business:any, trx:any) => {
 			return;
 		}
 		// create trade links
-		const trades = business.trades;
+		const trades = business?.trades ?? [];
 		const mapping = await (await getDataService()).trades.getMapping(true);
 		let i = 0;
 		for(const trade of trades){

@@ -9,6 +9,7 @@ import { getDB, getDataService, callDb } from "@/lib/data/service";
 import { formatISO } from "date-fns";
 import { randomUUID } from "crypto";
 import * as bcrypt from "bcrypt";
+import * as z from "zod";
 
 const CUSTOMER_ROLE_ID = 2;	
 const SALT_ROUNDS = 10;
@@ -249,6 +250,21 @@ const getMobileCode = async (n:integer) => {
 
 const addUserT = async (payload:any, businessId:string, profileId:string, roleId:integer, trx:any) => {
 	return new Promise(async(resolve, reject)=>{
+		const schema = z.object({
+			name: z.string(), 
+			visibleName: z.string(),
+			password: z.string(), 
+			email: z.string().email()
+		});
+		try{
+			// make *sure* that minimum data exists
+			// as this method is being called via normal registration
+			// and google registration
+			schema.parse(payload);
+		}catch(err_){
+			reject(err_);
+			return;
+		}
 		const hashed = await bcrypt.hash(payload.password, SALT_ROUNDS);
 		const activationCode = randomUUID();
 		const CODE_LENGTH = 6;
@@ -257,10 +273,10 @@ const addUserT = async (payload:any, businessId:string, profileId:string, roleId
 			roleId,
 			businessId,
 			profileId,
-			email: payload.email,
+			email: payload?.email ?? null,
 			password: hashed,
-			name: payload.name,
-			visibleName: payload.visibleName,
+			name: payload?.name ?? null,
+			visibleName: payload?.visibleName ??  null,
 			accountStatus: payload?.accountStatus ?? "active",
 			public: true, // force true by default
 			activationCode,
@@ -275,6 +291,24 @@ const addUserT = async (payload:any, businessId:string, profileId:string, roleId
 			return;
 		}
 		resolve({userId, activationCode, mobileCode});
+	});
+};
+
+export const addGoogleUser = async (payload:any) => {
+	return callDb(async(db)=>{
+		const { business, profile } = await getDataService();
+		return db.transaction(async(trx)=>{
+			try{
+				const profileId = await profile.addProfileT(null, trx); // no mobile
+				const businessId = await business.addBusinessT(null, trx); // no business record yet
+				if(businessId === null)
+					throw new Error("Failed to create business record");
+				// name, visibleName, email
+				return await addUserT(payload, businessId, profileId, CUSTOMER_ROLE_ID, trx);
+			}catch(err_){
+				throw err_;
+			}
+		});
 	});
 };
 
@@ -491,12 +525,13 @@ export const getUserProfile = async (userId:string) => {
 				const primaryTradeId = trades.find((x)=>x.isPrimary)?.tradeId ?? null;
 				const otherTradeIds = tradeIds.filter((x)=>x!==primaryTradeId);
 				if(primaryTradeId === null){
-					reject(new Error("Failed to find primary trade for business"));
-					return;
+					mapped.business.trades = [];
+					mapped.business.primaryTrade = null;
+				}else{
+					const otherTradeNames = otherTradeIds.map((j,k)=>{ return tradeMapping[j]; });	
+					mapped.business.trades = otherTradeNames;
+					mapped.business.primaryTrade = tradeMapping[primaryTradeId];
 				}
-				const otherTradeNames = otherTradeIds.map((j,k)=>{ return tradeMapping[j]; });	
-				mapped.business.trades = otherTradeNames;
-				mapped.business.primaryTrade = tradeMapping[primaryTradeId];
 			}
 			if(mapped.profile !== null){
 				let works = mapped.profile.works;
@@ -553,7 +588,7 @@ export const updateUserProfile = async (payload:any, userId:string) => {
 			};
 			try{
 				await business.updateBusinessT(trx, delta, businessId);
-				await business.syncTradesT(trx, payload.trades, payload.primaryTrade, businessId, mapping);
+				await business.syncTradesT(trx, payload?.trades ?? [], payload.primaryTrade, businessId, mapping);
 			}catch(err_){
 				throw err_;
 			}

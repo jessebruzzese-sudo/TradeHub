@@ -7,6 +7,7 @@ import { FormControlLabel, Button, Stack, Dialog, DialogContent, DialogTitle, Di
 import { useTheme } from "@mui/material/styles";
 import Link from 'next/link';
 import Image from 'next/image';
+import { getAxios } from "@/lib/utils";
 import { AppLayout } from '@/components/app-nav';
 import { MapPin, Users, MessageSquare, ArrowRight } from 'lucide-react';
 import { getSafeReturnUrl, safeRouterReplace } from '@/lib/safe-nav';
@@ -131,6 +132,17 @@ export default function LoginPage() {
 
 	const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+
+ const doGoogleOAuth = () => {
+    getAxios(null).get("/api/auth/google/oauth").
+      then((response_)=>{
+        const data = response_.data;
+        const url = data.url;
+        window.location.href = url;
+      }).catch((err_)=>{
+          // TODO handle
+      }); 
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -281,7 +293,7 @@ export default function LoginPage() {
 												Sign in&nbsp;<ArrowRight style={{width:"16px", height:"16px"}}/>
 											</Button>
 											<Divider flexItem>or</Divider>
-											<Button variant={"contained"} color={"secondary"} onClick={()=>{}} size={"large"}>
+											<Button variant={"contained"} color={"secondary"} onClick={doGoogleOAuth} size={"large"}>
 												<img src="https://fonts.gstatic.com/s/i/productlogos/googleg/v6/24px.svg" width="18" height="18" alt="Google"/>
 												&nbsp;<span>Continue with Google</span>
 											</Button>

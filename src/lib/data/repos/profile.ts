@@ -214,13 +214,13 @@ export const getProfileId = async (userId:string) => {
 	});
 };
 
-export const setProfileCover = async (profileId:integer, filePath:string) => {
+export const setProfileCover = async (profileId:string, filePath:string) => {
 	return (await getDB()).update(profileTable).
 		set({coverDataUrl: filePath}).
 		where(eq(profileTable.id, profileId));
 };
 
-export const setProfileAvatar = async (profileId:integer, filePath:string) => {
+export const setProfileAvatar = async (profileId:string, filePath:string) => {
 	return (await getDB()).update(profileTable).
 		set({avatarDataUrl: filePath}).
 		where(eq(profileTable.id, profileId));

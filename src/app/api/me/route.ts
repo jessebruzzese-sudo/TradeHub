@@ -48,7 +48,6 @@ export async function PUT(request: NextRequest){
 	}catch(err_){
 		console.error(err_);
 		return NextResponse.json({msg:"Failed to update user profile", error:err_}, {status: 500});
-
 	}
 }
 

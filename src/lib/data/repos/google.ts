@@ -11,3 +11,19 @@ export const getSession = async () => {
 		values({accessType}).
 		returning({id: googleSessionTable.id});
 };
+export const findSession = async (state:string) => {
+	return (await getDB()).select().
+		from(googleSessionTable).
+		where(eq(googleSessionTable.id, state));
+};
+export const updateSession = async (session:any) => {
+	return (await getDB()).update(googleSessionTable).
+		set({
+			refreshToken: session.refreshToken, 
+			scope: session.scope, 
+			tokenType: session.tokenType, 
+			sub: session.sub, 
+			expiry: session.expiry, 
+			email: session.email
+		}).where(eq(googleSessionTable.id, session.id));
+};

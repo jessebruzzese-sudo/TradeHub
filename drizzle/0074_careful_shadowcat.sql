@@ -1,0 +1,1 @@
+ALTER TABLE "google_sessions" ALTER COLUMN "email" DROP NOT NULL;

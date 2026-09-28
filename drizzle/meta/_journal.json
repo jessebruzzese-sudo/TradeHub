@@ -512,6 +512,34 @@
       "when": 1789704823355,
       "tag": "0072_early_rhino",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1790311647285,
+      "tag": "0073_friendly_drax",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1790312133074,
+      "tag": "0074_careful_shadowcat",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1790321022851,
+      "tag": "0075_motionless_sasquatch",
+      "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1790556443583,
+      "tag": "0076_wealthy_menace",
+      "breakpoints": true
     }
   ]
 }

@@ -363,7 +363,7 @@ export default function EditProfilePage() {
   // Premium checks
   const isMultiTradeEnabled = currentUser ? canMultiTrade(currentUser) : false;
   const canAddLocations = currentUser ? canCustomSearchLocation(currentUser) : false;
-  const canEditPrimaryLocation = currentUser ? canCustomSearchLocation(currentUser) : false;
+  const canEditPrimaryLocation = currentUser ? canCustomSearchLocation(currentUser) || ( ( UserSession?.user?.business?.postcode ?? "" ) === "" ) : false;
 
   const handleAddLocation = async () => {
     if (!canAddLocations) {
@@ -485,8 +485,8 @@ export default function EditProfilePage() {
   const verifiedEntityName = currentUser?.business?.abnEntityName ?? null;
   const verifiedAbnNumber = currentUser?.business?.abn ?? null;
   const businessNameDisplay = (verifiedEntityName ?? currentUser?.business?.businessName ?? '').toString();
-  const primaryTradeValue = primaryTrade ?? "";
-  const canEditTrades = canChangePrimaryTrade(currentUser);
+  const primaryTradeValue = primaryTrade ?? null;
+  const canEditTrades = canChangePrimaryTrade(currentUser) || ( UserSession?.user?.business?.primaryTrade ?? null ) === null;
 
   const ensureHttps = (raw: string) => {
     const v = (raw || '').trim();

@@ -40,6 +40,7 @@ export async function PUT(request: NextRequest) {
 	try{
 		const { profile } = await getDataService();
 		const profileId = await profile.getProfileId(claims.id);
+		console.log(`Setting profile cover for profile id ${profileId}`);
 		await profile.setProfileCover(profileId, filePath);
 	}catch(err_){
 		console.error(err_);

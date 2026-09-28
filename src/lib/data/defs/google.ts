@@ -11,5 +11,9 @@ export const googleSessionTable = pgTable("google_sessions", {
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 	accessType: text("access_type"),
 	refreshToken: text("refresh_token"),
-	accessToken: text("access_token")
+	email: text("email"),
+	expiry: bigint({mode:bigint}),
+	sub: text("sub"),
+	scope: text("scope"),
+	tokenType: text("token_type")
 });
