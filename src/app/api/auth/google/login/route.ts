@@ -73,6 +73,7 @@ export const POST = async (request:any) => {
 		return NextResponse.json({msg:"Existing user ids was null"}, {status:500});
 	}
 	let userId = null;
+	let userCreated = false;
 	if(existing.length === 0){	
 		try{
 			const createUser = {
@@ -83,6 +84,7 @@ export const POST = async (request:any) => {
 			};
 			createUserResponse = await usersRepo.addGoogleUser(createUser);
 			userId = createUserResponse?.userId ?? null;
+			userCreated = true;
 		}catch(err_){
 			console.error(err_);
 			return NextResponse.json({msg:"Failed to create new account for google registration"}, {status:500});
@@ -119,7 +121,7 @@ export const POST = async (request:any) => {
 	const role = userProfile?.role?.toLowerCase() ?? null;
 	const isAdmin = role === "admin";
 	const redirect = isAdmin ? "/" : "/profile/edit";
- 	response_ = NextResponse.json({ token: jwt, redirect }, { status: 200 });
+ 	response_ = NextResponse.json({ token: jwt, redirect, userCreated }, { status: 200 });
   const now = new Date();
   const expiry = dfs.addYears(now, 1);
   response_.cookies.set("authorization", jwt, {

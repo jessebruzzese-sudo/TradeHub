@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Grid, useTheme, Stack, Typography, Box, CircularProgress, Button } from "@mui/material";
 import Image from "next/image";
 import { getAxios } from "@/lib/utils";
-import { CircleAlert } from "lucide-react";
+import { CircleAlert, Check } from "lucide-react";
 import { toast } from "sonner";
 
 const LOADING = 0;
@@ -45,7 +45,7 @@ export default function GoogleOAuthRedirectPage(props:any) {
 				}
 				setTimeout(()=>{
 					router.push(data?.redirect ?? "/");
-				}, 1000);
+				}, 1500);
 			}).catch((err_)=>{
 				setStatus(FAILED);
 			});
@@ -79,8 +79,8 @@ export default function GoogleOAuthRedirectPage(props:any) {
 			primaryMessage = "You're connected";
 			secondaryMessage = "Let's finish your profile so you can start making connections.";
 			icon = (
-				<Grid item sx={{width:"76px", height:"76px", backgroundColor:"rgb(237,246,255)", borderRadius:"24px"}}>
-					<CircularProgress size={"16px"} sx={{position:"relative", left:"30px", top:"30px"}}/>
+				<Grid item sx={{width:"76px", height:"76px", backgroundColor:"rgb(230,245,237)", borderRadius:"24px"}}>
+					<Check style={{width:"16px", height:"16px", position:"relative", left:"30px", top:"30px", code:"rgb(34,148,91)"}}/>
 				</Grid>
 			);
 		}

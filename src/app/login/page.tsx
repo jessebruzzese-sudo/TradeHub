@@ -214,17 +214,17 @@ export default function LoginPage() {
 		<Grid container sx={{padding:"1rem",backgroundColor:"white"}}>
 			<Grid item size={12} id={"header"}>
 				<Grid container id={"header-container"} sx={{pt:"23px", pb:"23px", pl:"34px", pr:"34px", backgroundColor:"inherit", borderBottom:"1px solid #dce3ed"}}>
-					<Grid item size={6} id={"header-lhs"}>
+					<Grid item size={{lg: 6, xs:12}} id={"header-lhs"}>
 						<Grid container sx={{justifyContent:"flex-start", alignItems:"center"}}>
 							<Grid item id={"logo"}>
 								<Image src={"new-design-logo.svg"} width={260} height={50} alt={"TradeHub - Connecting trades, simply"}/>
 							</Grid>
 						</Grid>
 					</Grid>
-					<Grid item size={6} id={"header-rhs"}>
-						<Grid container sx={{justifyContent:"flex-end", alignItems:"center", height:"100%"}}>
+					<Grid item size={{lg:6, xs:12}} id={"header-rhs"}>
+						<Grid container sx={{justifyContent:isMobile?"center":"flex-end", alignItems:"center", height:"100%"}}>
 							<Grid item id={"tagline"}>
-								<Typography variant={"body2"}>Built for Australia's trade community</Typography>
+								<Typography variant={"body2"} sx={{mt:isMobile?3:0}}>Built for Australia's trade community</Typography>
 							</Grid>
 						</Grid>
 					</Grid>
@@ -232,7 +232,7 @@ export default function LoginPage() {
 			</Grid>
 			<Grid item size={12} id={"content"}>
 				<Grid container id={"content-container"} sx={{minHeight:"600px"}}>
-					<Grid item size={6} id={"content-lhs"} 
+					<Grid item size={{lg:6, xs:12}} id={"content-lhs"} 
 							sx={{pt:"60px", pl:"42px", pr:"42px", pb:"32px", 
 							background:"linear-gradient(110deg,#000767 0%,#07348b 55%,#0068b5 100%)",
 							borderRadius:"0px 0px 0px 16px"}}>
@@ -268,7 +268,7 @@ export default function LoginPage() {
 							</Grid>
 						</Grid>
 					</Grid>
-					<Grid item size={6} id={"content-rhs"} sx={{pt:"60px", pl:"40px", pr:"40px", pb:"30px", backgroundColor:"#f7f8fa"}}>
+					<Grid item size={{lg:6, xs:12}} id={"content-rhs"} sx={{pt:"60px", pl:"40px", pr:"40px", pb:"30px", backgroundColor:"#f7f8fa"}}>
 						<Grid container sx={{justifyContent:"center"}}>
 							<Grid item sx={{maxWidth:"360px", width:"100%", margin:"0 auto"}}>
 								<Grid container sx={{textAlign:"center"}} spacing={3}>
@@ -297,7 +297,7 @@ export default function LoginPage() {
 												<img src="https://fonts.gstatic.com/s/i/productlogos/googleg/v6/24px.svg" width="18" height="18" alt="Google"/>
 												&nbsp;<span>Continue with Google</span>
 											</Button>
-											<Divider flexItem />
+											<Divider flexItem sx={{marginTop:"30px !important"}} />
 											<Typography variant={"body2"}>New to TradeHub?&nbsp;<Link href={"/signup"}><Typography variant={"link"}>Create an account</Typography></Link></Typography>
 										</Stack>
 									</Grid>
